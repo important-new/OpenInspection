@@ -1,4 +1,4 @@
-name = "openinspection-saas"
+name = "inspectorhub-core-shared"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -10,15 +10,15 @@ directory = "./public"
 
 [vars]
 ENVIRONMENT = "production"
-APP_NAME = "InspectorHub"
+APP_NAME = "InspectorHub Software"
 PRIMARY_COLOR = "#4f46e5"
 # Shared SaaS core URL
-APP_BASE_URL = "https://core.inspectorhub.cloud"
+APP_BASE_URL = "https://app.inspectorhub.io"
 APP_MODE = "saas"
 
 # ── SaaS Portal Integration ──────────────────────────────────────────────
 # These must be set via `wrangler secret put` for production
-# PORTAL_API_URL = "https://portal.inspectorhub.cloud/api/integration"
+# PORTAL_API_URL = "https://portal.inspectorhub.io/api/integration"
 # PORTAL_M2M_SECRET = "..."
 
 # ── Cloudflare Turnstile ──────────────────────────────────────────────────
@@ -30,17 +30,17 @@ TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "inspectorhub-saas-db"
-database_id = "PASTE_D1_ID_HERE"
+database_name = "inspectorhub-core-db-shared"
+database_id = "e6b0364b-0cfc-453d-9de2-5e73a5da61aa"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "TENANT_CACHE"
-id = "PASTE_KV_ID_HERE"
+id = "bd1d1e609d104cf689901ce2bcca36bf"
 
 [[r2_buckets]]
 binding = "PHOTOS"
-bucket_name = "inspectorhub-saas-photos"
+bucket_name = "inspectorhub-core-bucket-shared"
 
 [observability]
 enabled = true

@@ -31,6 +31,14 @@ import { SetupPage } from './templates/pages/setup';
 
 import coreAuthRoutes from './api/auth';
 import integrationRoutes from './api/integration';
+import inspectionsRoutes from './api/inspections';
+import aiRoutes from './api/ai';
+import bookingsRoutes from './api/bookings';
+import adminRoutes from './api/admin';
+import agentRoutes from './api/agent';
+import availabilityRoutes from './api/availability';
+import calendarRoutes from './api/calendar';
+import teamRoutes from './api/team';
 
 const app = new OpenAPIHono<HonoConfig>();
 
