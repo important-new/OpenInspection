@@ -1,0 +1,90 @@
+import { z } from '@hono/zod-openapi';
+import { createApiResponseSchema } from './shared.schema';
+
+/**
+ * Core Inspection Schema (Output)
+ */
+export const InspectionSchema = z.object({
+    id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
+    propertyAddress: z.string().openapi({ example: '123 Main St, Anytown' }),
+    clientName: z.string().nullable().openapi({ example: 'John Doe' }),
+    clientEmail: z.string().email().nullable().openapi({ example: 'john@example.com' }),
+    status: z.enum(['draft', 'completed', 'delivered']).openapi({ example: 'draft' }),
+    date: z.string().openapi({ example: '2024-03-20' }),
+    inspectorId: z.string().uuid().nullable().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
+    templateId: z.string().uuid().nullable().openapi({ example: '550e8400-e29b-41d4-a716-446655440002' }),
+    createdAt: z.string().datetime().openapi({ example: '2024-03-20T10:00:00Z' }),
+}).openapi('Inspection');
+
+/**
+ * Validation schema for list filtering and pagination.
+ */
+export const InspectionListQuerySchema = z.object({
+    limit: z.coerce.number().min(1).max(100).default(20).openapi({ example: 20 }),
+    cursor: z.string().optional().openapi({ example: 'eyJpZCI6IjU1MGU4NDAwLWUyOWItNDFkNC1hNzE2LTQ0NjY1NTQ0MDAwMCJ9' }),
+    status: z.enum(['draft', 'completed', 'delivered']).optional().openapi({ example: 'completed' }),
+    search: z.string().optional().openapi({ example: '123 Main' }),
+    inspectorId: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
+    dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').optional().openapi({ example: '2024-01-01' }),
+    dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').optional().openapi({ example: '2024-12-31' }),
+}).openapi('InspectionListQuery');
+
+/**
+ * Validation schema for creating a new inspection.
+ */
+export const CreateInspectionSchema = z.object({
+    propertyAddress: z.string().min(5, 'Property address is too short').openapi({ example: '123 Main St, Anytown' }),
+    clientName: z.string().min(1, 'Client name is required').default('Private Client').openapi({ example: 'John Doe' }),
+    clientEmail: z.string().email('Invalid email address').optional().nullable().openapi({ example: 'john@example.com' }),
+    templateId: z.string().uuid('Invalid template ID').openapi({ example: '550e8400-e29b-41d4-a716-446655440002' }),
+    inspectorId: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
+    date: z.string().datetime().optional().openapi({ example: '2024-03-20T10:00:00Z' }),
+    referredByAgentId: z.string().uuid().optional().nullable().openapi({ example: '550e8400-e29b-41d4-a716-446655440003' }),
+}).openapi('CreateInspection');
+
+/**
+ * Validation schema for patching inspection metadata.
+ */
+export const UpdateInspectionSchema = z.object({
+    propertyAddress: z.string().min(5).optional().openapi({ example: '123 Main St, Anytown' }),
+    clientName: z.string().min(1).optional().openapi({ example: 'John Doe' }),
+    clientEmail: z.string().email().optional().nullable().openapi({ example: 'john@example.com' }),
+    date: z.string().datetime().optional().openapi({ example: '2024-03-20T10:00:00Z' }),
+    inspectorId: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
+    price: z.number().min(0).optional().openapi({ example: 450 }),
+    status: z.enum(['draft', 'completed', 'delivered']).optional().openapi({ example: 'completed' }),
+}).openapi('UpdateInspection');
+
+/**
+ * Stats Schema
+ */
+export const InspectionStatsSchema = z.object({
+    total: z.number().openapi({ example: 100 }),
+    draft: z.number().openapi({ example: 20 }),
+    completed: z.number().openapi({ example: 50 }),
+    delivered: z.number().openapi({ example: 30 }),
+}).openapi('InspectionStats');
+
+/**
+ * Validation schema for inspection results patch.
+ */
+export const PatchResultsSchema = z.object({
+    data: z.record(z.string(), z.unknown()),
+}).openapi('PatchResults');
+
+/**
+ * Validation schema for bulk operations.
+ */
+export const BulkInspectionSchema = z.object({
+    ids: z.array(z.string().uuid()).min(1).max(100),
+    action: z.enum(['assignInspector', 'updateStatus']),
+    inspectorId: z.string().uuid().optional(),
+    status: z.enum(['draft', 'completed', 'delivered']).optional(),
+}).openapi('BulkInspection');
+
+/**
+ * Response Schemas
+ */
+export const InspectionResponseSchema = createApiResponseSchema(InspectionSchema).openapi('InspectionResponse');
+export const InspectionListResponseSchema = createApiResponseSchema(z.array(InspectionSchema)).openapi('InspectionListResponse');
+export const InspectionStatsResponseSchema = createApiResponseSchema(InspectionStatsSchema).openapi('InspectionStatsResponse');

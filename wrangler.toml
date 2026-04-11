@@ -1,0 +1,70 @@
+name = "openinspection"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = true
+
+[assets]
+directory = "./public"
+
+[vars]
+ENVIRONMENT = "production"
+# Cloudflare Turnstile site key — replace with your key from dash.cloudflare.com → Turnstile
+# The value below is Cloudflare's official always-pass test key (safe to use until you go live)
+TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+# Your deployed Worker URL — used to build Google OAuth callback URIs
+# Replace with your actual Workers subdomain after first deploy, e.g. "https://openinspection.your-subdomain.workers.dev"
+APP_BASE_URL = "https://openinspection.workers.dev"
+
+# ── Branding Customization (Global Defaults) ──────────────────────────────
+# These are the default values if a tenant hasn't set their own branding.
+APP_NAME = "OpenInspection"
+PRIMARY_COLOR = "#4f46e5"
+SENDER_EMAIL = "OpenInspection <noreply@example.com>"
+BILLING_URL = "https://example.com/pricing"
+SUPPORT_EMAIL = "support@example.com"
+APP_MODE = "standalone"
+SINGLE_TENANT_ID = "00000000-0000-0000-0000-000000000000"
+
+# ── Secrets — set via: wrangler secret put SECRET_NAME ──────────────────────
+# Run `npm run setup:cloudflare` to be prompted for each one interactively.
+#
+# JWT_SECRET              — Required. HS256 signing key (any long random string)
+# RESEND_API_KEY          — Optional. Resend.com API key for email delivery
+# SENDER_EMAIL            — Optional. Verified sender address, e.g. "Reports <reports@yourdomain.com>"
+# GEMINI_API_KEY          — Optional. Google Gemini API key for AI comment assist
+# TURNSTILE_SECRET_KEY    — Optional. Server-side Turnstile key (skipped if absent)
+# GOOGLE_CLIENT_ID        — Optional. Google Calendar OAuth client ID
+# GOOGLE_CLIENT_SECRET    — Optional. Google Calendar OAuth client secret
+# CF_ACCOUNT_ID           — Optional. Required only for enterprise silo mode
+# CF_API_TOKEN            — Optional. Required only for enterprise silo mode
+# GA_MEASUREMENT_ID       — Optional. Google Analytics 4 ID (e.g. G-XXXX)
+# SINGLE_TENANT_ID        — Optional. Set to a tenant ID to enable "Apex Mode" (bypass subdomain routing)
+
+# ── Cloudflare resource bindings ─────────────────────────────────────────────
+# These IDs are populated automatically by `npm run setup:cloudflare`.
+# If you are deploying manually, replace the placeholder values with your own
+# resource IDs obtained from `wrangler d1 create`, `wrangler kv namespace create`, etc.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "openinspection-db"
+database_id = "" # Handled automatically by 'Deploy to Cloudflare' button
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "TENANT_CACHE"
+id = "" # Handled automatically by 'Deploy to Cloudflare' button
+
+# Deployment Configuration
+[vars]
+SETUP_CODE = "" # Optional: Set a custom 6-digit code for first-time setup
+APP_MODE = "standalone"
+
+[observability]
+enabled = true
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "openinspection-photos"

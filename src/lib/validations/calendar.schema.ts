@@ -1,0 +1,21 @@
+import { z } from '@hono/zod-openapi';
+import { createApiResponseSchema } from './shared.schema';
+
+/**
+ * Schema for the calendar sync operation response.
+ */
+export const CalendarSyncResponseSchema = createApiResponseSchema(
+    z.object({
+        blockedDatesCreated: z.number().openapi({ example: 5 }),
+        totalEvents: z.number().openapi({ example: 12 }),
+    })
+).openapi('CalendarSyncResponse');
+
+/**
+ * Schema for a generic success response (e.g. for disconnect).
+ */
+export const CalendarSuccessResponseSchema = createApiResponseSchema(
+    z.object({
+        success: z.boolean().openapi({ example: true }),
+    })
+).openapi('CalendarSuccessResponse');

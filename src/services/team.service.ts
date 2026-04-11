@@ -1,0 +1,85 @@
+import { drizzle } from 'drizzle-orm/d1';
+import { users, tenantInvites, tenants } from '../lib/db/schema';
+import { eq, and, count } from 'drizzle-orm';
+import { UserRole } from '../types/auth';
+
+export class TeamService {
+    constructor(private db: D1Database, private env?: { RESEND_API_KEY?: string; SENDER_EMAIL?: string; APP_NAME?: string }) {}
+
+    private getDB() {
+        return drizzle(this.db);
+    }
+
+    async getMembers(tenantId: string) {
+        const db = this.getDB();
+        const activeUsers = await db.select({
+            id: users.id,
+            email: users.email,
+            role: users.role,
+            createdAt: users.createdAt
+        }).from(users).where(eq(users.tenantId, tenantId));
+
+        const pendingInvites = await db.select().from(tenantInvites)
+            .where(and(eq(tenantInvites.tenantId, tenantId), eq(tenantInvites.status, 'pending')));
+
+        return { activeUsers, pendingInvites };
+    }
+
+    async createInvite(params: {
+        tenantId: string;
+        email: string;
+        role: UserRole;
+    }) {
+        const db = this.getDB();
+
+        // 1. Quota Check
+        const tenantRecord = await db.select({ maxUsers: tenants.maxUsers })
+            .from(tenants).where(eq(tenants.id, params.tenantId)).limit(1);
+        const maxUsers = tenantRecord[0]?.maxUsers ?? 5;
+
+        const currentUsersCount = await db.select({ value: count() }).from(users).where(eq(users.tenantId, params.tenantId));
+        const pendingCount = await db.select({ value: count() }).from(tenantInvites)
+            .where(and(eq(tenantInvites.tenantId, params.tenantId), eq(tenantInvites.status, 'pending')));
+
+        const total = (currentUsersCount[0]?.value ?? 0) + (pendingCount[0]?.value ?? 0);
+        if (total >= maxUsers) {
+            throw new Error(`User limit reached (${maxUsers}). Please upgrade your plan.`);
+        }
+
+        // 2. Check if already a member
+        const existing = await db.select().from(users)
+            .where(and(eq(users.tenantId, params.tenantId), eq(users.email, params.email))).limit(1);
+        if (existing.length > 0) throw new Error('User is already a member');
+
+        // 3. Create Invite (7-day expiry)
+        const inviteToken = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        await db.insert(tenantInvites).values({
+            id: inviteToken,
+            tenantId: params.tenantId,
+            email: params.email,
+            role: params.role,
+            status: 'pending',
+            expiresAt,
+        });
+
+        return { token: inviteToken, expiresAt };
+    }
+
+    async sendInviteEmail(to: string, inviteLink: string) {
+        const { RESEND_API_KEY, SENDER_EMAIL, APP_NAME = 'OpenInspection' } = this.env ?? {};
+        if (!RESEND_API_KEY) return;
+
+        await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
+            body: JSON.stringify({
+                from: SENDER_EMAIL || 'noreply@example.com',
+                to: [to],
+                subject: `Workspace Invitation - ${APP_NAME}`,
+                html: `<p>You've been invited to join a workspace on ${APP_NAME}! Accept here: <a href="${inviteLink}">${inviteLink}</a></p><p>This link expires in 7 days.</p>`,
+            }),
+        });
+    }
+}

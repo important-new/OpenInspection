@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Base
+   ============================================================ */
+
+body {
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+[x-cloak] {
+    display: none !important;
+}
+
+textarea {
+    resize: none;
+}
+
+/* ============================================================
+   Components
+   ============================================================ */
+
+@layer components {
+    /* Glass morphism cards */
+    .glass {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .glass-dark {
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Primary action button */
+    .btn-primary {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        color: white;
+        font-weight: 700;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.6;
+        transform: none;
+        box-shadow: none;
+        cursor: not-allowed;
+    }
+
+    /* Gradient text */
+    .gradient-text {
+        background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* Table row hover effect */
+    .table-row-hover {
+        transition: all 0.2s ease;
+    }
+
+    .table-row-hover:hover {
+        background-color: rgba(248, 250, 252, 0.8);
+        transform: scale(1.002);
+    }
+
+    /* Report viewer */
+    .blur-content {
+        filter: blur(8px);
+        pointer-events: none;
+        user-select: none;
+    }
+
+    .signature-pad-wrap {
+        border: 2px dashed #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+        cursor: crosshair;
+    }
+
+    /* Scrollbar hide */
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Prose overrides */
+    .prose {
+        max-width: none;
+    }
+
+    .prose p {
+        margin-bottom: 1.5em;
+    }
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-in {
+    animation: slideIn 0.5s ease-out forwards;
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* ============================================================
+   Print styles (report page)
+   ============================================================ */
+
+@media screen {
+    .floating-print-btn {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 50;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+                    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+}
+
+@media print {
+    @page { margin: 15mm; size: A4 portrait; }
+
+    body {
+        background: white !important;
+        margin: 0;
+        padding: 0 !important;
+        color: #0f172a !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .no-print { display: none !important; }
+
+    .max-w-5xl { max-width: none !important; margin: 0 !important; }
+    .shadow-xl { box-shadow: none !important; }
+    .bg-slate-900 { background-color: #0f172a !important; color: white !important; }
+
+    .page-break  { page-break-after: always;  break-after: page; }
+    .avoid-break { page-break-inside: avoid;  break-inside: avoid; }
+
+    img { max-height: 250px; object-fit: contain; }
+    .grid { display: flex !important; flex-wrap: wrap; gap: 1rem; }
+    .grid > div { flex: 1 1 calc(50% - 1rem); }
+}
