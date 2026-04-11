@@ -29,15 +29,8 @@ import { AgreementsPage } from './templates/pages/agreements';
 import { SetupPage } from './templates/pages/setup';
 
 
-import inspectionsRoutes from './api/inspections';
-import aiRoutes from './api/ai';
-import bookingsRoutes from './api/bookings';
-import adminRoutes from './api/admin';
-import agentRoutes from './api/agent';
-import availabilityRoutes from './api/availability';
-import calendarRoutes from './api/calendar';
-import teamRoutes from './api/team';
 import coreAuthRoutes from './api/auth';
+import integrationRoutes from './api/integration';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -96,7 +89,7 @@ app.use('*', brandingMiddleware);
 app.use('*', async (c, next) => {
     const path = c.req.path;
     const isAuth = path.startsWith('/api/auth/') || path === '/login' || path === '/join';
-    const isPublic = path.startsWith('/api/public/') || path === '/book' || path === '/' || path === '/status' || path.startsWith('/static/') || path.includes('.');
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path === '/book' || path === '/' || path === '/status' || path.startsWith('/static/') || path.includes('.');
     
     if (isAuth || isPublic || path === '/setup') return next();
 
@@ -158,6 +151,7 @@ app.route('/api/agent', agentRoutes);
 app.route('/api/availability', availabilityRoutes);
 app.route('/api/calendar', calendarRoutes);
 app.route('/api/team', teamRoutes);
+app.route('/api/integration', integrationRoutes);
 
 // OpenAPI Documentation
 app.doc('/doc', {
