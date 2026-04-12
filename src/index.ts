@@ -29,6 +29,7 @@ import { AgreementsPage } from './templates/pages/agreements';
 import { SetupPage } from './templates/pages/setup';
 
 
+import coreAuthRoutes from './api/auth';
 import inspectionsRoutes from './api/inspections';
 import aiRoutes from './api/ai';
 import bookingsRoutes from './api/bookings';
@@ -37,7 +38,6 @@ import agentRoutes from './api/agent';
 import availabilityRoutes from './api/availability';
 import calendarRoutes from './api/calendar';
 import teamRoutes from './api/team';
-import coreAuthRoutes from './api/auth';
 
 const app = new OpenAPIHono<HonoConfig>();
 
