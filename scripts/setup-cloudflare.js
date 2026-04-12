@@ -1,5 +1,6 @@
 import { spawnSync } from 'child_process';
 import fs from 'fs';
+import path from 'path';
 import crypto from 'crypto';
 
 // =============================================================================
@@ -15,16 +16,14 @@ const getArg = (key) => {
 };
 
 // Configuration Paths & Naming
-const TOML_PATH = getArg('--config') || getArg('--toml') || 'wrangler.toml';
+const TOML_PATH = path.resolve(getArg('--config') || getArg('--toml') || 'wrangler.toml');
 const PROJECT_SLUG = getArg('--name') || 'openinspection';
 const PROJECT_TITLE = getArg('--app-name') || getArg('--title') || 'OpenInspection';
 
-// Dynamic Resource Naming (Aligned with wrangler.saas.toml)
-const DB_NAME = getArg('--db-name') || (TOML_PATH.includes('saas') ? 'inspectorhub-core-db-shared' : `${PROJECT_SLUG}-db`);
-const KV_NAME = getArg('--kv-name') || (TOML_PATH.includes('saas') ? 'inspectorhub-core-tenant-cache' : `${PROJECT_SLUG}-tenant-cache`);
-const BUCKETS = TOML_PATH.includes('saas') 
-    ? [`inspectorhub-core-bucket-shared`] 
-    : [`${PROJECT_SLUG}-photos`, `${PROJECT_SLUG}-photos-preview`];
+// Dynamic Resource Naming
+const DB_NAME = getArg('--db-name') || `${PROJECT_SLUG}-db`;
+const KV_NAME = getArg('--kv-name') || `${PROJECT_SLUG}-tenant-cache`;
+const BUCKETS = [`${PROJECT_SLUG}-photos`, `${PROJECT_SLUG}-photos-preview`];
 const WORKER_NAME = PROJECT_SLUG;
 
 const isForce = args.includes('--force') || args.includes('-y') || args.includes('--yes');
@@ -354,7 +353,8 @@ if (PROJECT_TITLE !== 'OpenInspection' && fs.existsSync(TOML_PATH)) {
 // 8. Generate Setup Verification Code
 step("Step 8: Generating Setup Verification Code...");
 const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-run(`npx wrangler kv key put --binding=TENANT_CACHE "setup_verification_code" "${verificationCode}" --ttl 1800 --remote -c ${TOML_PATH}`);
+const kvNamespaceId = kvId; // We already have it from Step 3
+run(`npx wrangler kv key put "setup_verification_code" "${verificationCode}" --namespace-id ${kvNamespaceId} --ttl 1800 --remote -c ${TOML_PATH}`);
 info("Verification code generated and stored in KV (expires in 30m)");
 
 // 9. Build and Deploy
@@ -375,8 +375,8 @@ const verifiedKV = finalState.kv.find(ns => ns.title === KV_NAME);
 const verifiedR2 = BUCKETS.filter(b => finalState.r2.includes(b));
 
 if (verifiedD1 && verifiedKV && verifiedR2.length === BUCKETS.length) {
-    const urlMatch = deployOutput.match(/https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev/);
-    const workerUrl = urlMatch ? urlMatch[0] : 'Unknown';
+    const urlMatch = deployOutput.match(/https?:\/\/[a-z0-9.-]+\.workers\.dev/);
+    const workerUrl = urlMatch ? urlMatch[0] : `https://${WORKER_NAME}.workers.dev`;
 
     console.log("\n╔══════════════════════════════════════════════════════╗");
     console.log("║  ✓ Setup Success: All resources verified.            ║");
