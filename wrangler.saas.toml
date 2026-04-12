@@ -13,7 +13,7 @@ ENVIRONMENT = "production"
 APP_NAME = "InspectorHub Software"
 PRIMARY_COLOR = "#4f46e5"
 # Shared SaaS core URL
-APP_BASE_URL = "https://app.inspectorhub.io"
+APP_BASE_URL = "https://openinspection.workers.dev"
 APP_MODE = "saas"
 
 # ── SaaS Portal Integration ──────────────────────────────────────────────
@@ -31,12 +31,12 @@ TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 [[d1_databases]]
 binding = "DB"
 database_name = "inspectorhub-core-db-shared"
-database_id = "e6b0364b-0cfc-453d-9de2-5e73a5da61aa"
+database_id = "b36e8f6a-4e1a-49f8-8a84-799ebf2134f3"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "TENANT_CACHE"
-id = "bd1d1e609d104cf689901ce2bcca36bf"
+id = "3b6c0d581fe440b394de3967c51907bc"
 
 [[r2_buckets]]
 binding = "PHOTOS"
@@ -44,3 +44,7 @@ bucket_name = "inspectorhub-core-bucket-shared"
 
 [observability]
 enabled = true
+
+[[routes]]
+pattern = "app.inspectorhub.io"
+custom_domain = true

@@ -20,7 +20,15 @@ async function verifyPortalSignature(c: any, next: any) {
         return c.json({ error: 'Missing signature' }, 401);
     }
 
-    const body = await c.req.raw.clone().text();
+    const rawBody = await c.req.raw.clone().text();
+    let body: string;
+    try {
+        // Normalize JSON to prevent whitespace issues between environments
+        body = JSON.stringify(JSON.parse(rawBody));
+    } catch {
+        body = rawBody;
+    }
+
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
         'raw',

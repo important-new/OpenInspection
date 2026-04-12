@@ -149,7 +149,7 @@ export class AdminService {
     /**
      * Updates tenant status and tier. Uses the integration provider to handle logic.
      */
-    async updateTenantStatus(params: TenantUpdateParams) {
+    async handleTenantUpdate(params: TenantUpdateParams) {
         if (!this.integration) {
             throw new Error('IntegrationProvider not configured');
         }
@@ -159,7 +159,7 @@ export class AdminService {
     /**
      * Connects a Stripe account for the tenant.
      */
-    async updateStripeConnect(subdomain: string, accountId: string) {
+    async handleStripeConnect(subdomain: string, accountId: string) {
         if (!this.integration) {
             throw new Error('IntegrationProvider not configured');
         }
