@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { Context } from 'hono';
 import { HonoConfig } from '../types/hono';
 import { TenantUpdateParams } from '../lib/integration';
 
@@ -7,7 +8,7 @@ const api = new Hono<HonoConfig>();
 /**
  * Middleware to verify M2M signature from Portal.
  */
-async function verifyPortalSignature(c: any, next: any) {
+async function verifyPortalSignature(c: Context<HonoConfig>, next: () => Promise<void>) {
     const signature = c.req.header('x-portal-signature');
     const secret = c.env.PORTAL_M2M_SECRET;
 
@@ -61,7 +62,7 @@ async function verifyPortalSignature(c: any, next: any) {
         return c.json({ error: 'Invalid signature' }, 401);
     }
 
-    await next();
+    return next();
 }
 
 function hexToUint8Array(hex: string) {
@@ -89,9 +90,10 @@ api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
         } as TenantUpdateParams);
         
         return c.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
         console.error('Failed to handle tenant update:', error);
-        return c.json({ error: 'Internal server error', message: error.message }, 500);
+        return c.json({ error: 'Internal server error', message }, 500);
     }
 });
 
@@ -102,15 +104,16 @@ api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
 api.post('/tenants/:subdomain/stripe-connect', verifyPortalSignature, async (c) => {
     const subdomain = c.req.param('subdomain');
     const { accountId } = await c.req.json<{ accountId: string }>();
-    
+
     const adminService = c.get('services').admin;
-    
+
     try {
-        await adminService.handleStripeConnect(subdomain, accountId);
+        await adminService.handleStripeConnect(subdomain as string, accountId);
         return c.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
         console.error('Failed to handle stripe connect:', error);
-        return c.json({ error: 'Internal server error', message: error.message }, 500);
+        return c.json({ error: 'Internal server error', message }, 500);
     }
 });
 

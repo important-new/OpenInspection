@@ -188,6 +188,7 @@ export class InspectionService {
         };
         delete (clone as { signedByClient?: boolean }).signedByClient; // Remove ephemeral field
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await this.getDrizzle().insert(inspections).values(clone as any);
         
         return {
@@ -214,14 +215,14 @@ export class InspectionService {
             const mergedData = { ...(existing.data as Record<string, unknown>), ...data };
             await db.update(inspectionResults).set({ data: mergedData, lastSyncedAt: new Date() }).where(eq(inspectionResults.id, existing.id));
         } else {
-            const insertValues: any = {
+            const insertValues = {
                 id: crypto.randomUUID(),
                 inspectionId: id,
                 tenantId,
-                data: data as any,
+                data,
                 lastSyncedAt: new Date()
-            } as any;
-            await db.insert(inspectionResults).values(insertValues as any);
+            };
+            await db.insert(inspectionResults).values(insertValues);
         }
     }
 

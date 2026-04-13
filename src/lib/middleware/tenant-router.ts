@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { tenants } from '../db/schema';
 import { HonoConfig } from '../../types/hono';
+import { logger } from '../logger';
 
 /**
  * Middleware to resolve the current tenant/workspace.
@@ -18,6 +19,7 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     }
 
     const db = drizzle(c.env.DB);
+    // eslint-disable-next-line no-useless-assignment
     let tenantId: string | null = null;
     let subdomain: string | null = null;
 
@@ -38,17 +40,12 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
         subdomain = headerSubdomain;
     }
 
-    // DEBUG LOGGING
-    console.log(`[TenantRouter] Request: ${c.req.method} ${path}`);
-    console.log(`[TenantRouter] Host: ${host}, Subdomain extracted: ${subdomain}, Mode: ${c.env.APP_MODE}`);
-
     if (c.env.APP_MODE === 'saas' && subdomain) {
         const cacheKey = `tenant:${subdomain}`;
         let cachedTenant = c.env.TENANT_CACHE ? await c.env.TENANT_CACHE.get(cacheKey, { type: 'json' }) : null;
 
         if (!cachedTenant) {
             const tenantMatch = await db.select().from(tenants).where(eq(tenants.subdomain, subdomain)).get();
-            console.log(`[TenantRouter] DB Lookup for ${subdomain}:`, tenantMatch ? 'FOUND' : 'NOT FOUND');
             if (tenantMatch) {
                 cachedTenant = tenantMatch;
                 if (c.env.TENANT_CACHE) {
@@ -58,12 +55,13 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
         }
 
         if (cachedTenant) {
-            tenantId = (cachedTenant as any).id;
-            c.set('tenantId', tenantId!);
-            c.set('resolvedTenantId', tenantId!);
-            c.set('requestedSubdomain', (cachedTenant as any).subdomain);
-            c.set('tenantTier', (cachedTenant as any).tier || 'free');
-            c.set('tenantStatus', (cachedTenant as any).status || 'active');
+            const cached = cachedTenant as Record<string, unknown>;
+            tenantId = cached.id as string;
+            c.set('tenantId', tenantId);
+            c.set('resolvedTenantId', tenantId);
+            c.set('requestedSubdomain', cached.subdomain as string);
+            c.set('tenantTier', (cached.tier as string) || 'free');
+            c.set('tenantStatus', (cached.status as string) || 'active');
         }
     } else {
         tenantId = c.env.SINGLE_TENANT_ID || '00000000-0000-0000-0000-000000000000';
@@ -80,16 +78,21 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
         }
 
         if (tenant) {
-            c.set('requestedSubdomain', (tenant as any).subdomain);
-            c.set('tenantTier', (tenant as any).tier || 'free');
-            c.set('tenantStatus', (tenant as any).status || 'active');
+            const t = tenant as Record<string, unknown>;
+            c.set('requestedSubdomain', t.subdomain as string);
+            c.set('tenantTier', (t.tier as string) || 'free');
+            c.set('tenantStatus', (t.status as string) || 'active');
         }
     }
 
     if (!c.get('tenantId') || !c.get('requestedSubdomain')) {
         const isSetupPath = path === '/setup' || path === '/api/auth/setup' || path === '/status' || path.startsWith('/api/integration');
         if (!isSetupPath && path.startsWith('/api')) {
-            console.log(`[TenantRouter] Resolution failed for ${path}. tenantId: ${c.get('tenantId')}, subdomain: ${c.get('requestedSubdomain')}`);
+            logger.info('[TenantRouter] Tenant resolution failed', {
+                path,
+                tenantId: c.get('tenantId'),
+                subdomain: c.get('requestedSubdomain'),
+            });
             return c.text('Tenant not found or system not initialized.', 503);
         }
     }

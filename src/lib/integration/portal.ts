@@ -29,15 +29,15 @@ export class PortalProvider implements IntegrationProvider {
                 id: id || crypto.randomUUID(),
                 subdomain,
                 name: name || subdomain,
-                status: (status as any) || 'active',
-                tier: (tier as any) || 'free',
+                status: (status as 'active' | 'suspended' | 'trial') || 'active',
+                tier: (tier as 'free' | 'pro' | 'enterprise') || 'free',
                 createdAt: new Date(),
             });
         } else {
             await db.update(tenants)
                 .set({
-                    status: (status as any) || existingTenant.status,
-                    tier: (tier as any) || existingTenant.tier,
+                    status: (status as 'active' | 'suspended' | 'trial') || existingTenant.status,
+                    tier: (tier as 'free' | 'pro' | 'enterprise') || existingTenant.tier,
                     name: name || existingTenant.name,
                 })
                 .where(eq(tenants.subdomain, subdomain));

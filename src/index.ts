@@ -5,6 +5,7 @@ import { getCookie } from 'hono/cookie';
 import { verify } from 'hono/jwt';
 import { drizzle } from 'drizzle-orm/d1';
 import { users } from './lib/db/schema';
+import * as schema from './lib/db/schema';
 
 import { brandingMiddleware } from './lib/middleware/branding';
 import { tenantRouter } from './lib/middleware/tenant-router';
@@ -64,22 +65,24 @@ app.get('/status', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
  * Global Error Handler
  * Standardizes all application errors into a JSON response.
  */
-app.onError((err, c) => {
+app.onError((err: unknown, c: Context<HonoConfig>) => {
     // Robust check for AppError or any object carrying a status and code
     const isAppError = err instanceof AppError || (
-        typeof (err as any).status === 'number' && 
-        typeof (err as any).code === 'string'
+        typeof err === 'object' && err !== null &&
+        'status' in err && typeof (err as Record<string, unknown>).status === 'number' &&
+        'code' in err && typeof (err as Record<string, unknown>).code === 'string'
     );
 
     if (isAppError) {
-        const appErr = err as any;
-        return sendError(c, appErr.message, appErr.code, appErr.status, appErr.details);
+        const appErr = err as Record<string, unknown>;
+        const status = appErr.status as number;
+        return sendError(c, appErr.message as string, appErr.code as string, status as 500, appErr.details as Record<string, unknown> | undefined);
     }
 
     logger.error('Unhandled application error', {
         method: c.req.method,
         url: c.req.url,
-    }, err);
+    }, err instanceof Error ? err : undefined);
 
     return sendError(c, 'Internal server error', ErrorCode.INTERNAL_ERROR, 500);
 });
@@ -143,22 +146,25 @@ app.use('*', async (c, next) => {
         const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
         const tenantId = (payload['custom:tenantId'] ?? payload['tenantId']) as string | undefined;
         const userRole = (payload['custom:userRole'] ?? payload['role']) as string | undefined;
-        
+
         if (tenantId) c.set('tenantId', tenantId);
         if (userRole) c.set('userRole', userRole as UserRole);
 
         // Also update user object in context if needed
-        c.set('user', {
-            sub: payload.sub as string,
-            email: payload.email as string,
-            role: userRole as any,
-            tenantId: tenantId as string
-        });
+        if (userRole) {
+            c.set('user', {
+                sub: payload.sub as string,
+                email: payload.email as string,
+                role: userRole as UserRole,
+                tenantId: tenantId as string
+            });
+        }
 
-    } catch (err) {
+    } catch (err: unknown) {
         // Invalid token — we don't throw here to allow public routes to work
         // but the absence of tenantId/userRole will be caught by route-level guards.
-        console.log(`[JWT] Token verification failed: ${err instanceof Error ? err.message : String(err)}`);
+        const message = err instanceof Error ? err.message : String(err);
+        logger.info(`[JWT] Token verification failed: ${message}`);
     }
 
     // --- Tenant Isolation Guard (Fail-Fast) ---
@@ -169,7 +175,7 @@ app.use('*', async (c, next) => {
         
         // If both are present and they DON'T match, it's a cross-tenant breach attempt.
         if (tokenTenantId && resolvedTenantId && tokenTenantId !== resolvedTenantId) {
-            console.warn(`[Guard] BLOCKING cross-tenant access: Token(${tokenTenantId}) -> Host(${resolvedTenantId})`);
+            logger.warn(`[Guard] BLOCKING cross-tenant access: Token(${tokenTenantId}) -> Host(${resolvedTenantId})`);
             logger.error('Cross-tenant access attempt blocked', {
                 tokenTenantId,
                 requestedTenantId: resolvedTenantId,
@@ -184,7 +190,7 @@ app.use('*', async (c, next) => {
     if (tenantIdForDb) {
         const { createScopedDb } = await import('./lib/db/scoped');
         const db = drizzle(c.env.DB);
-        c.set('sdb', createScopedDb(db as any, tenantIdForDb));
+        c.set('sdb', createScopedDb(db as unknown as ReturnType<typeof drizzle<typeof schema>>, tenantIdForDb));
     }
 
     return next();
