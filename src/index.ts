@@ -65,8 +65,15 @@ app.get('/status', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
  * Standardizes all application errors into a JSON response.
  */
 app.onError((err, c) => {
-    if (err instanceof AppError) {
-        return sendError(c, err.message, err.code, err.status, err.details);
+    // Robust check for AppError or any object carrying a status and code
+    const isAppError = err instanceof AppError || (
+        typeof (err as any).status === 'number' && 
+        typeof (err as any).code === 'string'
+    );
+
+    if (isAppError) {
+        const appErr = err as any;
+        return sendError(c, appErr.message, appErr.code, appErr.status, appErr.details);
     }
 
     logger.error('Unhandled application error', {
@@ -96,10 +103,10 @@ app.use('*', brandingMiddleware);
 // Global JWT Middleware — extracts tenantId / userRole from Bearer token or cookie.
 app.use('*', async (c, next) => {
     const path = c.req.path;
-    const isAuth = path.startsWith('/api/auth/') || path === '/login' || path === '/join';
+    const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path === '/book' || path === '/' || path === '/status' || path.startsWith('/static/') || path.includes('.');
     
-    if (isAuth || isPublic || path === '/setup') return next();
+    if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join') return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
@@ -139,8 +146,37 @@ app.use('*', async (c, next) => {
         
         if (tenantId) c.set('tenantId', tenantId);
         if (userRole) c.set('userRole', userRole as UserRole);
-    } catch {
-        // Invalid token — let individual routes decide whether to reject
+
+        // Also update user object in context if needed
+        c.set('user', {
+            id: payload.sub as string,
+            email: payload.email as string,
+            role: userRole as any,
+            tenantId
+        });
+
+    } catch (err) {
+        // Invalid token — we don't throw here to allow public routes to work
+        // but the absence of tenantId/userRole will be caught by route-level guards.
+        console.log(`[JWT] Token verification failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    // --- Tenant Isolation Guard (Fail-Fast) ---
+    // In SaaS mode, strictly verify that the token's tenant matches the requested subdomain's tenant.
+    if (c.env.APP_MODE === 'saas') {
+        const tokenTenantId = c.get('tenantId');
+        const resolvedTenantId = c.get('resolvedTenantId');
+        
+        // If both are present and they DON'T match, it's a cross-tenant breach attempt.
+        if (tokenTenantId && resolvedTenantId && tokenTenantId !== resolvedTenantId) {
+            console.warn(`[Guard] BLOCKING cross-tenant access: Token(${tokenTenantId}) -> Host(${resolvedTenantId})`);
+            logger.error('Cross-tenant access attempt blocked', {
+                tokenTenantId,
+                requestedTenantId: resolvedTenantId,
+                path: c.req.path
+            });
+            throw Errors.Forbidden('Access denied: cross-tenant authorization failure.');
+        }
     }
 
     return next();

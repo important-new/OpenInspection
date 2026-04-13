@@ -18,6 +18,7 @@ export interface BrandingConfig {
 
 export interface AuthVariables {
     tenantId: string;
+    resolvedTenantId?: string; // Explicitly tracked for isolation guard
     user: User;
     userRole: UserRole;
     requestedSubdomain?: string;

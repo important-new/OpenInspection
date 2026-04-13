@@ -3,18 +3,17 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { tenants } from '../db/schema';
 import { HonoConfig } from '../../types/hono';
+import { logger } from '../logger';
 
 /**
  * Middleware to resolve the current tenant/workspace.
- * - In SaaS mode: Resolves via Host header (subdomain).
- * - In Standalone mode: Uses a hardcoded Global Workspace ID.
  */
 export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     const url = new URL(c.req.url);
     const path = url.pathname;
-    const host = c.req.header('host') || '';
+    const hostWithPort = c.req.header('host') || '';
+    const host = hostWithPort.split(':')[0];
     
-    // Bypass for status checks and common static assets
     if (path === '/status' || path.startsWith('/static/') || path.includes('.')) {
         return next();
     }
@@ -23,26 +22,34 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     let tenantId: string | null = null;
     let subdomain: string | null = null;
 
-    // 1. Resolve Subdomain from Host
-    // app.inspectorhub.io -> global (no tenant)
-    // tenant1.inspectorhub.io -> tenant1
+    // Resolve Subdomain from Host OR Custom Header (for local testing)
     const parts = host.split('.');
-    if (parts.length >= 3) {
+    const isLocalhost = parts.length === 2 && (parts[1] === 'localhost' || parts[1] === 'local');
+    
+    if (parts.length >= 3 || isLocalhost) {
         subdomain = parts[0];
-        // Skip common system subdomains
         if (subdomain === 'www' || subdomain === 'app' || subdomain === 'api' || subdomain === 'dev') {
             subdomain = null;
         }
     }
 
-    // 2. Resolve Tenant ID
+    // Fallback to custom header for easier local testing
+    const headerSubdomain = c.req.header('x-tenant-subdomain');
+    if (headerSubdomain) {
+        subdomain = headerSubdomain;
+    }
+
+    // DEBUG LOGGING
+    console.log(`[TenantRouter] Request: ${c.req.method} ${path}`);
+    console.log(`[TenantRouter] Host: ${host}, Subdomain extracted: ${subdomain}, Mode: ${c.env.APP_MODE}`);
+
     if (c.env.APP_MODE === 'saas' && subdomain) {
-        // SaaS Multi-tenant Mode
-        const cacheKey = `tenant_by_subdomain:${subdomain}`;
+        const cacheKey = `tenant:${subdomain}`;
         let cachedTenant = c.env.TENANT_CACHE ? await c.env.TENANT_CACHE.get(cacheKey, { type: 'json' }) : null;
 
         if (!cachedTenant) {
             const tenantMatch = await db.select().from(tenants).where(eq(tenants.subdomain, subdomain)).get();
+            console.log(`[TenantRouter] DB Lookup for ${subdomain}:`, tenantMatch ? 'FOUND' : 'NOT FOUND');
             if (tenantMatch) {
                 cachedTenant = tenantMatch;
                 if (c.env.TENANT_CACHE) {
@@ -54,12 +61,12 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
         if (cachedTenant) {
             tenantId = (cachedTenant as any).id;
             c.set('tenantId', tenantId!);
+            c.set('resolvedTenantId', tenantId!);
             c.set('requestedSubdomain', (cachedTenant as any).subdomain);
             c.set('tenantTier', (cachedTenant as any).tier || 'free');
             c.set('tenantStatus', (cachedTenant as any).status || 'active');
         }
     } else {
-        // Standalone or Admin Mode (Single Workspace)
         tenantId = c.env.SINGLE_TENANT_ID || '00000000-0000-0000-0000-000000000000';
         c.set('tenantId', tenantId);
 
@@ -80,20 +87,10 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
         }
     }
 
-    // 3. Fallback / Setup Guard
     if (!c.get('tenantId') || !c.get('requestedSubdomain')) {
         const isSetupPath = path === '/setup' || path === '/api/auth/setup' || path === '/status' || path.startsWith('/api/integration');
-        
-        if (!isSetupPath && (path === '/' || path.startsWith('/dashboard') || path === '/book')) {
-            // If in SaaS mode and no subdomain, it's the landing page (which handled by index.ts)
-            // But if it's a dashboard path, we need a tenant.
-            if (c.env.APP_MODE === 'saas' && !subdomain) {
-                return next(); // Let index.ts redirect to landing
-            }
-            return c.redirect('/setup');
-        }
-
         if (!isSetupPath && path.startsWith('/api')) {
+            console.log(`[TenantRouter] Resolution failed for ${path}. tenantId: ${c.get('tenantId')}, subdomain: ${c.get('requestedSubdomain')}`);
             return c.text('Tenant not found or system not initialized.', 503);
         }
     }

@@ -16,25 +16,28 @@ export class PortalProvider implements IntegrationProvider {
 
     async handleTenantUpdate(params: TenantUpdateParams): Promise<void> {
         const db = this.getDrizzle();
-        const { subdomain, status, tier, name, adminEmail, adminPasswordHash } = params;
+        const { id, subdomain, status, tier, name, adminEmail, adminPasswordHash } = params;
 
         // Upsert tenant
-        const existingTenant = await db.query.tenants.findFirst({
-            where: eq(tenants.subdomain, subdomain),
-        });
+        const existingTenant = await db.select()
+            .from(tenants)
+            .where(eq(tenants.subdomain, subdomain))
+            .get();
 
         if (!existingTenant) {
             await db.insert(tenants).values({
+                id: id || crypto.randomUUID(),
                 subdomain,
                 name: name || subdomain,
                 status: (status as any) || 'active',
-                tier: tier || 'free',
+                tier: (tier as any) || 'free',
+                createdAt: new Date(),
             });
         } else {
             await db.update(tenants)
                 .set({
                     status: (status as any) || existingTenant.status,
-                    tier: tier || existingTenant.tier,
+                    tier: (tier as any) || existingTenant.tier,
                     name: name || existingTenant.name,
                 })
                 .where(eq(tenants.subdomain, subdomain));
@@ -42,26 +45,39 @@ export class PortalProvider implements IntegrationProvider {
 
         // Handle Admin Sync if provided
         if (adminEmail && adminPasswordHash) {
-            const existingUser = await db.query.users.findFirst({
-                where: eq(users.email, adminEmail),
-            });
+            const finalTenantId = id || existingTenant?.id;
+            if (!finalTenantId) {
+                console.error('Cannot sync admin: No tenant ID resolved');
+                return;
+            }
+
+            const existingUser = await db.select()
+                .from(users)
+                .where(eq(users.email, adminEmail))
+                .get();
 
             if (!existingUser) {
                 await db.insert(users).values({
+                    id: crypto.randomUUID(),
+                    tenantId: finalTenantId,
                     email: adminEmail,
                     passwordHash: adminPasswordHash,
                     role: 'owner',
-                    name: 'Administrator',
+                    createdAt: new Date(),
                 });
             } else {
                 await db.update(users)
-                    .set({ passwordHash: adminPasswordHash })
+                    .set({ 
+                        passwordHash: adminPasswordHash,
+                        tenantId: finalTenantId // Ensure it's correctly linked
+                    })
                     .where(eq(users.id, existingUser.id));
             }
         }
 
         // Clear cache if KV exists
         if (this.kv) {
+            // Standardized key matched with tenant-router.ts
             await this.kv.delete(`tenant:${subdomain}`);
         }
     }

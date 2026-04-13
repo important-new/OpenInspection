@@ -206,12 +206,12 @@ if (isLocal) {
     info(`.dev.vars ${fs.existsSync(varsPath) ? 'updated' : 'created'} with JWT_SECRET`);
 
     step("Step 2: Applying local database migrations...");
-    run('npx wrangler d1 migrations apply DB --local');
+    run(`npx wrangler d1 migrations apply DB --local -c ${TOML_PATH}`);
     info("Migrations applied locally");
 
     step("Step 3: Generating setup verification code (local KV)...");
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    run(`npx wrangler kv key put --binding=TENANT_CACHE "setup_verification_code" "${verificationCode}" --local`);
+    run(`npx wrangler kv key put --binding=TENANT_CACHE "setup_verification_code" "${verificationCode}" --local -c ${TOML_PATH}`);
     info("Verification code stored in local KV");
 
     if (isAutoSeed) {
