@@ -42,3 +42,10 @@ Infrastructure scripts (Setup/Teardown) must be production-ready and fault-toler
 - `src/templates/`: TSX-based SSR templates.
 - `src/lib/db/`: Drizzle schemas and migrations.
 - `public/`: Static assets and client-side JS.
+
+## 7. Multi-tenant Security (Fail-Closed Model)
+Data isolation is a top priority.
+- **Schema Injection**: New tables MUST include `tenantId: text('tenant_id').notNull().references(() => tenants.id)`.
+- **ScopedDB Priority**: Service methods MUST use `this.sdb` (ScopedDB) for CRUD operations. Avoid raw `db` unless complex joins are required.
+- **Explicit Filtering**: If raw `db` is used, every `.where()` clause MUST include `eq(table.tenantId, tenantId)`.
+- **Identity Integrity**: Never allow a client to specify `tenantId` in the request body; it must always be resolved from the JWT claim.

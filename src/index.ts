@@ -10,7 +10,7 @@ import { brandingMiddleware } from './lib/middleware/branding';
 import { tenantRouter } from './lib/middleware/tenant-router';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
-import { AppError, ErrorCode } from './lib/errors';
+import { AppError, ErrorCode, Errors } from './lib/errors';
 import { sendError } from './lib/response';
 import { HonoConfig } from './types/hono';
 import { UserRole } from './types/auth';
@@ -149,10 +149,10 @@ app.use('*', async (c, next) => {
 
         // Also update user object in context if needed
         c.set('user', {
-            id: payload.sub as string,
+            sub: payload.sub as string,
             email: payload.email as string,
             role: userRole as any,
-            tenantId
+            tenantId: tenantId as string
         });
 
     } catch (err) {

@@ -148,7 +148,7 @@ export class InspectionService {
 
         const newInspection = {
             id,
-            // tenantId is injected by sdb.insert
+            tenantId,
             inspectorId: data.inspectorId || null,
             propertyAddress: data.propertyAddress,
             clientName: data.clientName || 'Private Client',
@@ -180,6 +180,7 @@ export class InspectionService {
         const clone = {
             ...source,
             id: crypto.randomUUID(),
+            tenantId,
             date: new Date().toISOString(),
             status: 'draft' as const,
             paymentStatus: 'unpaid' as const,
@@ -187,7 +188,7 @@ export class InspectionService {
         };
         delete (clone as { signedByClient?: boolean }).signedByClient; // Remove ephemeral field
 
-        await this.getDrizzle().insert(inspections).values(clone as typeof inspections.$inferInsert);
+        await this.getDrizzle().insert(inspections).values(clone as any);
         
         return {
             ...clone,
@@ -213,13 +214,14 @@ export class InspectionService {
             const mergedData = { ...(existing.data as Record<string, unknown>), ...data };
             await db.update(inspectionResults).set({ data: mergedData, lastSyncedAt: new Date() }).where(eq(inspectionResults.id, existing.id));
         } else {
-            await db.insert(inspectionResults).values({
+            const insertValues: any = {
                 id: crypto.randomUUID(),
                 inspectionId: id,
                 tenantId,
-                data,
+                data: data as any,
                 lastSyncedAt: new Date()
-            });
+            } as any;
+            await db.insert(inspectionResults).values(insertValues as any);
         }
     }
 

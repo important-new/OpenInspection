@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { templates, inspections } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 

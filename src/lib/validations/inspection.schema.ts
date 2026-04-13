@@ -6,6 +6,7 @@ import { createApiResponseSchema } from './shared.schema';
  */
 export const InspectionSchema = z.object({
     id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
+    tenantId: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
     propertyAddress: z.string().openapi({ example: '123 Main St, Anytown' }),
     clientName: z.string().nullable().openapi({ example: 'John Doe' }),
     clientEmail: z.string().email().nullable().openapi({ example: 'john@example.com' }),

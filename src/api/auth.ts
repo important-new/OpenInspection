@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { users } from '../lib/db/schema';
 import { sign, verify } from 'hono/jwt';
@@ -15,6 +15,7 @@ import {
     SuccessResponseSchema,
     SetupSchema
 } from '../lib/validations/auth.schema';
+import { createApiResponseSchema } from '../lib/validations/shared.schema';
 
 /**
  * Interface for the decoded JWT payload.
@@ -323,11 +324,13 @@ const meRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: SuccessResponseSchema.extend({
-                        data: AuthResponseSchema.shape.data.extend({
-                            user: AuthResponseSchema.shape.data.shape.user
+                    schema: createApiResponseSchema(z.object({
+                        user: z.object({
+                            id: z.string(),
+                            tenantId: z.string().optional(),
+                            role: z.string()
                         })
-                    })
+                    }))
                 }
             },
             description: 'Success'

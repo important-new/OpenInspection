@@ -3,7 +3,6 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { tenants } from '../db/schema';
 import { HonoConfig } from '../../types/hono';
-import { logger } from '../logger';
 
 /**
  * Middleware to resolve the current tenant/workspace.
