@@ -17,13 +17,13 @@ const getArg = (key) => {
 
 // Configuration Paths & Naming
 const TOML_PATH = path.resolve(getArg('--config') || getArg('--toml') || 'wrangler.toml');
-const PROJECT_SLUG = getArg('--name') || 'openinspection';
+const PROJECT_SLUG = getArg('--name') || 'openinspection-standalone';
 const PROJECT_TITLE = getArg('--app-name') || getArg('--title') || 'OpenInspection';
 
 // Dynamic Resource Naming
 const DB_NAME = getArg('--db-name') || `${PROJECT_SLUG}-db`;
 const KV_NAME = getArg('--kv-name') || `${PROJECT_SLUG}-tenant-cache`;
-const BUCKETS = [`${PROJECT_SLUG}-photos`, `${PROJECT_SLUG}-photos-preview`];
+const BUCKETS = [`${PROJECT_SLUG}-photos`];
 const WORKER_NAME = PROJECT_SLUG;
 
 const isForce = args.includes('--force') || args.includes('-y') || args.includes('--yes');
