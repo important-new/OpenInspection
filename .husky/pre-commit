@@ -61,7 +61,29 @@ kill "$WRANGLER_PID" 2>/dev/null
 wait "$WRANGLER_PID" 2>/dev/null
 
 if [ "$BUNDLE_OK" -eq 1 ]; then
-    pass "Bundle build success"
+    # Find the main JS bundle file
+    WORKER_JS=""
+    for f in "$DIST"/*.js; do
+        if [ -f "$f" ]; then
+            WORKER_JS="$f"
+            break
+        fi
+    done
+
+    if [ -n "$WORKER_JS" ]; then
+        # Check file size (1MB = 1048576 bytes)
+        FILE_SIZE=$(wc -c < "$WORKER_JS" | tr -d ' ')
+        SIZE_LIMIT=1048576
+        SIZE_MB=$(( FILE_SIZE / 1024 ))
+
+        if [ "$FILE_SIZE" -ge "$SIZE_LIMIT" ]; then
+            fail "Bundle size ${SIZE_MB}KB exceeds 1MB limit (${WORKER_JS})"
+        else
+            pass "Bundle size: ${SIZE_MB}KB (limit: 1024KB)"
+        fi
+    else
+        fail "Bundle build failed (no JS output)"
+    fi
 else
     fail "Bundle build failed (no output)"
 fi
