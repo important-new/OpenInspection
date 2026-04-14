@@ -57,4 +57,4 @@ enabled = true
 
 [[r2_buckets]]
 binding = "PHOTOS"
-bucket_name = "openinspection-photos"
+bucket_name = "openinspection-standalone-photos"
