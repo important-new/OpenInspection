@@ -5,11 +5,11 @@ import { Errors } from '../lib/errors';
 import { z } from 'zod';
 import { InspectionSchema, InspectionListQuerySchema, CreateInspectionSchema } from '../lib/validations/inspection.schema';
 
+import { ScopedDB } from '../lib/db/scoped';
+
 type Inspection = z.infer<typeof InspectionSchema>;
 type InspectionListParams = z.infer<typeof InspectionListQuerySchema>;
 type CreateInspectionData = z.infer<typeof CreateInspectionSchema>;
-
-import { ScopedDB } from '../lib/db/scoped';
 
 /**
  * Service to handle all inspection-related business logic.
@@ -111,16 +111,16 @@ export class InspectionService {
         const result = await this.sdb.getById(inspections, id);
         if (!result) throw Errors.NotFound('Inspection not found');
 
-        const template = result.templateId 
+        const template = result.templateId
             ? await this.sdb.getById(templates, result.templateId as string)
             : null;
         const signed = await this.sdb.raw.select().from(inspectionAgreements)
             .where(and(eq(inspectionAgreements.inspectionId, id), eq(inspectionAgreements.tenantId, tenantId)))
             .get();
 
-        return { 
-            inspection: { 
-                ...result, 
+        return {
+            inspection: {
+                ...result,
                 id: result.id as string,
                 propertyAddress: result.propertyAddress as string,
                 clientName: result.clientName as string | null,
@@ -130,9 +130,9 @@ export class InspectionService {
                 inspectorId: result.inspectorId as string | null,
                 templateId: result.templateId as string | null,
                 createdAt: result.createdAt.toISOString(),
-                signedByClient: !!signed 
-            }, 
-            template: template || null 
+                signedByClient: !!signed
+            },
+            template: template || null
         };
     }
 
@@ -161,14 +161,13 @@ export class InspectionService {
         };
 
         await this.sdb.insert(inspections, newInspection);
-        
+
         return {
             ...newInspection,
-            tenantId,
             clientEmail: newInspection.clientEmail as string | null,
             inspectorId: newInspection.inspectorId as string | null,
             createdAt: newInspection.createdAt.toISOString()
-        };
+        } as Inspection;
     }
 
     /**
@@ -176,7 +175,7 @@ export class InspectionService {
      */
     async cloneInspection(id: string, tenantId: string): Promise<Inspection> {
         const { inspection: source } = await this.getInspection(id, tenantId);
-        
+
         const clone = {
             ...source,
             id: crypto.randomUUID(),
@@ -190,7 +189,7 @@ export class InspectionService {
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await this.getDrizzle().insert(inspections).values(clone as any);
-        
+
         return {
             ...clone,
             createdAt: clone.createdAt.toISOString()
