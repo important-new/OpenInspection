@@ -362,7 +362,10 @@ if (PROJECT_TITLE !== 'OpenInspection' && fs.existsSync(TOML_PATH)) {
 step("Step 8: Generating Setup Verification Code...");
 const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 const kvNamespaceId = kvId; // We already have it from Step 3
-run(`npx wrangler kv key put "setup_verification_code" "${verificationCode}" --namespace-id ${kvNamespaceId} --ttl 86400 --remote -c ${TOML_PATH}`);
+const kvPutOutput = run(`npx wrangler kv key put "setup_verification_code" "${verificationCode}" --namespace-id "${kvNamespaceId}" --ttl 86400`, { silent: true, ignoreError: true });
+if (kvPutOutput.includes('error') || kvPutOutput.includes('ERROR')) {
+    die(`Failed to store verification code in KV: ${kvPutOutput}`);
+}
 info("Verification code generated and stored in KV (expires in 24h)");
 
 // 9. Build and Deploy
