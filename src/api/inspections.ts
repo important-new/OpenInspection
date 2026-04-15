@@ -31,6 +31,7 @@ const listInspectionsRoute = createRoute({
     tags: ['Inspections'],
     summary: 'List inspections',
     description: 'Retrieve a paginated list of inspections with optional filtering.',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         query: InspectionListQuerySchema,
     },

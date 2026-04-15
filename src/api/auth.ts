@@ -278,7 +278,7 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
     const db = drizzle(c.env.DB);
     const existingUser = await db.select().from(users).limit(1).get();
     if (existingUser) {
-        return c.json({ success: false, message: 'System already initialized' }, 403);
+        return c.json({ success: false, message: 'System already initialized' }, 409);
     }
 
 

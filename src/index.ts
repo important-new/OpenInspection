@@ -58,7 +58,7 @@ app.use('*', async (c, next) => {
 });
 
 // Health check
-app.get('/status', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/status', (c) => c.json({ status: 'Core Engine Online', timestamp: new Date().toISOString() }));
 
 
 /**
@@ -258,6 +258,9 @@ app.get('/login', (c) => {
 app.get('/setup', (c) => {
     return c.html(SetupPage({ branding: c.get('branding') }));
 });
+
+// POST /setup — alias for /api/auth/setup (used by tests and setup wizard JS)
+app.post('/setup', (c) => c.redirect('/api/auth/setup', 307));
 
 app.get('/book', (c) => {
     const branding = c.get('branding');
