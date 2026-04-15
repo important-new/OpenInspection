@@ -52,7 +52,7 @@ if [ $? -eq 0 ]; then
 else
     fail "Bundle build failed (no output)"
 fi
-rm -rf "$DIST"
+rm -rf "$DIST" "$WRANGLER_LOG"
 
 if [ "$FAILED" -eq 1 ]; then
     echo "\n${RED}Pre-commit checks failed. Fix the errors before committing.${NC}"
