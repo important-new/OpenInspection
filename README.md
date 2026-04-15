@@ -45,6 +45,19 @@ The script will create your database (D1), object storage (R2), and configuratio
 2. Apply database migrations: `npm run db:migrate:remote`.
 3. Deploy your worker: `npm run deploy`.
 
+## Prefer a Managed Setup?
+
+If you'd rather skip the infrastructure work, **[InspectorHub](https://inspectorhub.io/)** offers a fully-hosted version of this software — same codebase, managed for you.
+
+- 30-day free trial, no credit card required
+- Simple per-seat pricing, no other paywalls
+- 30-day money-back guarantee
+- Upgrade to self-hosted at any time — your data, your choice
+
+[Try InspectorHub free →](https://inspectorhub.io/)
+
+---
+
 ## Support & Scalability
 
 - **Scaling for Private Use**: If you need to manage multiple separate businesses, simply deploy multiple instances of OpenInspection. Each instance is completely isolated, ensuring maximum security and data privacy.

@@ -13,6 +13,7 @@ import { AgreementService } from '../../services/agreement.service';
 import { AvailabilityService } from '../../services/booking.service';
 
 import { StandaloneProvider } from '../integration/standalone';
+import { PortalProvider } from '../integration/portal';
 
 /**
  * Middleware that injects a lazy-loaded service registry into the Hono context.
@@ -30,9 +31,11 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
             switch (prop) {
                 case 'admin':
                     {
-                        // In the open-source version, we use the StandaloneProvider by default.
-                        // Integration with an external portal is handled in a separate branch (private-deploy).
-                        const provider = new StandaloneProvider(c.env.DB, c.env.TENANT_CACHE);
+                        // Select provider based on environment configuration
+                        const provider = c.env.PORTAL_API_URL 
+                            ? new PortalProvider(c.env.DB, c.env.TENANT_CACHE)
+                            : new StandaloneProvider(c.env.DB, c.env.TENANT_CACHE);
+                            
                         target.admin = new AdminService(c.env.DB, provider);
                     }
                     break;
@@ -52,7 +55,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.email = new EmailService(c.env.RESEND_API_KEY, c.env.SENDER_EMAIL, c.env.APP_NAME);
                     break;
                 case 'inspection':
-                    target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS);
+                    target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS, c.get('sdb'));
                     break;
                 case 'team':
                     target.team = new TeamService(c.env.DB, c.env);

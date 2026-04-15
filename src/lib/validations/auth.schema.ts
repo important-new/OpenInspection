@@ -83,7 +83,7 @@ export const SetupSchema = z.object({
     password: z.string().min(8, 'Password must be at least 8 characters long').openapi({
         example: 'p@ssword123'
     }),
-    verificationCode: z.string().min(6, 'Verification code is required').openapi({
+    verificationCode: z.string().min(6).optional().openapi({
         example: '123456'
     }),
 });

@@ -21,7 +21,6 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     }
 
     const db = drizzle(c.env.DB);
-     
     let tenantId: string | null = null;
     let subdomain: string | null = null;
 
