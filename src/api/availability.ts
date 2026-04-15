@@ -4,6 +4,7 @@ import { eq, and } from 'drizzle-orm';
 import { availability, availabilityOverrides } from '../lib/db/schema';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { requireRole } from '../lib/middleware/rbac';
 import { 
     AvailabilitySchema, 
     OverrideSchema,
@@ -24,6 +25,7 @@ const listAvailabilityRoute = createRoute({
     path: '/',
     tags: ['Availability'],
     summary: 'List recurring availability',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         query: z.object({
             inspectorId: z.string().uuid().optional(),
@@ -71,6 +73,7 @@ const updateScheduleRoute = createRoute({
     path: '/',
     tags: ['Availability'],
     summary: 'Update weekly schedule',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         body: {
             content: {
@@ -118,6 +121,7 @@ const listOverridesRoute = createRoute({
     path: '/overrides',
     tags: ['Availability'],
     summary: 'List availability overrides',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         query: z.object({
             inspectorId: z.string().uuid().optional(),
@@ -163,6 +167,7 @@ const createOverrideRoute = createRoute({
     path: '/overrides',
     tags: ['Availability'],
     summary: 'Add availability override',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         body: {
             content: {
@@ -217,6 +222,7 @@ const deleteOverrideRoute = createRoute({
     path: '/overrides/{id}',
     tags: ['Availability'],
     summary: 'Delete availability override',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         params: z.object({ id: z.string().uuid() }),
     },

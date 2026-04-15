@@ -23,9 +23,10 @@ The Open Source version is designed as a **Single-Workspace System**. This means
 The fastest way to get started. No local Node.js required:
 1. Click the **Deploy to Cloudflare** button above.
 2. Follow the Cloudflare dashboard prompts to create your D1 database and KV namespace.
-3. During deployment, Cloudflare will prompt you for a **SETUP_CODE**. Set this to any 6-digit code (this will be your one-time setup password).
-4. Once deployed, visit your Worker URL (e.g., `https://openinspection.workers.dev/setup`).
-5. Enter the code you chose in step 3 to initialize your admin account.
+3. Once deployed, visit your Worker URL (e.g., `https://openinspection.workers.dev/setup`).
+4. A 6-digit setup code will be automatically generated and logged by the system. Enter this code to initialize your admin account.
+
+> **Note**: If you don't see the setup code in your deployment logs, run `npm run setup:cloudflare -- --refresh-setup-code` after deployment to generate a new one.
 
 
 ### 2. Automated Install (CLI-First)
@@ -43,6 +44,19 @@ The script will create your database (D1), object storage (R2), and configuratio
 1. Set `SINGLE_TENANT_ID = "00000000-0000-0000-0000-000000000000"` in your `wrangler.toml`.
 2. Apply database migrations: `npm run db:migrate:remote`.
 3. Deploy your worker: `npm run deploy`.
+
+## Prefer a Managed Setup?
+
+If you'd rather skip the infrastructure work, **[InspectorHub](https://inspectorhub.io/)** offers a fully-hosted version of this software — same codebase, managed for you.
+
+- 30-day free trial, no credit card required
+- Simple per-seat pricing, no other paywalls
+- 30-day money-back guarantee
+- Upgrade to self-hosted at any time — your data, your choice
+
+[Try InspectorHub free →](https://inspectorhub.io/)
+
+---
 
 ## Support & Scalability
 

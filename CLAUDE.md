@@ -38,7 +38,7 @@ npm run deploy       # Deploy to Cloudflare Workers
 ### Standalone Engine (Single-Tenant)
 - Optimized for single-tenant deployments (Private Instances).
 - Resolves configuration via a fixed `SINGLE_TENANT_ID`.
-- Clean and stable API surface for all inspection management operations.
+- Stable API surface designed to be extended by SaaS overlay branches (e.g., `saas` branch).
 
 ### Inspection Engine
 - JSON-schema based inspection templates.
@@ -59,9 +59,14 @@ npm run deploy       # Deploy to Cloudflare Workers
 
 ---
 
-## Development Patterns
-
 - **Framework**: [Hono](https://hono.dev/) with Zod OpenAPI.
 - **ORM**: [Drizzle ORM](https://orm.drizzle.team/) with D1.
 - **CSS**: [Tailwind CSS](https://tailwindcss.com/).
 - **Testing**: Vitest for unit tests; Playwright for E2E.
+
+## Multi-tenant Security Rules
+
+- **Mandatory tenantId**: Every new database table MUST include `tenantId: text('tenant_id').notNull()` to ensure physical isolation.
+- **Fail-Closed Access**: Use `this.sdb` (`ScopedDB`) for all database operations to automatically inject tenant filters.
+- **Query Hardening**: If using raw `db`, you MUST explicitly append `eq(table.tenantId, tenantId)` to every `where` clause.
+- **Schema Validation**: All input schemas (`CreateXSchema`) must ensure `tenantId` is handled via context, never accepted directly from end-user input.

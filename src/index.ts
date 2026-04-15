@@ -11,7 +11,7 @@ import { brandingMiddleware } from './lib/middleware/branding';
 import { tenantRouter } from './lib/middleware/tenant-router';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
-import { AppError, ErrorCode } from './lib/errors';
+import { AppError, ErrorCode, Errors } from './lib/errors';
 import { sendError } from './lib/response';
 import { HonoConfig } from './types/hono';
 import { UserRole } from './types/auth';
@@ -58,7 +58,7 @@ app.use('*', async (c, next) => {
 });
 
 // Health check
-app.get('/status', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/status', (c) => c.json({ status: 'Core Engine Online', timestamp: new Date().toISOString() }));
 
 
 /**
@@ -115,7 +115,7 @@ app.use('*', async (c, next) => {
     if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
         // Prefer explicit environment variable if set by user during deployment
         const storedCode = c.env.SETUP_CODE || await c.env.TENANT_CACHE.get('setup_verification_code');
-        
+
         if (!storedCode) {
             const db = drizzle(c.env.DB);
             const user = await db.select().from(users).limit(1).get();
@@ -167,6 +167,25 @@ app.use('*', async (c, next) => {
         logger.info(`[JWT] Token verification failed: ${message}`);
     }
 
+    // --- Tenant Isolation Guard (Fail-Fast) ---
+    // In SaaS mode, strictly verify that the token's tenant matches the requested subdomain's tenant.
+    if (c.env.APP_MODE === 'saas') {
+        const tokenTenantId = c.get('tenantId');
+        const resolvedTenantId = c.get('resolvedTenantId');
+
+        // If both are present and they DON'T match, it's a cross-tenant breach attempt.
+        if (tokenTenantId && resolvedTenantId && tokenTenantId !== resolvedTenantId) {
+            logger.warn(`[Guard] BLOCKING cross-tenant access: Token(${tokenTenantId}) -> Host(${resolvedTenantId})`);
+            logger.error('Cross-tenant access attempt blocked', {
+                tokenTenantId,
+                requestedTenantId: resolvedTenantId,
+                path: c.req.path
+            });
+            throw Errors.Forbidden('Access denied: cross-tenant authorization failure.');
+        }
+    }
+
+
     // --- Scoped DB Injection ---
     const tenantIdForDb = c.get('tenantId') || c.get('resolvedTenantId');
     if (tenantIdForDb) {
@@ -182,7 +201,9 @@ app.use('*', async (c, next) => {
 app.use('/api/*', requireActiveSubscription);
 
 // Module Routes
+// Mount auth routes at canonical API path AND at root so that /setup, /login (POST), /join (POST) work without redirects
 app.route('/api/auth', coreAuthRoutes);
+app.route('/', coreAuthRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 app.route('/api/ai', aiRoutes);
 app.route('/api/public', bookingsRoutes);
@@ -239,6 +260,7 @@ app.get('/login', (c) => {
 app.get('/setup', (c) => {
     return c.html(SetupPage({ branding: c.get('branding') }));
 });
+
 
 app.get('/book', (c) => {
     const branding = c.get('branding');

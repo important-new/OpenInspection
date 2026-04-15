@@ -36,17 +36,21 @@ fi
 step "Bundle size check"
 DIST="./.dist-pre-commit"
 rm -rf "$DIST"
-if npx wrangler deploy --dry-run --outdir "$DIST" > /dev/null 2>&1; then
-    # Note: On Windows/Standard sh, we'll try to find the JS file
-    WORKER_JS=$(ls "$DIST"/*.js 2>/dev/null | head -1)
-    if [ -n "$WORKER_JS" ]; then
-        # This part might need gzip available in terminal
-        pass "Bundle build success"
+BUNDLE_OUTPUT=$(npx wrangler deploy --dry-run --outdir "$DIST" 2>&1)
+if [ $? -eq 0 ]; then
+    GZIP_KB=$(echo "$BUNDLE_OUTPUT" | grep "Total Upload" | grep -oE 'gzip: [0-9]+\.[0-9]+' | grep -oE '[0-9]+\.[0-9]+')
+    if [ -n "$GZIP_KB" ]; then
+        GZIP_INT=$(echo "$GZIP_KB" | cut -d'.' -f1)
+        if [ "$GZIP_INT" -ge 1024 ]; then
+            fail "Bundle too large: ${GZIP_KB} KiB gzip (limit: 1024 KiB)"
+        else
+            pass "Bundle size: ${GZIP_KB} KiB gzip (limit: 1024 KiB)"
+        fi
     else
-        echo "  ⚠  Bundle check: no output detected"
+        echo "  ⚠  Bundle check: could not parse gzip size"
     fi
 else
-    fail "Bundle build failed"
+    fail "Bundle build failed (no output)"
 fi
 rm -rf "$DIST"
 
@@ -57,4 +61,3 @@ fi
 
 echo "\n${GREEN}All pre-commit checks passed.${NC}"
 exit 0
-

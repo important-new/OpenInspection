@@ -49,6 +49,17 @@ export default function globalSetup() {
             'npx wrangler d1 execute openinspection-db --local --file "tests/.reset-core-db.sql"',
             { cwd: appDir, stdio: 'pipe' },
         );
+
+        // Clear setup verification code from KV so POST /setup works without a code
+        try {
+            execSync(
+                'npx wrangler kv key delete "setup_verification_code" --namespace-id TENANT_CACHE --local',
+                { cwd: appDir, stdio: 'pipe' },
+            );
+        } catch {
+            // Key may not exist — that's fine
+        }
+
         console.info('\n[globalSetup] Local D1 cleared — all tests will run against a fresh workspace.\n');
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
