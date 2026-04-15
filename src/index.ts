@@ -115,7 +115,7 @@ app.use('*', async (c, next) => {
     if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
         // Prefer explicit environment variable if set by user during deployment
         const storedCode = c.env.SETUP_CODE || await c.env.TENANT_CACHE.get('setup_verification_code');
-        
+
         if (!storedCode) {
             const db = drizzle(c.env.DB);
             const user = await db.select().from(users).limit(1).get();

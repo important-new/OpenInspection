@@ -92,7 +92,7 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     }
 
     if (!c.get('tenantId') || !c.get('requestedSubdomain')) {
-        const isSetupPath = path === '/setup' || path === '/api/auth/setup' || path === '/status' || path.startsWith('/api/integration');
+        const isSetupPath = path === '/setup' || path === '/login' || path === '/api/auth/setup' || path === '/api/auth/login' || path === '/status' || path.startsWith('/api/integration');
         if (!isSetupPath && path.startsWith('/api')) {
             logger.info('[TenantRouter] Tenant resolution failed', {
                 path,

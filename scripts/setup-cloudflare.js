@@ -17,13 +17,13 @@ const getArg = (key) => {
 
 // Configuration Paths & Naming
 const TOML_PATH = path.resolve(getArg('--config') || getArg('--toml') || 'wrangler.toml');
-const PROJECT_SLUG = getArg('--name') || 'openinspection';
+const PROJECT_SLUG = getArg('--name') || 'openinspection-standalone';
 const PROJECT_TITLE = getArg('--app-name') || getArg('--title') || 'OpenInspection';
 
 // Dynamic Resource Naming
 const DB_NAME = getArg('--db-name') || `${PROJECT_SLUG}-db`;
 const KV_NAME = getArg('--kv-name') || `${PROJECT_SLUG}-tenant-cache`;
-const BUCKETS = [`${PROJECT_SLUG}-photos`, `${PROJECT_SLUG}-photos-preview`];
+const BUCKETS = [`${PROJECT_SLUG}-photos`];
 const WORKER_NAME = PROJECT_SLUG;
 
 const isForce = args.includes('--force') || args.includes('-y') || args.includes('--yes');
@@ -170,9 +170,9 @@ if (isRefreshCode) {
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const refreshCmd = isLocal
         ? `npx wrangler kv key put --binding=TENANT_CACHE "setup_verification_code" "${verificationCode}" --local`
-        : `npx wrangler kv key put --binding=TENANT_CACHE "setup_verification_code" "${verificationCode}" --ttl 1800 -c ${TOML_PATH}`;
+        : `npx wrangler kv key put --binding=TENANT_CACHE "setup_verification_code" "${verificationCode}" --ttl 86400 --remote -c ${TOML_PATH}`;
     run(refreshCmd);
-    info(`New verification code generated and stored in ${isLocal ? 'local ' : ''}KV${isLocal ? '' : ' (expires in 30m)'}`);
+    info(`New verification code generated and stored in ${isLocal ? 'local ' : ''}KV${isLocal ? '' : ' (expires in 24h)'}`);
     console.log("\n╔══════════════════════════════════════════════════════╗");
     console.log(`║  🔑 New Verification Code: ${verificationCode}               ║`);
     console.log("╚══════════════════════════════════════════════════════╝\n");
@@ -315,6 +315,14 @@ if (conflictKV) {
 if (!kvId) die(`Could not determine KV namespace ID. Status: ${initialState.kv.length > 0 ? 'Not found in list' : 'Empty list'}`);
 info(`KV namespace ID: ${kvId}`);
 
+// Clean up orphaned KV namespaces created automatically by Cloudflare Pages
+const orphanedKV = initialState.kv.find(ns => ns.title === WORKER_NAME && ns.id !== kvId);
+if (orphanedKV) {
+    step(`Cleaning up orphaned KV namespace: ${orphanedKV.title}...`);
+    run(`npx wrangler kv namespace delete --namespace-id ${orphanedKV.id}`, { ignoreError: true, silent: true });
+    info("Orphaned KV namespace deleted");
+}
+
 // 5. Create R2 Buckets
 step("Step 4: Creating R2 buckets...");
 for (const bucket of BUCKETS) {
@@ -354,8 +362,11 @@ if (PROJECT_TITLE !== 'OpenInspection' && fs.existsSync(TOML_PATH)) {
 step("Step 8: Generating Setup Verification Code...");
 const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 const kvNamespaceId = kvId; // We already have it from Step 3
-run(`npx wrangler kv key put "setup_verification_code" "${verificationCode}" --namespace-id ${kvNamespaceId} --ttl 1800 --remote -c ${TOML_PATH}`);
-info("Verification code generated and stored in KV (expires in 30m)");
+const kvPutOutput = run(`npx wrangler kv key put "setup_verification_code" "${verificationCode}" --namespace-id "${kvNamespaceId}" --ttl 86400 --remote`, { silent: true, ignoreError: true });
+if (kvPutOutput.includes('error') || kvPutOutput.includes('ERROR')) {
+    die(`Failed to store verification code in KV: ${kvPutOutput}`);
+}
+info("Verification code generated and stored in KV (expires in 24h)");
 
 // 9. Build and Deploy
 step("Step 9: Building CSS and deploying Worker...");
