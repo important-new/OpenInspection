@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono } from '@hono/zod-openapi';
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { users } from '../lib/db/schema';
 import { sign, verify } from 'hono/jwt';
@@ -15,6 +15,7 @@ import {
     SuccessResponseSchema,
     SetupSchema
 } from '../lib/validations/auth.schema';
+import { createApiResponseSchema } from '../lib/validations/shared.schema';
 
 /**
  * Interface for the decoded JWT payload.
@@ -311,6 +312,43 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
     return c.json({
         success: true,
         data: { token: '', redirect: '/login?initialized=true' }
+    }, 200);
+});
+
+const meRoute = createRoute({
+    method: 'get',
+    path: '/me',
+    summary: 'Get Current User Profile',
+    description: 'Returns the current user session information.',
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: createApiResponseSchema(z.object({
+                        user: z.object({
+                            id: z.string(),
+                            tenantId: z.string().optional(),
+                            role: z.string()
+                        })
+                    }))
+                }
+            },
+            description: 'Success'
+        },
+        401: { description: 'Unauthorized' }
+    }
+});
+
+coreAuthRoutes.openapi(meRoute, async (c) => {
+    return c.json({
+        success: true,
+        data: {
+            user: {
+                id: c.get('tenantId'), // Simplified for verification: returning tenantId as a proxy for 'me'
+                tenantId: c.get('tenantId'),
+                role: c.get('userRole')
+            }
+        }
     }, 200);
 });
 

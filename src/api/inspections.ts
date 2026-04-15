@@ -490,7 +490,7 @@ inspectionsRoutes.openapi(getResultsRoute, async (c) => {
     const { id } = c.req.valid('param');
     const db = drizzle(c.env.DB);
     await c.var.services.inspection.getInspection(id, c.get('tenantId'));
-    const results = await db.select().from(inspectionResults).where(eq(inspectionResults.inspectionId, id)).get();
+    const results = await db.select().from(inspectionResults).where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, c.get('tenantId')))).get();
     return c.json({ success: true, data: { data: (results?.data || {}) } }, 200);
 });
 
@@ -689,7 +689,7 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     const { inspection, template } = await service.getInspection(id!, c.get('tenantId'));
     
     const db = drizzle(c.env.DB);
-    const results = await db.select().from(inspectionResults).where(eq(inspectionResults.inspectionId, id)).get();
+    const results = await db.select().from(inspectionResults).where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, c.get('tenantId')))).get();
 
     return c.html(renderProfessionalReport({
         inspection: inspection as never,

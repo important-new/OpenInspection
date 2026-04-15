@@ -11,7 +11,7 @@ import { brandingMiddleware } from './lib/middleware/branding';
 import { tenantRouter } from './lib/middleware/tenant-router';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
-import { AppError, ErrorCode } from './lib/errors';
+import { AppError, ErrorCode, Errors } from './lib/errors';
 import { sendError } from './lib/response';
 import { HonoConfig } from './types/hono';
 import { UserRole } from './types/auth';
@@ -165,6 +165,24 @@ app.use('*', async (c, next) => {
         // but the absence of tenantId/userRole will be caught by route-level guards.
         const message = err instanceof Error ? err.message : String(err);
         logger.info(`[JWT] Token verification failed: ${message}`);
+    }
+
+    // --- Tenant Isolation Guard (Fail-Fast) ---
+    // In SaaS mode, strictly verify that the token's tenant matches the requested subdomain's tenant.
+    if (c.env.APP_MODE === 'saas') {
+        const tokenTenantId = c.get('tenantId');
+        const resolvedTenantId = c.get('resolvedTenantId');
+
+        // If both are present and they DON'T match, it's a cross-tenant breach attempt.
+        if (tokenTenantId && resolvedTenantId && tokenTenantId !== resolvedTenantId) {
+            logger.warn(`[Guard] BLOCKING cross-tenant access: Token(${tokenTenantId}) -> Host(${resolvedTenantId})`);
+            logger.error('Cross-tenant access attempt blocked', {
+                tokenTenantId,
+                requestedTenantId: resolvedTenantId,
+                path: c.req.path
+            });
+            throw Errors.Forbidden('Access denied: cross-tenant authorization failure.');
+        }
     }
 
     // --- Scoped DB Injection ---
