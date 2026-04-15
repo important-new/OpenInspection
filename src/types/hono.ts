@@ -31,8 +31,12 @@ export interface AppEnv {
     BILLING_URL?: string;
     CF_ACCOUNT_ID?: string;
     CF_API_TOKEN?: string;
-    APP_MODE?: 'standalone';
-    INTEGRATION_SECRET?: string;
+    APP_MODE?: 'standalone' | 'saas';
+    SETUP_CODE?: string;
+
+    // SaaS Portal Integration
+    PORTAL_API_URL?: string;
+    PORTAL_M2M_SECRET?: string;
 }
 
 import { AdminService } from '../services/admin.service';
