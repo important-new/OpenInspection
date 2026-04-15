@@ -185,6 +185,7 @@ app.use('*', async (c, next) => {
         }
     }
 
+
     // --- Scoped DB Injection ---
     const tenantIdForDb = c.get('tenantId') || c.get('resolvedTenantId');
     if (tenantIdForDb) {

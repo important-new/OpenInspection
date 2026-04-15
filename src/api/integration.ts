@@ -44,7 +44,7 @@ async function verifyPortalSignature(c: Context<HonoConfig>, next: () => Promise
 
     const [timestamp, hash] = sigParts;
     const data = `${timestamp}.${body}`;
-    
+
     // Verify timestamp (within 5 minutes)
     const now = Math.floor(Date.now() / 1000);
     if (Math.abs(now - parseInt(timestamp)) > 300) {
@@ -80,15 +80,15 @@ function hexToUint8Array(hex: string) {
 api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
     const subdomain = c.req.param('subdomain');
     const body = await c.req.json<Partial<TenantUpdateParams>>();
-    
+
     const adminService = c.get('services').admin;
-    
+
     try {
         await adminService.handleTenantUpdate({
             ...body,
             subdomain,
         } as TenantUpdateParams);
-        
+
         return c.json({ success: true });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';

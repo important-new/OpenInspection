@@ -33,7 +33,7 @@ export interface AppEnv {
     CF_API_TOKEN?: string;
     APP_MODE?: 'standalone' | 'saas';
     SETUP_CODE?: string;
-    
+
     // SaaS Portal Integration
     PORTAL_API_URL?: string;
     PORTAL_M2M_SECRET?: string;
