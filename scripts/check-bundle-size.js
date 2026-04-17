@@ -8,6 +8,7 @@ const cmd = isWin ? 'npx.cmd' : 'npx';
 
 const child = spawn(cmd, ['wrangler', 'deploy', '--dry-run', '--outdir', 'dist'], {
     env: { ...process.env, CI: 'true' },
+    shell: isWin,
     detached: !isWin // use detached on posix to kill process group
 });
 
