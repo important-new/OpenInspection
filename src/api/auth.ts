@@ -28,6 +28,7 @@ export interface AuthPayload {
     'custom:userRole': string;
     role: string;
     exp: number;
+    iat?: number;
 }
 
 const coreAuthRoutes = new OpenAPIHono<HonoConfig>();
@@ -69,6 +70,7 @@ coreAuthRoutes.openapi(loginRoute, async (c) => {
         'custom:tenantId': user.tenantId,
         'custom:userRole': user.role,
         role: user.role,
+        iat: now,
         exp: now + 60 * 60 * 24,
     }, c.env.JWT_SECRET, 'HS256');
 
@@ -157,8 +159,9 @@ coreAuthRoutes.openapi(joinTeamRoute, async (c) => {
         'custom:tenantId': user.tenantId,
         'custom:userRole': user.role,
         role: user.role,
+        iat: now,
         exp: now + 60 * 60 * 24,
-    }, c.env.JWT_SECRET);
+    }, c.env.JWT_SECRET, 'HS256');
 
     setCookie(c, 'inspector_token', token, {
         httpOnly: true,
@@ -201,9 +204,8 @@ coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
     
     if (!resetToken) return c.json({ success: true, data: { success: true } }, 200);
 
-    const protocol = c.req.url.startsWith('https') ? 'https' : 'http';
-    const host = c.req.header('host');
-    const resetLink = `${protocol}://${host}/login?reset_token=${resetToken}`;
+    const baseUrl = c.env.APP_BASE_URL || 'http://localhost:8788';
+    const resetLink = `${baseUrl}/login?reset_token=${resetToken}`;
 
     if (c.env.RESEND_API_KEY && !c.env.RESEND_API_KEY.includes('your_api_key')) {
         await fetch('https://api.resend.com/emails', {
@@ -320,6 +322,7 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
             'custom:tenantId': newUser.tenantId,
             'custom:userRole': newUser.role,
             role: newUser.role,
+            iat: now,
             exp: now + 60 * 60 * 24,
         }, c.env.JWT_SECRET, 'HS256');
         setCookie(c, 'inspector_token', token, {

@@ -146,6 +146,19 @@ app.use('*', async (c, next) => {
         const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
         const tenantId = (payload['custom:tenantId'] ?? payload['tenantId']) as string | undefined;
         const userRole = (payload['custom:userRole'] ?? payload['role']) as string | undefined;
+        const userId = payload.sub as string | undefined;
+        const tokenIat = payload.iat as number | undefined;
+
+        // Reject tokens issued before the user's last password change / reset.
+        if (userId && c.env.TENANT_CACHE) {
+            const invalidatedAt = await c.env.TENANT_CACHE.get(`pwchanged:${userId}`);
+            if (invalidatedAt) {
+                const invalidatedTs = parseInt(invalidatedAt, 10);
+                if (!tokenIat || tokenIat < invalidatedTs) {
+                    throw Errors.Unauthorized('Token has been invalidated');
+                }
+            }
+        }
 
         if (tenantId) c.set('tenantId', tenantId);
         if (userRole) c.set('userRole', userRole as UserRole);
@@ -161,10 +174,10 @@ app.use('*', async (c, next) => {
         }
 
     } catch (err: unknown) {
-        // Invalid token — we don't throw here to allow public routes to work
-        // but the absence of tenantId/userRole will be caught by route-level guards.
+        if (err instanceof AppError) throw err;
         const message = err instanceof Error ? err.message : String(err);
         logger.info(`[JWT] Token verification failed: ${message}`);
+        throw Errors.Unauthorized('Invalid or expired token');
     }
 
     // --- Tenant Isolation Guard (Fail-Fast) ---
@@ -224,8 +237,22 @@ app.doc('/doc', {
     },
 });
 
-// Swagger UI
-app.get('/ui', (c) => {
+// HTML Auth Guard Middleware
+const htmlAuthGuard = (allowedRoles?: string[]) => {
+    return async (c: Context<HonoConfig>, next: () => Promise<void>) => {
+        const userRole = c.get('userRole');
+        if (!userRole) return c.redirect('/login');
+
+        if (allowedRoles && !allowedRoles.includes(userRole)) {
+            return c.redirect('/dashboard?error=unauthorized_role');
+        }
+
+        return await next();
+    };
+};
+
+// Swagger UI (owner/admin only)
+app.get('/ui', htmlAuthGuard(['owner', 'admin']), (c) => {
     return c.html(`
         <!DOCTYPE html>
         <html lang="en">
@@ -266,20 +293,6 @@ app.get('/book', (c) => {
     const branding = c.get('branding');
     return c.html(PublicBookingPage({ siteKey: c.env.TURNSTILE_SITE_KEY, branding }));
 });
-
-// HTML Auth Guard Middleware
-const htmlAuthGuard = (allowedRoles?: string[]) => {
-    return async (c: Context<HonoConfig>, next: () => Promise<void>) => {
-        const userRole = c.get('userRole');
-        if (!userRole) return c.redirect('/login');
-        
-        if (allowedRoles && !allowedRoles.includes(userRole)) {
-            return c.redirect('/dashboard?error=unauthorized_role');
-        }
-        
-        return await next();
-    };
-};
 
 // Pages with Auth
 app.get('/dashboard', htmlAuthGuard(), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
