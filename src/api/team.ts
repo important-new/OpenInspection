@@ -1,11 +1,13 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import { requireRole } from '../lib/middleware/rbac';
 import { HonoConfig } from '../types/hono';
-import { 
-    InviteMemberSchema, 
-    InviteResponseSchema, 
-    TeamMembersResponseSchema 
+import {
+    InviteMemberSchema,
+    InviteResponseSchema,
+    TeamMembersResponseSchema
 } from '../lib/validations/admin.schema';
+import { createApiResponseSchema } from '../lib/validations/shared.schema';
 
 const teamRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -34,14 +36,15 @@ const listTeamMembersRoute = createRoute({
 teamRoutes.openapi(listTeamMembersRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const teamService = c.var.services.team;
-    const { activeUsers, pendingInvites } = await teamService.getMembers(tenantId);
+    const { activeUsers, pendingInvites, maxUsers } = await teamService.getMembers(tenantId);
 
-    return c.json({ 
-        success: true, 
-        data: { 
-            members: activeUsers, 
-            invites: pendingInvites 
-        } 
+    return c.json({
+        success: true,
+        data: {
+            members: activeUsers,
+            invites: pendingInvites,
+            maxUsers,
+        }
     }, 200);
 });
 
@@ -101,6 +104,48 @@ teamRoutes.openapi(inviteTeamMemberRoute, async (c) => {
             expiresAt: expiresAt.toISOString() 
         } 
     }, 201);
+});
+
+/**
+ * DELETE /api/team/members/:id
+ * Removes a team member and invalidates their sessions.
+ */
+const removeTeamMemberRoute = createRoute({
+    method: 'delete',
+    path: '/members/{id}',
+    tags: ['Team'],
+    summary: 'Remove a team member',
+    middleware: [requireRole(['admin', 'owner'])],
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+    },
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: createApiResponseSchema(z.object({ removed: z.boolean() })),
+                },
+            },
+            description: 'Member removed',
+        },
+    },
+});
+
+teamRoutes.openapi(removeTeamMemberRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const user = c.get('user');
+    const requesterId = user?.sub as string;
+    const { id: memberId } = c.req.valid('param');
+
+    const teamService = c.var.services.team;
+    const authService = c.var.services.auth;
+
+    await teamService.removeMember(tenantId, memberId, requesterId);
+
+    // Invalidate the deleted user's sessions so their cookie becomes invalid immediately
+    await authService.invalidateUserSessions(memberId);
+
+    return c.json({ success: true, data: { removed: true } }, 200);
 });
 
 export default teamRoutes;

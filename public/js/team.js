@@ -1,13 +1,11 @@
 (function() {
-    // Get token from cookie (core uses httpOnly cookie + localStorage fallback)
-    function getToken() {
-        const match = document.cookie.match(/inspector_token=([^;]+)/);
-        return match ? match[1] : localStorage.getItem('inspector_token');
-    }
+    const authFetch = (url, opts = {}) =>
+        fetch(url, { credentials: 'same-origin', ...opts });
 
-    const token = getToken();
-    // Removed client-side window.location redirect. 
-    // htmlAuthGuard on the server already protects this route.
+    async function logout() {
+        try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch {}
+        window.location.href = '/login';
+    }
 
     const membersList = document.getElementById('membersList');
     const invitesList = document.getElementById('invitesList');
@@ -15,19 +13,12 @@
     const openInviteBtn = document.getElementById('openInviteModalBtn');
     const logoutBtn = document.getElementById('logoutBtn');
 
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            document.cookie = 'inspector_token=; Max-Age=0; path=/';
-            localStorage.removeItem('inspector_token');
-            window.location.href = '/login';
-        });
-    }
+    if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
     async function fetchData() {
         try {
-            const res = await fetch('/api/team/members', {
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
+            const res = await authFetch('/api/team/members');
+            if (res.status === 401) { window.location.href = '/login'; return; }
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
@@ -36,12 +27,11 @@
             }
 
             const response = await res.json();
-            const { members = [], invites = [] } = response.data || response;
+            const { members = [], invites = [], maxUsers } = response.data || response;
 
-            // Quota display
             const pending = invites.filter(i => i.status === 'pending');
             const total = members.length + pending.length;
-            quotaBadge.textContent = `Seats used: ${total}`;
+            quotaBadge.textContent = maxUsers ? `Seats used: ${total} / ${maxUsers}` : `Seats used: ${total}`;
 
             renderMembers(members);
             renderInvites(pending);
@@ -91,7 +81,6 @@
         `).join('');
     }
 
-    // Modal logic
     const modal = document.getElementById('inviteModal');
     const closeBtn = document.getElementById('closeInviteModalBtn');
     const submitBtn = document.getElementById('submitInviteBtn');
@@ -119,12 +108,9 @@
         inviteResult.classList.add('hidden');
 
         try {
-            const res = await fetch('/api/team/invite', {
+            const res = await authFetch('/api/team/invite', {
                 method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + token,
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, role })
             });
             const data = await res.json();
@@ -134,7 +120,7 @@
                 document.getElementById('inviteEmail').value = '';
                 fetchData();
             } else {
-                inviteResult.textContent = data.error || 'Invitation failed.';
+                inviteResult.textContent = data.error?.message || data.error || 'Invitation failed.';
                 inviteResult.classList.remove('hidden');
             }
         } catch {
