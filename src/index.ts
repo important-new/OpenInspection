@@ -97,8 +97,8 @@ app.onError((err: unknown, c: Context<HonoConfig>) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const staticOpts = (opts: Record<string, string>): any => opts;
 app.get('/static/*', serveStatic(staticOpts({ root: './' })));
-app.get('/favicon.png', serveStatic(staticOpts({ path: './favicon.png' })));
-app.get('/logo.png', serveStatic(staticOpts({ path: './logo.png' })));
+app.get('/favicon.svg', serveStatic(staticOpts({ path: './favicon.svg' })));
+app.get('/logo.svg', serveStatic(staticOpts({ path: './logo.svg' })));
 app.get('/styles.css', serveStatic(staticOpts({ path: './styles.css' })));
 app.get('/manifest.json', serveStatic(staticOpts({ path: './manifest.json' })));
 app.get('/sw.js', serveStatic(staticOpts({ path: './sw.js' })));
