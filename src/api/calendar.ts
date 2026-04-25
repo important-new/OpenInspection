@@ -129,10 +129,24 @@ calendarRoutes.get('/callback', async (c) => {
     const calData = await calRes.json() as GoogleCalendarResponse;
     const calendarId = calData.id ?? 'primary';
 
+    // Verify the logged-in user matches the OAuth state to prevent CSRF token injection
+    const token = getCookie(c, '__Host-inspector_token');
+    if (!token) return c.redirect('/login');
+    let callbackPayload: HonoConfig['Variables']['user'];
+    try {
+        callbackPayload = await verify(token, c.env.JWT_SECRET, 'HS256') as unknown as HonoConfig['Variables']['user'];
+    } catch {
+        return c.redirect('/login');
+    }
+    if (callbackPayload.sub !== state) {
+        return c.json({ error: 'OAuth state mismatch' }, 403);
+    }
+
     const db = drizzle(c.env.DB);
+    const tenantId = callbackPayload.tenantId || (callbackPayload as unknown as Record<string, unknown>)['custom:tenantId'] as string;
     await db.update(users)
         .set({ googleRefreshToken: refresh_token ?? null, googleCalendarId: calendarId })
-        .where(eq(users.id, state));
+        .where(and(eq(users.id, state), eq(users.tenantId, tenantId)));
 
     return c.redirect('/dashboard?calendar=connected');
 });
@@ -171,9 +185,10 @@ calendarRoutes.openapi(disconnectRoute, async (c) => {
     }
 
     const db = drizzle(c.env.DB);
+    const tenantId = payload.tenantId || (payload as unknown as Record<string, unknown>)['custom:tenantId'] as string;
     await db.update(users)
         .set({ googleRefreshToken: null, googleCalendarId: null })
-        .where(eq(users.id, payload.sub));
+        .where(and(eq(users.id, payload.sub), eq(users.tenantId, tenantId)));
 
     return c.json({ success: true, data: { success: true } }, 200);
 });
@@ -252,6 +267,7 @@ calendarRoutes.openapi(syncRoute, async (c) => {
         const existing = await db.select({ id: availabilityOverrides.id })
             .from(availabilityOverrides)
             .where(and(
+                eq(availabilityOverrides.tenantId, tenantId || user.tenantId),
                 eq(availabilityOverrides.inspectorId, inspectorId),
                 eq(availabilityOverrides.date, date)
             ))

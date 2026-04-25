@@ -37,7 +37,7 @@ export class BookingService {
         const db = this.getDrizzle();
         
         const [recurring, overrides, jobs] = await Promise.all([
-            db.select().from(availability).where(eq(availability.inspectorId, inspectorId)).all(),
+            db.select().from(availability).where(and(eq(availability.tenantId, tenantId), eq(availability.inspectorId, inspectorId))).all(),
             db.select().from(availabilityOverrides).where(and(
                 eq(availabilityOverrides.inspectorId, inspectorId),
                 gte(availabilityOverrides.date, startDate),

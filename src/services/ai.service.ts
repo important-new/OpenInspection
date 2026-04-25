@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { inspections, inspectionResults } from '../lib/db/schema';
 
 /**
@@ -73,8 +73,8 @@ Professional Comment:`;
             throw new Error('Inspection not found or access denied');
         }
 
-        // 2. Fetch results
-        const results = await db.select().from(inspectionResults).where(eq(inspectionResults.inspectionId, inspectionId)).get();
+        // 2. Fetch results (scoped by tenantId for defense-in-depth)
+        const results = await db.select().from(inspectionResults).where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId))).get();
         if (!results) return 'No significant defects observed during this inspection.';
 
         const data = results.data as Record<string, { status: string; notes?: string }>;

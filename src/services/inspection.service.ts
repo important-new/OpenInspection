@@ -253,10 +253,10 @@ export class InspectionService {
         if (!inspection) throw Errors.NotFound('Inspection not found');
 
         const template = inspection.templateId
-            ? await db.select().from(templates).where(eq(templates.id, inspection.templateId)).get()
+            ? await db.select().from(templates).where(and(eq(templates.id, inspection.templateId), eq(templates.tenantId, tenantId))).get()
             : null;
         const resultsRow = await db.select().from(inspectionResults)
-            .where(eq(inspectionResults.inspectionId, inspectionId))
+            .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
             .get();
 
         interface SchemaItem { id: string; label: string; icon?: string }
@@ -264,9 +264,13 @@ export class InspectionService {
         interface SchemaData { sections: SchemaSection[]; ratingSystem?: { levels: RatingLevel[] } }
         interface ResultEntry { rating?: string; notes?: string; photos?: { key: string }[]; recommendation?: string; estimateMin?: number; estimateMax?: number }
 
-        const schemaData: SchemaData = template?.schema
-            ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema) as SchemaData
+        const rawSchema = template?.schema
+            ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema)
             : { sections: [] };
+        // Support both formats: { sections: [...] } and flat array of items
+        const schemaData: SchemaData = Array.isArray(rawSchema)
+            ? { sections: [{ id: 'general', title: 'General', items: rawSchema }] }
+            : (rawSchema as SchemaData).sections ? rawSchema as SchemaData : { sections: [] };
 
         const levels: RatingLevel[] = schemaData.ratingSystem?.levels ?? [];
         const resultData: Record<string, ResultEntry> = resultsRow?.data
