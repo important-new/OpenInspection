@@ -6,6 +6,7 @@ import { sign } from 'hono/jwt';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { logger } from '../lib/logger';
 import { requireCsrfToken } from '../lib/middleware/csrf';
 import {
     LoginSchema,
@@ -241,7 +242,7 @@ coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
                        <p><a href="${resetLink}" style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;">Reset Password</a></p>
                        <p style="font-size:12px;color:#999;">If you didn't request this, ignore this email. Link: ${resetLink}</p>`
             })
-        }).catch(e => console.error('Reset email error:', e));
+        }).catch(e => logger.error('Reset email error', {}, e instanceof Error ? e : undefined));
     }
 
     return c.json({ success: true, data: { success: true } }, 200);

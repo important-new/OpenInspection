@@ -5,6 +5,7 @@ import { users, inspections } from '../lib/db/schema';
 import { createCalendarEvent } from './calendar';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { logger } from '../lib/logger';
 import { 
     PublicBookingSchema, 
     InspectorsResponseSchema, 
@@ -165,7 +166,7 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
                 `Inspection: ${body.address}`,
                 startDateTime,
                 body.address
-            ).catch(e => console.error('Calendar sync failed:', e));
+            ).catch(e => logger.error('Calendar sync failed', {}, e instanceof Error ? e : undefined));
         }
 
         const emailService = c.var.services.email;
@@ -175,7 +176,7 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
             body.address,
             body.date,
             body.timeSlot === 'morning' ? 'Morning (08:00 - 12:00)' : 'Afternoon (13:00 - 17:00)'
-        ).catch(e => console.error('Booking confirmation email failed:', e));
+        ).catch(e => logger.error('Booking confirmation email failed', {}, e instanceof Error ? e : undefined));
     })());
 
     return c.json({ 

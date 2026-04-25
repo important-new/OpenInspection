@@ -6,6 +6,7 @@ import { writeAuditLog } from '../lib/audit';
 import { safeISODate } from '../lib/date';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { logger } from '../lib/logger';
 import { 
     UpdateBrandingSchema, 
     InviteMemberSchema, 
@@ -115,7 +116,7 @@ adminRoutes.openapi(inviteMemberRoute, async (c) => {
                        <p><a href="${inviteLink}" style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;">Accept Invitation</a></p>
                        <p>Link expires in 7 days: ${inviteLink}</p>`
             })
-        }).catch(e => console.error('Invite email error:', e));
+        }).catch(e => logger.error('Invite email error', {}, e instanceof Error ? e : undefined));
         c.executionCtx.waitUntil(inviteEmailPromise);
     }
 
@@ -225,12 +226,12 @@ adminRoutes.openapi(importDataRoute, async (c) => {
             .get();
         
         if (!inspection) {
-            console.warn(`Skipping result ${r.id}: inspection ${r.inspectionId} not found`);
+            logger.warn(`Skipping result ${r.id}: inspection ${r.inspectionId} not found`);
             continue;
         }
         
         if (inspection.tenantId !== tenantId) {
-            console.warn(`Skipping result ${r.id}: inspection ${r.inspectionId} belongs to different tenant`);
+            logger.warn(`Skipping result ${r.id}: inspection ${r.inspectionId} belongs to different tenant`);
             continue;
         }
         

@@ -1,4 +1,5 @@
 import { AppError, ErrorCode } from '../lib/errors';
+import { logger } from '../lib/logger';
 
 /**
  * Service to handle transactional email delivery using Resend.
@@ -12,7 +13,7 @@ export class EmailService {
      */
     async sendEmail(to: string[], subject: string, html: string) {
         if (!this.apiKey || this.apiKey.includes('your_api_key')) {
-            console.warn(`[email] Skipping delivery (API Key missing) to: ${to.join(', ')}`);
+            logger.warn(`[email] Skipping delivery (API Key missing) to: ${to.join(', ')}`);
             return;
         }
 
@@ -33,11 +34,11 @@ export class EmailService {
 
             if (!res.ok) {
                 const text = await res.text();
-                console.error(`[email] Resend delivery failed: ${text}`);
+                logger.error('[email] Resend delivery failed', { response: text });
                 throw new AppError(502, ErrorCode.SERVICE_UNAVAILABLE, 'Email delivery failed');
             }
         } catch (err) {
-            console.error('[email] Delivery exception:', err);
+            logger.error('[email] Delivery exception', {}, err instanceof Error ? err : undefined);
             throw new AppError(502, ErrorCode.SERVICE_UNAVAILABLE, 'Email service unavailable');
         }
     }

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Context } from 'hono';
 import { HonoConfig } from '../types/hono';
 import { TenantUpdateParams } from '../lib/integration';
+import { logger } from '../lib/logger';
 
 const api = new Hono<HonoConfig>();
 
@@ -13,7 +14,7 @@ async function verifyPortalSignature(c: Context<HonoConfig>, next: () => Promise
     const secret = c.env.PORTAL_M2M_SECRET;
 
     if (!secret) {
-        console.error('PORTAL_M2M_SECRET is not configured');
+        logger.error('PORTAL_M2M_SECRET is not configured');
         return c.json({ error: 'Integration not configured' }, 501);
     }
 
@@ -92,7 +93,7 @@ api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
         return c.json({ success: true });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('Failed to handle tenant update:', error);
+        logger.error('Failed to handle tenant update', {}, error instanceof Error ? error : undefined);
         return c.json({ error: 'Internal server error', message }, 500);
     }
 });
@@ -112,7 +113,7 @@ api.post('/tenants/:subdomain/stripe-connect', verifyPortalSignature, async (c) 
         return c.json({ success: true });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('Failed to handle stripe connect:', error);
+        logger.error('Failed to handle stripe connect', {}, error instanceof Error ? error : undefined);
         return c.json({ error: 'Internal server error', message }, 500);
     }
 });

@@ -7,6 +7,7 @@ import { users } from '../lib/db/schema/tenant';
 import { availabilityOverrides } from '../lib/db/schema/inspection';
 import { HonoConfig } from '../types/hono';
 import { CalendarSyncResponseSchema, CalendarSuccessResponseSchema } from '../lib/validations/calendar.schema';
+import { logger } from '../lib/logger';
 
 const calendarRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -117,7 +118,7 @@ calendarRoutes.get('/callback', async (c) => {
 
     const tokenData = await tokenRes.json() as GoogleTokenResponse;
     if (!tokenRes.ok) {
-        console.error('[calendar] Token exchange failed:', tokenData);
+        logger.error('[calendar] Token exchange failed', { tokenData: String(tokenData) });
         return c.json({ error: 'Failed to exchange authorization code' }, 500);
     }
 
@@ -330,10 +331,10 @@ export async function createCalendarEvent(
 
         if (!eventRes.ok) {
             const err = await eventRes.json() as { error?: { message?: string } };
-            console.error('[calendar] Failed to create event:', err.error?.message);
+            logger.error('[calendar] Failed to create event', { detail: err.error?.message });
         }
     } catch (e) {
-        console.error('[calendar] createCalendarEvent error:', e);
+        logger.error('[calendar] createCalendarEvent error', {}, e instanceof Error ? e : undefined);
     }
 }
 

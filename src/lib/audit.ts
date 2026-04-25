@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { auditLogs } from './db/schema/tenant';
+import { logger } from './logger';
 
 export type AuditAction =
     | 'inspection.create'
@@ -50,7 +51,7 @@ export function writeAuditLog(params: AuditParams): void {
         metadata: rest.metadata ?? null,
         ipAddress: rest.ipAddress ?? null,
         createdAt: new Date(),
-    }).then(() => {}).catch((e) => console.error('[audit] write failed:', e));
+    }).then(() => {}).catch((e) => logger.error('[audit] write failed', {}, e instanceof Error ? e : undefined));
 
     if (executionCtx) {
         try { executionCtx.waitUntil(write); } catch { /* swallow if ctx unavailable */ }

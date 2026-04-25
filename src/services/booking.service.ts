@@ -3,6 +3,7 @@ import { eq, and, gte, lte } from 'drizzle-orm';
 import { availability, availabilityOverrides, inspections, users } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { safeISODate } from '../lib/date';
+import { logger } from '../lib/logger';
 
 /**
  * Service to handle public booking flow and availability lookups.
@@ -71,7 +72,7 @@ export class BookingService {
             const data = await res.json() as { success: boolean };
             return data.success;
         } catch (e) {
-            console.error('[bot-protection] Turnstile verification failed:', e);
+            logger.error('[bot-protection] Turnstile verification failed', {}, e instanceof Error ? e : undefined);
             return false;
         }
     }

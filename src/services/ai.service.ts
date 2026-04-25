@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { inspections, inspectionResults } from '../lib/db/schema';
+import { logger } from '../lib/logger';
 
 /**
  * Service to handle AI-powered features using Google Gemini.
@@ -40,7 +41,7 @@ export class AIService {
 
         if (!res.ok) {
             const error = await res.text();
-            console.error('Gemini API Error:', error);
+            logger.error('Gemini API Error', { response: error });
             throw new Error('Failed to generate content from AI');
         }
 
