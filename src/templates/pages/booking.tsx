@@ -27,7 +27,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                         <div class="mb-16">
                             <div class="flex items-center gap-2 mb-4">
                                 <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                                <span class="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em]">Direct Engagement</span>
+                                <span class="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em]">Book Inspection</span>
                             </div>
                             <h1 class="text-5xl font-black text-slate-900 tracking-tightest mb-4 leading-none">Schedule Analysis</h1>
                             <p class="text-slate-500 text-lg font-semibold tracking-tight">Professional property analysis configured for high-fidelity reporting.</p>
@@ -51,7 +51,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
 
                             {/* Client Details */}
                             <div class="space-y-8">
-                                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-[0.3em] ml-1">Phase II: Petitioner Data</h3>
+                                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-[0.3em] ml-1">Phase II: Client Information</h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div class="space-y-3">
                                         <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Legal Name</label>
@@ -77,7 +77,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                                 <h3 class="text-xs font-black text-indigo-600 uppercase tracking-[0.3em] ml-1">Phase III: Temporal Allocation</h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div class="space-y-3">
-                                        <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Deployment Date</label>
+                                        <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Inspection Date</label>
                                         <div class="relative group">
                                             <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur opacity-0 group-focus-within:opacity-20 transition-opacity"></div>
                                             <input type="date" name="date" required 
@@ -104,7 +104,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
 
                             <button type="submit" id="submitBtn" 
                                 class="premium-button w-full py-6 px-10 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-[0.3em] shadow-[0_20px_50px_rgba(0,0,0,0.2)] hover:bg-black transition-all active:scale-95 disabled:bg-slate-300 disabled:pointer-events-none">
-                                Deploy Request
+                                Submit Request
                             </button>
                         </form>
 

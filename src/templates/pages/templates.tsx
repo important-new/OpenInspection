@@ -69,7 +69,7 @@ export const TemplatesPage = ({ branding }: { branding?: BrandingConfig | undefi
                                         class="premium-input w-full px-6 py-4.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-semibold" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Logic Schema (JSON)</label>
+                                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Template Schema (JSON)</label>
                                     <p class="text-[10px] text-slate-300 uppercase tracking-tighter mb-2 ml-1">Format: <code class="bg-slate-50 px-1 rounded">{`{"id":"id","label":"Label"}`}</code></p>
                                     <textarea id="tplSchema" rows={8} placeholder={'[\n  {"id":"structure","label":"Structural Integrity"},\n  {"id":"electrical","label":"Electrical Systems"}\n]'}
                                         class="w-full px-6 py-4.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-mono text-xs resize-none leading-relaxed"></textarea>
@@ -79,7 +79,7 @@ export const TemplatesPage = ({ branding }: { branding?: BrandingConfig | undefi
                                         Discard
                                     </button>
                                     <button type="button" onclick="submitTemplate()" id="submitTplBtn" class="flex-[2] premium-button py-4.5 rounded-2xl bg-indigo-600 text-white font-bold shadow-2xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
-                                        Deploy Template
+                                        Create Template
                                     </button>
                                 </div>
                             </div>

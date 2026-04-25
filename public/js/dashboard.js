@@ -252,11 +252,11 @@ async function submitInspection() {
        }
    } catch (e) {
        console.error(e);
-       await modalAlert('Connection error while deploying workflow.', 'Error');
+       await modalAlert('Connection error while creating inspection.', 'Error');
    } finally {
        if (btn) {
            btn.disabled = false;
-           btn.innerText = 'Deploy Workflow';
+           btn.innerText = 'Create Inspection';
        }
    }
 }

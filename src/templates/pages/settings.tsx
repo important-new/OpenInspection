@@ -20,7 +20,7 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
             <div class="max-w-5xl mx-auto space-y-16 animate-fade-in">
                 <div class="space-y-4">
                     <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center rounded-lg bg-indigo-600/10 px-3 py-1 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ring-1 ring-inset ring-indigo-600/20">System Config</span>
+                        <span class="inline-flex items-center rounded-lg bg-indigo-600/10 px-3 py-1 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ring-1 ring-inset ring-indigo-600/20">Settings</span>
                     </div>
                     <h1 class="text-5xl font-black tracking-tight text-slate-900 sm:text-6xl text-gradient">Settings</h1>
                     <p class="text-lg text-slate-500 max-w-2xl font-semibold leading-relaxed">Configure your workspace, integrations, and API credentials.</p>
@@ -61,7 +61,7 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         </div>
 
                         <div class="space-y-4">
-                            <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-[0.2em]">Deployment Logo</label>
+                            <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-[0.2em]">Company Logo</label>
                             <div class="flex flex-col sm:flex-row items-center gap-10 p-10 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-200 group hover:border-indigo-300 transition-colors">
                                 <div class="w-32 h-32 bg-white rounded-3xl border border-slate-100 shadow-xl flex items-center justify-center overflow-hidden">
                                     {logoUrl ? (

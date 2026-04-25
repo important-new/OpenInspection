@@ -62,7 +62,7 @@ export const NotFoundPage = (props: {
                     </div>
 
                     <div class="mt-12">
-                        <span class="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] leading-none">OpenInspection Protocol v1.0.0-rc.1</span>
+                        <span class="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] leading-none">OpenInspection v1.0.0</span>
                     </div>
                 </div>
             </div>

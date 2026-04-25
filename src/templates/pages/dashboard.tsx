@@ -12,7 +12,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-8">
                     <div class="space-y-4">
                         <div class="flex items-center gap-3">
-                            <span class="inline-flex items-center rounded-lg bg-indigo-600/10 px-3 py-1 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ring-1 ring-inset ring-indigo-600/20">Operational Hub</span>
+                            <span class="inline-flex items-center rounded-lg bg-indigo-600/10 px-3 py-1 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ring-1 ring-inset ring-indigo-600/20">Dashboard</span>
                         </div>
                         <h1 class="text-5xl font-black tracking-tight text-slate-900 sm:text-6xl text-gradient">Inspections</h1>
                         <p class="text-lg text-slate-500 max-w-2xl font-semibold leading-relaxed">Manage and track your property analysis workflow from a single, high-fidelity interface.</p>
@@ -73,7 +73,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                             <thead class="bg-slate-50/40">
                                 <tr>
                                     <th class="py-6 px-10 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Target Property</th>
-                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Personnel</th>
+                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Inspector</th>
                                     <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Workflow State</th>
                                     <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Complexity</th>
                                     <th class="relative py-6 pl-3 pr-10 text-right"><span class="sr-only">Control</span></th>
@@ -87,7 +87,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                                 <div class="absolute inset-0 border-[6px] border-indigo-50 rounded-full"></div>
                                                 <div class="absolute inset-0 border-[6px] border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
                                             </div>
-                                            <p class="text-sm font-black text-slate-300 uppercase tracking-[0.3em]">Synchronizing State Engine</p>
+                                            <p class="text-sm font-black text-slate-300 uppercase tracking-[0.3em]">Syncing</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -111,7 +111,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 <div class="w-14 h-14 bg-emerald-600/10 rounded-2xl flex items-center justify-center text-emerald-600 mb-6">
                                     <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
                                 </div>
-                                <h3 class="text-3xl font-black text-slate-900 tracking-tightest mb-2 leading-none">New Deployment</h3>
+                                <h3 class="text-3xl font-black text-slate-900 tracking-tightest mb-2 leading-none">New Inspection</h3>
                                 <p class="text-sm text-slate-500 font-semibold tracking-tight">Configure the parameters for a new field analysis.</p>
                             </div>
                             
@@ -132,13 +132,13 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                         class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Logic Schema</label>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Template</label>
                                     <select id="templateId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
-                                        <option value="">Select a schema...</option>
+                                        <option value="">Select a template...</option>
                                     </select>
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Assign Personnel</label>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Assign Inspector</label>
                                     <select id="inspectorId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
                                         <option value="">Self-assignment</option>
                                     </select>
@@ -150,7 +150,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     Discard
                                 </button>
                                 <button type="button" onclick="submitInspection()" id="submitInsBtn" class="premium-button flex-[2] py-4.5 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl hover:bg-slate-900 transition-all active:scale-95">
-                                    Deploy Workflow
+                                    Create Inspection
                                 </button>
                             </div>
                         </div>

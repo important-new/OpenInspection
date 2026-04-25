@@ -21,7 +21,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                             <div>
                                 <h1 class="text-2xl font-black tracking-tightest text-slate-900 leading-tight" x-text="inspection?.propertyAddress || 'Syncing Property...'"></h1>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span class="text-[10px] font-black uppercase tracking-widest text-indigo-600/60" x-text="template?.name || 'Protocol Interface'"></span>
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-indigo-600/60" x-text="template?.name || 'Inspection Template'"></span>
                                     <span class="w-1 h-1 bg-slate-200 rounded-full"></span>
                                     <span class="text-[10px] font-black uppercase tracking-widest text-slate-400" x-text="inspectionId.substring(0,8).toUpperCase()"></span>
                                 </div>
@@ -161,7 +161,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                                                             <div class="relative flex-shrink-0 w-32 h-32 rounded-[2rem] overflow-hidden bg-slate-100 group shadow-2xl shadow-indigo-100/10 border-4 border-white">
                                                                 <img x-bind:src="photo.pending && photo.dataUrl ? photo.dataUrl : '/api/inspections/files/' + photo.key" class="w-full h-full object-cover" />
 
-                                                                {/* Protocol Metadata Overlay */}
+                                                                {/* Photo Metadata Overlay */}
                                                                 <div x-show="photo.pending" class="absolute inset-0 bg-amber-600/60 backdrop-blur-[2px] flex items-center justify-center">
                                                                     <span class="text-[9px] font-black uppercase tracking-[0.2em] text-white">Queued</span>
                                                                 </div>
@@ -202,7 +202,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                         </template>
                     </div>
 
-                    {/* Protocol Finalization Architecture */}
+                    {/* Inspection Completion */}
                     <div class="mt-20 flex flex-col gap-8 pb-32">
                         <div x-show="!isDelivered && inspection?.status !== 'completed'">
                             <button
@@ -211,7 +211,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                                 x-bind:class="{ 'opacity-50 pointer-events-none': !isComplete }"
                                 x-bind:disabled="syncing"
                             >
-                                <span class="text-xl tracking-tightest" x-text="syncing ? 'Finalizing Registry...' : 'Authorize Completion'"></span>
+                                <span class="text-xl tracking-tightest" x-text="syncing ? 'Submitting...' : 'Complete Inspection'"></span>
                                 <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="!syncing"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 <svg class="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-show="syncing"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                             </button>
@@ -315,7 +315,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                                         x-bind:disabled="syncing"
                                     >
                                         <svg x-show="syncing" class="w-5 h-5 animate-spin text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                                        <span class="tracking-tightest text-lg" x-text="syncing ? 'Integrating...' : 'Apply Markup Protocol'"></span>
+                                        <span class="tracking-tightest text-lg" x-text="syncing ? 'Saving...' : 'Save Markup'"></span>
                                     </button>
                                 </div>
                             </div>

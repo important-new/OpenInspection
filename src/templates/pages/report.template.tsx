@@ -72,7 +72,7 @@ export function renderProfessionalReport(data: {
                                 <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
                             </div>
                             <div class="h-8 w-px bg-white/20"></div>
-                            <span class="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Certified Analytical Report</span>
+                            <span class="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Inspection Report</span>
                         </div>
                         <h1 class="text-5xl md:text-7xl font-black tracking-tightest text-white leading-[1.05]">{inspection.propertyAddress}</h1>
                         <p class="mt-8 text-xl text-slate-400 font-medium tracking-tight">Technical assessment of structural and operational integrity.</p>
@@ -112,7 +112,7 @@ export function renderProfessionalReport(data: {
                 <div class="md:col-span-1">
                     <div class="flex items-center gap-2 mb-8">
                         <div class="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Audit Metric Summary</h3>
+                        <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Summary</h3>
                     </div>
                     <div class="space-y-6">
                         <div class="flex justify-between items-end">
@@ -151,7 +151,7 @@ export function renderProfessionalReport(data: {
                        <p class="mt-2 text-lg text-indigo-600 font-bold uppercase tracking-tightest">{inspection.clientEmail || 'REDACTED'}</p>
                        <div class="mt-6 pt-6 border-t border-slate-100 flex gap-4">
                            <div class="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500">Tier: Elite</div>
-                           <div class="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500">Protocol: Standard</div>
+                           <div class="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-500">Standard Inspection</div>
                        </div>
                    </div>
                    <div>
@@ -171,7 +171,7 @@ export function renderProfessionalReport(data: {
                 </div>
             </div>
 
-            {/* Protocol Detail Architecture */}
+            {/* Inspection Details */}
             <div class="px-12 py-24 space-y-32 bg-white">
                 {schema.sections.map((section: SchemaSection) => (
                     <section class="page-break" key={section.title}>
@@ -233,7 +233,7 @@ export function renderProfessionalReport(data: {
                     <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-10 text-white">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                     </div>
-                    <h2 class="text-4xl font-black tracking-tightest text-white mb-6">Concluded Audit Record</h2>
+                    <h2 class="text-4xl font-black tracking-tightest text-white mb-6">Report Complete</h2>
                     <p class="text-indigo-200/60 text-lg font-medium mb-12 uppercase tracking-[0.2em] leading-relaxed">This digital document is a certified permanent record of assessment for the specified property assets.</p>
                     
                     <div class="flex flex-col sm:flex-row justify-center gap-6">
@@ -245,7 +245,7 @@ export function renderProfessionalReport(data: {
         </div>
 
         <div class="text-center mt-12 text-slate-400 text-[10px] font-black uppercase tracking-[0.4em] no-print opacity-40">
-            Authenticated Production Engine &copy; {new Date().getFullYear()} {siteName}. Secure Hash Algorithm Integrated.
+            &copy; {new Date().getFullYear()} {siteName}. All rights reserved.
         </div>
     </div>
 
@@ -254,7 +254,7 @@ export function renderProfessionalReport(data: {
         <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
     </button>
 
-    {/* Tactical Gatekeeper Engine */}
+    {/* Report Paywall Gate */}
     <template x-if="showAgreement">
         <div class="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-slate-950/95 backdrop-blur-2xl">
             <div class="bg-white rounded-[3.5rem] shadow-[0_60px_120px_-20px_rgba(0,0,0,0.6)] max-w-3xl w-full p-16 space-y-12 animate-slide-in">
@@ -301,11 +301,11 @@ export function renderProfessionalReport(data: {
                 </div>
 
                 <button {...{'@click': 'redirectToCheckout'}} class="premium-button w-full py-6 bg-indigo-600 text-white rounded-[2.5rem] text-lg font-black tracking-tightest shadow-2xl shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all">
-                    Authorize Stripe Payment
+                    Pay to View Report
                 </button>
 
                 <div class="flex flex-col items-center gap-4 opacity-40">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Bank-Grade Security Protocol Enabled</p>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Secure Payment via Stripe</p>
                     <div class="flex gap-4 grayscale opacity-50 scale-75">
                         {/* Fake logos or symbols for visual gravity */}
                         <div class="w-12 h-6 bg-slate-200 rounded"></div>
@@ -337,7 +337,7 @@ export function renderProfessionalReport(data: {
                         const res = await fetch(\`/api/inspections/\${this.id}/agreement\`);
                         if (!res.ok) throw new Error('Fetch failed');
                         const data = await res.json();
-                        this.agreementContent = data.agreement?.content || 'Protocol error. Terms not initialized.';
+                        this.agreementContent = data.agreement?.content || 'Error loading agreement terms.';
                     } catch (e) {
                         console.error('Agreement loading error:', e);
                         this.agreementContent = 'CRITICAL ERROR: Document integrity failure. Contact control.';
