@@ -322,14 +322,7 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                     <div class="login-wrap">
                         <div class="brand-mark enter-up">
                             <div class="brand-icon">
-                                {logoUrl ? (
-                                    <img src={logoUrl} alt={siteName} />
-                                ) : (
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                                        <polyline points="9 22 9 12 15 12 15 22" />
-                                    </svg>
-                                )}
+                                <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
                             </div>
                             <span class="brand-name">{siteName}</span>
                         </div>

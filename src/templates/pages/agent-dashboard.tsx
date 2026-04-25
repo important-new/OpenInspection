@@ -20,11 +20,7 @@ export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | u
                         <div class="flex items-center gap-8">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-200 overflow-hidden ring-4 ring-white">
-                                    {logoUrl ? (
-                                        <img src={logoUrl} alt={siteName} class="w-full h-full object-contain" />
-                                    ) : (
-                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    )}
+                                    <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
                                 </div>
                                 <span class="text-2xl font-black tracking-tightest text-slate-900">{siteName}</span>
                             </div>

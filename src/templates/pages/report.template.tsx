@@ -69,11 +69,7 @@ export function renderProfessionalReport(data: {
                     <div class="max-w-3xl">
                         <div class="flex items-center gap-4 mb-10">
                             <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-2xl p-1">
-                                {logoUrl ? (
-                                    <img src={logoUrl} alt={siteName} class="w-full h-full object-contain" />
-                                ) : (
-                                    <svg class="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                )}
+                                <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
                             </div>
                             <div class="h-8 w-px bg-white/20"></div>
                             <span class="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Certified Analytical Report</span>

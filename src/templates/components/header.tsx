@@ -26,13 +26,7 @@ export const renderHeader = ({ branding }: { branding?: BrandingConfig | undefin
                     {/* Logo */}
                     <div class="flex-shrink-0 flex items-center">
                         <a href="/" class="flex items-center gap-2">
-                            {logoUrl ? (
-                                <img src={logoUrl} alt={siteName} class="h-8 w-auto object-contain" />
-                            ) : (
-                                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                </div>
-                            )}
+                            <img src={logoUrl || '/logo.svg'} alt={siteName} class="h-8 w-auto object-contain" />
                             <span class="text-xl font-bold tracking-tight text-slate-900">{siteName}</span>
                         </a>
                     </div>

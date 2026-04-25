@@ -12,13 +12,7 @@ export const renderFooter = ({ branding }: { branding?: BrandingConfig | undefin
                     {/* Brand */}
                     <div>
                         <div class="flex items-center gap-2 mb-4">
-                            {logoUrl ? (
-                                <img src={logoUrl} alt={siteName} class="h-6 w-auto object-contain" />
-                            ) : (
-                                <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
-                                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                </div>
-                            )}
+                            <img src={logoUrl || '/logo.svg'} alt={siteName} class="h-6 w-auto object-contain" />
                             <span class="text-lg font-bold text-white">{siteName}</span>
                         </div>
                         <p class="text-sm text-slate-400 leading-relaxed">
