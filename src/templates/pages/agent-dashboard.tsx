@@ -70,7 +70,7 @@ export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | u
                                             <td colspan={5} class="py-32 text-center">
                                                 <div class="flex flex-col items-center gap-4">
                                                     <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin shadow-xl shadow-indigo-100"></div>
-                                                    <p class="text-sm font-bold text-slate-400 animate-pulse">Synchronizing Referral Data...</p>
+                                                    <p class="text-sm font-bold text-slate-400 animate-pulse">Loading...</p>
                                                 </div>
                                             </td>
                                         </tr>

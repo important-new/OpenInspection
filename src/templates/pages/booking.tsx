@@ -29,7 +29,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                                 <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
                                 <span class="text-[10px] font-black text-indigo-600 uppercase tracking-[0.3em]">Book Inspection</span>
                             </div>
-                            <h1 class="text-5xl font-black text-slate-900 tracking-tightest mb-4 leading-none">Schedule Analysis</h1>
+                            <h1 class="text-5xl font-black text-slate-900 tracking-tightest mb-4 leading-none">Schedule Inspection</h1>
                             <p class="text-slate-500 text-lg font-semibold tracking-tight">Professional property analysis configured for high-fidelity reporting.</p>
                         </div>
 
@@ -54,7 +54,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                                 <h3 class="text-xs font-black text-indigo-600 uppercase tracking-[0.3em] ml-1">Phase II: Client Information</h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div class="space-y-3">
-                                        <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Legal Name</label>
+                                        <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Full Name</label>
                                         <div class="relative group">
                                             <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur opacity-0 group-focus-within:opacity-20 transition-opacity"></div>
                                             <input type="text" name="clientName" required placeholder="John Doe"
@@ -62,7 +62,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                                         </div>
                                     </div>
                                     <div class="space-y-3">
-                                        <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Digital Mail</label>
+                                        <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Email</label>
                                         <div class="relative group">
                                             <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur opacity-0 group-focus-within:opacity-20 transition-opacity"></div>
                                             <input type="email" name="clientEmail" required placeholder="john@example.com"
@@ -74,7 +74,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
 
                             {/* Scheduling */}
                             <div class="space-y-8">
-                                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-[0.3em] ml-1">Phase III: Temporal Allocation</h3>
+                                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-[0.3em] ml-1">Phase III: Scheduling</h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div class="space-y-3">
                                         <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Inspection Date</label>

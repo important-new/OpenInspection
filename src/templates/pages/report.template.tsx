@@ -97,7 +97,7 @@ export function renderProfessionalReport(data: {
                         </div>
                         <div>
                             <div class="flex items-center gap-3 mb-3">
-                                <h3 class="text-indigo-900 font-extrabold text-2xl tracking-tight">Analytical Synthesis</h3>
+                                <h3 class="text-indigo-900 font-extrabold text-2xl tracking-tight">AI Summary</h3>
                                 <span class="bg-indigo-600 text-white text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full shadow-lg shadow-indigo-100">Certified AI</span>
                             </div>
                             <p class="text-indigo-900/60 leading-[1.8] text-lg font-medium italic max-w-4xl" x-text="aiSummary"></p>

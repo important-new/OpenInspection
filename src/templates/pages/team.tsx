@@ -51,7 +51,7 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
                                     </tr>
                                 </thead>
                                 <tbody id="membersList" class="divide-y divide-slate-100/50">
-                                    <tr><td colspan={3} class="px-10 py-16 text-sm font-black text-center text-slate-300 uppercase tracking-[0.2em]">Synchronizing Registry...</td></tr>
+                                    <tr><td colspan={3} class="px-10 py-16 text-sm font-black text-center text-slate-300 uppercase tracking-[0.2em]">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>

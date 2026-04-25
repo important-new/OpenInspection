@@ -39,7 +39,7 @@ export const AgreementsPage = ({ branding }: { branding?: BrandingConfig | undef
                                     <td colspan={4} class="py-32 text-center">
                                         <div class="flex flex-col items-center gap-4">
                                             <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin shadow-xl shadow-indigo-100"></div>
-                                            <p class="text-sm font-bold text-slate-400 animate-pulse">Loading Document Registry...</p>
+                                            <p class="text-sm font-bold text-slate-400 animate-pulse">Loading...</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -64,7 +64,7 @@ export const AgreementsPage = ({ branding }: { branding?: BrandingConfig | undef
                             </div>
                             <div class="space-y-8">
                                 <div class="space-y-2">
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Internal Reference Name</label>
+                                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Agreement Name</label>
                                     <input type="text" id="agreementName" placeholder="e.g., Standard Home Inspection Version 2.0"
                                         class="premium-input w-full px-6 py-4.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-semibold" />
                                 </div>
