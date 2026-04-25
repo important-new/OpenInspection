@@ -29,7 +29,7 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     const actualHost = forwardedHost || host;
 
     // Extract subdomain: anything before the first dot that isn't www/dev/app
-    // In shared SaaS mode, hostname is "app.inspectorhub.io" — "app" is NOT a tenant subdomain
+    // In shared SaaS mode, hostname is "app.<domain>" — "app" is NOT a tenant subdomain
     const hostParts = actualHost.split('.');
     if (hostParts.length > 2) {
         const potentialSubdomain = hostParts[0];
@@ -69,7 +69,7 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
             c.set('tenantStatus', (cached.status as string) || 'active');
         }
     } else if ((c.env.APP_MODE as string) === 'saas' && !subdomain) {
-        // Shared SaaS mode (app.inspectorhub.io): tenant resolved later via JWT claims
+        // Shared SaaS mode (app.<domain>): tenant resolved later via JWT claims
         // Skip tenant resolution here — JWT middleware sets tenantId from token
         return next();
     } else {
