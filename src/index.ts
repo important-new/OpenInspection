@@ -137,8 +137,8 @@ app.use('*', async (c, next) => {
                 const rand = crypto.getRandomValues(new Uint32Array(1))[0];
                 const newCode = (100000 + (rand % 900000)).toString();
                 await c.env.TENANT_CACHE.put('setup_verification_code', newCode, { expirationTtl: 3600 });
-                logger.warn('New system detected. System initialization code generated.', { code: newCode });
-                logger.info(`Initialization Code Required: ${newCode}`);
+                logger.warn('New system detected. System initialization code generated.');
+                logger.info('Initialization code stored in KV. Use SETUP_CODE env var in production.');
             }
         } else if (c.env.SETUP_CODE) {
              // Just log that we are using the user-defined code
@@ -298,11 +298,11 @@ app.get('/ui', htmlAuthGuard(['owner', 'admin']), (c) => {
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1" />
             <title>Swagger UI</title>
-            <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+            <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui.css" />
         </head>
         <body>
             <div id="swagger-ui"></div>
-            <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
+            <script src="https://unpkg.com/swagger-ui-dist@5.18.2/swagger-ui-bundle.js" crossorigin></script>
             <script>
                 window.onload = () => {
                     window.ui = SwaggerUIBundle({

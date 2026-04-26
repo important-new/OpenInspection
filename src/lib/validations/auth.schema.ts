@@ -31,8 +31,12 @@ export const ChangePasswordSchema = z.object({
     currentPassword: z.string().min(1, 'Current password is required').openapi({
         example: 'oldpassword'
     }),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters long').openapi({
-        example: 'newpassword123'
+    newPassword: z.string().min(8, 'Password must be at least 8 characters')
+        .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+        .regex(/[0-9]/, 'Must contain at least one number')
+        .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character')
+        .openapi({
+        example: 'NewPassword1!'
     }),
 });
 
@@ -43,8 +47,12 @@ export const JoinTeamSchema = z.object({
     token: z.string().uuid('Invalid invitation token').openapi({
         example: '550e8400-e29b-41d4-a716-446655440000'
     }),
-    password: z.string().min(8, 'Password must be at least 8 characters long').openapi({
-        example: 'newpassword123'
+    password: z.string().min(8, 'Password must be at least 8 characters')
+        .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+        .regex(/[0-9]/, 'Must contain at least one number')
+        .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character')
+        .openapi({
+        example: 'NewPassword1!'
     }),
 });
 
@@ -55,8 +63,12 @@ export const ResetPasswordSchema = z.object({
     token: z.string().uuid('Invalid reset token').openapi({
         example: '550e8400-e29b-41d4-a716-446655440000'
     }),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters long').openapi({
-        example: 'newpassword123'
+    newPassword: z.string().min(8, 'Password must be at least 8 characters')
+        .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+        .regex(/[0-9]/, 'Must contain at least one number')
+        .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character')
+        .openapi({
+        example: 'NewPassword1!'
     }),
 });
 
@@ -79,8 +91,12 @@ export const SetupSchema = z.object({
     email: z.string().email('Invalid email address').openapi({
         example: 'admin@example.com'
     }),
-    password: z.string().min(8, 'Password must be at least 8 characters long').openapi({
-        example: 'p@ssword123'
+    password: z.string().min(8, 'Password must be at least 8 characters')
+        .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+        .regex(/[0-9]/, 'Must contain at least one number')
+        .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character')
+        .openapi({
+        example: 'P@ssword123'
     }),
     verificationCode: z.string().min(6).optional().openapi({
         example: '123456'

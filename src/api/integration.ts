@@ -92,9 +92,8 @@ api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
 
         return c.json({ success: true });
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('Failed to handle tenant update', {}, error instanceof Error ? error : undefined);
-        return c.json({ error: 'Internal server error', message }, 500);
+        return c.json({ error: 'Internal server error' }, 500);
     }
 });
 
@@ -112,9 +111,8 @@ api.post('/tenants/:subdomain/stripe-connect', verifyPortalSignature, async (c) 
         await adminService.updateStripeConnect(subdomain as string, accountId);
         return c.json({ success: true });
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('Failed to handle stripe connect', {}, error instanceof Error ? error : undefined);
-        return c.json({ error: 'Internal server error', message }, 500);
+        return c.json({ error: 'Internal server error' }, 500);
     }
 });
 

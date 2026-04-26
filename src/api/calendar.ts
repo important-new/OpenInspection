@@ -99,7 +99,10 @@ calendarRoutes.get('/callback', async (c) => {
     const state = c.req.query('state');
     const error = c.req.query('error');
 
-    if (error) return c.html(`<p>Google Calendar authorization denied: ${error}. <a href="/dashboard">Back</a></p>`, 400);
+    if (error) {
+        const escapeHtml = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return c.html(`<p>Google Calendar authorization denied: ${escapeHtml(error)}. <a href="/dashboard">Back</a></p>`, 400);
+    }
     if (!code || !state) return c.json({ error: 'Missing code or state' }, 400);
 
     const baseUrl = c.env.APP_BASE_URL || `${new URL(c.req.url).protocol}//${c.req.header('host')}`;

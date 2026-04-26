@@ -24,9 +24,8 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     let tenantId: string | null = null;
     let subdomain: string | null = null;
 
-    // Extract subdomain from host or X-Forwarded-Host header
-    const forwardedHost = c.req.header('x-forwarded-host');
-    const actualHost = forwardedHost || host;
+    // Use Host header directly — reliable in Cloudflare Workers
+    const actualHost = host;
 
     // Extract subdomain: anything before the first dot that isn't www/dev/app
     // In shared SaaS mode, hostname is "app.<domain>" — "app" is NOT a tenant subdomain
@@ -38,9 +37,9 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
         }
     }
 
-    // Check for header-based subdomain override (useful for testing/CLI)
+    // Check for header-based subdomain override (M2M only — requires PORTAL_M2M_SECRET)
     const headerSubdomain = c.req.header('x-tenant-subdomain');
-    if (headerSubdomain) {
+    if (headerSubdomain && c.env.PORTAL_M2M_SECRET && c.req.header('authorization') === `Bearer ${c.env.PORTAL_M2M_SECRET}`) {
         subdomain = headerSubdomain;
     }
 

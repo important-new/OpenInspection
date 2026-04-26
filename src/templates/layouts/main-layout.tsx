@@ -2,8 +2,10 @@ import { BrandingConfig } from '../../types/auth';
 
 export const BareLayout = (props: { title: string, children: unknown, branding?: BrandingConfig | undefined, extraHead?: JSX.Element }): JSX.Element => {
     const { title, children, branding, extraHead } = props;
-    const primaryColor = branding?.primaryColor || '#6366f1';
-    const gaMeasurementId = branding?.gaMeasurementId;
+    const rawPrimaryColor = branding?.primaryColor || '#6366f1';
+    const safePrimaryColor = /^#[0-9a-fA-F]{3,8}$/.test(rawPrimaryColor) ? rawPrimaryColor : '#c85a2a';
+    const rawGaId = branding?.gaMeasurementId;
+    const safeGaId = /^G-[A-Z0-9]+$/.test(rawGaId || '') ? rawGaId : '';
 
     return (
         <html lang="en" class="scroll-smooth">
@@ -14,13 +16,13 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-                <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-                <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+                <script defer src="https://unpkg.com/@alpinejs/collapse@3.14.9/dist/cdn.min.js"></script>
+                <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
                 <link rel="stylesheet" href="/styles.css" />
                 <style dangerouslySetInnerHTML={{ __html: `
                     :root {
-                        --primary-color: ${primaryColor};
-                        --primary-glow: ${primaryColor}40;
+                        --primary-color: ${safePrimaryColor};
+                        --primary-glow: ${safePrimaryColor}40;
                     }
                     body { font-family: 'Inter', sans-serif; }
                     .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
@@ -28,14 +30,14 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
 
                 {extraHead}
 
-                {gaMeasurementId && (
+                {safeGaId && (
                     <>
-                        <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}></script>
+                        <script async src={`https://www.googletagmanager.com/gtag/js?id=${safeGaId}`}></script>
                         <script dangerouslySetInnerHTML={{ __html: `
                             window.dataLayer = window.dataLayer || [];
                             function gtag(){dataLayer.push(arguments);}
                             gtag('js', new Date());
-                            gtag('config', '${gaMeasurementId}');
+                            gtag('config', '${safeGaId}');
                         ` }} />
                     </>
                 )}
@@ -50,9 +52,11 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
 export const MainLayout = (props: { title: string, children: unknown, branding?: BrandingConfig | undefined, extraHead?: JSX.Element }): JSX.Element => {
     const { title, children, branding, extraHead } = props;
     const siteName = branding?.siteName || 'OpenInspection';
-    const primaryColor = branding?.primaryColor || '#6366f1';
+    const rawPrimaryColor = branding?.primaryColor || '#6366f1';
+    const safePrimaryColor = /^#[0-9a-fA-F]{3,8}$/.test(rawPrimaryColor) ? rawPrimaryColor : '#c85a2a';
     const logoUrl = branding?.logoUrl;
-    const gaMeasurementId = branding?.gaMeasurementId;
+    const rawGaId = branding?.gaMeasurementId;
+    const safeGaId = /^G-[A-Z0-9]+$/.test(rawGaId || '') ? rawGaId : '';
 
     return (
         <html lang="en" class="scroll-smooth">
@@ -63,28 +67,28 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-                <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-                <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+                <script defer src="https://unpkg.com/@alpinejs/collapse@3.14.9/dist/cdn.min.js"></script>
+                <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
                 <link rel="stylesheet" href="/styles.css" />
                 <style dangerouslySetInnerHTML={{ __html: `
                     :root {
-                        --primary-color: ${primaryColor};
-                        --primary-glow: ${primaryColor}40;
+                        --primary-color: ${safePrimaryColor};
+                        --primary-glow: ${safePrimaryColor}40;
                     }
                     body { font-family: 'Inter', sans-serif; }
                     .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
                 ` }} />
 
                 {extraHead}
-                
-                {gaMeasurementId && (
+
+                {safeGaId && (
                     <>
-                        <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}></script>
+                        <script async src={`https://www.googletagmanager.com/gtag/js?id=${safeGaId}`}></script>
                         <script dangerouslySetInnerHTML={{ __html: `
                             window.dataLayer = window.dataLayer || [];
                             function gtag(){dataLayer.push(arguments);}
                             gtag('js', new Date());
-                            gtag('config', '${gaMeasurementId}');
+                            gtag('config', '${safeGaId}');
                         ` }} />
                     </>
                 )}

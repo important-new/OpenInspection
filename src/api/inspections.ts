@@ -399,7 +399,7 @@ inspectionsRoutes.openapi(deleteInspectionRoute, async (c) => {
     const { inspection } = await service.getInspection(id, tenantId);
 
     const db = drizzle(c.env.DB);
-    await db.delete(inspectionTable).where(eq(inspectionTable.id, id));
+    await db.delete(inspectionTable).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     writeAuditLog({
         db: c.env.DB, tenantId, userId: c.get('user')?.sub,
@@ -452,7 +452,7 @@ inspectionsRoutes.openapi(updateInspectionRoute, async (c) => {
     const db = drizzle(c.env.DB);
 
     const { inspection } = await c.var.services.inspection.getInspection(id, tenantId);
-    await db.update(inspectionTable).set(body).where(eq(inspectionTable.id, id));
+    await db.update(inspectionTable).set(body).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (body.status && body.status !== inspection.status) {
         writeAuditLog({
@@ -736,7 +736,7 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     const { inspection } = await service.getInspection(id, tenantId);
 
     const db = drizzle(c.env.DB);
-    await db.update(inspectionTable).set({ status: 'completed' }).where(eq(inspectionTable.id, id));
+    await db.update(inspectionTable).set({ status: 'completed' }).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (inspection.clientEmail) {
         const protocol = c.req.url.startsWith('https') ? 'https' : 'http';
