@@ -97,14 +97,14 @@ function renderTemplates() {
                 </div>
                 <div>
                   <p class="text-sm font-bold text-slate-900">${t.name}</p>
-                  <p class="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">Ref: ${t.id.split('-')[0]}</p>
+                  <p class="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">ID: ${t.id.split('-')[0]}</p>
                 </div>
               </div>
             </td>
             <td class="px-6 py-6">
               <span class="inline-flex items-center rounded-lg border border-indigo-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest bg-indigo-50/50 text-indigo-600">v${t.version}.0</span>
             </td>
-            <td class="px-6 py-6 text-sm text-slate-500 font-bold">${itemCount} Points</td>
+            <td class="px-6 py-6 text-sm text-slate-500 font-bold">${itemCount} items</td>
             <td class="py-6 pl-3 pr-10 text-right">
               <button onclick="deleteTemplate('${t.id}')" class="inline-flex items-center gap-2 text-slate-300 font-black text-[10px] uppercase tracking-widest hover:text-red-500 transition-all active:scale-95">
                 Remove
@@ -116,14 +116,14 @@ function renderTemplates() {
 }
 
 async function deleteTemplate(id) {
-    if (!await modalConfirm('Eliminate this template from the repository?', 'Remove Template')) return;
+    if (!await modalConfirm('Delete this template?', 'Delete Template')) return;
     const res = await authFetch('/api/inspections/templates/' + id, { method: 'DELETE' });
     if (res.ok) {
         allTemplates = allTemplates.filter(t => t.id !== id);
         renderTemplates();
     } else {
         const err = await res.json();
-        modalAlert('Deployment Error: ' + (err.error || 'Failed to delete'), 'Error');
+        modalAlert('Error: ' + (err.error || 'Failed to delete'), 'Error');
     }
 }
 
@@ -149,7 +149,7 @@ async function submitTemplate() {
     }
     const btn = document.getElementById('submitTplBtn');
     btn.disabled = true;
-    btn.textContent = 'Deploying...';
+    btn.textContent = 'Creating...';
 
     const res = await authFetch('/api/inspections/templates', {
         method: 'POST',
@@ -157,12 +157,12 @@ async function submitTemplate() {
         body: JSON.stringify({ name, schema })
     });
     btn.disabled = false;
-    btn.textContent = 'Deploy Template';
+    btn.textContent = 'Create Template';
     if (res.ok) {
         closeModal();
         loadTemplates();
     } else {
         const err = await res.json();
-        modalAlert('Sync Error: ' + (err.error || 'Failed to create'), 'Error');
+        modalAlert('Error: ' + (err.error || 'Failed to create'), 'Error');
     }
 }
