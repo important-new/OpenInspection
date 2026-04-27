@@ -26,6 +26,7 @@ import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
 import { TemplatesPage } from './templates/pages/templates';
+import { TemplateEditorPage } from './templates/pages/template-editor';
 import { TeamPage } from './templates/pages/team';
 import { AgreementsPage } from './templates/pages/agreements';
 import { SetupPage } from './templates/pages/setup';
@@ -364,6 +365,10 @@ app.get('/report/:id', async (c) => {
 app.get('/dashboard', htmlAuthGuard(), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), (c) => c.html(AgentDashboardPage({ branding: c.get('branding') })));
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
+app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const id = c.req.param('id') as string;
+    return c.html(TemplateEditorPage({ templateId: id, branding: c.get('branding') }));
+});
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));

@@ -96,7 +96,7 @@ function renderTemplates() {
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                 </div>
                 <div>
-                  <p class="text-sm font-bold text-slate-900">${t.name}</p>
+                  <a href="/templates/${t.id}/edit" class="text-sm font-bold text-slate-900 hover:text-indigo-600 transition-colors">${t.name}</a>
                   <p class="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">ID: ${t.id.split('-')[0]}</p>
                 </div>
               </div>
@@ -159,8 +159,14 @@ async function submitTemplate() {
     btn.disabled = false;
     btn.textContent = 'Create Template';
     if (res.ok) {
+        const result = await res.json();
+        const newId = result?.data?.template?.id;
         closeModal();
-        loadTemplates();
+        if (newId) {
+            window.location.href = '/templates/' + newId + '/edit';
+        } else {
+            loadTemplates();
+        }
     } else {
         const err = await res.json();
         modalAlert('Error: ' + (err.error || 'Failed to create'), 'Error');

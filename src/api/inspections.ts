@@ -114,6 +114,37 @@ inspectionsRoutes.openapi(listTemplatesRoute, async (c) => {
 });
 
 /**
+ * GET /api/inspections/templates/:id
+ */
+const getTemplateRoute = createRoute({
+    method: 'get',
+    path: '/templates/{id}',
+    tags: ['Templates'],
+    summary: 'Get template',
+    description: 'Retrieve a single template with full schema.',
+    request: {
+        params: z.object({ id: z.string() }),
+    },
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: createApiResponseSchema(z.object({ template: z.unknown() })),
+                },
+            },
+            description: 'Template details',
+        },
+    },
+});
+
+inspectionsRoutes.openapi(getTemplateRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const service = c.var.services.template;
+    const template = await service.getTemplate(id, c.get('tenantId'));
+    return c.json({ success: true, data: { template } }, 200);
+});
+
+/**
  * POST /api/inspections/templates
  */
 const createTemplateRoute = createRoute({
