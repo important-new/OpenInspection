@@ -19,6 +19,7 @@ function inspectionEditor(inspectionId) {
     publishing: false,
     isDesktop: window.innerWidth >= 1024,
     saveTimer: null,
+    saveState: 'idle',
     _reportStats: { total: 0, satisfactory: 0, monitor: 0, defect: 0 },
 
     publishOptions: {
@@ -231,18 +232,25 @@ function inspectionEditor(inspectionId) {
 
     debounceSave() {
       clearTimeout(this.saveTimer);
+      this.saveState = 'saving';
       this.saveTimer = setTimeout(() => this.saveResults(), 1000);
     },
 
     async saveResults() {
+      this.saveState = 'saving';
       try {
-        await authFetch('/api/inspections/' + this.inspectionId + '/results', {
+        var res = await authFetch('/api/inspections/' + this.inspectionId + '/results', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: this.results }),
         });
+        this.saveState = res.ok ? 'saved' : 'error';
       } catch (e) {
         console.error('Failed to save results:', e);
+        this.saveState = 'error';
+      }
+      if (this.saveState === 'saved') {
+        setTimeout(() => { if (this.saveState === 'saved') this.saveState = 'idle'; }, 2000);
       }
     },
 

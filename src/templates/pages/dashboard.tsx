@@ -56,6 +56,9 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                              <h2 class="text-2xl font-black text-slate-900 tracking-tightest">Recent Inspections</h2>
                         </div>
                         <div class="flex items-center gap-4 w-full sm:w-auto">
+                            <select id="filterInspector" aria-label="Filter by inspector" class="premium-input px-4 py-4 rounded-2xl text-sm font-bold border-0 ring-2 ring-slate-100 focus:ring-2 focus:ring-indigo-600 transition-all bg-white min-w-[160px]">
+                                <option value="">All Inspectors</option>
+                            </select>
                             <div class="relative w-full sm:w-80 group">
                                 <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur opacity-0 group-focus-within:opacity-10 transition-opacity"></div>
                                 <input type="text" id="filterSearch" placeholder="Search entries..." class="premium-input relative w-full pl-12 pr-6 py-4 rounded-2xl text-sm font-bold border-0 ring-2 ring-slate-100 focus:ring-2 focus:ring-indigo-600 transition-all placeholder:text-slate-400" />
@@ -69,15 +72,17 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                             <thead class="bg-slate-50/40">
                                 <tr>
                                     <th class="py-6 px-10 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Address</th>
+                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Client</th>
                                     <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Inspector</th>
+                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Date</th>
                                     <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Status</th>
                                     <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Fee</th>
-                                    <th class="relative py-6 pl-3 pr-10 text-right"><span class="sr-only">Control</span></th>
+                                    <th class="relative py-6 pl-3 pr-10 text-right"><span class="sr-only">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody id="inspectionsList" class="divide-y divide-slate-100/50">
                                 <tr id="loadingRow">
-                                    <td colspan={5} class="py-32 text-center">
+                                    <td colspan={7} class="py-32 text-center">
                                         <div class="flex flex-col items-center gap-6">
                                             <div class="relative w-16 h-16">
                                                 <div class="absolute inset-0 border-[6px] border-indigo-50 rounded-full"></div>
@@ -132,6 +137,9 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <select id="templateId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
                                         <option value="">Select a template...</option>
                                     </select>
+                                    <p id="noTemplateHint" class="hidden text-xs text-amber-600 font-semibold mt-1 ml-1">
+                                        No templates found. <a href="/templates" class="underline hover:text-amber-800">Create a template</a> first.
+                                    </p>
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Assign Inspector</label>

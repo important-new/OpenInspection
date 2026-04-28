@@ -68,15 +68,12 @@ export const TemplatesPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <input type="text" id="tplName" placeholder="e.g., Luxury Residential Standard"
                                         class="premium-input w-full px-6 py-4.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-semibold" />
                                 </div>
-                                <div class="space-y-2">
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Schema (JSON)</label>
-                                    <p class="text-[10px] text-slate-300 uppercase tracking-tighter mb-2 ml-1">Format: <code class="bg-slate-50 px-1 rounded">{`{"id":"id","label":"Label"}`}</code></p>
-                                    <textarea id="tplSchema" rows={8} placeholder={'[\n  {"id":"structure","label":"Structural Integrity"},\n  {"id":"electrical","label":"Electrical Systems"}\n]'}
-                                        class="w-full px-6 py-4.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-mono text-xs resize-none leading-relaxed"></textarea>
-                                </div>
+                                <p class="text-sm text-slate-400 font-medium leading-relaxed">
+                                    After creating the template, you will be taken to the visual editor where you can add sections and inspection items.
+                                </p>
                                 <div class="pt-4 flex gap-6">
                                     <button type="button" onclick="closeModal()" class="flex-1 py-4.5 rounded-2xl font-black text-slate-400 hover:text-slate-900 transition-all uppercase text-[10px] tracking-widest">
-                                        Discard
+                                        Cancel
                                     </button>
                                     <button type="button" onclick="submitTemplate()" id="submitTplBtn" class="flex-[2] premium-button py-4.5 rounded-2xl bg-indigo-600 text-white font-bold shadow-2xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
                                         Create Template

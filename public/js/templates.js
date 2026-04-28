@@ -137,41 +137,39 @@ function showCreateModal() {
 function closeModal() {
     document.getElementById('createModal').classList.add('hidden');
     document.getElementById('tplName').value = '';
-    document.getElementById('tplSchema').value = '';
 }
 
 async function submitTemplate() {
     const name = document.getElementById('tplName').value.trim();
-    const schemaRaw = document.getElementById('tplSchema').value.trim();
     if (!name) { modalAlert('Please enter a template name.', 'Validation'); return; }
-    let schema;
-    try {
-        schema = schemaRaw ? JSON.parse(schemaRaw) : [];
-    } catch {
-        modalAlert('Schema must be valid JSON.', 'Validation'); return;
-    }
+
     const btn = document.getElementById('submitTplBtn');
     btn.disabled = true;
     btn.textContent = 'Creating...';
 
-    const res = await authFetch('/api/inspections/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, schema })
-    });
-    btn.disabled = false;
-    btn.textContent = 'Create Template';
-    if (res.ok) {
-        const result = await res.json();
-        const newId = result?.data?.template?.id;
-        closeModal();
-        if (newId) {
-            window.location.href = '/templates/' + newId + '/edit';
+    try {
+        const res = await authFetch('/api/inspections/templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, schema: { sections: [], ratingLevels: [] } })
+        });
+        if (res.ok) {
+            const result = await res.json();
+            const newId = result?.data?.template?.id;
+            closeModal();
+            if (newId) {
+                window.location.href = '/templates/' + newId + '/edit';
+            } else {
+                loadTemplates();
+            }
         } else {
-            loadTemplates();
+            const err = await res.json();
+            modalAlert('Error: ' + (err.error || 'Failed to create'), 'Error');
         }
-    } else {
-        const err = await res.json();
-        modalAlert('Error: ' + (err.error || 'Failed to create'), 'Error');
+    } catch (e) {
+        modalAlert('Connection error: ' + e.message, 'Error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Template';
     }
 }

@@ -11,8 +11,11 @@ async function logout() {
 }
 
 let inspections = [];
+let allInspectors = [];
+let allTemplates = [];
 let searchDebounce;
 let currentUserEmail = '';
+let selectedInspectorId = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
     // Fetch current user for avatar. If unauthenticated, htmlAuthGuard already redirected;
@@ -44,6 +47,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
+    const inspectorFilter = document.getElementById('filterInspector');
+    if (inspectorFilter) {
+        inspectorFilter.onchange = () => {
+            selectedInspectorId = inspectorFilter.value;
+            fetchInspections(true);
+        };
+    }
+
     fetchInspections(true);
     fetchPrerequisites();
 });
@@ -55,13 +66,17 @@ async function fetchInspections() {
     try {
         const searchInput = document.getElementById('filterSearch');
         const query = searchInput ? searchInput.value.trim() : '';
-        const url = query ? `/api/inspections?search=${encodeURIComponent(query)}` : '/api/inspections';
+        const params = new URLSearchParams();
+        if (query) params.set('search', query);
+        if (selectedInspectorId) params.set('inspectorId', selectedInspectorId);
+        const qs = params.toString();
+        const url = qs ? `/api/inspections?${qs}` : '/api/inspections';
 
         const res = await authFetch(url);
         if (res.status === 401) { window.location.href = '/login'; return; }
 
         if (!res.ok) {
-            tbody.innerHTML = '<tr><td colspan="5" class="py-20 text-center text-sm font-bold text-red-500">Failed to sync with registry.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="py-20 text-center text-sm font-bold text-red-500">Failed to sync with registry.</td></tr>';
             return;
         }
 
@@ -74,7 +89,7 @@ async function fetchInspections() {
     } catch (e) {
         console.error('Fetch Error:', e);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="5" class="py-20 text-center text-sm font-bold text-red-500">Network error during synchronization.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="py-20 text-center text-sm font-bold text-red-500">Network error during synchronization.</td></tr>';
         }
     }
 }
@@ -99,7 +114,7 @@ function renderInspections(list) {
     if (list.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="py-32 text-center">
+                <td colspan="7" class="py-32 text-center">
                     <div class="flex flex-col items-center gap-6">
                         <div class="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center">
                             <svg class="w-10 h-10 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
@@ -115,7 +130,10 @@ function renderInspections(list) {
         return;
     }
 
-    tbody.innerHTML = list.map(ins => `
+    tbody.innerHTML = list.map(ins => {
+        const inspectorName = getInspectorName(ins.inspectorId);
+        const dateStr = formatInspectionDate(ins.createdAt || ins.scheduledDate);
+        return `
         <tr class="table-row-hover group">
             <td class="py-6 px-10">
                 <div>
@@ -135,6 +153,12 @@ function renderInspections(list) {
                 </div>
             </td>
             <td class="px-8 py-6">
+                <p class="text-[11px] font-bold text-slate-700">${inspectorName}</p>
+            </td>
+            <td class="px-8 py-6">
+                <p class="text-[11px] font-bold text-slate-700">${dateStr}</p>
+            </td>
+            <td class="px-8 py-6">
                 <span class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-[10px] font-black uppercase tracking-widest ${getStatusStyle(ins.status)} shadow-sm ring-1 ring-inset">
                     <span class="w-1 h-1 rounded-full bg-current"></span>
                     ${ins.status.replace('_', ' ')}
@@ -146,17 +170,19 @@ function renderInspections(list) {
             </td>
             <td class="py-6 pl-3 pr-10 text-right">
                 <div class="flex items-center justify-end gap-3">
-                    <a href="/api/inspections/${ins.id}/report" target="_blank" class="inline-flex items-center gap-1.5 text-slate-300 font-black text-[10px] uppercase tracking-widest hover:text-indigo-600 transition-all">
-                        Report
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    <a href="/api/inspections/${ins.id}/report" target="_blank" class="inline-flex items-center gap-1.5 text-slate-300 font-black text-[10px] uppercase tracking-widest hover:text-indigo-600 transition-all" title="View Report">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                     </a>
-                    <button onclick="deleteInspection('${ins.id}')" class="text-slate-200 hover:text-red-500 transition-colors p-1" aria-label="Delete inspection">
+                    <button onclick="cloneInspection('${ins.id}')" class="text-slate-200 hover:text-indigo-600 transition-colors p-1" aria-label="Clone inspection" title="Clone">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    </button>
+                    <button onclick="deleteInspection('${ins.id}')" class="text-slate-200 hover:text-red-500 transition-colors p-1" aria-label="Delete inspection" title="Delete">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                     </button>
                 </div>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function getStatusStyle(status) {
@@ -170,6 +196,56 @@ function getStatusStyle(status) {
     return styles[status] || styles['scheduled'];
 }
 
+function getInspectorName(inspectorId) {
+    if (!inspectorId) return '—';
+    for (var i = 0; i < allInspectors.length; i++) {
+        if (allInspectors[i].id === inspectorId) {
+            return allInspectors[i].name || allInspectors[i].email.split('@')[0];
+        }
+    }
+    return inspectorId.split('-')[0];
+}
+
+function formatInspectionDate(dateStr) {
+    if (!dateStr) return '—';
+    try {
+        var d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch { return '—'; }
+}
+
+async function cloneInspection(id) {
+    var ins = inspections.find(function(i) { return i.id === id; });
+    if (!ins) return;
+    var confirmed = await modalConfirm(
+        'Create a new inspection at "' + ins.propertyAddress + '" with the same template and client details?',
+        'Clone Inspection'
+    );
+    if (!confirmed) return;
+    try {
+        var res = await authFetch('/api/inspections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                propertyAddress: ins.propertyAddress,
+                templateId: ins.templateId,
+                clientName: ins.clientName || '',
+                clientEmail: ins.clientEmail || '',
+                inspectorId: ins.inspectorId || undefined
+            })
+        });
+        if (res.ok) {
+            showToast('Inspection cloned successfully.');
+            fetchInspections(true);
+        } else {
+            var err = await res.json().catch(function() { return {}; });
+            modalAlert('Failed to clone: ' + (err.error?.message || 'Unknown error'), 'Error');
+        }
+    } catch (e) {
+        modalAlert('Network error: ' + e.message, 'Error');
+    }
+}
+
 async function fetchPrerequisites() {
     try {
         const [templatesRes, inspectorsRes] = await Promise.all([
@@ -179,28 +255,45 @@ async function fetchPrerequisites() {
 
         if (templatesRes.ok) {
             const tplData = await templatesRes.json();
-            const list = tplData.data?.templates || tplData.templates || [];
+            allTemplates = tplData.data?.templates || tplData.templates || [];
             const select = document.getElementById('templateId');
+            const noTplHint = document.getElementById('noTemplateHint');
             if (select) {
-                list.forEach(t => {
+                allTemplates.forEach(t => {
                     const opt = document.createElement('option');
                     opt.value = t.id;
                     opt.innerText = t.name;
                     select.appendChild(opt);
                 });
             }
+            if (noTplHint) {
+                noTplHint.classList.toggle('hidden', allTemplates.length > 0);
+            }
         }
 
         if (inspectorsRes.ok) {
             const insData = await inspectorsRes.json();
-            const list = insData.data?.inspectors || insData.inspectors || [];
+            allInspectors = insData.data?.inspectors || insData.inspectors || [];
+
+            // Populate the modal assign-inspector select
             const select = document.getElementById('inspectorId');
             if (select) {
-                list.forEach(i => {
+                allInspectors.forEach(i => {
                     const opt = document.createElement('option');
                     opt.value = i.id;
-                    opt.innerText = i.email;
+                    opt.innerText = i.name || i.email;
                     select.appendChild(opt);
+                });
+            }
+
+            // Populate the filter dropdown
+            const filterSelect = document.getElementById('filterInspector');
+            if (filterSelect && allInspectors.length > 0) {
+                allInspectors.forEach(i => {
+                    const opt = document.createElement('option');
+                    opt.value = i.id;
+                    opt.innerText = i.name || i.email.split('@')[0];
+                    filterSelect.appendChild(opt);
                 });
             }
         }

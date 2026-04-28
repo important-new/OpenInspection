@@ -48,6 +48,9 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 </div>
               </div>
               <div class="flex items-center gap-2">
+                <span x-show="saveState === 'saving'" x-cloak class="text-[10px] font-semibold text-amber-500">Saving...</span>
+                <span x-show="saveState === 'saved'" x-cloak class="text-[10px] font-semibold text-emerald-500">Saved</span>
+                <span x-show="saveState === 'error'" x-cloak class="text-[10px] font-semibold text-red-500">Error</span>
                 <span class="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style="background: #eef4ff; color: #4a72ff" x-text="completionPercent + '%'"></span>
                 <button x-on:click="showMenu = !showMenu" class="w-8 h-8 rounded-xl bg-white/60 flex items-center justify-center">
                   <svg class="w-4 h-4" style="color: #6b6560" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01" /></svg>
@@ -167,6 +170,11 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
               </div>
               <div class="h-1.5 rounded-full" style="background: #e8e4dd">
                 <div class="h-full rounded-full transition-all duration-500" x-bind:style="'width:' + completionPercent + '%; background: #4a72ff'"></div>
+              </div>
+              <div class="mt-2 text-[10px] font-mono" style="color: #908a83">
+                <span x-show="saveState === 'saving'" x-cloak class="text-amber-500">Saving...</span>
+                <span x-show="saveState === 'saved'" x-cloak class="text-emerald-500">All changes saved</span>
+                <span x-show="saveState === 'error'" x-cloak class="text-red-500">Save failed</span>
               </div>
             </div>
             <div class="flex-1 px-3 py-2 space-y-0.5">
