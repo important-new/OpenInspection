@@ -6,8 +6,8 @@ export const AgreementsPage = ({ branding }: { branding?: BrandingConfig | undef
 
     return (
         <MainLayout title={`${siteName} | Agreements`} branding={branding}>
-            <div class="animate-slide-in space-y-12">
-                <div class="flex flex-col md:flex-row md:items-end justify-between gap-8">
+            <div class="animate-slide-in flex flex-col" style="min-height: calc(100vh - 5rem);">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
                     <div>
                         <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4 ring-1 ring-indigo-100">
                             <span class="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
@@ -23,9 +23,9 @@ export const AgreementsPage = ({ branding }: { branding?: BrandingConfig | undef
                 </div>
 
                 {/* Agreements List */}
-                <div class="glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl shadow-indigo-100/5">
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full">
+                <div class="glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl shadow-indigo-100/5 flex-1 flex flex-col">
+                    <div class="overflow-x-auto flex-1">
+                        <table class="min-w-full h-full">
                             <thead>
                                 <tr class="bg-slate-50/50">
                                     <th scope="col" class="py-6 pl-10 pr-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Agreement Name</th>
