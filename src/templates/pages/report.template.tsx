@@ -3,6 +3,8 @@ import { BrandingConfig } from '../../types/auth';
 
 interface InspectionRecord { id: string; propertyAddress: string; clientName?: string | null; clientEmail?: string | null; date: string; price: number; paymentStatus: string; signed?: boolean; }
 interface TemplateRecord { schema: string | Record<string, unknown>; }
+interface SchemaItemRaw { id: string; label?: string; name?: string; }
+interface SchemaSectionRaw { title?: string; name?: string; items: SchemaItemRaw[]; }
 interface SchemaItem { id: string; label: string; }
 interface SchemaSection { title: string; items: SchemaItem[]; }
 interface ResultItem { status?: string; notes?: string; photos?: { key: string }[]; }
@@ -16,7 +18,17 @@ export function renderProfessionalReport(data: {
     const { inspection, template, results, branding } = data;
     const siteName = branding?.siteName || 'OpenInspection';
     const logoUrl = branding?.logoUrl;
-    const schema = typeof template.schema === 'string' ? JSON.parse(template.schema) as { sections: SchemaSection[] } : template.schema as { sections: SchemaSection[] };
+    const rawSchema = typeof template.schema === 'string' ? JSON.parse(template.schema) as { sections: SchemaSectionRaw[] } : template.schema as { sections: SchemaSectionRaw[] };
+    // Normalize field names: DB may have "name" but templates use "title"/"label"
+    const schema: { sections: SchemaSection[] } = {
+        sections: (rawSchema.sections || []).map((sec: SchemaSectionRaw) => ({
+            title: sec.title || sec.name || 'Untitled',
+            items: (sec.items || []).map((item: SchemaItemRaw) => ({
+                id: item.id,
+                label: item.label || item.name || 'Untitled',
+            })),
+        })),
+    };
     const resultData = results?.data || {};
 
     const stats = {

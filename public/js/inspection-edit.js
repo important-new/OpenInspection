@@ -49,7 +49,18 @@ function inspectionEditor(inspectionId) {
         var dataRes = await authFetch('/api/inspections/' + this.inspectionId + '/report-data');
         if (dataRes.ok) {
           var dataJson = await dataRes.json();
-          this.sections = dataJson.data?.sections || [];
+          this.sections = (dataJson.data?.sections || []).map(function(sec) {
+            var s = Object.assign({}, sec);
+            if (!s.title && s.name) { s.title = s.name; }
+            if (s.items && Array.isArray(s.items)) {
+              s.items = s.items.map(function(item) {
+                var it = Object.assign({}, item);
+                if (!it.label && it.name) { it.label = it.name; }
+                return it;
+              });
+            }
+            return s;
+          });
           this.ratingLevels = dataJson.data?.ratingLevels || [];
           this._reportStats = dataJson.data?.stats || this._reportStats;
         }

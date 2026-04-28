@@ -295,7 +295,19 @@ function templateEditor() {
                 this.template.version = tpl.version || 1;
                 const schema = typeof tpl.schema === 'string' ? JSON.parse(tpl.schema) : (tpl.schema || {});
                 if (schema.sections && Array.isArray(schema.sections)) {
-                    this.template.sections = schema.sections;
+                    // Normalize field names: API may use "name" but editor uses "title"/"label"
+                    this.template.sections = schema.sections.map(function(sec) {
+                        var s = Object.assign({}, sec);
+                        if (!s.title && s.name) { s.title = s.name; delete s.name; }
+                        if (s.items && Array.isArray(s.items)) {
+                            s.items = s.items.map(function(item) {
+                                var it = Object.assign({}, item);
+                                if (!it.label && it.name) { it.label = it.name; delete it.name; }
+                                return it;
+                            });
+                        }
+                        return s;
+                    });
                 }
                 if (schema.ratingSystem) {
                     this.template.ratingSystem = schema.ratingSystem;

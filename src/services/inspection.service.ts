@@ -281,7 +281,7 @@ export class InspectionService {
 
         const sections = schemaData.sections.map((sec: SchemaSection) => ({
             id: sec.id,
-            title: sec.title,
+            title: sec.title || (sec as unknown as Record<string, string>).name || 'Untitled',
             icon: sec.icon ?? null,
             defectCount: stats.sectionDefects[sec.id] ?? 0,
             items: sec.items.map((item: SchemaItem) => {
@@ -297,7 +297,7 @@ export class InspectionService {
 
                 return {
                     id: item.id,
-                    label: item.label,
+                    label: item.label || (item as unknown as Record<string, string>).name || 'Untitled',
                     rating: ratingId,
                     ratingColor: getRatingColor(ratingId, levels),
                     ratingLabel: level?.label ?? ratingId,
