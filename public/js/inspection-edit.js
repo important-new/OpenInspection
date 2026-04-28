@@ -43,7 +43,7 @@ function inspectionEditor(inspectionId) {
         if (inspRes.status === 401) { window.location.href = '/login'; return; }
 
         var inspJson = await inspRes.json();
-        this.inspection = inspJson.data || {};
+        this.inspection = inspJson.data?.inspection || {};
 
         // Try to load report-data (sections + rating levels)
         var dataRes = await authFetch('/api/inspections/' + this.inspectionId + '/report-data');

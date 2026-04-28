@@ -463,7 +463,7 @@ const updateInspectionRoute = createRoute({
             },
         },
     },
-    middleware: [requireRole(['inspector'])],
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         200: {
             content: {
@@ -639,7 +639,7 @@ const cloneInspectionRoute = createRoute({
     request: {
         params: z.object({ id: z.string().uuid() }),
     },
-    middleware: [requireRole(['admin', 'inspector'])],
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         201: {
             content: {
@@ -674,7 +674,7 @@ const uploadPhotoRoute = createRoute({
     method: 'post',
     path: '/{id}/upload',
     tags: ['Inspections'],
-    summary: 'Upload photo',
+    summary: 'Upload inspection photo',
     request: {
         params: z.object({ id: z.string().uuid() }),
         body: {
@@ -688,7 +688,7 @@ const uploadPhotoRoute = createRoute({
             },
         },
     },
-    middleware: [requireRole(['inspector'])],
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         200: {
             content: {
@@ -748,7 +748,7 @@ const completeInspectionRoute = createRoute({
     request: {
         params: z.object({ id: z.string().uuid() }),
     },
-    middleware: [requireRole(['inspector'])],
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         200: {
             content: {
