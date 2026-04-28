@@ -729,7 +729,8 @@ inspectionsRoutes.get('/:id/report', async (c) => {
         inspection: inspection as never,
         template: template as never,
         results: (results || { data: {} }) as never,
-        branding: c.get('branding')
+        branding: c.get('branding'),
+        isAuthenticated: true
     }));
 });
 

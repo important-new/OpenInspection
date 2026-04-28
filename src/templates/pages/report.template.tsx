@@ -13,9 +13,11 @@ export function renderProfessionalReport(data: {
     inspection: InspectionRecord,
     template: TemplateRecord,
     results: { data: Record<string, ResultItem> } | undefined,
-    branding?: BrandingConfig | undefined
+    branding?: BrandingConfig | undefined,
+    isAuthenticated?: boolean | undefined
 }): JSX.Element {
     const { inspection, template, results, branding } = data;
+    const isAuthenticated = data.isAuthenticated ?? false;
     const siteName = branding?.siteName || 'OpenInspection';
     const logoUrl = branding?.logoUrl;
     const rawSchema = typeof template.schema === 'string' ? JSON.parse(template.schema) as { sections: SchemaSectionRaw[] } : template.schema as { sections: SchemaSectionRaw[] };
@@ -307,7 +309,7 @@ export function renderProfessionalReport(data: {
                     <h2 class="text-5xl font-black tracking-tightest text-slate-900 mb-4">Payment Required</h2>
                     <p class="text-xl text-slate-400 font-medium leading-relaxed">
                         Your inspection is complete. The balance due is 
-                        <span class="text-slate-900 font-black tabular-nums tracking-tightest">${`$${(inspection.price / 100).toFixed(2)}`}</span>.
+                        <span class="text-slate-900 font-black tabular-nums tracking-tightest">{`$${(inspection.price / 100).toFixed(2)}`}</span>.
                     </p>
                 </div>
 
@@ -335,10 +337,10 @@ export function renderProfessionalReport(data: {
 
             Alpine.data('reportGatekeeper', (id) => ({
                 id,
-                signed: ${!!inspection.signed},
-                paid: ${inspection.paymentStatus === 'paid'} || paymentSuccess,
-                showAgreement: !${!!inspection.signed},
-                showPayment: !(${inspection.paymentStatus === 'paid'} || paymentSuccess),
+                signed: ${!!inspection.signed} || ${isAuthenticated},
+                paid: ${inspection.paymentStatus === 'paid'} || paymentSuccess || ${isAuthenticated},
+                showAgreement: !${!!inspection.signed} && !${isAuthenticated},
+                showPayment: !(${inspection.paymentStatus === 'paid'} || paymentSuccess || ${isAuthenticated}),
                 hasAgreement: true,
                 agreementContent: '',
                 aiSummary: '',
