@@ -69,12 +69,15 @@ async function loadAgreements() {
             list.innerHTML = `
                 <tr>
                     <td colspan="4" class="py-32 text-center">
-                        <div class="flex flex-col items-center gap-4 animate-slide-in">
-                            <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-2">
-                                <svg class="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <div class="flex flex-col items-center gap-6">
+                            <div class="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center">
+                                <svg class="w-10 h-10 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             </div>
-                            <p class="text-xl font-bold text-slate-900">No agreements yet</p>
-                            <p class="text-slate-500 max-w-xs mx-auto">Draft your first professional service agreement.</p>
+                            <div>
+                                <p class="text-lg font-black text-slate-900 tracking-tight">No agreements yet</p>
+                                <p class="text-sm text-slate-400 font-medium mt-1">Create a service agreement or liability waiver.</p>
+                            </div>
+                            <button onclick="showCreateModal()" class="px-6 py-3 rounded-xl bg-indigo-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-slate-900 transition-all active:scale-95">New Agreement</button>
                         </div>
                     </td>
                 </tr>

@@ -546,7 +546,7 @@ const updateResultsRoute = createRoute({
             },
         },
     },
-    middleware: [requireRole(['inspector'])],
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         200: {
             content: {

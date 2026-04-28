@@ -269,7 +269,7 @@ function inspectionEditor(inspectionId) {
     },
 
     previewReport() {
-      window.open('/report/' + this.inspectionId, '_blank');
+      window.open('/api/inspections/' + this.inspectionId + '/report', '_blank');
     },
 
     async publish() {

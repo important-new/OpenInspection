@@ -327,6 +327,7 @@ export function renderProfessionalReport(data: {
                 paid: ${inspection.paymentStatus === 'paid'} || paymentSuccess,
                 showAgreement: !${!!inspection.signed},
                 showPayment: !(${inspection.paymentStatus === 'paid'} || paymentSuccess),
+                hasAgreement: true,
                 agreementContent: '',
                 aiSummary: '',
                 signaturePad: null,
@@ -334,12 +335,19 @@ export function renderProfessionalReport(data: {
                 async init() {
                     try {
                         const res = await fetch(\`/api/inspections/\${this.id}/agreement\`);
-                        if (!res.ok) throw new Error('Fetch failed');
+                        if (!res.ok) {
+                            this.hasAgreement = false;
+                            this.agreementContent = '';
+                            this.showAgreement = false;
+                            this.signed = true;
+                            return;
+                        }
                         const data = await res.json();
                         this.agreementContent = data.agreement?.content || 'Error loading agreement terms.';
                     } catch (e) {
                         console.error('Agreement loading error:', e);
-                        this.agreementContent = 'Unable to load agreement. Please try again or contact support.';
+                        this.hasAgreement = false;
+                        this.agreementContent = '';
                     }
 
                     if (this.paid) {

@@ -208,6 +208,17 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                         </div>
                     </main>
                 </div>
+                <script dangerouslySetInnerHTML={{ __html: `
+                    (function() {
+                        var p = location.pathname;
+                        document.querySelectorAll('aside a[href], nav a[href]').forEach(function(a) {
+                            if (a.getAttribute('href') === p || (a.getAttribute('href') === '/dashboard' && p === '/')) {
+                                a.classList.add('bg-indigo-50', 'text-indigo-600');
+                                a.classList.remove('text-slate-600');
+                            }
+                        });
+                    })();
+                ` }} />
                 <script src="/js/toast.js"></script>
                 <script dangerouslySetInnerHTML={{ __html: `
                     document.getElementById('mobileLogoutBtn')?.addEventListener('click', function() {
