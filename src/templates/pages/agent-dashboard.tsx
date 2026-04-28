@@ -19,7 +19,7 @@ export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | u
                     <div class="glass-panel flex h-20 items-center justify-between px-8 rounded-[2rem] shadow-2xl shadow-indigo-100/20">
                         <div class="flex items-center gap-8">
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-200 overflow-hidden ring-4 ring-white">
+                                <div class="w-10 h-10 flex items-center justify-center flex-shrink-0">
                                     <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
                                 </div>
                                 <span class="text-2xl font-black tracking-tightest text-slate-900">{siteName}</span>
@@ -90,6 +90,7 @@ export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | u
                     </div>
                 </main>
 
+                <script src="/js/auth.js"></script>
                 <script src="/js/agent-dashboard.js"></script>
             </div>
         </BareLayout>

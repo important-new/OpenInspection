@@ -1,13 +1,3 @@
-// Cookie-only auth: rely on the HttpOnly inspector_token cookie set by the server.
-
-const authFetch = (url, opts = {}) =>
-    fetch(url, { credentials: 'same-origin', ...opts });
-
-async function logout() {
-    try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    window.location.href = '/login';
-}
-
 const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) logoutBtn.addEventListener('click', logout);
 

@@ -86,7 +86,7 @@ api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
         return c.json({ error: 'Invalid input', details: parsed.error.flatten().fieldErrors }, 400);
     }
 
-    const adminService = c.get('services').admin;
+    const adminService = c.var.services.admin;
 
     try {
         await adminService.handleTenantUpdate({
@@ -112,7 +112,7 @@ api.post('/tenants/:subdomain/stripe-connect', verifyPortalSignature, async (c) 
         return c.json({ error: 'Invalid input', details: parsed.error.flatten().fieldErrors }, 400);
     }
 
-    const adminService = c.get('services').admin;
+    const adminService = c.var.services.admin;
 
     try {
         await adminService.updateStripeConnect(subdomain as string, parsed.data.accountId);

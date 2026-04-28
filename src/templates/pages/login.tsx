@@ -17,7 +17,6 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                     :root {
                         --primary: ${primaryColor};
                         --primary-light: ${primaryColor}18;
-                        --primary-glow: ${primaryColor}30;
                     }
                     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
                     body {
@@ -138,19 +137,15 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                     .brand-icon {
                         width: 44px;
                         height: 44px;
-                        border-radius: 14px;
-                        background: var(--primary);
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        box-shadow: 0 2px 12px var(--primary-glow);
                         flex-shrink: 0;
                     }
                     .brand-icon img {
                         width: 100%;
                         height: 100%;
                         object-fit: contain;
-                        border-radius: 14px;
                     }
                     .brand-name {
                         font-family: 'Fraunces', serif;
@@ -232,7 +227,6 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                     .submit-btn svg { transition: transform 0.2s; }
                     .submit-btn:hover svg { transform: translateX(2px); }
                     .error-box {
-                        display: none;
                         margin-top: 1rem;
                         padding: 0.75rem 1rem;
                         border-radius: 10px;
@@ -243,7 +237,7 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                         font-weight: 500;
                         text-align: center;
                     }
-                    .error-box.visible { display: block; }
+                    .hidden { display: none; }
                     .divider-row {
                         display: flex;
                         align-items: center;
@@ -320,7 +314,7 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                     <div class="login-wrap">
                         <div class="brand-mark enter-up">
                             <div class="brand-icon">
-                                <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
+                                <img src={logoUrl || '/logo.svg'} alt={siteName} />
                             </div>
                             <span class="brand-name">{siteName}</span>
                         </div>
@@ -348,7 +342,7 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                             </button>
                         </form>
 
-                        <div id="errorMsg" class="error-box"></div>
+                        <div id="errorMsg" class="error-box hidden"></div>
 
                         <div class="divider-row enter-up delay-4">
                             <div class="divider-line"></div>

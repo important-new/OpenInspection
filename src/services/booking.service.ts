@@ -40,6 +40,7 @@ export class BookingService {
         const [recurring, overrides, jobs] = await Promise.all([
             db.select().from(availability).where(and(eq(availability.tenantId, tenantId), eq(availability.inspectorId, inspectorId))).all(),
             db.select().from(availabilityOverrides).where(and(
+                eq(availabilityOverrides.tenantId, tenantId),
                 eq(availabilityOverrides.inspectorId, inspectorId),
                 gte(availabilityOverrides.date, startDate),
                 lte(availabilityOverrides.date, endDate)

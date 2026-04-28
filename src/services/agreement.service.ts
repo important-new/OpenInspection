@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { agreements } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 
@@ -43,9 +43,9 @@ export class AgreementService {
      */
     async updateAgreement(id: string, tenantId: string, name?: string, content?: string) {
         const db = this.getDrizzle();
-        const existing = await db.select().from(agreements).where(eq(agreements.id, id)).get();
+        const existing = await db.select().from(agreements).where(and(eq(agreements.id, id), eq(agreements.tenantId, tenantId))).get();
 
-        if (!existing || existing.tenantId !== tenantId) {
+        if (!existing) {
             throw Errors.NotFound('Agreement template not found');
         }
 
@@ -64,9 +64,9 @@ export class AgreementService {
      */
     async deleteAgreement(id: string, tenantId: string) {
         const db = this.getDrizzle();
-        const existing = await db.select().from(agreements).where(eq(agreements.id, id)).get();
+        const existing = await db.select().from(agreements).where(and(eq(agreements.id, id), eq(agreements.tenantId, tenantId))).get();
 
-        if (!existing || existing.tenantId !== tenantId) {
+        if (!existing) {
             throw Errors.NotFound('Agreement template not found');
         }
 

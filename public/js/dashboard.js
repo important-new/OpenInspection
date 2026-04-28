@@ -1,15 +1,3 @@
-// Authenticated browser pages rely on the HttpOnly `inspector_token` cookie. The cookie is not
-// readable from JS; the browser sends it automatically with same-origin fetches. We never store
-// the token in localStorage or a JS-readable cookie — that would defeat HttpOnly.
-
-const authFetch = (url, opts = {}) =>
-    fetch(url, { credentials: 'same-origin', ...opts });
-
-async function logout() {
-    try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    window.location.href = '/login';
-}
-
 let inspections = [];
 let allInspectors = [];
 let allTemplates = [];

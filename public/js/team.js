@@ -1,12 +1,4 @@
 (function() {
-    const authFetch = (url, opts = {}) =>
-        fetch(url, { credentials: 'same-origin', ...opts });
-
-    async function logout() {
-        try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch {}
-        window.location.href = '/login';
-    }
-
     const membersList = document.getElementById('membersList');
     const invitesList = document.getElementById('invitesList');
     const quotaBadge = document.getElementById('quotaBadge');

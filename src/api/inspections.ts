@@ -785,8 +785,10 @@ inspectionsRoutes.post('/:id/sign', async (c) => {
         .where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId))).get();
     if (!inspection) throw Errors.NotFound('Inspection not found');
 
-    const body = await c.req.json<{ signatureBase64: string }>();
-    if (!body.signatureBase64) throw Errors.BadRequest('Signature is required');
+    const raw = await c.req.json();
+    const parsed = z.object({ signatureBase64: z.string().min(1) }).safeParse(raw);
+    if (!parsed.success) return c.json({ success: false, error: { message: 'Invalid signature data', code: 'validation_error' } }, 400);
+    const body = parsed.data;
 
     // Check if already signed
     const existing = await db.select().from(inspectionAgreements)

@@ -247,7 +247,7 @@ adminRoutes.openapi(importDataRoute, async (c) => {
 
     writeAuditLog({
         db: c.env.DB, tenantId, userId: user?.sub,
-        action: 'data.export', entityType: 'import',
+        action: 'data.import', entityType: 'import',
         metadata: { counts },
         ipAddress: c.req.header('CF-Connecting-IP'),
         executionCtx: c.executionCtx,
@@ -470,7 +470,7 @@ adminRoutes.openapi(getAuditLogsRoute, async (c) => {
     
     writeAuditLog({
         db: c.env.DB, tenantId, userId: c.get('user')?.sub,
-        action: 'data.export', entityType: 'audit_log',
+        action: 'audit.view', entityType: 'audit_log',
         ipAddress: c.req.header('CF-Connecting-IP'),
         executionCtx: c.executionCtx,
     });

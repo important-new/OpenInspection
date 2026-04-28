@@ -34,6 +34,13 @@ export interface AppEnv {
     APP_MODE?: 'standalone' | 'saas';
     SETUP_CODE?: string;
 
+    // Payments
+    STRIPE_SECRET_KEY?: string;
+    STRIPE_WEBHOOK_SECRET?: string;
+
+    // Rate Limiting
+    RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+
     // SaaS Portal Integration
     PORTAL_API_URL?: string;
     PORTAL_M2M_SECRET?: string;

@@ -304,6 +304,7 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
 
                 </div>
 
+                <script src="/js/auth.js"></script>
                 <script src="/js/settings.js"></script>
             </div>
         </MainLayout>

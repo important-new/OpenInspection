@@ -116,6 +116,12 @@ const createBookingRoute = createRoute({
 });
 
 bookingsRoutes.openapi(createBookingRoute, async (c) => {
+    if (c.env.RATE_LIMITER) {
+        const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+        const { success } = await c.env.RATE_LIMITER.limit({ key: `book:${ip}` });
+        if (!success) throw Errors.RateLimited();
+    }
+
     const body = c.req.valid('json');
     const tenantId = c.get('tenantId') || c.get('requestedSubdomain');
     if (!tenantId) throw Errors.Forbidden('Tenant context missing.');

@@ -1,14 +1,3 @@
-// Cookie-only auth: the HttpOnly inspector_token cookie is sent automatically on same-origin
-// fetches. Do NOT read/write the token from JS — that would downgrade the cookie to JS-readable.
-
-const authFetch = (url, opts = {}) =>
-    fetch(url, { credentials: 'same-origin', ...opts });
-
-async function logout() {
-    try { await authFetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    window.location.href = '/login';
-}
-
 let allTemplates = [];
 
 document.addEventListener('DOMContentLoaded', async () => {

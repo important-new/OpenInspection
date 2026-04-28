@@ -19,7 +19,9 @@ export type AuditAction =
     | 'agreement.update'
     | 'agreement.delete'
     | 'data.export'
+    | 'data.import'
     | 'data.delete'
+    | 'audit.view'
     | 'config.integration.update'
     | 'config.secrets.update';
 

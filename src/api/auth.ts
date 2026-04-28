@@ -15,10 +15,9 @@ import {
     ForgotPasswordSchema,
     ResetPasswordSchema,
     AuthResponseSchema,
-    SuccessResponseSchema,
     SetupSchema
 } from '../lib/validations/auth.schema';
-import { createApiResponseSchema } from '../lib/validations/shared.schema';
+import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 
 /**
  * Require a strong JWT_SECRET (≥32 chars) before signing/verifying anything.
@@ -90,6 +89,12 @@ const loginRoute = createRoute({
 });
 
 coreAuthRoutes.openapi(loginRoute, async (c) => {
+    if (c.env.RATE_LIMITER) {
+        const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+        const { success } = await c.env.RATE_LIMITER.limit({ key: `login:${ip}` });
+        if (!success) throw Errors.RateLimited();
+    }
+
     const body = c.req.valid('json');
     const user = await c.var.services.auth.validateCredentials(body.email, body.password);
 
@@ -222,6 +227,12 @@ const forgotPasswordRoute = createRoute({
 });
 
 coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
+    if (c.env.RATE_LIMITER) {
+        const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+        const { success } = await c.env.RATE_LIMITER.limit({ key: `forgot:${ip}` });
+        if (!success) throw Errors.RateLimited();
+    }
+
     const body = c.req.valid('json');
     const resetToken = await c.var.services.auth.createPasswordResetToken(body.email);
     

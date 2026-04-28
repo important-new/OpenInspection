@@ -133,6 +133,7 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
                     </div>
                 </div>
 
+                <script src="/js/auth.js"></script>
                 <script src="/js/team.js"></script>
             </div>
         </MainLayout>

@@ -24,12 +24,9 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     let tenantId: string | null = null;
     let subdomain: string | null = null;
 
-    // Use Host header directly — reliable in Cloudflare Workers
-    const actualHost = host;
-
     // Extract subdomain: anything before the first dot that isn't www/dev/app
     // In shared SaaS mode, hostname is "app.<domain>" — "app" is NOT a tenant subdomain
-    const hostParts = actualHost.split('.');
+    const hostParts = host.split('.');
     if (hostParts.length > 2) {
         const potentialSubdomain = hostParts[0];
         if (potentialSubdomain !== 'www' && potentialSubdomain !== 'dev' && potentialSubdomain !== 'localhost' && potentialSubdomain !== 'app') {
