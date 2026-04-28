@@ -17,15 +17,14 @@ import { HonoConfig } from '../../types/hono';
 export const securityHeaders: MiddlewareHandler<HonoConfig> = async (c, next) => {
     await next();
 
-    // NOTE: 'unsafe-inline' in script-src is a pragmatic compromise — existing templates use
-    // inline onclick/onsubmit attributes. Refactor to event listeners (or add per-request
-    // nonces) to drop this, at which point the CSP becomes a true XSS mitigation rather than
-    // a defence-in-depth hint.
+    // NOTE: 'unsafe-inline' is needed for inline scripts in templates. 'unsafe-eval' is required
+    // by Alpine.js which uses `new Function()` to evaluate x-data/x-show/x-text expressions.
+    // To drop 'unsafe-eval', switch to Alpine's CSP build (alpinejs/csp).
     c.header(
         'Content-Security-Policy',
         [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://challenges.cloudflare.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://challenges.cloudflare.com",
             "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com",
             "img-src 'self' data: blob: https://ui-avatars.com",
