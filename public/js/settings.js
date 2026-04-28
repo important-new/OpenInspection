@@ -11,17 +11,6 @@ async function logout() {
 const logoutBtn = document.getElementById('logoutBtn');
 if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
-function showToast(msg, isError) {
-    const el = document.getElementById('statusToast');
-    if (!el) return;
-    el.textContent = msg;
-    el.className = 'fixed bottom-8 right-8 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-sm font-bold text-white z-50 ' +
-        (isError ? 'bg-red-600' : 'bg-emerald-600');
-    clearTimeout(el._timer);
-    el._timer = setTimeout(() => { el.classList.add('hidden'); }, 3500);
-}
-
 // ─── Load config on page load ─────────────────────────────────────────────────
 async function loadConfig() {
     try {

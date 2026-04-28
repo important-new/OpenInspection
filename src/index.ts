@@ -318,7 +318,17 @@ app.get('/ui', htmlAuthGuard(['owner', 'admin']), (c) => {
 });
 
 // View Handlers
-app.get('/login', (c) => {
+app.get('/login', async (c) => {
+    // If user is already authenticated, redirect to dashboard
+    const token = getCookie(c, '__Host-inspector_token');
+    if (token && c.env.JWT_SECRET) {
+        try {
+            await verify(token, c.env.JWT_SECRET, 'HS256');
+            return c.redirect('/dashboard');
+        } catch {
+            // Invalid/expired token — show login page
+        }
+    }
     // Issue the CSRF cookie before rendering so the form's submit handler can echo it back.
     issueCsrfCookie(c);
     const branding = c.get('branding');

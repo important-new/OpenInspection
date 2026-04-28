@@ -64,7 +64,8 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   x-bind:class="currentSectionIdx === idx ? 'text-white' : 'bg-white/60 text-gray-600'"
                   x-bind:style="currentSectionIdx === idx ? 'background: #4a72ff' : ''"
                 >
-                  <span x-text="sec.icon || ''"></span>
+                  <span x-show="getSectionIconSvg(sec.icon)" x-html="getSectionIconSvg(sec.icon, 'w-3.5 h-3.5')"></span>
+                  <span x-show="!getSectionIconSvg(sec.icon)" class="text-[10px] font-bold" x-text="(sec.title || '').charAt(0)"></span>
                   <span x-text="sec.title"></span>
                   <span x-show="sectionDefectCount(sec.id) > 0"
                     class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center"
@@ -175,7 +176,15 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all"
                   x-bind:style="currentSectionIdx === idx ? 'background: #eef4ff; color: #4a72ff' : 'color: #6b6560'"
                 >
-                  <span x-text="sec.icon || ''" class="text-base"></span>
+                  <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                    x-bind:style="currentSectionIdx === idx ? 'background: rgba(74,114,255,0.12)' : 'background: #f3f1ed'">
+                    <template x-if="getSectionIconSvg(sec.icon)">
+                      <span x-html="getSectionIconSvg(sec.icon)"></span>
+                    </template>
+                    <template x-if="!getSectionIconSvg(sec.icon)">
+                      <span class="text-xs font-bold" x-text="(sec.title || '').charAt(0)"></span>
+                    </template>
+                  </span>
                   <div class="flex-1 min-w-0">
                     <div class="font-semibold truncate" x-text="sec.title"></div>
                     <div class="text-[10px] font-mono opacity-60" x-text="sec.items.length + ' items'"></div>
@@ -237,7 +246,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   x-on:click="batchMode ? toggleBatchSelect(item.id) : toggleExpand(item.id)"
                 >
                   <div x-show="batchMode" class="mb-2">
-                    <input type="checkbox" x-bind:checked="batchSelected[item.id]" class="rounded" />
+                    <input type="checkbox" x-bind:checked="batchSelected[item.id]" aria-label="Select item for batch rating" class="rounded" />
                   </div>
                   <div class="flex items-start justify-between mb-3">
                     <div>

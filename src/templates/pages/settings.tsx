@@ -263,9 +263,6 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
 
                 </div>
 
-                {/* Status toast */}
-                <div id="statusToast" class="fixed bottom-8 right-8 hidden items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-sm font-bold text-white z-50 transition-all"></div>
-
                 <script src="/js/settings.js"></script>
             </div>
         </MainLayout>
