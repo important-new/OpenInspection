@@ -28,6 +28,7 @@ import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
 import { TemplatesPage } from './templates/pages/templates';
 import { TemplateEditorPage } from './templates/pages/template-editor';
+import { MarketplacePage } from './templates/pages/marketplace';
 import { TeamPage } from './templates/pages/team';
 import { AgreementsPage } from './templates/pages/agreements';
 import { AgreementSignPage } from './templates/pages/agreement-sign';
@@ -437,6 +438,7 @@ app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
     const id = c.req.param('id') as string;
     return c.html(TemplateEditorPage({ templateId: id, branding: c.get('branding') }));
 });
+app.get('/marketplace', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(MarketplacePage({ branding: c.get('branding') })));
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
 app.get('/settings/automations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAutomationsPage({ branding: c.get('branding') })));
 app.get('/settings/data', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsDataPage({ branding: c.get('branding') })));
