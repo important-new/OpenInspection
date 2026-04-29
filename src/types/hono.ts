@@ -58,6 +58,8 @@ import { TemplateService } from '../services/template.service';
 import { AgreementService } from '../services/agreement.service';
 import { ContactService } from '../services/contact.service';
 import { InvoiceService } from '../services/invoice.service';
+import { ServiceService } from '../services/service.service';
+import { AutomationService } from '../services/automation.service';
 import { AuthVariables } from './auth';
 
 /**
@@ -78,6 +80,8 @@ export interface AppServices {
     ai: AIService;
     contact: ContactService;
     invoice: InvoiceService;
+    service: ServiceService;
+    automation: AutomationService;
 }
 
 /**

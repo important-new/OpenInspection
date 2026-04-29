@@ -181,6 +181,106 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 <span x-show="saveState === 'error'" x-cloak class="text-red-500">Save failed</span>
               </div>
             </div>
+            {/* Report Access */}
+            <div class="px-4 py-3 border-t space-y-2" style="border-color: rgba(232,228,221,0.4)">
+              <div class="text-[10px] font-mono font-semibold uppercase tracking-wide mb-2" style="color: #908a83">Report Access</div>
+              <label class="flex items-center justify-between cursor-pointer">
+                <span class="text-xs" style="color: #46423c">Require Payment</span>
+                <button
+                  x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentRequired:!inspection.paymentRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.paymentRequired=!inspection.paymentRequired; })`}
+                  x-bind:class="inspection.paymentRequired ? 'bg-indigo-500' : 'bg-slate-200'"
+                  class="relative w-8 h-5 rounded-full transition-colors flex-shrink-0"
+                >
+                  <span x-bind:class="inspection.paymentRequired ? 'translate-x-3' : 'translate-x-0.5'" class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" />
+                </button>
+              </label>
+              <label class="flex items-center justify-between cursor-pointer">
+                <span class="text-xs" style="color: #46423c">Require Agreement</span>
+                <button
+                  x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({agreementRequired:!inspection.agreementRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.agreementRequired=!inspection.agreementRequired; })`}
+                  x-bind:class="inspection.agreementRequired ? 'bg-indigo-500' : 'bg-slate-200'"
+                  class="relative w-8 h-5 rounded-full transition-colors flex-shrink-0"
+                >
+                  <span x-bind:class="inspection.agreementRequired ? 'translate-x-3' : 'translate-x-0.5'" class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" />
+                </button>
+              </label>
+              <div class="mt-1">
+                <span x-show="inspection.paymentStatus === 'paid'" class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: #dcfce7; color: #16a34a">Paid</span>
+                <span x-show="inspection.paymentStatus !== 'paid'" class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: #fee2e2; color: #dc2626" x-text="'Unpaid · $' + ((inspection.price || 0) / 100).toFixed(2)"></span>
+              </div>
+              {/* Share with Agent */}
+              <div x-data="{ agentUrl: '', copying: false, agentErr: '' }" class="pt-1">
+                <button
+                  x-show="!agentUrl"
+                  x-on:click={`copying=true; authFetch('/api/inspections/'+inspectionId+'/agent-token',{method:'POST'}).then(r=>r.json()).then(j=>{agentUrl=j.data?.url||'';copying=false;}).catch(()=>{agentErr='Failed to generate link';copying=false;});`}
+                  x-bind:disabled="copying"
+                  x-text="copying ? 'Generating...' : 'Share with Agent'"
+                  class="text-xs px-3 py-1.5 rounded-lg font-semibold w-full text-left"
+                  style="background: #f1ede8; color: #46423c"
+                />
+                <div x-show="agentUrl" class="flex items-center gap-1 mt-1">
+                  <input x-bind:value="agentUrl" readonly class="flex-1 text-[10px] border rounded px-2 py-1 bg-white" style="border-color: rgba(232,228,221,0.6)" />
+                  <button x-on:click="navigator.clipboard.writeText(agentUrl)" class="text-[10px] px-2 py-1 rounded font-bold" style="background: #4f46e5; color: white">Copy</button>
+                </div>
+                <div x-show="agentErr" x-text="agentErr" class="text-[10px] mt-1" style="color: #dc2626" />
+              </div>
+            </div>
+            {/* Property Info Card */}
+            <div
+                x-data="{ editing: false, fields: {} }"
+                x-init={`fields = {
+                    yearBuilt: inspection.yearBuilt || '',
+                    sqft: inspection.sqft || '',
+                    foundationType: inspection.foundationType || '',
+                    bedrooms: inspection.bedrooms || '',
+                    bathrooms: inspection.bathrooms || '',
+                    unit: inspection.unit || '',
+                    county: inspection.county || ''
+                }`}
+                class="px-4 py-3 border-t space-y-2"
+                style="border-color: rgba(232,228,221,0.4)"
+            >
+                <div class="flex items-center justify-between">
+                    <div class="text-[10px] font-mono font-semibold uppercase tracking-wide" style="color: #908a83">Property Info</div>
+                    <button x-show="!editing" x-on:click="editing=true" class="text-[10px] text-blue-600 font-semibold">Edit</button>
+                    <div x-show="editing" class="flex gap-1">
+                        <button
+                            x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({yearBuilt:fields.yearBuilt?parseInt(fields.yearBuilt):null,sqft:fields.sqft?parseInt(fields.sqft):null,foundationType:fields.foundationType||null,bedrooms:fields.bedrooms?parseInt(fields.bedrooms):null,bathrooms:fields.bathrooms?parseFloat(fields.bathrooms):null,unit:fields.unit||null,county:fields.county||null})}).then(r=>r.json()).then(d=>{if(d.success){Object.assign(inspection,{yearBuilt:fields.yearBuilt?parseInt(fields.yearBuilt):null,sqft:fields.sqft?parseInt(fields.sqft):null,foundationType:fields.foundationType||null,bedrooms:fields.bedrooms?parseInt(fields.bedrooms):null,bathrooms:fields.bathrooms?parseFloat(fields.bathrooms):null,unit:fields.unit||null,county:fields.county||null});editing=false;}})`}
+                            class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-md font-semibold"
+                        >Save</button>
+                        <button x-on:click="editing=false" class="text-[10px] text-slate-400">×</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-1 text-[11px]">
+                    {[
+                        { key: 'yearBuilt',  label: 'Year Built', type: 'number' },
+                        { key: 'sqft',       label: 'Sq Ft',      type: 'number' },
+                        { key: 'bedrooms',   label: 'Beds',       type: 'number' },
+                        { key: 'bathrooms',  label: 'Baths',      type: 'number' },
+                        { key: 'unit',       label: 'Unit',       type: 'text' },
+                        { key: 'county',     label: 'County',     type: 'text' },
+                    ].map(({ key, label, type }) => (
+                        <div key={key}>
+                            <div class="text-[9px] font-mono uppercase text-slate-400">{label}</div>
+                            <div x-show="!editing" class="font-semibold" style="color: #1a1815" x-text={`fields.${key} || '—'`} />
+                            <input x-show="editing" x-model={`fields.${key}`} type={type}
+                                   class="w-full text-[11px] border border-slate-200 rounded px-1.5 py-0.5 bg-white" />
+                        </div>
+                    ))}
+                    <div class="col-span-2">
+                        <div class="text-[9px] font-mono uppercase text-slate-400">Foundation</div>
+                        <div x-show="!editing" class="font-semibold" style="color: #1a1815" x-text="fields.foundationType || '—'" />
+                        <select x-show="editing" x-model="fields.foundationType"
+                                class="w-full text-[11px] border border-slate-200 rounded px-1 py-0.5 bg-white">
+                            <option value="">—</option>
+                            <option value="basement">Basement</option>
+                            <option value="slab">Slab</option>
+                            <option value="crawlspace">Crawlspace</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
             <div class="flex-1 px-3 py-2 space-y-0.5">
               <template x-for="(sec, idx) in sections" x-bind:key="sec.id">
                 <button
@@ -246,6 +346,67 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 <button x-on:click="batchSetRating(level.id)" class="px-3 py-1 rounded-lg text-xs font-semibold" style="background: white; color: #46423c" x-text="'Set ' + level.abbreviation"></button>
               </template>
               <button x-on:click="batchMode = false; batchSelected = {}" class="ml-auto px-3 py-1 rounded-lg text-xs font-semibold" style="color: #6b6560">Exit</button>
+            </div>
+
+            {/* Status Machine Bar */}
+            <div
+                x-data="{ showCancelModal: false, cancelReason: 'client_cancelled', cancelNotes: '' }"
+                class="mx-6 mt-3 bg-white border rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
+                style="border-color: rgba(232,228,221,0.5)"
+            >
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-mono uppercase" style="color: #908a83">Status</span>
+                    <span
+                        x-text="(inspection.status||'').replace('_',' ').toUpperCase()"
+                        x-bind:class={`{
+                            'bg-slate-100 text-slate-600': inspection.status === 'scheduled' || inspection.status === 'draft',
+                            'bg-blue-50 text-blue-700': inspection.status === 'confirmed',
+                            'bg-green-50 text-green-700': inspection.status === 'in_progress' || inspection.status === 'completed',
+                            'bg-red-50 text-red-700': inspection.status === 'cancelled',
+                        }`}
+                        class="text-[10px] font-bold px-2.5 py-0.5 rounded-full"
+                    />
+                </div>
+                <div class="flex gap-1.5">
+                    <button
+                        x-show="inspection.status === 'scheduled' || inspection.status === 'draft'"
+                        x-on:click={`authFetch('/api/inspections/${inspectionId}/confirm',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success)inspection.status='confirmed'})`}
+                        class="text-[11px] bg-blue-600 text-white px-3 py-1 rounded-lg font-bold"
+                    >Confirm</button>
+                    <button
+                        x-show="inspection.status !== 'cancelled' && inspection.status !== 'completed'"
+                        x-on:click="showCancelModal=true"
+                        class="text-[11px] border text-red-600 px-3 py-1 rounded-lg font-bold"
+                        style="border-color: #fecaca; background: #fef2f2"
+                    >Cancel</button>
+                    <button
+                        x-show="inspection.status === 'cancelled'"
+                        x-on:click={`authFetch('/api/inspections/${inspectionId}/uncancel',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success)inspection.status='scheduled'})`}
+                        class="text-[11px] bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-bold"
+                    >Restore</button>
+                </div>
+                {/* Cancel Modal */}
+                <div x-show="showCancelModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" {...{'x-cloak': ''}}>
+                    <div class="bg-white rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
+                        <h3 class="text-base font-bold mb-4" style="color: #1a1815">Cancel Inspection</h3>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Reason</label>
+                        <select x-model="cancelReason" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 bg-white">
+                            <option value="client_cancelled">Client Cancelled</option>
+                            <option value="scheduling_conflict">Scheduling Conflict</option>
+                            <option value="weather">Weather</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Notes (optional)</label>
+                        <textarea x-model="cancelNotes" rows={3} class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-4" />
+                        <div class="flex gap-2">
+                            <button
+                                x-on:click={`authFetch('/api/inspections/${inspectionId}/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:cancelReason,notes:cancelNotes||undefined})}).then(r=>r.json()).then(d=>{if(d.success){inspection.status='cancelled';showCancelModal=false;}})`}
+                                class="flex-1 bg-red-600 text-white rounded-lg py-2 text-sm font-bold"
+                            >Cancel Inspection</button>
+                            <button x-on:click="showCancelModal=false" class="px-4 text-slate-500 text-sm">Back</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Card Grid */}

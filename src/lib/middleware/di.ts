@@ -13,6 +13,8 @@ import { AgreementService } from '../../services/agreement.service';
 import { AvailabilityService } from '../../services/booking.service';
 import { ContactService } from '../../services/contact.service';
 import { InvoiceService } from '../../services/invoice.service';
+import { ServiceService } from '../../services/service.service';
+import { AutomationService } from '../../services/automation.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -70,7 +72,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     );
                     break;
                 case 'inspection':
-                    target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS, c.get('sdb'));
+                    target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS, c.get('sdb'), c.env.TENANT_CACHE);
                     break;
                 case 'team':
                     target.team = new TeamService(c.env.DB, ...(c.env.APP_MODE ? [{ APP_MODE: c.env.APP_MODE }] : []));
@@ -89,6 +91,12 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     break;
                 case 'invoice':
                     target.invoice = new InvoiceService(c.env.DB);
+                    break;
+                case 'service':
+                    target.service = new ServiceService(c.env.DB);
+                    break;
+                case 'automation':
+                    target.automation = new AutomationService(c.env.DB);
                     break;
             }
             return target[prop];

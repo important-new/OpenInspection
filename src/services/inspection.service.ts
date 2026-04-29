@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, or, lt, gte, lte, sql } from 'drizzle-orm';
-import { inspections, inspectionResults, templates, inspectionAgreements, users } from '../lib/db/schema';
+import { eq, and, or, lt, gte, lte, sql, inArray } from 'drizzle-orm';
+import { inspections, inspectionResults, templates, inspectionAgreements, users, services, inspectionServices } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { computeReportStats, getRatingColor, getRatingBucket, type RatingLevel } from '../lib/report-utils';
 import { z } from 'zod';
@@ -8,6 +8,14 @@ import { InspectionSchema, InspectionListQuerySchema, CreateInspectionSchema } f
 
 import { ScopedDB } from '../lib/db/scoped';
 import { safeISODate, safeTimestamp } from '../lib/date';
+import { AutomationService } from './automation.service';
+import { logger } from '../lib/logger';
+
+function fireAutomation(db: D1Database, tenantId: string, inspectionId: string, event: string): void {
+    new AutomationService(db)
+        .trigger({ tenantId, inspectionId, triggerEvent: event, companyName: '', reportBaseUrl: '' })
+        .catch(err => logger.error('automation trigger failed', { event }, err instanceof Error ? err : undefined));
+}
 
 type Inspection = z.infer<typeof InspectionSchema>;
 type InspectionListParams = z.infer<typeof InspectionListQuerySchema>;
@@ -17,7 +25,7 @@ type CreateInspectionData = z.infer<typeof CreateInspectionSchema>;
  * Service to handle all inspection-related business logic.
  */
 export class InspectionService {
-    constructor(private db: D1Database, private r2?: R2Bucket, private sdb?: ScopedDB) {}
+    constructor(private db: D1Database, private r2?: R2Bucket, private sdb?: ScopedDB, private kv?: KVNamespace) {}
 
     private getDrizzle() {
         return drizzle(this.db);
@@ -41,6 +49,33 @@ export class InspectionService {
                 sql`lower(${inspections.propertyAddress}) like lower(${term})`,
                 sql`lower(${inspections.clientName}) like lower(${term})`
             )!);
+        }
+
+        if ((params as any).tab && (params as any).tab !== 'all') {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            switch ((params as any).tab) {
+                case 'today':
+                    conditions.push(sql`date(${inspections.date}) = ${todayStr}`);
+                    break;
+                case 'upcoming':
+                    conditions.push(sql`${inspections.date} > ${todayStr}`);
+                    conditions.push(sql`${inspections.status} not in ('completed','cancelled')`);
+                    break;
+                case 'past':
+                    conditions.push(or(
+                        sql`${inspections.date} < ${todayStr}`,
+                        inArray(inspections.status, ['completed', 'cancelled'])
+                    )!);
+                    break;
+                case 'unconfirmed':
+                    conditions.push(eq(inspections.status, 'scheduled' as any));
+                    conditions.push(sql`${inspections.createdAt} < ${cutoff}`);
+                    break;
+                case 'in_progress':
+                    conditions.push(eq(inspections.status, 'in_progress' as any));
+                    break;
+            }
         }
 
         if (params.cursor) {
@@ -164,6 +199,25 @@ export class InspectionService {
         };
 
         await this.sdb.insert(inspections, newInspection);
+        fireAutomation(this.db, tenantId, id, 'inspection.created');
+
+        // Link selected services
+        if (data.serviceIds && data.serviceIds.length > 0) {
+            const db2 = this.getDrizzle();
+            const svcRows = await db2.select().from(services)
+                .where(and(eq(services.tenantId, tenantId), inArray(services.id, data.serviceIds)));
+            if (svcRows.length > 0) {
+                await db2.insert(inspectionServices).values(svcRows.map(s => ({
+                    id:            crypto.randomUUID(),
+                    tenantId,
+                    inspectionId:  id,
+                    serviceId:     s.id,
+                    priceOverride: null,
+                    nameSnapshot:  s.name,
+                    priceSnapshot: s.price,
+                })));
+            }
+        }
 
         return {
             ...newInspection,
@@ -334,6 +388,38 @@ export class InspectionService {
     }
 
     /**
+     * Returns tab counts for the inspection list UI.
+     * Single query with 6 conditional aggregates to avoid N+1.
+     */
+    async getCounts(tenantId: string): Promise<{
+        all: number; today: number; upcoming: number;
+        past: number; unconfirmed: number; inProgress: number;
+    }> {
+        const db = this.getDrizzle();
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        const result = await db.select({
+            all:         sql<number>`count(*)`,
+            today:       sql<number>`sum(case when date(${inspections.date}) = ${todayStr} then 1 else 0 end)`,
+            upcoming:    sql<number>`sum(case when ${inspections.date} > ${todayStr} and ${inspections.status} not in ('completed','cancelled') then 1 else 0 end)`,
+            past:        sql<number>`sum(case when ${inspections.date} < ${todayStr} or ${inspections.status} in ('completed','cancelled') then 1 else 0 end)`,
+            unconfirmed: sql<number>`sum(case when ${inspections.status} = 'scheduled' and ${inspections.createdAt} < ${cutoff} then 1 else 0 end)`,
+            inProgress:  sql<number>`sum(case when ${inspections.status} = 'in_progress' then 1 else 0 end)`,
+        }).from(inspections).where(eq(inspections.tenantId, tenantId));
+
+        const row = result[0] ?? {};
+        return {
+            all:         Number(row.all ?? 0),
+            today:       Number(row.today ?? 0),
+            upcoming:    Number(row.upcoming ?? 0),
+            past:        Number(row.past ?? 0),
+            unconfirmed: Number(row.unconfirmed ?? 0),
+            inProgress:  Number(row.inProgress ?? 0),
+        };
+    }
+
+    /**
      * Publishes an inspection report (transitions to delivered status).
      */
     async publishInspection(inspectionId: string, tenantId: string, _options: {
@@ -354,10 +440,82 @@ export class InspectionService {
         await db.update(inspections)
             .set({ status: 'delivered' })
             .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)));
+        fireAutomation(this.db, tenantId, inspectionId, 'report.published');
 
         return {
             reportUrl: `/report/${inspectionId}`,
             status: 'delivered',
         };
+    }
+
+    /**
+     * Fetches an inspection row by id+tenantId, throwing NotFound if missing.
+     */
+    private async fetchForStatusChange(tenantId: string, id: string) {
+        const db = this.getDrizzle();
+        const rows = await db.select().from(inspections)
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId))).limit(1);
+        if (!rows[0]) throw Errors.NotFound('Inspection not found');
+        return { db, inspection: rows[0] };
+    }
+
+    async confirmInspection(tenantId: string, id: string): Promise<void> {
+        const { db, inspection } = await this.fetchForStatusChange(tenantId, id);
+        if (inspection.status === 'cancelled') throw Errors.BadRequest('Cannot confirm a cancelled inspection');
+        await db.update(inspections).set({
+            status:      'confirmed' as any,
+            confirmedAt: new Date().toISOString(),
+        }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+        fireAutomation(this.db, tenantId, id, 'inspection.confirmed');
+    }
+
+    async cancelInspection(tenantId: string, id: string, reason: string, notes?: string): Promise<void> {
+        const { db } = await this.fetchForStatusChange(tenantId, id);
+        const cancelNote = notes ? `${reason}: ${notes}` : reason;
+        await db.update(inspections).set({
+            status:       'cancelled' as any,
+            cancelReason: cancelNote,
+        }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+        fireAutomation(this.db, tenantId, id, 'inspection.cancelled');
+    }
+
+    async uncancelInspection(tenantId: string, id: string): Promise<void> {
+        const { db, inspection } = await this.fetchForStatusChange(tenantId, id);
+        if (inspection.status !== 'cancelled') throw Errors.BadRequest('Inspection is not cancelled');
+        await db.update(inspections).set({
+            status:       'scheduled' as any,
+            cancelReason: null,
+        }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+    }
+
+    /**
+     * Generates a 30-day shareable agent view token stored in KV.
+     * The token grants read-only access to the report without requiring login.
+     */
+    async generateAgentViewToken(tenantId: string, inspectionId: string): Promise<string> {
+        const db = this.getDrizzle();
+        const rows = await db.select({ id: inspections.id })
+            .from(inspections)
+            .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)))
+            .limit(1);
+        if (!rows[0]) throw Errors.NotFound('Inspection not found');
+        if (!this.kv) throw Errors.Internal('KV not available');
+
+        const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+        await this.kv.put(`agent_view_token:${token}`, `${inspectionId}:${tenantId}`, {
+            expirationTtl: 30 * 24 * 60 * 60,
+        });
+        return token;
+    }
+
+    /**
+     * Resolves an agent view token from KV.
+     */
+    async resolveAgentViewToken(token: string): Promise<{ inspectionId: string; tenantId: string } | null> {
+        if (!this.kv) return null;
+        const val = await this.kv.get(`agent_view_token:${token}`);
+        if (!val) return null;
+        const [inspectionId, tenantId] = val.split(':');
+        return { inspectionId, tenantId };
     }
 }

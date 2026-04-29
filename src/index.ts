@@ -36,6 +36,9 @@ import { InvoicesPage } from './templates/pages/invoices';
 import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
+import { SettingsAutomationsPage } from './templates/pages/settings-automations';
+import { MetricsPage } from './templates/pages/metrics';
+import { SettingsDataPage } from './templates/pages/settings-data';
 
 
 import coreAuthRoutes from './api/auth';
@@ -50,6 +53,11 @@ import calendarRoutes from './api/calendar';
 import teamRoutes from './api/team';
 import contactRoutes from './api/contacts';
 import invoiceRoutes from './api/invoices';
+import servicesRoutes from './api/services';
+import automationsRoutes from './api/automations';
+import metricsRoutes from './api/metrics';
+import marketplaceRoutes from './api/marketplace';
+import dataRoutes from './api/data';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -275,6 +283,11 @@ app.route('/api/calendar', calendarRoutes);
 app.route('/api/team', teamRoutes);
 app.route('/api/contacts', contactRoutes);
 app.route('/api/invoices', invoiceRoutes);
+app.route('/api/services', servicesRoutes);
+app.route('/api/automations', automationsRoutes);
+app.route('/api/metrics', metricsRoutes);
+app.route('/api/templates/marketplace', marketplaceRoutes);
+app.route('/api/data', dataRoutes);
 app.route('/api/integration', integrationRoutes);
 
 // OpenAPI Documentation
@@ -417,6 +430,9 @@ app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
     return c.html(TemplateEditorPage({ templateId: id, branding: c.get('branding') }));
 });
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
+app.get('/settings/automations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAutomationsPage({ branding: c.get('branding') })));
+app.get('/settings/data', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsDataPage({ branding: c.get('branding') })));
+app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage({ branding: c.get('branding') })));
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
 app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
@@ -441,3 +457,4 @@ app.get('/inspections/:id/edit', htmlAuthGuard(['owner', 'admin', 'inspector']),
 app.get('/', (c) => c.redirect('/dashboard'));
 
 export default app;
+export { scheduled } from './scheduled';

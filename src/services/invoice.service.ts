@@ -3,6 +3,8 @@ import { eq, and, desc } from 'drizzle-orm';
 import { invoices } from '../lib/db/schema/invoice';
 import { Errors } from '../lib/errors';
 import { safeISODate } from '../lib/date';
+import { AutomationService } from './automation.service';
+import { logger } from '../lib/logger';
 
 function getStatus(inv: { sentAt: Date | null; paidAt: Date | null }): 'draft' | 'sent' | 'paid' {
     if (inv.paidAt) return 'paid';
@@ -53,6 +55,11 @@ export class InvoiceService {
             notes: data.notes ?? null,
         };
         await db.insert(invoices).values(row);
+        if (data.inspectionId) {
+            new AutomationService(this.db)
+                .trigger({ tenantId, inspectionId: data.inspectionId, triggerEvent: 'invoice.created', companyName: '', reportBaseUrl: '' })
+                .catch(err => logger.error('automation trigger failed', { event: 'invoice.created' }, err instanceof Error ? err : undefined));
+        }
         return { ...row, status: 'draft' as const, createdAt: safeISODate(row.createdAt), sentAt: null, paidAt: null };
     }
 

@@ -23,6 +23,7 @@ const jsFiles = [
   ['sortablejs/Sortable.min.js', 'sortable.min.js'],
   ['swagger-ui-dist/swagger-ui-bundle.js', 'swagger-ui-bundle.js'],
   ['swagger-ui-dist/swagger-ui.css', 'swagger-ui.css'],
+  ['chart.js/dist/chart.umd.min.js', 'chart.min.js'],
 ];
 
 for (const [src, dest] of jsFiles) {
