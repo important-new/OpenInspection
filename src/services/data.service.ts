@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { inspections, contacts } from '../lib/db/schema';
 
 function csvRow(fields: (string | number | boolean | null | undefined)[]): string {
@@ -100,15 +100,30 @@ export class DataService {
         const db = this.getDrizzle();
         let imported = 0; let skipped = 0; const errors: string[] = [];
 
+        // Collect all emails from CSV, then batch-check for existing contacts
+        const allEmails: string[] = [];
+        for (let i = 1; i < rows.length; i++) {
+            const email = emailIdx >= 0 ? rows[i][emailIdx]?.trim() : '';
+            if (email) allEmails.push(email);
+        }
+
+        // Batch-load existing emails in one query instead of N queries
+        const existingEmails = new Set<string>();
+        if (allEmails.length > 0) {
+            const existing = await db.select({ email: contacts.email }).from(contacts)
+                .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.email, allEmails)));
+            for (const row of existing) {
+                if (row.email) existingEmails.add(row.email);
+            }
+        }
+
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
             const email = emailIdx >= 0 ? row[emailIdx]?.trim() : '';
             if (!email) { skipped++; continue; }
 
-            // Skip duplicates (same email within tenant)
-            const existing = await db.select({ id: contacts.id }).from(contacts)
-                .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, email))).limit(1);
-            if (existing[0]) { skipped++; continue; }
+            if (existingEmails.has(email)) { skipped++; continue; }
+            existingEmails.add(email); // Prevent duplicates within the same CSV
 
             try {
                 const typeRaw = typeIdx >= 0 ? row[typeIdx]?.trim().toLowerCase() : 'client';
