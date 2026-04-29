@@ -13,24 +13,6 @@ const LOCAL = process.argv.includes('--local');
 
 const flag = LOCAL ? '--local' : '--remote';
 
-// Check existing count
-const countResult = execSync(
-  `npx wrangler d1 execute ${DB_NAME} ${flag} --json --command "SELECT COUNT(*) as c FROM comments WHERE tenant_id = '${TENANT_ID}'"`,
-  { encoding: 'utf8' }
-);
-let count = 0;
-try {
-  const jsonStart = countResult.indexOf('[');
-  if (jsonStart >= 0) {
-    count = JSON.parse(countResult.slice(jsonStart))?.[0]?.results?.[0]?.c ?? 0;
-  }
-} catch { /* fallback to 0 — seed will proceed */ }
-
-if (count >= COMMENTS.length) {
-  console.log(`Seed skipped: ${count} comments already exist for tenant '${TENANT_ID}'.`);
-  process.exit(0);
-}
-
 const COMMENTS = [
   // ROOF — 18 total (5 sat, 6 mon, 7 def)
   { category: 'Roof', severity: 'satisfactory', text: 'Roof covering appears serviceable with no visible defects at time of inspection.' },
@@ -168,6 +150,24 @@ const COMMENTS = [
   { category: 'Garage', severity: 'defect', text: 'Carbon monoxide detector absent in attached garage area; recommend installation per code.' },
   { category: 'Garage', severity: 'defect', text: 'Vehicle exhaust system or fuel storage observed in garage creates fire or CO hazard — recommend proper ventilation and storage practices.' },
 ];
+
+// Check existing count
+const countResult = execSync(
+  `npx wrangler d1 execute ${DB_NAME} ${flag} --json --command "SELECT COUNT(*) as c FROM comments WHERE tenant_id = '${TENANT_ID}'"`,
+  { encoding: 'utf8' }
+);
+let count = 0;
+try {
+  const jsonStart = countResult.indexOf('[');
+  if (jsonStart >= 0) {
+    count = JSON.parse(countResult.slice(jsonStart))?.[0]?.results?.[0]?.c ?? 0;
+  }
+} catch { /* fallback to 0 — seed will proceed */ }
+
+if (count >= COMMENTS.length) {
+  console.log(`Seed skipped: ${count} comments already exist for tenant '${TENANT_ID}'.`);
+  process.exit(0);
+}
 
 const values = COMMENTS.map(c => {
   const id = randomUUID();
