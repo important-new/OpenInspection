@@ -18,6 +18,7 @@ import { sendError } from './lib/response';
 import { HonoConfig } from './types/hono';
 import { UserRole } from './types/auth';
 import { logger } from './lib/logger';
+import { BUILD } from './generated/version';
 
 import { LoginPage } from './templates/pages/login';
 import { DashboardPage } from './templates/pages/dashboard';
@@ -76,7 +77,14 @@ app.use('*', async (c, next) => {
 });
 
 // Health check
-app.get('/status', (c) => c.json({ status: 'Core Engine Online', timestamp: new Date().toISOString() }));
+app.get('/status', (c) => c.json({
+    status: 'ok',
+    app: 'openinspection-core',
+    commit: BUILD.shortCommit,
+    branch: BUILD.branch,
+    buildTime: BUILD.buildTime,
+    timestamp: new Date().toISOString(),
+}));
 
 
 /**

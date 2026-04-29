@@ -1,5 +1,6 @@
 import { MainLayout } from '../layouts/main-layout';
 import { BrandingConfig } from '../../types/auth';
+import { BUILD } from '../../generated/version';
 
 export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
@@ -302,6 +303,18 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         </div>
                     </section>
 
+                </div>
+
+                {/* ── Build Info ── */}
+                <div class="flex items-center justify-between px-2 pt-2 pb-6 border-t border-slate-100">
+                    <span class="text-[11px] text-slate-400 font-mono">
+                        commit <a href={`https://github.com/InspectorHub/OpenInspection/commit/${BUILD.commit}`}
+                            target="_blank" rel="noopener noreferrer"
+                            class="text-slate-600 font-bold hover:text-indigo-600 transition-colors">{BUILD.shortCommit}</a>
+                    </span>
+                    <span class="text-[11px] text-slate-400">
+                        Built {new Date(BUILD.buildTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
                 </div>
 
                 <script src="/js/auth.js"></script>
