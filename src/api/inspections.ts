@@ -727,20 +727,21 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     const service = c.var.services.inspection;
     const { inspection, template } = await service.getInspection(id!, c.get('tenantId'));
 
-    // Report gate: payment required
+    // Report gates: payment or agreement required before viewing
+    const baseUrl = getBaseUrl(c);
+    const branding = c.get('branding');
+    const companyName = branding?.siteName || c.env.APP_NAME || 'InspectorHub';
+    const primaryColor = branding?.primaryColor || c.env.PRIMARY_COLOR || '#6366f1';
+
     if (inspection.paymentRequired === true && inspection.paymentStatus !== 'paid') {
-        const baseUrl = getBaseUrl(c);
-        const branding = c.get('branding');
         return c.html(ReportGatePage({
             reason: 'payment',
-            companyName: branding?.siteName || c.env.APP_NAME || 'InspectorHub',
-            primaryColor: branding?.primaryColor || c.env.PRIMARY_COLOR || '#6366f1',
+            companyName, primaryColor,
             actionUrl: `${baseUrl}/invoices?inspection=${id}`,
             actionLabel: 'View Invoice & Pay',
         }) as string);
     }
 
-    // Report gate: agreement required
     if (inspection.agreementRequired === true) {
         const db2 = drizzle(c.env.DB as any);
         const signed = await db2.select({ id: agreementRequests.id })
@@ -751,12 +752,9 @@ inspectionsRoutes.get('/:id/report', async (c) => {
             ))
             .limit(1);
         if (signed.length === 0) {
-            const baseUrl = getBaseUrl(c);
-            const branding = c.get('branding');
             return c.html(ReportGatePage({
                 reason: 'agreement',
-                companyName: branding?.siteName || c.env.APP_NAME || 'InspectorHub',
-                primaryColor: branding?.primaryColor || c.env.PRIMARY_COLOR || '#6366f1',
+                companyName, primaryColor,
                 actionUrl: `${baseUrl}/sign/${id}`,
                 actionLabel: 'Sign Agreement',
             }) as string);

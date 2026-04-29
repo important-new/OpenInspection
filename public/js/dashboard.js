@@ -105,17 +105,11 @@ async function fetchCounts() {
 }
 
 function renderTabCounts() {
-    const tabs = [
-        { key: 'all', countKey: 'all' },
-        { key: 'today', countKey: 'today' },
-        { key: 'upcoming', countKey: 'upcoming' },
-        { key: 'past', countKey: 'past' },
-        { key: 'unconfirmed', countKey: 'unconfirmed' },
-        { key: 'in_progress', countKey: 'inProgress' },
-    ];
-    tabs.forEach(({ key, countKey }) => {
+    // Map tab keys to API response keys (only in_progress differs)
+    const countKeyMap = { in_progress: 'inProgress' };
+    ['all', 'today', 'upcoming', 'past', 'unconfirmed', 'in_progress'].forEach(key => {
         const badge = document.getElementById('tab-count-' + key);
-        if (badge) badge.textContent = String(tabCounts[countKey] ?? 0);
+        if (badge) badge.textContent = String(tabCounts[countKeyMap[key] || key] ?? 0);
     });
 
     // Show unconfirmed warning banner
@@ -150,9 +144,9 @@ window.setTab = setTab;
 function updateStats(counts) {
     const map = {
         'statActive': counts.total || 0,
-        'statProgress': counts.in_progress || 0,
-        'statReview': counts.pending || 0,
-        'statCompleted': counts.completed || 0
+        'statProgress': counts.draft || 0,
+        'statReview': counts.completed || 0,
+        'statCompleted': counts.delivered || 0,
     };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
