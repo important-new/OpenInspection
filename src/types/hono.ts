@@ -23,7 +23,7 @@ export interface AppEnv {
     // System Defaults
     APP_NAME: string;
     PRIMARY_COLOR: string;
-    APP_BASE_URL: string;
+    APP_BASE_URL?: string;
     GA_MEASUREMENT_ID: string;
 
     // Optional Configuration

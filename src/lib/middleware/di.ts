@@ -71,7 +71,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS, c.get('sdb'));
                     break;
                 case 'team':
-                    target.team = new TeamService(c.env.DB, c.env);
+                    target.team = new TeamService(c.env.DB, ...(c.env.APP_MODE ? [{ APP_MODE: c.env.APP_MODE }] : []));
                     break;
                 case 'template':
                     target.template = new TemplateService(c.env.DB);

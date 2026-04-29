@@ -38,24 +38,31 @@ export class TeamService {
         const db = this.getDB();
 
         // 1. Quota Check (skipped in standalone/self-hosted mode — no seat limits)
+        // 2. Check if already a member
+        // Run all reads in parallel
+        const [tenantRecord, currentUsersCount, pendingCount, existing] = await Promise.all([
+            this.env?.APP_MODE !== 'standalone'
+                ? db.select({ maxUsers: tenants.maxUsers }).from(tenants).where(eq(tenants.id, params.tenantId)).limit(1)
+                : Promise.resolve([] as { maxUsers: number }[]),
+            this.env?.APP_MODE !== 'standalone'
+                ? db.select({ value: count() }).from(users).where(eq(users.tenantId, params.tenantId))
+                : Promise.resolve([] as { value: number }[]),
+            this.env?.APP_MODE !== 'standalone'
+                ? db.select({ value: count() }).from(tenantInvites)
+                    .where(and(eq(tenantInvites.tenantId, params.tenantId), eq(tenantInvites.status, 'pending')))
+                : Promise.resolve([] as { value: number }[]),
+            db.select({ id: users.id }).from(users)
+                .where(and(eq(users.tenantId, params.tenantId), eq(users.email, params.email))).limit(1),
+        ]);
+
         if (this.env?.APP_MODE !== 'standalone') {
-            const tenantRecord = await db.select({ maxUsers: tenants.maxUsers })
-                .from(tenants).where(eq(tenants.id, params.tenantId)).limit(1);
             const maxUsers = tenantRecord[0]?.maxUsers ?? 3;
-
-            const currentUsersCount = await db.select({ value: count() }).from(users).where(eq(users.tenantId, params.tenantId));
-            const pendingCount = await db.select({ value: count() }).from(tenantInvites)
-                .where(and(eq(tenantInvites.tenantId, params.tenantId), eq(tenantInvites.status, 'pending')));
-
             const total = (currentUsersCount[0]?.value ?? 0) + (pendingCount[0]?.value ?? 0);
             if (total >= maxUsers) {
                 throw Errors.Forbidden(`Seat limit reached (${maxUsers}). Request more seats from your workspace dashboard.`);
             }
         }
 
-        // 2. Check if already a member
-        const existing = await db.select().from(users)
-            .where(and(eq(users.tenantId, params.tenantId), eq(users.email, params.email))).limit(1);
         if (existing.length > 0) throw Errors.Conflict('User is already a member');
 
         // 3. Create Invite (7-day expiry)
@@ -79,7 +86,7 @@ export class TeamService {
             throw Errors.BadRequest('Cannot remove yourself');
         }
         const db = this.getDB();
-        const user = await db.select().from(users)
+        const user = await db.select({ id: users.id, email: users.email, role: users.role }).from(users)
             .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)))
             .get();
         if (!user) throw Errors.NotFound('Member not found');
