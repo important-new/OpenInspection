@@ -37,6 +37,7 @@ import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
 import { SettingsAutomationsPage } from './templates/pages/settings-automations';
+import { MetricsPage } from './templates/pages/metrics';
 
 
 import coreAuthRoutes from './api/auth';
@@ -425,6 +426,7 @@ app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
 });
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
 app.get('/settings/automations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAutomationsPage({ branding: c.get('branding') })));
+app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage({ ...(c.get('branding') ? { branding: c.get('branding') } : {}) })));
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
 app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
