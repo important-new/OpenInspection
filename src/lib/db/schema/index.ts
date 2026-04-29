@@ -17,3 +17,4 @@ export {
 } from './inspection';
 export { contacts } from './contact';
 export { invoices } from './invoice';
+export { marketplaceTemplates, tenantMarketplaceImports } from './marketplace';
