@@ -191,3 +191,16 @@ export const TeamMembersResponseSchema = createApiResponseSchema(z.object({
         expiresAt: z.string(),
     })),
 })).openapi('TeamMembersResponse');
+
+export const CommentSchema = z.object({
+    text: z.string().min(1).max(1000).openapi({ example: 'Evidence of previous repair was observed.' }),
+    category: z.string().max(50).optional().nullable().openapi({ example: 'Roofing' }),
+}).openapi('Comment');
+
+export const CommentResponseSchema = z.object({
+    id: z.string().uuid(),
+    tenantId: z.string().uuid(),
+    text: z.string(),
+    category: z.string().nullable(),
+    createdAt: z.string(),
+}).openapi('CommentResponse');

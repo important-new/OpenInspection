@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { safeISODate } from '../lib/date';
@@ -8,10 +8,10 @@ import { getBaseUrl } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
-import { 
-    UpdateBrandingSchema, 
-    InviteMemberSchema, 
-    DataErasureSchema, 
+import {
+    UpdateBrandingSchema,
+    InviteMemberSchema,
+    DataErasureSchema,
     AgreementSchema,
     AdminExportResponseSchema,
     MemberListResponseSchema,
@@ -21,10 +21,12 @@ import {
     ImportResponseSchema,
     AgreementListResponseSchema,
     AgreementResponseSchema,
-    EraseDataResponseSchema
+    EraseDataResponseSchema,
+    CommentSchema,
+    CommentResponseSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
-import { templates, agreements as agreementTable, inspections, inspectionResults } from '../lib/db/schema';
+import { templates, agreements as agreementTable, inspections, inspectionResults, comments } from '../lib/db/schema';
 
 const adminRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -698,6 +700,80 @@ adminRoutes.openapi(updateSecretsRoute, async (c) => {
     const body = c.req.valid('json');
     await c.var.services.branding.updateSecrets(c.get('tenantId'), c.env.JWT_SECRET, body as unknown as import('../services/branding.service').SecretsConfig);
     auditFromContext(c, 'config.secrets.update', 'tenant_config');
+    return c.json({ success: true }, 200);
+});
+
+// --- Comments Library ---
+
+const listCommentsRoute = createRoute({
+    method: 'get',
+    path: '/comments',
+    tags: ['Comments'],
+    summary: 'List comment library entries',
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ comments: z.array(CommentResponseSchema) }) } },
+            description: 'Success',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+adminRoutes.openapi(listCommentsRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const db = drizzle(c.env.DB);
+    const rows = await db.select().from(comments).where(eq(comments.tenantId, tenantId)).all();
+    return c.json({ comments: rows.map(r => ({ ...r, createdAt: safeISODate(r.createdAt) })) }, 200);
+});
+
+const createCommentRoute = createRoute({
+    method: 'post',
+    path: '/comments',
+    tags: ['Comments'],
+    summary: 'Create a comment library entry',
+    request: { body: { content: { 'application/json': { schema: CommentSchema } } } },
+    responses: {
+        201: {
+            content: { 'application/json': { schema: z.object({ comment: CommentResponseSchema }) } },
+            description: 'Created',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+adminRoutes.openapi(createCommentRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { text, category } = c.req.valid('json');
+    const db = drizzle(c.env.DB);
+    const row = { id: crypto.randomUUID(), tenantId, text, category: category ?? null, createdAt: new Date() };
+    await db.insert(comments).values(row);
+    return c.json({ comment: { ...row, createdAt: safeISODate(row.createdAt) } }, 201);
+});
+
+const deleteCommentRoute = createRoute({
+    method: 'delete',
+    path: '/comments/{id}',
+    tags: ['Comments'],
+    summary: 'Delete a comment library entry',
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.boolean() }) } },
+            description: 'Deleted',
+        },
+        404: { description: 'Not found' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+adminRoutes.openapi(deleteCommentRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { id } = c.req.valid('param');
+    const db = drizzle(c.env.DB);
+    const existing = await db.select().from(comments)
+        .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId))).get();
+    if (!existing) throw Errors.NotFound('Comment not found');
+    await db.delete(comments).where(eq(comments.id, id));
     return c.json({ success: true }, 200);
 });
 
