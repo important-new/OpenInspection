@@ -10,3 +10,4 @@ export {
     comments,
 } from './inspection';
 export { contacts } from './contact';
+export { invoices } from './invoice';

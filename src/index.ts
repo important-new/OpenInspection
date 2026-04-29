@@ -30,6 +30,7 @@ import { TemplateEditorPage } from './templates/pages/template-editor';
 import { TeamPage } from './templates/pages/team';
 import { AgreementsPage } from './templates/pages/agreements';
 import { ContactsPage } from './templates/pages/contacts';
+import { InvoicesPage } from './templates/pages/invoices';
 import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
@@ -46,6 +47,7 @@ import availabilityRoutes from './api/availability';
 import calendarRoutes from './api/calendar';
 import teamRoutes from './api/team';
 import contactRoutes from './api/contacts';
+import invoiceRoutes from './api/invoices';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -270,6 +272,7 @@ app.route('/api/availability', availabilityRoutes);
 app.route('/api/calendar', calendarRoutes);
 app.route('/api/team', teamRoutes);
 app.route('/api/contacts', contactRoutes);
+app.route('/api/invoices', invoiceRoutes);
 app.route('/api/integration', integrationRoutes);
 
 // OpenAPI Documentation
@@ -394,6 +397,7 @@ app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPa
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
 app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
+app.get('/invoices', htmlAuthGuard(['owner', 'admin']), (c) => c.html(InvoicesPage({ branding: c.get('branding') })));
 
 // Field Inspection Form
 app.get('/inspections/:id/form', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
