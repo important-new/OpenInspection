@@ -53,6 +53,7 @@ import adminRoutes from './api/admin';
 import agentRoutes from './api/agent';
 import availabilityRoutes from './api/availability';
 import calendarRoutes from './api/calendar';
+import calendarEventsRoutes from './api/calendar-events';
 import teamRoutes from './api/team';
 import contactRoutes from './api/contacts';
 import invoiceRoutes from './api/invoices';
@@ -289,6 +290,8 @@ app.route('/api/public', bookingsRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/agent', agentRoutes);
 app.route('/api/availability', availabilityRoutes);
+// Mount /api/calendar/events BEFORE /api/calendar so the more-specific path takes precedence.
+app.route('/api/calendar/events', calendarEventsRoutes);
 app.route('/api/calendar', calendarRoutes);
 app.route('/api/team', teamRoutes);
 app.route('/api/contacts', contactRoutes);
