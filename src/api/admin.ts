@@ -710,9 +710,10 @@ const listCommentsRoute = createRoute({
     path: '/comments',
     tags: ['Comments'],
     summary: 'List comment library entries',
+    middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
-            content: { 'application/json': { schema: z.object({ comments: z.array(CommentResponseSchema) }) } },
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ comments: z.array(CommentResponseSchema) }) }) } },
             description: 'Success',
         },
     },
@@ -723,7 +724,7 @@ adminRoutes.openapi(listCommentsRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const db = drizzle(c.env.DB);
     const rows = await db.select().from(comments).where(eq(comments.tenantId, tenantId)).all();
-    return c.json({ comments: rows.map(r => ({ ...r, createdAt: safeISODate(r.createdAt) })) }, 200);
+    return c.json({ success: true as const, data: { comments: rows.map(r => ({ ...r, createdAt: safeISODate(r.createdAt) })) } }, 200);
 });
 
 const createCommentRoute = createRoute({
@@ -731,10 +732,11 @@ const createCommentRoute = createRoute({
     path: '/comments',
     tags: ['Comments'],
     summary: 'Create a comment library entry',
+    middleware: [requireRole(['owner', 'admin'])],
     request: { body: { content: { 'application/json': { schema: CommentSchema } } } },
     responses: {
         201: {
-            content: { 'application/json': { schema: z.object({ comment: CommentResponseSchema }) } },
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ comment: CommentResponseSchema }) }) } },
             description: 'Created',
         },
     },
@@ -747,7 +749,7 @@ adminRoutes.openapi(createCommentRoute, async (c) => {
     const db = drizzle(c.env.DB);
     const row = { id: crypto.randomUUID(), tenantId, text, category: category ?? null, createdAt: new Date() };
     await db.insert(comments).values(row);
-    return c.json({ comment: { ...row, createdAt: safeISODate(row.createdAt) } }, 201);
+    return c.json({ success: true as const, data: { comment: { ...row, createdAt: safeISODate(row.createdAt) } } }, 201);
 });
 
 const deleteCommentRoute = createRoute({
@@ -755,6 +757,7 @@ const deleteCommentRoute = createRoute({
     path: '/comments/{id}',
     tags: ['Comments'],
     summary: 'Delete a comment library entry',
+    middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
         200: {
@@ -773,7 +776,7 @@ adminRoutes.openapi(deleteCommentRoute, async (c) => {
     const existing = await db.select().from(comments)
         .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId))).get();
     if (!existing) throw Errors.NotFound('Comment not found');
-    await db.delete(comments).where(eq(comments.id, id));
+    await db.delete(comments).where(and(eq(comments.id, id), eq(comments.tenantId, tenantId)));
     return c.json({ success: true }, 200);
 });
 
