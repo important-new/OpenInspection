@@ -270,6 +270,28 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         </div>
                     </section>
 
+                    {/* ── Apple Calendar / ICS Subscription ── */}
+                    <section class="glass-panel p-10 md:p-12 rounded-[3.5rem] shadow-xl shadow-slate-100/50 space-y-8">
+                        <div class="flex items-center gap-5 pb-6 border-b border-slate-100/50">
+                            {sectionIcon('M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', 'bg-slate-600/10 text-slate-600')}
+                            <div>
+                                <h2 class="text-2xl font-black text-slate-900 tracking-tightest">Apple Calendar</h2>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">ICS Subscription · Read-only</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-slate-500 max-w-2xl">Subscribe to your inspections in Apple Calendar, Google Calendar, or any app that supports ICS feeds.</p>
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <input id="icsUrl" type="text" readonly
+                                class="flex-1 px-7 py-5 rounded-2xl border-0 ring-2 ring-slate-100 bg-slate-50 text-slate-600 font-mono text-xs"
+                                placeholder="Loading subscription URL..." />
+                            <button onclick="copyIcsUrl()" id="copyIcsBtn"
+                                class="premium-button px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-black transition-all active:scale-95">
+                                Copy Link
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-400 font-bold ml-1">In Apple Calendar: File → New Calendar Subscription → paste URL.</p>
+                    </section>
+
                     {/* ── Password ── */}
                     <section class="glass-panel p-10 md:p-12 rounded-[3.5rem] shadow-xl shadow-slate-100/50 space-y-8">
                         <div class="flex items-center gap-5 pb-6 border-b border-slate-100/50">

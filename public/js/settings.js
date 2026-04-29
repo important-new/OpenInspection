@@ -234,5 +234,31 @@ async function saveProfile() {
     }
 }
 
+// ─── ICS Subscription URL ─────────────────────────────────────────────────────
+async function loadIcsUrl() {
+    const input = document.getElementById('icsUrl');
+    if (!input) return;
+    try {
+        const res = await authFetch('/api/admin/ics-token');
+        if (!res.ok) return;
+        const data = await res.json();
+        input.value = data.data?.url || '';
+    } catch { /* silent — feature is non-critical */ }
+}
+
+function copyIcsUrl() {
+    const input = document.getElementById('icsUrl');
+    if (!input?.value) return;
+    navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.getElementById('copyIcsBtn');
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = orig; }, 2000);
+        }
+    });
+}
+
 loadConfig();
 loadProfile();
+loadIcsUrl();

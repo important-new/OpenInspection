@@ -27,7 +27,7 @@ import {
     CommentResponseSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
-import { templates, agreements as agreementTable, inspections, inspectionResults, comments } from '../lib/db/schema';
+import { templates, agreements as agreementTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
 
 const adminRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -816,6 +816,62 @@ adminRoutes.openapi(deleteCommentRoute, async (c) => {
     if (!existing) throw Errors.NotFound('Comment not found');
     await db.delete(comments).where(and(eq(comments.id, id), eq(comments.tenantId, tenantId)));
     return c.json({ success: true }, 200);
+});
+
+// --- ICS Subscription Token ---
+
+const icsTokenRoute = createRoute({
+    method: 'get',
+    path: '/ics-token',
+    tags: ['Calendar'],
+    summary: 'Get the tenant ICS subscription URL (creating a token if missing).',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(true),
+                        data: z.object({ url: z.string() }),
+                    }),
+                },
+            },
+            description: 'Subscription URL',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+adminRoutes.openapi(icsTokenRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const db = drizzle(c.env.DB);
+
+    const configs = await db
+        .select()
+        .from(tenantConfigs)
+        .where(eq(tenantConfigs.tenantId, tenantId))
+        .limit(1);
+
+    let token = configs[0]?.icsToken ?? null;
+
+    if (!token) {
+        token = crypto.randomUUID().replace(/-/g, '');
+        if (configs[0]) {
+            await db
+                .update(tenantConfigs)
+                .set({ icsToken: token, updatedAt: new Date() })
+                .where(eq(tenantConfigs.tenantId, tenantId));
+        } else {
+            await db.insert(tenantConfigs).values({
+                tenantId,
+                icsToken: token,
+                updatedAt: new Date(),
+            });
+        }
+    }
+
+    const baseUrl = getBaseUrl(c);
+    return c.json({ success: true as const, data: { url: `${baseUrl}/api/ics/${token}` } }, 200);
 });
 
 export default adminRoutes;

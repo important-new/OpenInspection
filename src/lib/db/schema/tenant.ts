@@ -23,6 +23,8 @@ export const users = sqliteTable('users', {
     role: text('role').notNull().default('admin'),
     googleRefreshToken: text('google_refresh_token'),
     googleCalendarId: text('google_calendar_id'),
+    googleAccessToken: text('google_access_token'),
+    googleTokenExpiry: integer('google_token_expiry'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
@@ -45,6 +47,7 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     gaMeasurementId: text('ga_measurement_id'),
     integrationConfig: text('integration_config'), // plaintext JSON: {appBaseUrl, turnstileSiteKey, googleClientId}
     secrets: text('secrets'),                      // AES-GCM encrypted JSON: {resendApiKey, turnstileSecretKey, geminiApiKey, googleClientSecret}
+    icsToken: text('ics_token'),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 
