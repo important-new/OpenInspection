@@ -181,6 +181,34 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 <span x-show="saveState === 'error'" x-cloak class="text-red-500">Save failed</span>
               </div>
             </div>
+            {/* Report Access */}
+            <div class="px-4 py-3 border-t space-y-2" style="border-color: rgba(232,228,221,0.4)">
+              <div class="text-[10px] font-mono font-semibold uppercase tracking-wide mb-2" style="color: #908a83">Report Access</div>
+              <label class="flex items-center justify-between cursor-pointer">
+                <span class="text-xs" style="color: #46423c">Require Payment</span>
+                <button
+                  x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentRequired:!inspection.paymentRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.paymentRequired=!inspection.paymentRequired; })`}
+                  x-bind:class="inspection.paymentRequired ? 'bg-indigo-500' : 'bg-slate-200'"
+                  class="relative w-8 h-5 rounded-full transition-colors flex-shrink-0"
+                >
+                  <span x-bind:class="inspection.paymentRequired ? 'translate-x-3' : 'translate-x-0.5'" class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" />
+                </button>
+              </label>
+              <label class="flex items-center justify-between cursor-pointer">
+                <span class="text-xs" style="color: #46423c">Require Agreement</span>
+                <button
+                  x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({agreementRequired:!inspection.agreementRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.agreementRequired=!inspection.agreementRequired; })`}
+                  x-bind:class="inspection.agreementRequired ? 'bg-indigo-500' : 'bg-slate-200'"
+                  class="relative w-8 h-5 rounded-full transition-colors flex-shrink-0"
+                >
+                  <span x-bind:class="inspection.agreementRequired ? 'translate-x-3' : 'translate-x-0.5'" class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" />
+                </button>
+              </label>
+              <div class="mt-1">
+                <span x-show="inspection.paymentStatus === 'paid'" class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: #dcfce7; color: #16a34a">Paid</span>
+                <span x-show="inspection.paymentStatus !== 'paid'" class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: #fee2e2; color: #dc2626" x-text="'Unpaid · $' + ((inspection.price || 0) / 100).toFixed(2)"></span>
+              </div>
+            </div>
             <div class="flex-1 px-3 py-2 space-y-0.5">
               <template x-for="(sec, idx) in sections" x-bind:key="sec.id">
                 <button
