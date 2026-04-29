@@ -306,9 +306,9 @@ function renderInspections(list) {
         const dateStr = formatInspectionDate(ins.createdAt || ins.scheduledDate);
         return `
         <tr class="table-row-hover group">
-            <td class="py-6 px-10">
+            <td class="py-6 px-6 min-w-[260px] max-w-[360px]">
                 <div>
-                    <a href="/inspections/${ins.id}/edit" class="text-sm font-bold text-slate-900 hover:text-indigo-600 transition-colors">${ins.propertyAddress}</a>
+                    <a href="/inspections/${ins.id}/edit" class="text-sm font-bold text-slate-900 hover:text-indigo-600 transition-colors break-words">${ins.propertyAddress}</a>
                     <p class="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">ID: ${ins.id.split('-')[0]}</p>
                 </div>
             </td>
