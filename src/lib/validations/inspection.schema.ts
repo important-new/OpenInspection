@@ -42,6 +42,10 @@ export const CreateInspectionSchema = z.object({
     inspectorId: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
     date: z.string().datetime().optional().openapi({ example: '2024-03-20T10:00:00Z' }),
     referredByAgentId: z.string().uuid().optional().nullable().openapi({ example: '550e8400-e29b-41d4-a716-446655440003' }),
+    serviceIds:     z.array(z.string()).optional(),
+    discountCodeId: z.string().nullable().optional(),
+    discountAmount: z.number().int().nullable().optional(),
+    price:          z.number().int().min(0).optional(),
 }).openapi('CreateInspection');
 
 /**
@@ -57,6 +61,13 @@ export const UpdateInspectionSchema = z.object({
     status: z.enum(['draft', 'completed', 'delivered']).optional().openapi({ example: 'completed' }),
     paymentRequired:   z.boolean().optional().openapi({ example: false }),
     agreementRequired: z.boolean().optional().openapi({ example: false }),
+    yearBuilt:      z.number().int().min(1800).max(2100).nullable().optional().openapi({ example: 1990 }),
+    sqft:           z.number().int().min(0).nullable().optional().openapi({ example: 1800 }),
+    foundationType: z.enum(['basement', 'slab', 'crawlspace', 'other']).nullable().optional(),
+    bedrooms:       z.number().int().min(0).nullable().optional().openapi({ example: 3 }),
+    bathrooms:      z.number().min(0).max(20).nullable().optional().openapi({ example: 2.5 }),
+    unit:           z.string().max(50).nullable().optional(),
+    county:         z.string().max(100).nullable().optional(),
 }).openapi('UpdateInspection');
 
 export const CancelInspectionSchema = z.object({
