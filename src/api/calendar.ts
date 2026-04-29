@@ -7,6 +7,7 @@ import { HonoConfig } from '../types/hono';
 import { CalendarSyncResponseSchema, CalendarCallbackQuerySchema } from '../lib/validations/calendar.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { logger } from '../lib/logger';
+import { getBaseUrl } from '../lib/url';
 
 const calendarRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -67,7 +68,7 @@ calendarRoutes.get('/connect', async (c) => {
     const user = c.get('user');
     if (!user) return c.redirect('/login');
 
-    const baseUrl = c.env.APP_BASE_URL || `${new URL(c.req.url).protocol}//${c.req.header('host')}`;
+    const baseUrl = getBaseUrl(c);
     const state = user.sub;
 
     const params = new URLSearchParams({
@@ -100,7 +101,7 @@ calendarRoutes.get('/callback', async (c) => {
     }
     if (!code || !state) return c.json({ error: 'Missing code or state' }, 400);
 
-    const baseUrl = c.env.APP_BASE_URL || `${new URL(c.req.url).protocol}//${c.req.header('host')}`;
+    const baseUrl = getBaseUrl(c);
 
     const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
         method: 'POST',

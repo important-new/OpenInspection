@@ -5,6 +5,7 @@ import { users, inspections } from '../lib/db/schema';
 import { createCalendarEvent } from './calendar';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { checkRateLimit } from '../lib/rate-limit';
 import { logger } from '../lib/logger';
 import { 
     PublicBookingSchema, 
@@ -116,11 +117,7 @@ const createBookingRoute = createRoute({
 });
 
 bookingsRoutes.openapi(createBookingRoute, async (c) => {
-    if (c.env.RATE_LIMITER) {
-        const ip = c.req.header('CF-Connecting-IP') || 'unknown';
-        const { success } = await c.env.RATE_LIMITER.limit({ key: `book:${ip}` });
-        if (!success) throw Errors.RateLimited();
-    }
+    await checkRateLimit(c, 'book');
 
     const body = c.req.valid('json');
     const tenantId = c.get('tenantId') || c.get('requestedSubdomain');

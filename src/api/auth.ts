@@ -6,6 +6,8 @@ import { sign } from 'hono/jwt';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { getBaseUrl } from '../lib/url';
+import { checkRateLimit } from '../lib/rate-limit';
 import { requireCsrfToken } from '../lib/middleware/csrf';
 import {
     LoginSchema,
@@ -88,11 +90,7 @@ const loginRoute = createRoute({
 });
 
 coreAuthRoutes.openapi(loginRoute, async (c) => {
-    if (c.env.RATE_LIMITER) {
-        const ip = c.req.header('CF-Connecting-IP') || 'unknown';
-        const { success } = await c.env.RATE_LIMITER.limit({ key: `login:${ip}` });
-        if (!success) throw Errors.RateLimited();
-    }
+    await checkRateLimit(c, 'login');
 
     const body = c.req.valid('json');
     const user = await c.var.services.auth.validateCredentials(body.email, body.password);
@@ -226,18 +224,14 @@ const forgotPasswordRoute = createRoute({
 });
 
 coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
-    if (c.env.RATE_LIMITER) {
-        const ip = c.req.header('CF-Connecting-IP') || 'unknown';
-        const { success } = await c.env.RATE_LIMITER.limit({ key: `forgot:${ip}` });
-        if (!success) throw Errors.RateLimited();
-    }
+    await checkRateLimit(c, 'forgot');
 
     const body = c.req.valid('json');
     const resetToken = await c.var.services.auth.createPasswordResetToken(body.email);
     
     if (!resetToken) return c.json({ success: true, data: { success: true } }, 200);
 
-    const baseUrl = c.env.APP_BASE_URL || 'http://localhost:8788';
+    const baseUrl = getBaseUrl(c);
     const resetLink = `${baseUrl}/login?reset_token=${resetToken}`;
 
     await c.var.services.email.sendPasswordReset(body.email, resetLink)

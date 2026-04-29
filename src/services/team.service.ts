@@ -5,7 +5,7 @@ import { UserRole } from '../types/auth';
 import { Errors } from '../lib/errors';
 
 export class TeamService {
-    constructor(private db: D1Database, private env?: { RESEND_API_KEY?: string; SENDER_EMAIL?: string; APP_NAME?: string; APP_MODE?: string }) {}
+    constructor(private db: D1Database, private env?: { APP_MODE?: string }) {}
 
     private getDB() {
         return drizzle(this.db);
@@ -87,20 +87,5 @@ export class TeamService {
         await db.delete(users).where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
         return user;
     }
-
-    async sendInviteEmail(to: string, inviteLink: string) {
-        const { RESEND_API_KEY, SENDER_EMAIL, APP_NAME = 'OpenInspection' } = this.env ?? {};
-        if (!RESEND_API_KEY) return;
-
-        await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${RESEND_API_KEY}` },
-            body: JSON.stringify({
-                from: SENDER_EMAIL || 'noreply@example.com',
-                to: [to],
-                subject: `Workspace Invitation - ${APP_NAME}`,
-                html: `<p>You've been invited to join a workspace on ${APP_NAME}! Accept here: <a href="${inviteLink}">${inviteLink}</a></p><p>This link expires in 7 days.</p>`,
-            }),
-        });
-    }
+
 }

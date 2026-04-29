@@ -94,7 +94,7 @@ teamRoutes.openapi(inviteTeamMemberRoute, async (c) => {
     const inviteLink = `${getBaseUrl(c)}/join?token=${token}`;
 
     // Send email via service (requires RESEND_API_KEY in env)
-    await teamService.sendInviteEmail(body.email, inviteLink);
+    await c.var.services.email.sendInvitation(body.email, inviteLink);
 
     return c.json({ 
         success: true, 
