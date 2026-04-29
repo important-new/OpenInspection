@@ -1,46 +1,69 @@
 import { BrandingConfig } from '../../types/auth';
 
+function sanitizePrimaryColor(branding?: BrandingConfig): string {
+    const raw = branding?.primaryColor || '#6366f1';
+    return /^#[0-9a-fA-F]{3,8}$/.test(raw) ? raw : '#6366f1';
+}
+
+function sanitizeGaId(branding?: BrandingConfig): string {
+    const raw = branding?.gaMeasurementId || '';
+    return /^G-[A-Z0-9]+$/.test(raw) ? raw : '';
+}
+
+function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
+    title: string;
+    primaryColor: string;
+    gaMeasurementId: string;
+    extraHead?: JSX.Element;
+}): JSX.Element {
+    return (
+        <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>{title}</title>
+            <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+            <link rel="stylesheet" href="/fonts.css" />
+            <script defer src="/vendor/alpine-collapse.min.js"></script>
+            <script defer src="/vendor/alpine.min.js"></script>
+            <link rel="stylesheet" href="/styles.css" />
+            <style dangerouslySetInnerHTML={{ __html: `
+                :root {
+                    --primary-color: ${primaryColor};
+                    --primary-glow: ${primaryColor}40;
+                }
+                body { font-family: 'Inter', sans-serif; }
+                .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+                [x-cloak] { display: none !important; }
+            ` }} />
+
+            {extraHead}
+
+            {gaMeasurementId && (
+                <>
+                    <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}></script>
+                    <script dangerouslySetInnerHTML={{ __html: `
+                        window.dataLayer = window.dataLayer || [];
+                        function gtag(){dataLayer.push(arguments);}
+                        gtag('js', new Date());
+                        gtag('config', '${gaMeasurementId}');
+                    ` }} />
+                </>
+            )}
+        </head>
+    );
+}
+
 export const BareLayout = (props: { title: string, children: unknown, branding?: BrandingConfig | undefined, extraHead?: JSX.Element }): JSX.Element => {
     const { title, children, branding, extraHead } = props;
-    const rawPrimaryColor = branding?.primaryColor || '#6366f1';
-    const safePrimaryColor = /^#[0-9a-fA-F]{3,8}$/.test(rawPrimaryColor) ? rawPrimaryColor : '#c85a2a';
-    const rawGaId = branding?.gaMeasurementId;
-    const safeGaId = /^G-[A-Z0-9]+$/.test(rawGaId || '') ? rawGaId : '';
 
     return (
         <html lang="en" class="scroll-smooth">
-            <head>
-                <meta charset="UTF-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>{title}</title>
-                <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-                <link rel="stylesheet" href="/fonts.css" />
-                <script defer src="/vendor/alpine-collapse.min.js"></script>
-                <script defer src="/vendor/alpine.min.js"></script>
-                <link rel="stylesheet" href="/styles.css" />
-                <style dangerouslySetInnerHTML={{ __html: `
-                    :root {
-                        --primary-color: ${safePrimaryColor};
-                        --primary-glow: ${safePrimaryColor}40;
-                    }
-                    body { font-family: 'Inter', sans-serif; }
-                    .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
-                ` }} />
-
-                {extraHead}
-
-                {safeGaId && (
-                    <>
-                        <script async src={`https://www.googletagmanager.com/gtag/js?id=${safeGaId}`}></script>
-                        <script dangerouslySetInnerHTML={{ __html: `
-                            window.dataLayer = window.dataLayer || [];
-                            function gtag(){dataLayer.push(arguments);}
-                            gtag('js', new Date());
-                            gtag('config', '${safeGaId}');
-                        ` }} />
-                    </>
-                )}
-            </head>
+            <SharedHead
+                title={title}
+                primaryColor={sanitizePrimaryColor(branding)}
+                gaMeasurementId={sanitizeGaId(branding)}
+                {...(extraHead ? { extraHead } : {})}
+            />
             <body class="bg-[#fdfdfd] text-slate-900 antialiased min-h-screen selection:bg-indigo-100 selection:text-indigo-900">
                 {children}
             </body>
@@ -51,47 +74,16 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
 export const MainLayout = (props: { title: string, children: unknown, branding?: BrandingConfig | undefined, extraHead?: JSX.Element }): JSX.Element => {
     const { title, children, branding, extraHead } = props;
     const siteName = branding?.siteName || 'OpenInspection';
-    const rawPrimaryColor = branding?.primaryColor || '#6366f1';
-    const safePrimaryColor = /^#[0-9a-fA-F]{3,8}$/.test(rawPrimaryColor) ? rawPrimaryColor : '#c85a2a';
     const logoUrl = branding?.logoUrl;
-    const rawGaId = branding?.gaMeasurementId;
-    const safeGaId = /^G-[A-Z0-9]+$/.test(rawGaId || '') ? rawGaId : '';
 
     return (
         <html lang="en" class="scroll-smooth">
-            <head>
-                <meta charset="UTF-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>{title}</title>
-                <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-                <link rel="stylesheet" href="/fonts.css" />
-                <script defer src="/vendor/alpine-collapse.min.js"></script>
-                <script defer src="/vendor/alpine.min.js"></script>
-                <link rel="stylesheet" href="/styles.css" />
-                <style dangerouslySetInnerHTML={{ __html: `
-                    :root {
-                        --primary-color: ${safePrimaryColor};
-                        --primary-glow: ${safePrimaryColor}40;
-                    }
-                    body { font-family: 'Inter', sans-serif; }
-                    .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
-                    [x-cloak] { display: none !important; }
-                ` }} />
-
-                {extraHead}
-
-                {safeGaId && (
-                    <>
-                        <script async src={`https://www.googletagmanager.com/gtag/js?id=${safeGaId}`}></script>
-                        <script dangerouslySetInnerHTML={{ __html: `
-                            window.dataLayer = window.dataLayer || [];
-                            function gtag(){dataLayer.push(arguments);}
-                            gtag('js', new Date());
-                            gtag('config', '${safeGaId}');
-                        ` }} />
-                    </>
-                )}
-            </head>
+            <SharedHead
+                title={title}
+                primaryColor={sanitizePrimaryColor(branding)}
+                gaMeasurementId={sanitizeGaId(branding)}
+                {...(extraHead ? { extraHead } : {})}
+            />
             <body class="bg-[#f8fafc] text-slate-900 antialiased min-h-screen" x-data="{ mobileMenu: false }">
                 {/* Mobile Header Bar */}
                 <div class="lg:hidden sticky top-0 z-40 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">

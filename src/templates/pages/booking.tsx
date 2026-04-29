@@ -1,4 +1,5 @@
 import { BareLayout } from '../layouts/main-layout';
+import { AtmosphericBg } from '../components/atmospheric-bg';
 import { BrandingConfig } from '../../types/auth';
 
 export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, branding?: BrandingConfig | undefined }): JSX.Element => {
@@ -7,11 +8,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
     return (
         <BareLayout title={`Book Inspection | ${siteName}`} branding={branding}>
             <div class="relative min-h-screen py-20 px-6 lg:px-8 font-sans overflow-hidden">
-                {/* Background Atmosphere */}
-                <div class="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden pointer-events-none">
-                    <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[60%] bg-indigo-50/50 rounded-full blur-[120px] animate-float"></div>
-                    <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[50%] bg-blue-50/40 rounded-full blur-[100px] animate-float" style="animation-delay: -4s;"></div>
-                </div>
+                <AtmosphericBg />
 
                 <div class="max-w-3xl mx-auto animate-fade-in">
                     <nav class="mb-16 flex items-center justify-between">

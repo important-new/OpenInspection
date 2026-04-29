@@ -6,7 +6,6 @@ import { sign } from 'hono/jwt';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
-import { logger } from '../lib/logger';
 import { requireCsrfToken } from '../lib/middleware/csrf';
 import {
     LoginSchema,
@@ -241,20 +240,8 @@ coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
     const baseUrl = c.env.APP_BASE_URL || 'http://localhost:8788';
     const resetLink = `${baseUrl}/login?reset_token=${resetToken}`;
 
-    if (c.env.RESEND_API_KEY && !c.env.RESEND_API_KEY.includes('your_api_key')) {
-        await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${c.env.RESEND_API_KEY}` },
-            body: JSON.stringify({
-                from: c.env.SENDER_EMAIL || `${c.env.APP_NAME} <noreply@example.com>`,
-                to: [body.email],
-                subject: 'Reset your password',
-                html: `<p>Click the link below to reset your ${c.env.APP_NAME} password. This link expires in 1 hour.</p>
-                       <p><a href="${resetLink}" style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;">Reset Password</a></p>
-                       <p style="font-size:12px;color:#999;">If you didn't request this, ignore this email. Link: ${resetLink}</p>`
-            })
-        }).catch(e => logger.error('Reset email error', {}, e instanceof Error ? e : undefined));
-    }
+    await c.var.services.email.sendPasswordReset(body.email, resetLink)
+        .catch(() => { /* email delivery is best-effort */ });
 
     return c.json({ success: true, data: { success: true } }, 200);
 });

@@ -1,4 +1,5 @@
 import { BareLayout } from '../layouts/main-layout';
+import { AtmosphericBg } from '../components/atmospheric-bg';
 import { BrandingConfig } from '../../types/auth';
 
 export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
@@ -8,11 +9,7 @@ export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | u
     return (
         <BareLayout title={`${siteName} | Agent Portal`} branding={branding}>
             <div class="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden relative">
-                {/* Atmospheric Background */}
-                <div class="fixed inset-0 pointer-events-none overflow-hidden select-none">
-                    <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full animate-float"></div>
-                    <div class="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-float" style="animation-delay: -2s"></div>
-                </div>
+                <AtmosphericBg />
 
                 {/* Floating Navigation */}
                 <nav class="sticky top-6 mx-auto max-w-7xl px-6 z-50">

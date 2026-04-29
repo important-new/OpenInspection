@@ -4,7 +4,8 @@ import { eq, and } from 'drizzle-orm';
 import { users } from '../lib/db/schema/tenant';
 import { availabilityOverrides } from '../lib/db/schema/inspection';
 import { HonoConfig } from '../types/hono';
-import { CalendarSyncResponseSchema, CalendarSuccessResponseSchema, CalendarCallbackQuerySchema } from '../lib/validations/calendar.schema';
+import { CalendarSyncResponseSchema, CalendarCallbackQuerySchema } from '../lib/validations/calendar.schema';
+import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { logger } from '../lib/logger';
 
 const calendarRoutes = new OpenAPIHono<HonoConfig>();
@@ -157,7 +158,7 @@ const disconnectRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: CalendarSuccessResponseSchema,
+                    schema: SuccessResponseSchema,
                 },
             },
             description: 'Success',

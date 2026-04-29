@@ -19,12 +19,3 @@ export const CalendarCallbackQuerySchema = z.object({
     state: z.string().optional(),
     error: z.string().optional(),
 });
-
-/**
- * Schema for a generic success response (e.g. for disconnect).
- */
-export const CalendarSuccessResponseSchema = createApiResponseSchema(
-    z.object({
-        success: z.boolean().openapi({ example: true }),
-    })
-).openapi('CalendarSuccessResponse');

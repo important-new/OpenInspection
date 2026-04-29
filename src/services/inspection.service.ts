@@ -354,10 +354,8 @@ export class InspectionService {
             .set({ status: 'delivered' })
             .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)));
 
-        const accessToken = crypto.randomUUID();
-
         return {
-            reportUrl: `/report/${inspectionId}?token=${accessToken}`,
+            reportUrl: `/report/${inspectionId}`,
             status: 'delivered',
         };
     }

@@ -1,4 +1,5 @@
 import { BareLayout } from '../layouts/main-layout';
+import { AtmosphericBg } from '../components/atmospheric-bg';
 import { BrandingConfig } from '../../types/auth';
 
 export const SetupPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
@@ -7,11 +8,7 @@ export const SetupPage = ({ branding }: { branding?: BrandingConfig | undefined 
     return (
         <BareLayout title={`System Setup | ${siteName}`} branding={branding}>
             <div class="relative min-h-screen flex flex-col justify-center py-12 px-6 lg:px-8 overflow-hidden font-sans">
-                {/* Background Atmosphere */}
-                <div class="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden pointer-events-none">
-                    <div class="absolute top-[-10%] right-[-10%] w-[50%] h-[60%] bg-emerald-50 rounded-full blur-[120px] animate-float"></div>
-                    <div class="absolute bottom-[-10%] left-[-10%] w-[40%] h-[50%] bg-blue-50 rounded-full blur-[100px] animate-float" style="animation-delay: -3s;"></div>
-                </div>
+                <AtmosphericBg />
 
                 <div class="sm:mx-auto sm:w-full sm:max-w-md animate-fade-in">
                     <div class="flex justify-center mb-8">

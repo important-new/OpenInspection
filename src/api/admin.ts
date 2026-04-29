@@ -2,8 +2,9 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { requireRole } from '../lib/middleware/rbac';
-import { writeAuditLog } from '../lib/audit';
+import { auditFromContext } from '../lib/audit';
 import { safeISODate } from '../lib/date';
+import { getBaseUrl } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -53,12 +54,7 @@ adminRoutes.openapi(exportDataRoute, async (c) => {
     const adminService = c.var.services.admin;
     const data = await adminService.getExport(tenantId);
     
-    writeAuditLog({
-        db: c.env.DB, tenantId, userId: c.get('user')?.sub,
-        action: 'data.export', entityType: 'bulk_export',
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx,
-    });
+    auditFromContext(c, 'data.export', 'bulk_export');
 
     return c.json({ success: true, data: { exportedAt: new Date().toISOString(), tenantId, ...data } }, 200);
 });
@@ -100,25 +96,11 @@ adminRoutes.openapi(inviteMemberRoute, async (c) => {
     const adminService = c.var.services.admin;
     const { inviteId, expiresAt } = await adminService.createInvite(tenantId, body.email, body.role);
 
-    const protocol = c.req.url.startsWith('https') ? 'https' : 'http';
-    const host = c.req.header('host');
-    const inviteLink = `${protocol}://${host}/join?token=${inviteId}`;
+    const inviteLink = `${getBaseUrl(c)}/join?token=${inviteId}`;
 
-    if (c.env.RESEND_API_KEY && !c.env.RESEND_API_KEY.includes('your_api_key')) {
-        const inviteEmailPromise = fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${c.env.RESEND_API_KEY}` },
-            body: JSON.stringify({
-                from: c.env.SENDER_EMAIL || 'OpenInspection <noreply@example.com>',
-                to: [body.email],
-                subject: 'You\'ve been invited to join a workspace',
-                html: `<p>You've been invited to join a ${c.env.APP_NAME || 'OpenInspection'} workspace.</p>
-                       <p><a href="${inviteLink}" style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;">Accept Invitation</a></p>
-                       <p>Link expires in 7 days: ${inviteLink}</p>`
-            })
-        }).catch(e => logger.error('Invite email error', {}, e instanceof Error ? e : undefined));
-        c.executionCtx.waitUntil(inviteEmailPromise);
-    }
+    const emailPromise = c.var.services.email.sendInvitation(body.email, inviteLink)
+        .catch(() => { /* email delivery is best-effort */ });
+    c.executionCtx.waitUntil(emailPromise);
 
     return c.json({ success: true, data: { inviteLink, expiresAt: expiresAt.toISOString() } }, 201);
 });
@@ -160,7 +142,6 @@ const importDataRoute = createRoute({
 
 adminRoutes.openapi(importDataRoute, async (c) => {
     const tenantId = c.get('tenantId');
-    const user = c.get('user');
     const body = c.req.valid('json');
 
     const importedInspections = Array.isArray(body.inspections) ? body.inspections : [];
@@ -245,13 +226,7 @@ adminRoutes.openapi(importDataRoute, async (c) => {
         counts.results++;
     }
 
-    writeAuditLog({
-        db: c.env.DB, tenantId, userId: user?.sub,
-        action: 'data.import', entityType: 'import',
-        metadata: { counts },
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx,
-    });
+    auditFromContext(c, 'data.import', 'import', { metadata: { counts } });
 
     return c.json({ success: true, data: { message: 'Import complete.', imported: counts } }, 200);
 });
@@ -468,12 +443,7 @@ adminRoutes.openapi(getAuditLogsRoute, async (c) => {
         }))
     };
     
-    writeAuditLog({
-        db: c.env.DB, tenantId, userId: c.get('user')?.sub,
-        action: 'audit.view', entityType: 'audit_log',
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx,
-    });
+    auditFromContext(c, 'audit.view', 'audit_log');
 
     return c.json({ success: true, data: formattedResult }, 200);
 });
@@ -514,12 +484,8 @@ adminRoutes.openapi(eraseDataRoute, async (c) => {
     const adminService = c.var.services.admin;
     const counts = await adminService.eraseClientData(tenantId, body.clientEmail);
     
-    writeAuditLog({
-        db: c.env.DB, tenantId, userId: c.get('user')?.sub,
-        action: 'data.delete', entityType: 'client',
+    auditFromContext(c, 'data.delete', 'client', {
         metadata: { clientEmail: body.clientEmail, ...counts },
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx
     });
 
     return c.json({ success: true, data: { message: 'Client data erased successfully.', ...counts } }, 200);
@@ -712,11 +678,7 @@ const updateIntegrationConfigRoute = createRoute({
 adminRoutes.openapi(updateIntegrationConfigRoute, async (c) => {
     const body = c.req.valid('json');
     await c.var.services.branding.updateIntegrationConfig(c.get('tenantId'), body as unknown as import('../services/branding.service').IntegrationConfig);
-    writeAuditLog({
-        db: c.env.DB, tenantId: c.get('tenantId'), userId: c.get('user')?.sub,
-        action: 'config.integration.update', entityType: 'tenant_config',
-        ipAddress: c.req.header('CF-Connecting-IP'), executionCtx: c.executionCtx,
-    });
+    auditFromContext(c, 'config.integration.update', 'tenant_config');
     return c.json({ success: true }, 200);
 });
 
@@ -735,11 +697,7 @@ const updateSecretsRoute = createRoute({
 adminRoutes.openapi(updateSecretsRoute, async (c) => {
     const body = c.req.valid('json');
     await c.var.services.branding.updateSecrets(c.get('tenantId'), c.env.JWT_SECRET, body as unknown as import('../services/branding.service').SecretsConfig);
-    writeAuditLog({
-        db: c.env.DB, tenantId: c.get('tenantId'), userId: c.get('user')?.sub,
-        action: 'config.secrets.update', entityType: 'tenant_config',
-        ipAddress: c.req.header('CF-Connecting-IP'), executionCtx: c.executionCtx,
-    });
+    auditFromContext(c, 'config.secrets.update', 'tenant_config');
     return c.json({ success: true }, 200);
 });
 

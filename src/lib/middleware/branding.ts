@@ -66,7 +66,11 @@ export const brandingMiddleware: MiddlewareHandler<HonoConfig> = async (c, next)
         c.set('branding', branding);
         
         if (config && c.env.TENANT_CACHE) {
-            c.executionCtx.waitUntil(c.env.TENANT_CACHE.put(cacheKey, JSON.stringify(branding), { expirationTtl: 3600 }));
+            try {
+                c.executionCtx.waitUntil(c.env.TENANT_CACHE.put(cacheKey, JSON.stringify(branding), { expirationTtl: 3600 }));
+            } catch {
+                // executionCtx unavailable in test environments
+            }
         }
     } catch (e) {
         logger.error('[branding] DB lookup failed', {}, e instanceof Error ? e : undefined);

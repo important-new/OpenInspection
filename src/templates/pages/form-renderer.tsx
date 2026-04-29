@@ -1,4 +1,5 @@
 import { BareLayout } from '../layouts/main-layout';
+import { AtmosphericBg } from '../components/atmospheric-bg';
 import { BrandingConfig } from '../../types/auth';
 
 export const FormRendererPage = (props: { inspectionId: string, branding?: BrandingConfig | undefined }): JSX.Element => {
@@ -7,11 +8,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
     return (
         <BareLayout title="Inspection Field Tool" branding={branding}>
             <div class="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden relative" x-data={`inspectionForm('${inspectionId}')`}>
-                {/* Atmospheric Background */}
-                <div class="fixed inset-0 pointer-events-none overflow-hidden select-none">
-                    <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full animate-float"></div>
-                    <div class="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-float" style="animation-delay: -2s"></div>
-                </div>
+                <AtmosphericBg />
 
                 {/* Main Viewport */}
                 <div class="max-w-4xl mx-auto px-6 py-8 relative z-10">

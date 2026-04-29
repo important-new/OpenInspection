@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { requireRole } from '../lib/middleware/rbac';
 import { renderProfessionalReport } from '../templates/pages/report.template';
-import { writeAuditLog } from '../lib/audit';
+import { auditFromContext } from '../lib/audit';
+import { getBaseUrl } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import {
@@ -321,7 +322,6 @@ const bulkUpdateRoute = createRoute({
 
 inspectionsRoutes.openapi(bulkUpdateRoute, async (c) => {
     const tenantId = c.get('tenantId');
-    const user = c.get('user');
     const body = c.req.valid('json');
     const db = drizzle(c.env.DB);
 
@@ -330,24 +330,16 @@ inspectionsRoutes.openapi(bulkUpdateRoute, async (c) => {
         await db.update(inspectionTable).set({ inspectorId: body.inspectorId })
             .where(and(inArray(inspectionTable.id, body.ids), eq(inspectionTable.tenantId, tenantId)));
 
-        writeAuditLog({
-            db: c.env.DB, tenantId, userId: user.sub,
-            action: 'inspection.bulk_assign', entityType: 'inspection',
+        auditFromContext(c, 'inspection.bulk_assign', 'inspection', {
             metadata: { ids: body.ids, inspectorId: body.inspectorId },
-            ipAddress: c.req.header('CF-Connecting-IP'),
-            executionCtx: c.executionCtx,
         });
     } else {
         if (!body.status) throw Errors.BadRequest('status is required for updateStatus.');
         await db.update(inspectionTable).set({ status: body.status })
             .where(and(inArray(inspectionTable.id, body.ids), eq(inspectionTable.tenantId, tenantId)));
 
-        writeAuditLog({
-            db: c.env.DB, tenantId, userId: user.sub,
-            action: 'inspection.bulk_status', entityType: 'inspection',
+        auditFromContext(c, 'inspection.bulk_status', 'inspection', {
             metadata: { ids: body.ids, status: body.status },
-            ipAddress: c.req.header('CF-Connecting-IP'),
-            executionCtx: c.executionCtx,
         });
     }
 
@@ -432,12 +424,9 @@ inspectionsRoutes.openapi(deleteInspectionRoute, async (c) => {
     const db = drizzle(c.env.DB);
     await db.delete(inspectionTable).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
-    writeAuditLog({
-        db: c.env.DB, tenantId, userId: c.get('user')?.sub,
-        action: 'inspection.delete', entityType: 'inspection', entityId: id,
+    auditFromContext(c, 'inspection.delete', 'inspection', {
+        entityId: id,
         metadata: { propertyAddress: inspection.propertyAddress },
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx,
     });
     return c.json({ success: true, data: { success: true } }, 200);
 });
@@ -486,12 +475,9 @@ inspectionsRoutes.openapi(updateInspectionRoute, async (c) => {
     await db.update(inspectionTable).set(body).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (body.status && body.status !== inspection.status) {
-        writeAuditLog({
-            db: c.env.DB, tenantId, userId: c.get('user')?.sub,
-            action: 'inspection.status_change', entityType: 'inspection', entityId: id,
+        auditFromContext(c, 'inspection.status_change', 'inspection', {
+            entityId: id,
             metadata: { from: inspection.status, to: body.status },
-            ipAddress: c.req.header('CF-Connecting-IP'),
-            executionCtx: c.executionCtx,
         });
     }
     return c.json({ success: true, data: { success: true } }, 200);
@@ -614,12 +600,9 @@ inspectionsRoutes.openapi(createInspectionRoute, async (c) => {
         inspectorId: body.inspectorId || c.get('user').sub
     });
 
-    writeAuditLog({
-        db: c.env.DB, tenantId: c.get('tenantId'), userId: c.get('user').sub,
-        action: 'inspection.create', entityType: 'inspection', entityId: inspection.id,
+    auditFromContext(c, 'inspection.create', 'inspection', {
+        entityId: inspection.id,
         metadata: { propertyAddress: inspection.propertyAddress },
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx,
     });
     
     return c.json({
@@ -657,12 +640,9 @@ inspectionsRoutes.openapi(cloneInspectionRoute, async (c) => {
     const service = c.var.services.inspection;
     const clone = await service.cloneInspection(id, c.get('tenantId'));
 
-    writeAuditLog({
-        db: c.env.DB, tenantId: c.get('tenantId'), userId: c.get('user').sub,
-        action: 'inspection.create', entityType: 'inspection', entityId: clone.id,
+    auditFromContext(c, 'inspection.create', 'inspection', {
+        entityId: clone.id,
         metadata: { clonedFrom: id, propertyAddress: clone.propertyAddress },
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx,
     });
     return c.json({ success: true, data: { inspection: clone } }, 201);
 });
@@ -844,21 +824,14 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     await db.update(inspectionTable).set({ status: 'completed' }).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (inspection.clientEmail) {
-        const protocol = c.req.url.startsWith('https') ? 'https' : 'http';
-        const host = c.req.header('host');
-        const reportUrl = `${protocol}://${host}/api/inspections/${id}/report`;
-
-        const emailService = c.var.services.email;
-        const emailPromise = emailService.sendReportReady(inspection.clientEmail, inspection.propertyAddress as string, reportUrl);
+        const reportUrl = `${getBaseUrl(c)}/api/inspections/${id}/report`;
+        const emailPromise = c.var.services.email.sendReportReady(inspection.clientEmail, inspection.propertyAddress as string, reportUrl);
         c.executionCtx.waitUntil(emailPromise);
     }
 
-    writeAuditLog({
-        db: c.env.DB, tenantId, userId: c.get('user')?.sub,
-        action: 'inspection.complete', entityType: 'inspection', entityId: id,
+    auditFromContext(c, 'inspection.complete', 'inspection', {
+        entityId: id,
         metadata: { propertyAddress: inspection.propertyAddress },
-        ipAddress: c.req.header('CF-Connecting-IP'),
-        executionCtx: c.executionCtx,
     });
     return c.json({ success: true, data: { success: true } }, 200);
 });

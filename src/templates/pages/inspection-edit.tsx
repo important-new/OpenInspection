@@ -16,7 +16,6 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
     extraHead: (
       <>
         <link rel="stylesheet" href="/fonts.css" />
-        <script src="/js/inspection-edit.js"></script>
         <style dangerouslySetInnerHTML={{ __html: `
           body { font-family: 'DM Sans', system-ui, sans-serif; }
           .font-heading { font-family: 'Bricolage Grotesque', system-ui, sans-serif; }
@@ -28,6 +27,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       </>
     ),
     children: (
+      <>
       <div
         x-data={`inspectionEditor('${inspectionId}')`}
         class="min-h-screen"
@@ -359,6 +359,8 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
           </div>
         </div>
       </div>
+      <script src="/js/inspection-edit.js"></script>
+      </>
     ),
   });
 }
