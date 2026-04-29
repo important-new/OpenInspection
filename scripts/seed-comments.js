@@ -6,6 +6,9 @@
  */
 import { execSync } from 'child_process';
 import { randomUUID } from 'crypto';
+import { writeFileSync, unlinkSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 const TENANT_ID = process.env.TENANT_ID || 'standalone';
 const DB_NAME = process.env.DB_NAME || 'DB';
@@ -176,9 +179,18 @@ const values = COMMENTS.map(c => {
 
 const sql = `INSERT INTO comments (id, tenant_id, category, text, severity, created_at) VALUES\n${values};`;
 
-execSync(
-  `npx wrangler d1 execute ${DB_NAME} ${flag} --command "${sql.replace(/"/g, '\\"')}"`,
-  { encoding: 'utf8', stdio: 'inherit' }
-);
+const tmpDir = join(tmpdir(), 'oi-seed-comments');
+mkdirSync(tmpDir, { recursive: true });
+const sqlFile = join(tmpDir, 'comments.sql');
+writeFileSync(sqlFile, sql, 'utf8');
+
+try {
+  execSync(
+    `npx wrangler d1 execute ${DB_NAME} ${flag} --file "${sqlFile}"`,
+    { encoding: 'utf8', stdio: 'inherit' }
+  );
+} finally {
+  try { unlinkSync(sqlFile); } catch { /* ignore */ }
+}
 
 console.log(`Seeded ${COMMENTS.length} comments for tenant '${TENANT_ID}'.`);
