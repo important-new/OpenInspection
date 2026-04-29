@@ -13,6 +13,7 @@ import { AgreementService } from '../../services/agreement.service';
 import { AvailabilityService } from '../../services/booking.service';
 import { ContactService } from '../../services/contact.service';
 import { InvoiceService } from '../../services/invoice.service';
+import { ServiceService } from '../../services/service.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -89,6 +90,9 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     break;
                 case 'invoice':
                     target.invoice = new InvoiceService(c.env.DB);
+                    break;
+                case 'service':
+                    target.service = new ServiceService(c.env.DB);
                     break;
             }
             return target[prop];
