@@ -321,6 +321,7 @@ export function renderProfessionalReport(data: {
                     </div>
                 </div>
 
+                <p x-show="signError" x-text="signError" class="text-red-500 text-sm font-semibold text-center mb-3"></p>
                 <button {...{'@click': 'submitSignature'}} class="premium-button w-full py-6 bg-slate-900 text-white rounded-[2rem] text-lg font-black tracking-tightest shadow-2xl hover:bg-black transition-all flex items-center justify-center gap-4 group">
                     <span>Accept and View Report</span>
                     <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
@@ -375,6 +376,7 @@ export function renderProfessionalReport(data: {
                 agreementContent: '',
                 aiSummary: '',
                 signaturePad: null,
+                signError: '',
 
                 async init() {
                     try {
@@ -414,10 +416,10 @@ export function renderProfessionalReport(data: {
                     }
                 },
 
-                clearSignature() { this.signaturePad.clear(); },
+                clearSignature() { this.signaturePad.clear(); this.signError = ''; },
 
                 async submitSignature() {
-                    if (this.signaturePad.isEmpty()) return alert('Please sign before continuing');
+                    if (this.signaturePad.isEmpty()) { this.signError = 'Please sign before continuing.'; return; }
 
                     const res = await fetch(\`/api/inspections/\${this.id}/sign\`, {
                         method: 'POST',
