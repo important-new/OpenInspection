@@ -36,6 +36,7 @@ export const CreateInspectionSchema = z.object({
     propertyAddress: z.string().min(5, 'Property address is too short').openapi({ example: '123 Main St, Anytown' }),
     clientName: z.string().min(1, 'Client name is required').default('Private Client').openapi({ example: 'John Doe' }),
     clientEmail: z.string().email('Invalid email address').optional().nullable().openapi({ example: 'john@example.com' }),
+    clientPhone: z.string().max(30).optional().nullable().openapi({ example: '(555) 123-4567' }),
     templateId: z.string().uuid('Invalid template ID').openapi({ example: '550e8400-e29b-41d4-a716-446655440002' }),
     inspectorId: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
     date: z.string().datetime().optional().openapi({ example: '2024-03-20T10:00:00Z' }),

@@ -155,6 +155,7 @@ export class InspectionService {
             propertyAddress: data.propertyAddress,
             clientName: data.clientName || 'Private Client',
             clientEmail: (data.clientEmail as string | null) || null,
+            clientPhone: data.clientPhone ?? null,
             templateId: data.templateId,
             status,
             date,

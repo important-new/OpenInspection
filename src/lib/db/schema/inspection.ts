@@ -17,6 +17,7 @@ export const inspections = sqliteTable('inspections', {
     propertyAddress: text('property_address').notNull(),
     clientName: text('client_name'),
     clientEmail: text('client_email'),
+    clientPhone: text('client_phone'),
     templateId: text('template_id').references(() => templates.id),
     date: text('date').notNull(),
     status: text('status').notNull().default('draft'),

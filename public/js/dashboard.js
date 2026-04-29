@@ -291,6 +291,27 @@ async function fetchPrerequisites() {
     } catch (e) {
         console.error('Prerequisites Load Error:', e);
     }
+
+    try {
+        await populateAgents();
+    } catch (e) {
+        // Contacts module may not exist yet — silently ignore
+    }
+}
+
+async function populateAgents() {
+    const res = await authFetch('/api/contacts?type=agent&limit=100');
+    if (!res.ok) return;
+    const data = await res.json();
+    const agents = data.data?.contacts || data.contacts || [];
+    const select = document.getElementById('agentId');
+    if (!select || agents.length === 0) return;
+    agents.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.innerText = a.name || a.email || a.id;
+        select.appendChild(opt);
+    });
 }
 
 function showCreateModal() {
@@ -320,12 +341,16 @@ async function deleteInspection(id) {
 async function submitInspection() {
     const btn = document.getElementById('submitInsBtn');
 
+    const rawDate = document.getElementById('inspectionDate')?.value;
     const body = {
         propertyAddress: document.getElementById('propAddress')?.value.trim(),
         templateId: document.getElementById('templateId')?.value,
         clientName: document.getElementById('clientName')?.value.trim(),
         clientEmail: document.getElementById('clientEmail')?.value.trim(),
-        inspectorId: document.getElementById('inspectorId')?.value || undefined
+        clientPhone: document.getElementById('clientPhone')?.value.trim() || undefined,
+        inspectorId: document.getElementById('inspectorId')?.value || undefined,
+        date: rawDate ? new Date(rawDate).toISOString() : undefined,
+        referredByAgentId: document.getElementById('agentId')?.value || undefined,
     };
 
     if (!body.propertyAddress || !body.templateId) {
@@ -353,7 +378,10 @@ async function submitInspection() {
            document.getElementById('templateId').value = '';
            document.getElementById('clientName').value = '';
            document.getElementById('clientEmail').value = '';
+           document.getElementById('clientPhone').value = '';
+           document.getElementById('inspectionDate').value = '';
            document.getElementById('inspectorId').value = '';
+           document.getElementById('agentId').value = '';
 
            if (newId) {
                window.location.href = '/inspections/' + newId + '/edit';

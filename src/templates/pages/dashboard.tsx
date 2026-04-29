@@ -123,6 +123,20 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                         class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div class="space-y-2">
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Template</label>
+                                    <select id="templateId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
+                                        <option value="">Select a template...</option>
+                                    </select>
+                                    <p id="noTemplateHint" class="hidden text-xs text-amber-600 font-semibold mt-1 ml-1">
+                                        No templates found. <a href="/templates" class="underline hover:text-amber-800">Create a template</a> first.
+                                    </p>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Inspection Date &amp; Time</label>
+                                    <input type="datetime-local" id="inspectionDate"
+                                        class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
+                                </div>
+                                <div class="space-y-2">
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Client Name</label>
                                     <input type="text" id="clientName" placeholder="e.g., John Doe"
                                         class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
@@ -133,18 +147,20 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                         class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Template</label>
-                                    <select id="templateId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
-                                        <option value="">Select a template...</option>
-                                    </select>
-                                    <p id="noTemplateHint" class="hidden text-xs text-amber-600 font-semibold mt-1 ml-1">
-                                        No templates found. <a href="/templates" class="underline hover:text-amber-800">Create a template</a> first.
-                                    </p>
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Client Phone</label>
+                                    <input type="tel" id="clientPhone" placeholder="e.g., (555) 123-4567"
+                                        class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Assign Inspector</label>
                                     <select id="inspectorId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
                                         <option value="">Self-assignment</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Referring Agent</label>
+                                    <select id="agentId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
+                                        <option value="">None</option>
                                     </select>
                                 </div>
                             </div>
