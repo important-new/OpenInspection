@@ -14,6 +14,7 @@ import { AvailabilityService } from '../../services/booking.service';
 import { ContactService } from '../../services/contact.service';
 import { InvoiceService } from '../../services/invoice.service';
 import { ServiceService } from '../../services/service.service';
+import { AutomationService } from '../../services/automation.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -93,6 +94,9 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     break;
                 case 'service':
                     target.service = new ServiceService(c.env.DB);
+                    break;
+                case 'automation':
+                    target.automation = new AutomationService(c.env.DB);
                     break;
             }
             return target[prop];
