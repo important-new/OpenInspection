@@ -5,6 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 preview_urls = true
 
+[triggers]
+crons = ["* * * * *"]
+
 [assets]
 directory = "./public"
 
