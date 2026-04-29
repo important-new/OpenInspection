@@ -3,6 +3,7 @@ public/styles.css
 public/vendor/
 public/fonts/
 public/fonts.css
+src/generated/version.ts
 .wrangler/
 .dev.vars
 dist/
