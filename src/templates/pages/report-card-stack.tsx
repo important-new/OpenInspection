@@ -163,7 +163,7 @@ export function ReportCardStackPage(props: ReportPageProps) {
         </div>
 
         {/* Sections */}
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 pb-32">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6" {...{'x-bind:class': "showRepairPanel ? 'pb-[65vh]' : 'pb-32'"}}>
           {sections.map((section) => (
             <div class="mb-10" x-show={`filter === 'all' || filter === 'summary' || sectionHasDefects('${section.id}')`}>
               <div class="flex items-center gap-3 mb-4">

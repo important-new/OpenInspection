@@ -17,7 +17,7 @@ function _statusBadgeClass(status) {
 document.addEventListener('DOMContentLoaded', loadCalendar);
 
 async function loadCalendar() {
-    var res = await authFetch('/api/inspections?limit=200');
+    var res = await authFetch('/api/inspections?limit=100');
     if (!res.ok) return;
     var data = await res.json();
     allInspections = data.data || [];
