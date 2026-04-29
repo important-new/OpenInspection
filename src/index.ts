@@ -53,6 +53,7 @@ import contactRoutes from './api/contacts';
 import invoiceRoutes from './api/invoices';
 import servicesRoutes from './api/services';
 import automationsRoutes from './api/automations';
+import metricsRoutes from './api/metrics';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -280,6 +281,7 @@ app.route('/api/contacts', contactRoutes);
 app.route('/api/invoices', invoiceRoutes);
 app.route('/api/services', servicesRoutes);
 app.route('/api/automations', automationsRoutes);
+app.route('/api/metrics', metricsRoutes);
 app.route('/api/integration', integrationRoutes);
 
 // OpenAPI Documentation
