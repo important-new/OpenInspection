@@ -42,6 +42,7 @@ import { InspectionEditPage } from './templates/pages/inspection-edit';
 import { SettingsAutomationsPage } from './templates/pages/settings-automations';
 import { MetricsPage } from './templates/pages/metrics';
 import { SettingsDataPage } from './templates/pages/settings-data';
+import { MessagesPublicPage } from './templates/pages/messages-public';
 
 
 import coreAuthRoutes from './api/auth';
@@ -152,7 +153,7 @@ const STATIC_ASSET_EXT = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|tt
 app.use('*', async (c, next) => {
     const path = c.req.path;
     const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/agreements/sign/') || STATIC_ASSET_EXT.test(path);
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/agreements/sign/') || path.startsWith('/messages/') || STATIC_ASSET_EXT.test(path);
 
     if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
@@ -468,6 +469,12 @@ app.get('/report/:id', async (c) => {
     } catch {
         return c.text('Report not found', 404);
     }
+});
+
+// Phase T (T24) — Public client messages page (token-gated, no JWT)
+app.get('/messages/:token', (c) => {
+    const token = c.req.param('token') as string;
+    return c.html(MessagesPublicPage({ token, branding: c.get('branding') }));
 });
 
 // Pages with Auth
