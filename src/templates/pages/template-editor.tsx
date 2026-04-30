@@ -462,28 +462,34 @@ export const TemplateEditorPage = ({ templateId, branding }: { templateId: strin
                                     </button>
                                 </div>
                                 <template x-for="(level, li) in template.ratingSystem.levels" x-bind:key="level.id">
-                                    <div class="flex items-center gap-3 p-3 rounded-xl bg-surface-50 group animate-scale-in">
-                                        <input type="color" x-model="level.color" class="w-8 h-8 rounded-lg border-0 cursor-pointer" />
-                                        <div class="flex-1 grid grid-cols-4 gap-2">
-                                            <input type="text" x-model="level.id" class="text-[10px] font-mono px-2 py-1.5 rounded-md border border-surface-200 bg-white uppercase font-600" placeholder="ID" />
-                                            <input type="text" x-model="level.label" class="col-span-2 text-sm px-2 py-1.5 rounded-md border border-surface-200 bg-white font-500" placeholder="Label" />
-                                            <input type="text" x-model="level.abbreviation" class="text-[10px] font-mono px-2 py-1.5 rounded-md border border-surface-200 bg-white" placeholder="Abbr" />
+                                    <div class="space-y-2 p-3 rounded-xl bg-surface-50 group animate-scale-in">
+                                        <div class="flex items-center gap-3">
+                                            <input type="color" x-model="level.color" class="w-8 h-8 rounded-lg border-0 cursor-pointer" />
+                                            <div class="flex-1 grid grid-cols-4 gap-2">
+                                                <input type="text" x-model="level.id" class="text-[10px] font-mono px-2 py-1.5 rounded-md border border-surface-200 bg-white uppercase font-600" placeholder="ID" />
+                                                <input type="text" x-model="level.label" class="col-span-2 text-sm px-2 py-1.5 rounded-md border border-surface-200 bg-white font-500" placeholder="Label" />
+                                                <input type="text" x-model="level.abbreviation" class="text-[10px] font-mono px-2 py-1.5 rounded-md border border-surface-200 bg-white" placeholder="Abbr" />
+                                            </div>
+                                            <select x-model="level.severity" class="text-[10px] font-mono px-2 py-1.5 rounded-md border border-surface-200 bg-white">
+                                                <option value="good">good</option>
+                                                <option value="marginal">marginal</option>
+                                                <option value="significant">significant</option>
+                                                <option value="minor">minor</option>
+                                            </select>
+                                            <label class="flex items-center gap-1 text-[10px] text-ink-400 whitespace-nowrap">
+                                                <input type="checkbox" x-model="level.isDefect" class="w-3 h-3 rounded" /> defect
+                                            </label>
+                                            <label class="flex items-center gap-1 text-[10px] text-ink-400 whitespace-nowrap">
+                                                <input type="radio" name="default_level" x-bind:value="level.id" x-model="template.ratingSystem.defaultLevelId" class="w-3 h-3" /> default
+                                            </label>
+                                            <button {...{'@click': 'template.ratingSystem.levels.splice(li, 1)'}} class="text-ink-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                            </button>
                                         </div>
-                                        <select x-model="level.severity" class="text-[10px] font-mono px-2 py-1.5 rounded-md border border-surface-200 bg-white">
-                                            <option value="good">good</option>
-                                            <option value="marginal">marginal</option>
-                                            <option value="significant">significant</option>
-                                            <option value="minor">minor</option>
-                                        </select>
-                                        <label class="flex items-center gap-1 text-[10px] text-ink-400 whitespace-nowrap">
-                                            <input type="checkbox" x-model="level.isDefect" class="w-3 h-3 rounded" /> defect
-                                        </label>
-                                        <label class="flex items-center gap-1 text-[10px] text-ink-400 whitespace-nowrap">
-                                            <input type="radio" name="default_level" x-bind:value="level.id" x-model="template.ratingSystem.defaultLevelId" class="w-3 h-3" /> default
-                                        </label>
-                                        <button {...{'@click': 'template.ratingSystem.levels.splice(li, 1)'}} class="text-ink-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                                        </button>
+                                        <input type="text"
+                                            x-model="level.description"
+                                            class="w-full text-xs px-2 py-1.5 rounded-md border border-surface-200 bg-white text-ink-600"
+                                            placeholder="Description (shown in tooltip & onboarding)" />
                                     </div>
                                 </template>
                             </div>
