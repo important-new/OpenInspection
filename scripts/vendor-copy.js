@@ -39,6 +39,12 @@ cpSync(join(nm, 'quill/dist/quill.js'), join(quillDir, 'quill.js'));
 cpSync(join(nm, 'quill/dist/quill.snow.css'), join(quillDir, 'quill.snow.css'));
 console.log('  vendor/quill/quill.js + quill.snow.css');
 
+// ── Konva (photo annotation, Phase T) ──────────────────────────────────────────
+const konvaDir = join(vendorDir, 'konva');
+mkdirSync(konvaDir, { recursive: true });
+cpSync(join(nm, 'konva/konva.min.js'), join(konvaDir, 'konva.min.js'));
+console.log('  vendor/konva/konva.min.js');
+
 // ── FullCalendar ────────────────────────────────────────────────────────────────
 const fcDir = join(vendorDir, 'fullcalendar');
 mkdirSync(fcDir, { recursive: true });
