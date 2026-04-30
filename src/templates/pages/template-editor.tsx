@@ -488,6 +488,8 @@ export const TemplateEditorPage = ({ templateId, branding }: { templateId: strin
                                         </div>
                                         <input type="text"
                                             x-model="level.description"
+                                            aria-label="Level description"
+                                            maxlength={120}
                                             class="w-full text-xs px-2 py-1.5 rounded-md border border-surface-200 bg-white text-ink-600"
                                             placeholder="Description (shown in tooltip & onboarding)" />
                                     </div>
