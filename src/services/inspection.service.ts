@@ -373,7 +373,8 @@ export class InspectionService {
         interface SchemaItem { id: string; label: string; icon?: string }
         interface SchemaSection { id: string; title: string; icon?: string; items: SchemaItem[] }
         interface SchemaData { sections: SchemaSection[]; ratingSystem?: { levels: RatingLevel[] } }
-        interface ResultEntry { rating?: string; notes?: string; photos?: { key: string }[]; recommendation?: string; estimateMin?: number; estimateMax?: number }
+        interface PhotoEntry { key: string; annotatedKey?: string; annotationsJson?: string }
+        interface ResultEntry { rating?: string; notes?: string; photos?: PhotoEntry[]; recommendation?: string; estimateMin?: number; estimateMax?: number }
 
         const rawSchema = template?.schema
             ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema)
@@ -401,10 +402,15 @@ export class InspectionService {
                 const bucket = getRatingBucket(ratingId, levels);
                 const level = levels.find((l: RatingLevel) => l.id === ratingId);
 
-                const photos = (res.photos || []).map((p: { key: string }) => ({
-                    key: p.key,
-                    url: `/api/inspections/${inspectionId}/photos/${encodeURIComponent(p.key)}`,
-                }));
+                // Phase T (T16): prefer annotated composite when present; expose original via originalKey.
+                const photos = (res.photos || []).map((p: PhotoEntry) => {
+                    const displayKey = p.annotatedKey || p.key;
+                    return {
+                        key: displayKey,
+                        originalKey: p.key,
+                        url: `/api/inspections/${inspectionId}/photos/${encodeURIComponent(displayKey)}`,
+                    };
+                });
 
                 return {
                     id: item.id,
