@@ -63,6 +63,7 @@ import metricsRoutes from './api/metrics';
 import marketplaceRoutes from './api/marketplace';
 import dataRoutes from './api/data';
 import icsRoutes from './api/ics';
+import userRoutes from './api/users';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -304,6 +305,7 @@ app.route('/api/templates/marketplace', marketplaceRoutes);
 app.route('/api/data', dataRoutes);
 app.route('/api/integration', integrationRoutes);
 app.route('/api/ics', icsRoutes);
+app.route('/api/users', userRoutes);
 
 // OpenAPI Documentation
 app.doc('/doc', {

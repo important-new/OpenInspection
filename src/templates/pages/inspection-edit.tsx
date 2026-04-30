@@ -531,12 +531,37 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
             </div>
           </div>
         </div>
+
+        {/* Onboarding overlay (T6) */}
+        <div x-data="inspectionOnboarding()" x-init="init(ratingLevels)">
+            <div x-show="active" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(15,23,42,0.78);backdrop-filter:blur(6px);">
+                <div class="rounded-3xl p-8 max-w-md w-full shadow-2xl" style="background:rgba(255,253,250,0.96);border:1px solid rgba(255,255,255,0.6);">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span x-show="currentStep.abbr" class="px-3 py-1 rounded-lg text-white font-mono font-bold text-sm"
+                              x-bind:style="'background:' + currentStep.color"
+                              x-text="currentStep.abbr"></span>
+                        <h3 class="text-xl font-bold" style="color:#1a1815" x-text="currentStep.title"></h3>
+                    </div>
+                    <p class="text-sm leading-relaxed mb-6" style="color:#46423c" x-text="currentStep.body"></p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-mono" style="color:#b0aaa3" x-text="(stepIdx + 1) + ' / ' + totalSteps"></span>
+                        <div class="flex gap-2">
+                            <button x-on:click="skip()" class="px-4 py-2 rounded-xl text-sm" style="color:#6b6560">Skip</button>
+                            <button x-on:click="next()" class="px-5 py-2 rounded-xl text-white text-sm font-semibold" style="background:#4a72ff">
+                                <span x-text="stepIdx + 1 === totalSteps ? 'Done' : 'Next'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
       </div>
       <div id="commentPicker" class="hidden fixed z-[200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 w-72 max-h-64 overflow-y-auto"></div>
       <script src="/js/auth.js"></script>
       <script src="/js/comments-library.js"></script>
       <script src="/js/toast.js"></script>
       <script src="/js/inspection-edit.js"></script>
+      <script src="/js/onboarding.js"></script>
       </>
     ),
   });
