@@ -99,6 +99,8 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   <template x-for="level in ratingLevels" x-bind:key="level.id">
                     <button
                       x-on:click="setRating(item.id, level.id)"
+                      x-bind:title="level.description ? level.label + ' — ' + level.description : level.label"
+                      x-bind:aria-label="level.label"
                       class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
                       x-bind:class="getItemRating(item.id) === level.id ? 'text-white border-transparent' : 'text-gray-400 hover:text-gray-600'"
                       x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e8e4dd'"
@@ -438,6 +440,8 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                     <template x-for="level in ratingLevels" x-bind:key="level.id">
                       <button
                         x-on:click="setRating(item.id, level.id)"
+                        x-bind:title="level.description ? level.label + ' — ' + level.description : level.label"
+                        x-bind:aria-label="level.label"
                         class="px-2.5 py-1 text-[10px] font-semibold rounded-lg border transition-all"
                         x-bind:class="getItemRating(item.id) === level.id ? 'text-white border-transparent' : 'text-gray-400 hover:text-gray-600'"
                         x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e8e4dd'"
