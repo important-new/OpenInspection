@@ -367,7 +367,7 @@ function renderInspections(list) {
         </tr>`;
     }).join('');
 
-    // Mobile card list (added in T7) — matches existing table convention (no HTML escaping).
+    // Mobile card list (added in T7) — escapes user-controlled text via _escapeHtml from auth.js.
     if (cardList) {
         cardList.innerHTML = list.map(ins => {
             const inspectorName = getInspectorName(ins.inspectorId);
@@ -375,17 +375,17 @@ function renderInspections(list) {
             const statusStyle = getStatusStyle(ins.status);
             const statusLabel = (ins.status || 'draft').replace('_', ' ');
             return `
-                <a href="/inspections/${ins.id}/edit" class="block glass-panel rounded-2xl p-4 hover:shadow-lg transition active:scale-[0.98]">
+                <a href="/inspections/${encodeURIComponent(ins.id)}/edit" class="block glass-panel rounded-2xl p-4 hover:shadow-lg transition active:scale-[0.98]">
                     <div class="flex items-start justify-between gap-3 mb-2">
-                        <p class="text-sm font-bold text-slate-900 break-words flex-1">${ins.propertyAddress || 'Untitled'}</p>
+                        <p class="text-sm font-bold text-slate-900 break-words flex-1">${_escapeHtml(ins.propertyAddress || 'Untitled')}</p>
                         <span class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${statusStyle} shadow-sm ring-1 ring-inset">
                             <span class="w-1 h-1 rounded-full bg-current"></span>
-                            ${statusLabel}
+                            ${_escapeHtml(statusLabel)}
                         </span>
                     </div>
                     <div class="text-xs text-slate-500 space-y-0.5">
-                        <p><span class="font-semibold text-slate-700">${ins.clientName || '—'}</span> <span class="text-slate-300">·</span> ${inspectorName}</p>
-                        <p class="font-mono text-[10px] text-slate-400">${dateStr} <span class="text-slate-300">·</span> $${(ins.price || 0).toLocaleString()}</p>
+                        <p><span class="font-semibold text-slate-700">${_escapeHtml(ins.clientName || '—')}</span> <span class="text-slate-300">·</span> ${_escapeHtml(inspectorName || '')}</p>
+                        <p class="font-mono text-[10px] text-slate-400">${_escapeHtml(dateStr || '')} <span class="text-slate-300">·</span> $${(ins.price || 0).toLocaleString()}</p>
                     </div>
                 </a>
             `;
