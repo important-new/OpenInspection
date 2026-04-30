@@ -112,6 +112,60 @@ export class EmailService {
     }
 
     /**
+     * Phase T (T22): Send a notification email to the other party when a new message arrives.
+     * Throttled per inspection per direction via TENANT_CACHE KV (5 min window).
+     * recipient: 'client' = email client; 'inspector' = email inspector
+     */
+    async sendMessageNotification(
+        recipient: 'client' | 'inspector',
+        inspectionId: string,
+        message: { body: string; fromName?: string | null },
+        deps: { db: D1Database; kv?: KVNamespace; baseUrl: string },
+    ): Promise<void> {
+        if (!this.apiKey) return;
+        const throttleKey = `msg_notify:${inspectionId}:${recipient}`;
+        if (deps.kv) {
+            const recent = await deps.kv.get(throttleKey);
+            if (recent) return;
+        }
+
+        const { drizzle } = await import('drizzle-orm/d1');
+        const { inspections, users } = await import('../lib/db/schema');
+        const { eq, and } = await import('drizzle-orm');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = drizzle(deps.db as any);
+        const [insp] = await db.select().from(inspections).where(eq(inspections.id, inspectionId)).limit(1);
+        if (!insp) return;
+
+        let to: string | null = null;
+        let viewUrl = '';
+        if (recipient === 'client') {
+            to = insp.clientEmail ?? null;
+            viewUrl = `${deps.baseUrl}/messages/${insp.messageToken ?? ''}`;
+        } else {
+            if (insp.inspectorId) {
+                const [u] = await db.select().from(users)
+                    .where(and(eq(users.id, insp.inspectorId), eq(users.tenantId, insp.tenantId)))
+                    .limit(1);
+                to = u?.email ?? null;
+            }
+            viewUrl = `${deps.baseUrl}/inspections/${insp.id}/edit`;
+        }
+        if (!to) return;
+
+        const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const fromName = (message.fromName ?? (recipient === 'client' ? 'your inspector' : (insp.clientName ?? 'your client'))).toString();
+        const snippet = message.body.length > 200 ? message.body.slice(0, 197) + '...' : message.body;
+        const html = `
+            <p>New message from <strong>${escape(fromName)}</strong> regarding <strong>${escape(insp.propertyAddress ?? '')}</strong>:</p>
+            <blockquote style="border-left:3px solid #ccc;padding-left:12px;color:#555">${escape(snippet)}</blockquote>
+            <p><a href="${viewUrl}">View conversation</a></p>
+        `;
+        await this.sendEmail([to], `New message — ${insp.propertyAddress ?? 'inspection'}`, html);
+        if (deps.kv) await deps.kv.put(throttleKey, '1', { expirationTtl: 300 });
+    }
+
+    /**
      * Sends a booking confirmation email.
      */
     async sendBookingConfirmation(to: string, clientName: string, address: string, date: string, time: string) {
