@@ -1,7 +1,11 @@
--- Migration: 0020_phase_t
--- Adds customer messages table + supporting columns for Phase T.
+-- Migration: 0021_phase_t_fixes
+-- Recreate customer_messages indexes/FKs as a partial index + cascade FK.
+-- (SQLite cannot ALTER an existing FK; rebuild table is required.)
 
--- Customer messages: bidirectional async thread per inspection.
+DROP INDEX IF EXISTS idx_msg_unread;
+DROP INDEX IF EXISTS idx_msg_inspection;
+DROP TABLE IF EXISTS customer_messages;
+
 CREATE TABLE IF NOT EXISTS customer_messages (
     id            TEXT    PRIMARY KEY,
     tenant_id     TEXT    NOT NULL,
@@ -15,11 +19,3 @@ CREATE TABLE IF NOT EXISTS customer_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_msg_inspection ON customer_messages(inspection_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_msg_unread     ON customer_messages(tenant_id, inspection_id, from_role) WHERE read_at IS NULL;
-
--- Public token for client message access; lazily generated on first inspector send.
-ALTER TABLE inspections ADD COLUMN message_token TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_inspections_msg_token ON inspections(message_token);
-
--- User preferences for voice i18n + onboarding state.
-ALTER TABLE users ADD COLUMN locale            TEXT;
-ALTER TABLE users ADD COLUMN onboarding_state  TEXT;
