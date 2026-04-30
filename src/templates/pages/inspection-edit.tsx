@@ -121,14 +121,28 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
 
                 {/* Expanded Detail */}
                 <div x-show="expanded[item.id]" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(232,228,221,0.5)">
-                  <textarea
-                    x-model="results[item.id].notes"
-                    x-on:input="debounceSave()"
-                    placeholder="Add notes..."
-                    class="w-full p-3 text-sm rounded-xl border resize-none"
-                    style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
-                    rows={3}
-                  ></textarea>
+                  <div class="relative">
+                    <textarea
+                      x-bind:id="'notes-mob-' + item.id"
+                      x-model="results[item.id].notes"
+                      x-on:input="debounceSave()"
+                      placeholder="Add notes..."
+                      class="w-full p-3 text-sm rounded-xl border resize-none"
+                      style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
+                      rows={3}
+                    ></textarea>
+                    <button type="button"
+                      x-bind:data-mic-target="'notes-mob-' + item.id"
+                      x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
+                      class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-surface-200 flex items-center justify-center hover:bg-white"
+                      title="Dictate (Web Speech)"
+                      aria-label="Dictate notes">
+                      <svg class="w-3.5 h-3.5 text-ink-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M19 11h-1.7c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72z"/>
+                      </svg>
+                    </button>
+                  </div>
                   <div class="mt-2 flex gap-2 flex-wrap">
                     <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef4ff; color: #4a72ff">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -456,14 +470,28 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
 
                   {/* Expanded Detail (desktop) */}
                   <div x-show="expanded[item.id] && !batchMode" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(232,228,221,0.5)" x-on:click="$event.stopPropagation()">
-                    <textarea
-                      x-model="results[item.id].notes"
-                      x-on:input="debounceSave()"
-                      placeholder="Add notes..."
-                      class="w-full p-3 text-sm rounded-xl border resize-none"
-                      style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
-                      rows={3}
-                    ></textarea>
+                    <div class="relative">
+                      <textarea
+                        x-bind:id="'notes-dsk-' + item.id"
+                        x-model="results[item.id].notes"
+                        x-on:input="debounceSave()"
+                        placeholder="Add notes..."
+                        class="w-full p-3 text-sm rounded-xl border resize-none"
+                        style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
+                        rows={3}
+                      ></textarea>
+                      <button type="button"
+                        x-bind:data-mic-target="'notes-dsk-' + item.id"
+                        x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
+                        class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-surface-200 flex items-center justify-center hover:bg-white"
+                        title="Dictate (Web Speech)"
+                        aria-label="Dictate notes">
+                        <svg class="w-3.5 h-3.5 text-ink-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                          <path d="M19 11h-1.7c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72z"/>
+                        </svg>
+                      </button>
+                    </div>
                     <div class="mt-2 flex gap-2 flex-wrap">
                       <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef4ff; color: #4a72ff">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -562,6 +590,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       <script src="/js/toast.js"></script>
       <script src="/js/inspection-edit.js"></script>
       <script src="/js/onboarding.js"></script>
+      <script src="/js/voice-input.js"></script>
       </>
     ),
   });
