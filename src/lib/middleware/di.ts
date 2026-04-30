@@ -16,6 +16,7 @@ import { InvoiceService } from '../../services/invoice.service';
 import { ServiceService } from '../../services/service.service';
 import { AutomationService } from '../../services/automation.service';
 import { MarketplaceService } from '../../services/marketplace.service';
+import { MessageService } from '../../services/message.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -101,6 +102,9 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     break;
                 case 'marketplace':
                     target.marketplace = new MarketplaceService(c.env.DB, c.get('tenantId'));
+                    break;
+                case 'message':
+                    target.message = new MessageService(c.env.DB);
                     break;
             }
             return target[prop];
