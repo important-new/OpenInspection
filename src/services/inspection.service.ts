@@ -297,6 +297,62 @@ export class InspectionService {
     }
 
     /**
+     * Phase T (T11): Saves an annotated composite PNG and Konva node tree for re-editing.
+     * Updates inspection_results.data so that data[itemId].photos[photoIndex] gains
+     * `annotatedKey` and `annotationsJson` fields. The original photo key is preserved.
+     */
+    async saveAnnotation(
+        inspectionId: string,
+        tenantId: string,
+        itemId: string,
+        photoIndex: number,
+        compositeBytes: ArrayBuffer,
+        nodesJson: string,
+    ): Promise<{ annotatedKey: string }> {
+        if (!this.r2) throw Errors.BadRequest('Storage not available');
+        await this.getInspection(inspectionId, tenantId);
+
+        const annotatedKey = `${tenantId}/${inspectionId}/${itemId}_${crypto.randomUUID()}_annotated.png`;
+        await this.r2.put(annotatedKey, compositeBytes, {
+            httpMetadata: { contentType: 'image/png' }
+        });
+
+        const db = this.getDrizzle();
+        const [row] = await db.select().from(inspectionResults)
+            .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
+            .limit(1);
+
+        interface ResultEntry {
+            rating?: string;
+            notes?: string;
+            photos?: Array<{ key: string; annotatedKey?: string; annotationsJson?: string }>;
+        }
+        const data: Record<string, ResultEntry> = (typeof row?.data === 'string'
+            ? JSON.parse(row.data)
+            : row?.data) ?? {};
+        const entry = data[itemId] ?? {};
+        const photos = entry.photos ?? [];
+        if (!photos[photoIndex]) throw Errors.NotFound('Photo not found at index');
+        photos[photoIndex] = { ...photos[photoIndex], annotatedKey, annotationsJson: nodesJson };
+        data[itemId] = { ...entry, photos };
+
+        if (row) {
+            await db.update(inspectionResults)
+                .set({ data, lastSyncedAt: new Date() })
+                .where(eq(inspectionResults.id, row.id));
+        } else {
+            await db.insert(inspectionResults).values({
+                id: crypto.randomUUID(),
+                tenantId,
+                inspectionId,
+                data,
+                lastSyncedAt: new Date(),
+            });
+        }
+        return { annotatedKey };
+    }
+
+    /**
      * Builds structured report data for a given inspection.
      */
     async getReportData(inspectionId: string, tenantId: string) {
