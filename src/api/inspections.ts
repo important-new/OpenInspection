@@ -1062,4 +1062,50 @@ inspectionsRoutes.openapi(createRoute({
     return c.json({ success: true, data: { token, url: `${baseUrl}/report/${id}?view=agent&token=${token}` } });
 });
 
+// ── Phase T (T12): Photo annotation save ────────────────────────────────────────
+const saveAnnotationRoute = createRoute({
+    method: 'post',
+    path: '/{id}/items/{itemId}/photos/{photoIndex}/annotation',
+    tags: ['Inspections'],
+    summary: 'Save photo annotation (composite PNG + Konva nodes JSON)',
+    request: {
+        params: z.object({
+            id: z.string(),
+            itemId: z.string(),
+            photoIndex: z.coerce.number().int().min(0),
+        }),
+        body: {
+            content: {
+                'multipart/form-data': {
+                    schema: z.object({
+                        image: z.unknown().openapi({ type: 'string', format: 'binary' }),
+                        nodes: z.string(),
+                    }),
+                },
+            },
+        },
+    },
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: createApiResponseSchema(z.object({ annotatedKey: z.string() })) } },
+            description: 'Annotation saved',
+        },
+    },
+});
+
+inspectionsRoutes.openapi(saveAnnotationRoute, async (c) => {
+    const { id, itemId, photoIndex } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    const formData = await c.req.parseBody();
+    const file = formData['image'] as File | undefined;
+    const nodesJson = String(formData['nodes'] ?? '[]');
+    if (!file) throw Errors.BadRequest('image file required');
+    const bytes = await file.arrayBuffer();
+    const result = await c.var.services.inspection.saveAnnotation(
+        id, tenantId, itemId, photoIndex, bytes, nodesJson,
+    );
+    return c.json({ success: true, data: result }, 200);
+});
+
 export default inspectionsRoutes;
