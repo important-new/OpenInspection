@@ -35,6 +35,16 @@ function inspectionEditor(inspectionId) {
       window.addEventListener('resize', () => {
         this.isDesktop = window.innerWidth >= 1024;
       });
+      // Phase T (T15): when annotator finishes saving, patch the local photo entry
+      // so the thumbnail switches to the annotated key without a page reload.
+      window.addEventListener('photo:annotated', (e) => {
+        const { itemId, photoIndex, annotatedKey } = e.detail || {};
+        if (!itemId || annotatedKey == null) return;
+        const photos = this.results[itemId]?.photos;
+        if (photos && photos[photoIndex]) {
+          photos[photoIndex] = Object.assign({}, photos[photoIndex], { annotatedKey });
+        }
+      });
       await this.loadData();
     },
 

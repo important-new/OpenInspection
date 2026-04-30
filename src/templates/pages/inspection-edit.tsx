@@ -154,6 +154,20 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                       Library
                     </button>
                   </div>
+                  {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
+                  <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-3 gap-2">
+                    <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
+                      <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e8e4dd;">
+                        <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
+                          class="w-full h-full object-cover" alt="Photo" />
+                        <button type="button"
+                          x-on:click="window.dispatchEvent(new CustomEvent('annotate', { detail: { inspectionId, itemId: item.id, photoIndex: pi, imageUrl: '/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.key), existingNodesJson: photo.annotationsJson || null } }))"
+                          class="absolute inset-0 bg-black/50 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 active:opacity-100 flex items-center justify-center transition">
+                          Annotate
+                        </button>
+                      </div>
+                    </template>
+                  </div>
                 </div>
               </div>
             </template>
@@ -502,6 +516,20 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                         Library
                       </button>
+                    </div>
+                    {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
+                    <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-4 gap-2">
+                      <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
+                        <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e8e4dd;">
+                          <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
+                            class="w-full h-full object-cover" alt="Photo" />
+                          <button type="button"
+                            x-on:click="window.dispatchEvent(new CustomEvent('annotate', { detail: { inspectionId, itemId: item.id, photoIndex: pi, imageUrl: '/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.key), existingNodesJson: photo.annotationsJson || null } }))"
+                            class="absolute inset-0 bg-black/50 text-white text-xs font-bold opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                            Annotate
+                          </button>
+                        </div>
+                      </template>
                     </div>
                   </div>
                 </div>
