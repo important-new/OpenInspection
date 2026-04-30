@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { inspections } from './inspection';
+import { tenants } from './tenant';
 
 export interface MessageAttachment {
     id: string;
@@ -13,7 +14,7 @@ export interface MessageAttachment {
 
 export const customerMessages = sqliteTable('customer_messages', {
     id:           text('id').primaryKey(),
-    tenantId:     text('tenant_id').notNull(),
+    tenantId:     text('tenant_id').notNull().references(() => tenants.id),
     inspectionId: text('inspection_id').notNull().references(() => inspections.id, { onDelete: 'cascade' }),
     fromRole:     text('from_role', { enum: ['client', 'inspector'] }).notNull(),
     fromName:     text('from_name'),

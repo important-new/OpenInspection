@@ -45,7 +45,7 @@ export const inspections = sqliteTable('inspections', {
     county:              text('county'),
     sellingAgentId:      text('selling_agent_id'),
     disableAutomations:  integer('disable_automations', { mode: 'boolean' }).notNull().default(false),
-    messageToken:        text('message_token'),
+    messageToken:        text('message_token').unique('idx_inspections_msg_token'),
 });
 
 export const agreements = sqliteTable('agreements', {
