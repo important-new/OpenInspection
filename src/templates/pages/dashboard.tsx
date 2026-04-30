@@ -96,7 +96,8 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                         ))}
                     </div>
 
-                    <div class="overflow-x-auto custom-scrollbar">
+                    {/* Desktop table — visible at md+ */}
+                    <div class="hidden md:block overflow-x-auto custom-scrollbar">
                         <table class="w-full text-left">
                             <thead class="bg-slate-50/40">
                                 <tr>
@@ -124,6 +125,9 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Mobile card list — visible below md */}
+                    <div id="inspectionsCardList" class="md:hidden flex flex-col gap-3 px-4 pb-4"></div>
                 </div>
 
                 {/* Initializing Inspection Modal */}

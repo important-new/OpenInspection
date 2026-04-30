@@ -280,6 +280,7 @@ function updateStats(counts) {
 
 function renderInspections(list) {
     const tbody = document.getElementById('inspectionsList');
+    const cardList = document.getElementById('inspectionsCardList');
     if (!tbody) return;
 
     if (list.length === 0) {
@@ -298,6 +299,17 @@ function renderInspections(list) {
                     </div>
                 </td>
             </tr>`;
+        if (cardList) {
+            cardList.innerHTML = `
+                <div class="py-16 text-center">
+                    <div class="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    </div>
+                    <p class="text-base font-black text-slate-900 tracking-tight">No inspections yet</p>
+                    <p class="text-xs text-slate-400 font-medium mt-1 mb-4">Create your first inspection to get started.</p>
+                    <button onclick="showCreateModal()" class="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-slate-900 transition-all active:scale-95">New Inspection</button>
+                </div>`;
+        }
         return;
     }
 
@@ -354,6 +366,31 @@ function renderInspections(list) {
             </td>
         </tr>`;
     }).join('');
+
+    // Mobile card list (added in T7) — matches existing table convention (no HTML escaping).
+    if (cardList) {
+        cardList.innerHTML = list.map(ins => {
+            const inspectorName = getInspectorName(ins.inspectorId);
+            const dateStr = formatInspectionDate(ins.createdAt || ins.scheduledDate);
+            const statusStyle = getStatusStyle(ins.status);
+            const statusLabel = (ins.status || 'draft').replace('_', ' ');
+            return `
+                <a href="/inspections/${ins.id}/edit" class="block glass-panel rounded-2xl p-4 hover:shadow-lg transition active:scale-[0.98]">
+                    <div class="flex items-start justify-between gap-3 mb-2">
+                        <p class="text-sm font-bold text-slate-900 break-words flex-1">${ins.propertyAddress || 'Untitled'}</p>
+                        <span class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-wider whitespace-nowrap ${statusStyle} shadow-sm ring-1 ring-inset">
+                            <span class="w-1 h-1 rounded-full bg-current"></span>
+                            ${statusLabel}
+                        </span>
+                    </div>
+                    <div class="text-xs text-slate-500 space-y-0.5">
+                        <p><span class="font-semibold text-slate-700">${ins.clientName || '—'}</span> <span class="text-slate-300">·</span> ${inspectorName}</p>
+                        <p class="font-mono text-[10px] text-slate-400">${dateStr} <span class="text-slate-300">·</span> $${(ins.price || 0).toLocaleString()}</p>
+                    </div>
+                </a>
+            `;
+        }).join('');
+    }
 }
 
 function getStatusStyle(status) {
