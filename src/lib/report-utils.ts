@@ -10,6 +10,7 @@ export interface RatingLevel {
   color: string;
   severity: 'good' | 'marginal' | 'significant' | 'minor';
   isDefect: boolean;
+  description?: string;
 }
 
 export interface ReportStats {
