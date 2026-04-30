@@ -583,12 +583,54 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 </div>
             </div>
         </div>
+
+        {/* Photo Annotator Modal (T13) */}
+        <div x-data="photoAnnotator()" {...{'x-on:annotate.window': 'openPhoto($event.detail)'}} x-show="open" x-cloak class="fixed inset-0 z-50 flex flex-col" style="background:rgba(15,23,42,0.92);">
+            {/* Toolbar */}
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-white" style="background:#1e293b;">
+                <div class="flex items-center gap-1 flex-wrap">
+                    <template x-for="tool in tools" x-bind:key="tool.id">
+                        <button x-on:click="setTool(tool.id)"
+                            x-bind:title="tool.label"
+                            x-bind:class="currentTool === tool.id ? 'bg-blue-600' : 'hover:bg-slate-700'"
+                            class="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                            <span x-text="tool.icon"></span>
+                            <span class="hidden md:inline" x-text="tool.label"></span>
+                        </button>
+                    </template>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="color" x-model="color" class="w-9 h-9 rounded cursor-pointer border-0" title="Color" />
+                    <select x-model="lineWidth" class="px-2 py-1 rounded bg-slate-700 text-white text-xs" title="Line width">
+                        <option value="2">Thin</option>
+                        <option value="4">Medium</option>
+                        <option value="6">Thick</option>
+                    </select>
+                    <button x-on:click="undo()" class="px-3 py-2 hover:bg-slate-700 rounded text-xs" title="Undo">↶</button>
+                    <button x-on:click="redo()" class="px-3 py-2 hover:bg-slate-700 rounded text-xs" title="Redo">↷</button>
+                    <button x-on:click="clear()" class="px-3 py-2 hover:bg-slate-700 rounded text-xs" title="Clear">⌫</button>
+                    <button x-on:click="cancel()" class="px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-700">Cancel</button>
+                    <button x-on:click="save()" x-bind:disabled="saving"
+                        class="px-4 py-2 rounded-lg text-xs font-semibold"
+                        style="background:#10b981;">
+                        <span x-text="saving ? 'Saving...' : 'Save'"></span>
+                    </button>
+                </div>
+            </div>
+            {/* Canvas container */}
+            <div class="flex-1 flex items-center justify-center overflow-hidden p-4">
+                <div id="annotatorContainer" class="bg-white max-w-full max-h-full"></div>
+            </div>
+        </div>
       </div>
       <div id="commentPicker" class="hidden fixed z-[200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 w-72 max-h-64 overflow-y-auto"></div>
       <script src="/js/auth.js"></script>
       <script src="/js/comments-library.js"></script>
       <script src="/js/toast.js"></script>
       <script src="/js/inspection-edit.js"></script>
+      {/* Phase T (T14) — Konva-based photo annotator */}
+      <script src="/vendor/konva/konva.min.js"></script>
+      <script src="/js/photo-annotator.js"></script>
       <script src="/js/onboarding.js"></script>
       <script src="/js/voice-input.js"></script>
       </>
