@@ -61,6 +61,7 @@ import { InvoiceService } from '../services/invoice.service';
 import { ServiceService } from '../services/service.service';
 import { AutomationService } from '../services/automation.service';
 import { MarketplaceService } from '../services/marketplace.service';
+import { MessageService } from '../services/message.service';
 import { AuthVariables } from './auth';
 
 /**
@@ -84,6 +85,7 @@ export interface AppServices {
     service: ServiceService;
     automation: AutomationService;
     marketplace: MarketplaceService;
+    message: MessageService;
 }
 
 /**
