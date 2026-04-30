@@ -622,6 +622,65 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 <div id="annotatorContainer" class="bg-white max-w-full max-h-full"></div>
             </div>
         </div>
+
+        {/* Phase T (T23) — Inspector Messages panel (slide-in from right) */}
+        <div x-data={`messagesInspector('${inspectionId}')`} x-init="init()">
+            {/* Floating button */}
+            <button x-on:click="open = !open" class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-2xl text-white flex items-center justify-center" style="background:#4a72ff;">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                <span x-show="messages.length > 0" class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center" x-text="messages.length"></span>
+            </button>
+            {/* Slide-in panel */}
+            <div x-show="open" x-cloak class="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col shadow-2xl" style="background:#faf9f7;">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-900">Messages</h2>
+                    <button x-on:click="open = false" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500">×</button>
+                </div>
+                <div x-show="token" class="px-4 py-2 border-b border-slate-100 bg-slate-50">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Public link for client</p>
+                    <input readonly x-bind:value="publicLink" class="w-full px-2 py-1.5 bg-white rounded text-xs font-mono text-slate-600 border border-slate-200" x-on:click="$event.target.select()" />
+                </div>
+                <div class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                    <template x-for="m in messages" x-bind:key="m.id">
+                        <div x-bind:class="m.fromRole === 'inspector' ? 'ml-12' : 'mr-12'" class="rounded-2xl p-3" x-bind:style="m.fromRole === 'inspector' ? 'background:#eef4ff;' : 'background:#f3f1ed;'">
+                            <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                                <span x-text="(m.fromName || m.fromRole) + ' · ' + new Date(m.createdAt).toLocaleString()"></span>
+                            </div>
+                            <p class="text-sm whitespace-pre-wrap text-slate-900" x-text="m.body"></p>
+                            <div x-show="m.attachments && m.attachments.length" class="mt-2 flex flex-wrap gap-2">
+                                <template x-for="a in (m.attachments || [])" x-bind:key="a.id">
+                                    <a x-bind:href="'/api/photos/' + encodeURIComponent(a.key)" target="_blank"
+                                       class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-50" x-text="a.name"></a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <p x-show="messages.length === 0" class="text-center text-sm text-slate-400 py-8">No messages yet.</p>
+                </div>
+                <div class="border-t border-slate-200 p-3 bg-white">
+                    <textarea x-model="composeBody" rows={3} placeholder="Reply..." class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none"></textarea>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <template x-for="(a, i) in pendingAttachments" x-bind:key="a.id">
+                            <span class="text-xs bg-slate-100 rounded-lg px-2 py-1 flex items-center gap-1">
+                                <span x-text="a.name"></span>
+                                <button x-on:click="pendingAttachments.splice(i,1)" class="text-rose-500 hover:text-rose-700">×</button>
+                            </span>
+                        </template>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between">
+                        <label class="cursor-pointer text-sm text-slate-600 hover:text-indigo-600 inline-flex items-center gap-1">
+                            <span>📎</span> <span class="text-xs">Attach</span>
+                            <input type="file" multiple class="hidden" x-on:change="upload($event.target.files)" />
+                        </label>
+                        <button x-on:click="send()" x-bind:disabled="!composeBody || sending"
+                            class="px-4 py-2 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
+                            style="background:#4a72ff;">
+                            <span x-text="sending ? 'Sending...' : 'Send'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
       </div>
       <div id="commentPicker" class="hidden fixed z-[200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 w-72 max-h-64 overflow-y-auto"></div>
       <script src="/js/auth.js"></script>
@@ -633,6 +692,8 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       <script src="/js/photo-annotator.js"></script>
       <script src="/js/onboarding.js"></script>
       <script src="/js/voice-input.js"></script>
+      {/* Phase T (T23) — Messages panel script */}
+      <script src="/js/messages-inspector.js"></script>
       </>
     ),
   });
