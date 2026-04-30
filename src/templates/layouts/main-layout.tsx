@@ -121,6 +121,7 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                             <a href="/dashboard" class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-all font-semibold">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"></path></svg>
                                 <span>Inspections</span>
+                                <span id="msgUnreadBadge" class="hidden ml-auto px-1.5 min-w-[1.25rem] text-center rounded-full bg-rose-500 text-white text-[10px] font-bold leading-5"></span>
                             </a>
                             <a href="/templates" class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-all font-semibold">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -254,6 +255,31 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                     });
                 ` }} />
                 <div id="statusToast" class="fixed bottom-8 right-8 hidden items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl text-sm font-bold text-white z-50 transition-all"></div>
+                {/* Phase T (T25) — sidebar unread message badge polling */}
+                <script dangerouslySetInnerHTML={{ __html: `
+                    (function() {
+                        async function pollUnread() {
+                            try {
+                                const r = await authFetch('/api/messages/unread-count');
+                                if (!r.ok) return;
+                                const d = await r.json();
+                                const badge = document.getElementById('msgUnreadBadge');
+                                if (!badge) return;
+                                const count = d.data?.count || 0;
+                                if (count > 0) {
+                                    badge.textContent = count > 99 ? '99+' : String(count);
+                                    badge.classList.remove('hidden');
+                                } else {
+                                    badge.classList.add('hidden');
+                                }
+                            } catch {}
+                        }
+                        if (typeof authFetch !== 'undefined') {
+                            document.addEventListener('DOMContentLoaded', pollUnread);
+                            setInterval(pollUnread, 60000);
+                        }
+                    })();
+                ` }} />
             </body>
         </html>
     );
