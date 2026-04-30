@@ -18,3 +18,5 @@ export {
 export { contacts } from './contact';
 export { invoices } from './invoice';
 export { marketplaceTemplates, tenantMarketplaceImports } from './marketplace';
+export { customerMessages } from './message';
+export type { MessageAttachment } from './message';

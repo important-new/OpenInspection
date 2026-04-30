@@ -25,6 +25,8 @@ export const users = sqliteTable('users', {
     googleCalendarId: text('google_calendar_id'),
     googleAccessToken: text('google_access_token'),
     googleTokenExpiry: integer('google_token_expiry'),
+    locale: text('locale'),
+    onboardingState: text('onboarding_state', { mode: 'json' }).$type<Record<string, boolean>>(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
