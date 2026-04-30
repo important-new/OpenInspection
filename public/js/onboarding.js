@@ -8,6 +8,7 @@ function inspectionOnboarding() {
             this.levels = Array.isArray(levels) ? levels : [];
             try {
                 const r = await authFetch('/api/users/me/onboarding');
+                if (r.status === 401) { window.location.href = '/login'; return; }
                 if (!r.ok) return;
                 const d = await r.json();
                 if (!d.data?.state?.inspectionEdit && this.levels.length > 0) {
@@ -45,11 +46,12 @@ function inspectionOnboarding() {
         async dismiss() {
             this.active = false;
             try {
-                await authFetch('/api/users/me/onboarding', {
+                const r = await authFetch('/api/users/me/onboarding', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ key: 'inspectionEdit', completed: true }),
                 });
+                if (r && r.status === 401) { window.location.href = '/login'; return; }
             } catch { /* silent */ }
         },
     };

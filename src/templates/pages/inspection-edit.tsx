@@ -533,7 +533,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
         </div>
 
         {/* Onboarding overlay (T6) */}
-        <div x-data="inspectionOnboarding()" x-init="init(ratingLevels)">
+        <div x-data="inspectionOnboarding()" {...{'x-on:rating-levels-ready.window': 'init($event.detail)'}}>
             <div x-show="active" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(15,23,42,0.78);backdrop-filter:blur(6px);">
                 <div class="rounded-3xl p-8 max-w-md w-full shadow-2xl" style="background:rgba(255,253,250,0.96);border:1px solid rgba(255,255,255,0.6);">
                     <div class="flex items-center gap-3 mb-4">

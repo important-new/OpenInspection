@@ -64,6 +64,7 @@ function inspectionEditor(inspectionId) {
           });
           this.ratingLevels = dataJson.data?.ratingLevels || [];
           this._reportStats = dataJson.data?.stats || this._reportStats;
+          window.dispatchEvent(new CustomEvent('rating-levels-ready', { detail: this.ratingLevels }));
         }
 
         // Load existing results

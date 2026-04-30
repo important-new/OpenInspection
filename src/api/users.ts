@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { and, eq } from 'drizzle-orm';
 import { users } from '../lib/db/schema';
 import type { HonoConfig } from '../types/hono';
+import { Errors } from '../lib/errors';
 
 const userRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -16,12 +17,14 @@ const getOnboardingRoute = createRoute({
             success: z.boolean(),
             data: z.object({ state: z.record(z.string(), z.boolean()) }),
         }) } }, description: 'OK' },
+        401: { description: 'Unauthorized' },
     },
 });
 
 userRoutes.openapi(getOnboardingRoute, async (c) => {
-    const tenantId = c.get('tenantId');
     const jwtUser = c.get('user');
+    const tenantId = c.get('tenantId');
+    if (!jwtUser?.sub || !tenantId) throw Errors.Unauthorized('Authentication required');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = drizzle(c.env.DB as any);
     const [u] = await db.select({ onboardingState: users.onboardingState })
@@ -43,15 +46,20 @@ const setOnboardingRoute = createRoute({
     },
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'OK' },
+        401: { description: 'Unauthorized' },
     },
 });
 
 userRoutes.openapi(setOnboardingRoute, async (c) => {
-    const tenantId = c.get('tenantId');
     const jwtUser = c.get('user');
+    const tenantId = c.get('tenantId');
+    if (!jwtUser?.sub || !tenantId) throw Errors.Unauthorized('Authentication required');
     const { key, completed } = c.req.valid('json');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = drizzle(c.env.DB as any);
+    // NOTE: Read-modify-write is non-atomic. For boolean dismissal flags this is acceptable —
+    // last-writer-wins means at worst one onboarding flow re-shows once and is then re-dismissed.
+    // If atomicity becomes important, switch to UPDATE ... SET onboarding_state = JSON_PATCH(...).
     const [u] = await db.select({ onboardingState: users.onboardingState })
         .from(users)
         .where(and(eq(users.id, jwtUser.sub), eq(users.tenantId, tenantId)))
