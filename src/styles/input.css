@@ -20,6 +20,17 @@ textarea {
     resize: none;
 }
 
+/* Phase T — voice input mic button active state */
+.mic-recording {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    animation: mic-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 /* ============================================================
    Components
    ============================================================ */
