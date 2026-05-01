@@ -86,3 +86,70 @@
 .rating-bar-significant { background: #f43f5e; }
 .rating-bar-minor { background: #3b82f6; }
 .rating-bar-none { background: #d4d4d8; }
+
+/* ========== Print (PDF export via window.print()) ========== */
+@media print {
+    @page {
+        size: A4;
+        margin: 1.5cm 1.2cm 1.8cm 1.2cm;
+    }
+
+    /* Force light theme regardless of selected report theme — printer-friendly */
+    body, [data-theme] {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        font-family: 'DM Sans', system-ui, sans-serif !important;
+    }
+
+    /* Hide everything that doesn't belong on paper */
+    nav, aside, footer, .no-print,
+    button, .btn, [role="button"]:not(a),
+    .fixed, [class*="sticky"],
+    [x-show], [x-cloak],
+    .agreement-gate, .signature-pad-container {
+        display: none !important;
+    }
+
+    /* Always show data-print-only marked elements */
+    .print-only { display: block !important; }
+
+    /* Each section card: keep together if possible */
+    section, .report-section, .glass-panel, .glass-card {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        background: #ffffff !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-bottom: 0.6cm;
+        padding: 0.5cm !important;
+    }
+
+    /* Photos shrink to fit; never split across pages */
+    img {
+        max-width: 100% !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+    }
+
+    /* Severe defects pop in B&W print */
+    [data-severity="defect"], .severity-defect {
+        border-left: 4px solid #000 !important;
+        padding-left: 0.4cm !important;
+    }
+
+    /* Hide app chrome but keep report header */
+    a[href^="javascript:"],
+    a[href^="#"]:not([data-print-keep]) {
+        text-decoration: none !important;
+        color: inherit !important;
+    }
+
+    /* Ensure links print full URL after text — handy when printed */
+    a[href]:not([href^="#"])::after {
+        content: " (" attr(href) ")";
+        font-size: 0.75em;
+        color: #475569;
+    }
+}
