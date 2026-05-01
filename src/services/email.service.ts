@@ -9,12 +9,33 @@ export class EmailService {
     constructor(private apiKey: string, private senderEmail: string, private appName: string) {}
 
     /**
-     * Sends a transactional email.
+     * Sends a transactional email. Optionally includes binary attachments
+     * (e.g. PDF reports). Resend's API expects each attachment as
+     * { filename, content } where `content` is base64.
      */
-    async sendEmail(to: string[], subject: string, html: string) {
+    async sendEmail(
+        to: string[],
+        subject: string,
+        html: string,
+        attachments?: Array<{ filename: string; content: ArrayBuffer }>,
+    ) {
         if (!this.apiKey || this.apiKey.includes('your_api_key')) {
             logger.warn(`[email] Skipping delivery (API Key missing) to: ${to.join(', ')}`);
             return;
+        }
+
+        const payload: Record<string, unknown> = {
+            from: this.senderEmail || `${this.appName} <noreply@example.com>`,
+            to,
+            subject,
+            html,
+        };
+
+        if (attachments && attachments.length > 0) {
+            payload.attachments = attachments.map(a => ({
+                filename: a.filename,
+                content: arrayBufferToBase64(a.content),
+            }));
         }
 
         try {
@@ -24,12 +45,7 @@ export class EmailService {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${this.apiKey}`
                 },
-                body: JSON.stringify({
-                    from: this.senderEmail || `${this.appName} <noreply@example.com>`,
-                    to,
-                    subject,
-                    html
-                })
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) {
@@ -188,4 +204,14 @@ export class EmailService {
             </div>`
         );
     }
+}
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
 }
