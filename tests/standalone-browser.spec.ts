@@ -334,4 +334,18 @@ test.describe.serial('Standalone Browser Tests', () => {
         const btn = page.locator('button[aria-label*="Download PDF"]');
         await expect(btn).toBeVisible();
     });
+
+    test('UI-WIDGET: /widget.js is served as JS and /book?embed=1 strips chrome', async ({ page }) => {
+        // 1. /widget.js loads
+        const widgetRes = await page.goto(`${BASE_URL}/widget.js`, { timeout: NAV_TIMEOUT });
+        expect(widgetRes?.status()).toBe(200);
+        expect(widgetRes?.headers()['content-type']).toContain('javascript');
+
+        // 2. /book?embed=1 loads with embed mode
+        await page.goto(`${BASE_URL}/book?embed=1&style=dark`, { timeout: NAV_TIMEOUT });
+        const wrapper = await page.locator('[data-widget-embed="1"]').first();
+        await expect(wrapper).toBeVisible();
+        const styleAttr = await wrapper.getAttribute('data-widget-style');
+        expect(styleAttr).toBe('dark');
+    });
 });
