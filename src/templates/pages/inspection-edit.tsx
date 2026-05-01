@@ -583,6 +583,15 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
             </div>
             <div class="flex gap-3 mt-6">
               <button x-on:click="showPublishModal = false" class="flex-1 py-3 text-sm font-semibold rounded-xl border" style="border-color: #e8e4dd; color: #46423c">Cancel</button>
+              <button
+                type="button"
+                {...{ 'x-on:click': 'sendReportPdf()' }}
+                {...{ 'x-bind:disabled': 'sendingPdf' }}
+                class="px-5 py-3 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50 transition-all"
+              >
+                <span x-show="!sendingPdf">📧 Send PDF to Client</span>
+                <span x-show="sendingPdf">Sending…</span>
+              </button>
               <button x-on:click="publish()" class="flex-1 py-3 text-sm font-bold rounded-xl text-white" style="background: #4a72ff" x-bind:disabled="publishing">
                 <span x-text="publishing ? 'Publishing...' : 'Confirm Publish'"></span>
               </button>

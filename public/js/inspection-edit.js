@@ -57,6 +57,7 @@ function inspectionEditor(inspectionId) {
     showMenu: false,
     showPublishModal: false,
     publishing: false,
+    sendingPdf: false,
     isDesktop: window.innerWidth >= 1024,
     saveTimer: null,
     saveState: 'idle',
@@ -139,6 +140,28 @@ function inspectionEditor(inspectionId) {
       } catch (e) {
         console.error('Failed to load inspection data:', e);
       }
+    },
+
+    async sendReportPdf() {
+        this.sendingPdf = true;
+        try {
+            const res = await authFetch(`/api/inspections/${this.inspectionId}/send-report-pdf`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            if (res.status === 401) { window.location.href = '/login'; return; }
+            const data = await res.json();
+            if (res.ok) {
+                if (typeof showToast === 'function') showToast('Report PDF sent to ' + (data?.data?.sentTo || 'client'));
+            } else {
+                modalAlert(data?.error?.message || 'Failed to send report PDF', 'Error');
+            }
+        } catch (e) {
+            modalAlert('Network error: ' + e.message, 'Error');
+        } finally {
+            this.sendingPdf = false;
+        }
     },
 
     get formattedDate() {
