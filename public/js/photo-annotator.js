@@ -36,6 +36,15 @@ function photoAnnotator() {
             this.currentPhotoIndex = photoIndex;
             this.history = [];
             this.historyStep = -1;
+            try {
+                await loadKonva();
+            } catch (e) {
+                this.open = false;
+                if (typeof modalAlert === 'function') {
+                    modalAlert('Failed to load the photo annotator. Check your network and try again.', 'Annotator unavailable');
+                }
+                return;
+            }
             await this.$nextTick();
             await this.initStage(imageUrl, existingNodesJson);
         },
@@ -222,4 +231,21 @@ function loadImage(src) {
         img.onerror = reject;
         img.src = src;
     });
+}
+
+// Lazy-load Konva (~150KB) the first time the user opens the annotator.
+// Cached in a single Promise so concurrent `annotate` events share one fetch.
+let _konvaLoadPromise = null;
+function loadKonva() {
+    if (typeof window.Konva !== 'undefined') return Promise.resolve();
+    if (_konvaLoadPromise) return _konvaLoadPromise;
+    _konvaLoadPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = '/vendor/konva/konva.min.js';
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = (e) => { _konvaLoadPromise = null; reject(e); };
+        document.head.appendChild(s);
+    });
+    return _konvaLoadPromise;
 }

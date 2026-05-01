@@ -94,8 +94,10 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   <span class="w-3 h-3 rounded-full" x-bind:style="'background:' + getRatingColor(getItemRating(item.id))"></span>
                 </div>
 
-                {/* Rating Buttons */}
-                <div class="flex flex-wrap gap-1.5 mb-3">
+                {/* Rating Buttons — `data-rating-row` is the anchor target the
+                    onboarding overlay (T6 / step 0) highlights so the user
+                    knows which buttons the tour is talking about. */}
+                <div data-rating-row class="flex flex-wrap gap-1.5 mb-3">
                   <template x-for="level in ratingLevels" x-bind:key="level.id">
                     <button
                       x-on:click="setRating(item.id, level.id)"
@@ -715,8 +717,9 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       <script src="/js/comments-library.js"></script>
       <script src="/js/toast.js"></script>
       <script src="/js/inspection-edit.js"></script>
-      {/* Phase T (T14) — Konva-based photo annotator */}
-      <script src="/vendor/konva/konva.min.js"></script>
+      {/* Phase T (T14) — Konva-based photo annotator. konva.min.js (~150KB) is
+          lazy-loaded by photo-annotator.js on the first `annotate` event so it
+          doesn't block first paint of the inspection edit page. */}
       <script src="/js/photo-annotator.js"></script>
       <script src="/js/onboarding.js"></script>
       <script src="/js/voice-input.js"></script>

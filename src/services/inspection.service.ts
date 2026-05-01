@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, or, lt, gte, lte, sql, inArray } from 'drizzle-orm';
 import { inspections, inspectionResults, templates, inspectionAgreements, users, services, inspectionServices } from '../lib/db/schema';
+import { contacts } from '../lib/db/schema/contact';
 import { Errors } from '../lib/errors';
 import { computeReportStats, getRatingColor, getRatingBucket, type RatingLevel } from '../lib/report-utils';
 import { z } from 'zod';
@@ -200,6 +201,35 @@ export class InspectionService {
 
         await this.sdb.insert(inspections, newInspection);
         fireAutomation(this.db, tenantId, id, 'inspection.created');
+
+        // Soft-upsert the client into Contacts so it shows up in the Contacts list
+        // for future re-use (search, agent linking). Idempotent on tenantId+email
+        // (or tenantId+name if no email). Failures are non-fatal — inspection
+        // creation must not break because of a contact-side issue.
+        if (newInspection.clientName && newInspection.clientName !== 'Private Client') {
+            try {
+                const dbForContacts = this.getDrizzle();
+                const matchConds = [eq(contacts.tenantId, tenantId), eq(contacts.type, 'client')];
+                if (newInspection.clientEmail) matchConds.push(eq(contacts.email, newInspection.clientEmail));
+                else matchConds.push(eq(contacts.name, newInspection.clientName));
+                const existing = await dbForContacts.select().from(contacts).where(and(...matchConds)).get();
+                if (!existing) {
+                    await dbForContacts.insert(contacts).values({
+                        id: crypto.randomUUID(),
+                        tenantId,
+                        type: 'client',
+                        name: newInspection.clientName,
+                        email: newInspection.clientEmail,
+                        phone: newInspection.clientPhone,
+                        agency: null,
+                        notes: null,
+                        createdAt: createdAt,
+                    });
+                }
+            } catch (err) {
+                logger.error('contact upsert from inspection failed', { inspectionId: id }, err instanceof Error ? err : undefined);
+            }
+        }
 
         // Link selected services
         if (data.serviceIds && data.serviceIds.length > 0) {

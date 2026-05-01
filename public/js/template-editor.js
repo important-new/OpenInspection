@@ -148,7 +148,19 @@ function templateEditor() {
             if (!this.selectedItem.options) this.selectedItem.options = {};
             this.selectedItem.options.choices = this.choicesText.split('\n').map(s => s.trim()).filter(Boolean);
         },
-        applyRatingPreset(preset) {
+        async applyRatingPreset(preset) {
+            // Guard against accidental overwrite of customised levels.
+            // Only prompt if the user has actually edited away from a previous preset
+            // (heuristic: levels exist and at least one description differs from blank).
+            const cur = this.template.ratingSystem.levels || [];
+            const hasCustom = cur.length > 0 && cur.some(l => l.description || l.color);
+            if (hasCustom) {
+                const ok = await modalConfirm(
+                    `Replace the current ${cur.length}-level rating system with "${preset.name}" (${preset.levels.length} levels)? Custom labels, colors, and descriptions will be lost.`,
+                    'Replace rating system?'
+                );
+                if (!ok) return;
+            }
             this.template.ratingSystem.name = preset.name;
             this.template.ratingSystem.levels = JSON.parse(JSON.stringify(preset.levels));
             this.template.ratingSystem.defaultLevelId = preset.levels.find(l => l.default)?.id || preset.levels[0]?.id;

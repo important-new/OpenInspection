@@ -14,8 +14,24 @@ function inspectionOnboarding() {
                 if (!d.data?.state?.inspectionEdit && this.levels.length > 0) {
                     this.active = true;
                     this.stepIdx = 0;
+                    this._updateAnchorHighlight();
                 }
             } catch { /* silent */ }
+        },
+
+        // Step 0 ("Rating Buttons") points to the actual rating buttons so the
+        // user knows where to look. Adds a pulsing ring class to the first
+        // visible rating-button group and removes it on advance/dismiss.
+        _updateAnchorHighlight() {
+            document.querySelectorAll('.onboarding-anchor').forEach(el =>
+                el.classList.remove('onboarding-anchor', 'animate-pulse', 'ring-4', 'ring-indigo-400', 'ring-offset-4', 'rounded-2xl'));
+            if (this.active && this.stepIdx === 0) {
+                const target = document.querySelector('[data-rating-row]');
+                if (target) {
+                    target.classList.add('onboarding-anchor', 'animate-pulse', 'ring-4', 'ring-indigo-400', 'ring-offset-4', 'rounded-2xl');
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
         },
 
         get totalSteps() { return this.levels.length + 1; },
@@ -37,14 +53,17 @@ function inspectionOnboarding() {
         },
 
         next() {
-            if (this.stepIdx + 1 < this.totalSteps) this.stepIdx++;
-            else this.dismiss();
+            if (this.stepIdx + 1 < this.totalSteps) {
+                this.stepIdx++;
+                this._updateAnchorHighlight();
+            } else this.dismiss();
         },
 
         skip() { this.dismiss(); },
 
         async dismiss() {
             this.active = false;
+            this._updateAnchorHighlight();
             try {
                 const r = await authFetch('/api/users/me/onboarding', {
                     method: 'POST',
