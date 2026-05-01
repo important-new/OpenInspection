@@ -723,6 +723,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       </div>
       <div id="commentPicker" class="hidden fixed z-[200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 w-72 max-h-64 overflow-y-auto"></div>
       <script src="/js/auth.js"></script>
+      <script src="/js/modal-dialog.js"></script>
       <script src="/js/comments-library.js"></script>
       <script src="/js/toast.js"></script>
       <script src="/js/inspection-edit.js"></script>
