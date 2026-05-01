@@ -6,6 +6,8 @@ import { auditFromContext } from '../lib/audit';
 import { getBaseUrl } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { generatePdfFromUrl } from '../lib/pdf';
 import {
     InspectionListQuerySchema,
     CreateInspectionSchema,
@@ -906,9 +908,25 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     await db.update(inspectionTable).set({ status: 'completed' }).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (inspection.clientEmail) {
-        const reportUrl = `${getBaseUrl(c)}/api/inspections/${id}/report`;
-        const emailPromise = c.var.services.email.sendReportReady(inspection.clientEmail, inspection.propertyAddress as string, reportUrl);
-        c.executionCtx.waitUntil(emailPromise);
+        const baseUrl = getBaseUrl(c);
+        const reportUrl = `${baseUrl}/report/${id}`;
+        const clientEmail = inspection.clientEmail;
+        const address = inspection.propertyAddress as string;
+
+        // Best-effort PDF: if BROWSER binding is missing or rendering fails,
+        // fall back to the existing text-only "Report Ready" email so we
+        // never block inspection completion on an optional dependency.
+        const deliver = async () => {
+            try {
+                const pdf = await generatePdfFromUrl(c.env.BROWSER, reportUrl);
+                await c.var.services.email.sendInspectionReportPdf(clientEmail, address, reportUrl, pdf);
+            } catch (err) {
+                logger.error('[complete] PDF generation failed, falling back to text-only email',
+                    { inspectionId: id }, err instanceof Error ? err : undefined);
+                await c.var.services.email.sendReportReady(clientEmail, address, reportUrl);
+            }
+        };
+        c.executionCtx.waitUntil(deliver());
     }
 
     auditFromContext(c, 'inspection.complete', 'inspection', {
