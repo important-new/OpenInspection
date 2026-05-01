@@ -17,7 +17,7 @@ describe('generatePdfFromUrl', () => {
         expect(result).toBeInstanceOf(ArrayBuffer);
         expect(result.byteLength).toBe(4);
         expect(browser.fetch).toHaveBeenCalledWith(
-            expect.stringContaining(url),
+            expect.stringMatching(/[?&]print=1\b/),
             expect.objectContaining({ method: 'GET' })
         );
     });
