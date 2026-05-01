@@ -50,6 +50,7 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     integrationConfig: text('integration_config'), // plaintext JSON: {appBaseUrl, turnstileSiteKey, googleClientId}
     secrets: text('secrets'),                      // AES-GCM encrypted JSON: {resendApiKey, turnstileSecretKey, geminiApiKey, googleClientSecret}
     icsToken: text('ics_token'),
+    widgetAllowedOrigins: text('widget_allowed_origins', { mode: 'json' }).$type<string[]>(),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 
