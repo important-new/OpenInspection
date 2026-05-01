@@ -3,6 +3,31 @@ import { eq } from 'drizzle-orm';
 import { tenants, users, templates } from '../db/schema';
 import { IntegrationProvider, TenantUpdateParams } from '../integration';
 
+// Default Comment Library entries seeded into every new tenant. The same set
+// is also seeded into existing tenants by migration 0022_seed_default_comments.
+// Each row is idempotent on (tenant_id, text) — seeded only when missing.
+async function seedDefaultComments(db: D1Database, tenantId: string): Promise<void> {
+    try {
+        await db.prepare(`
+            INSERT INTO comments (id, tenant_id, text, category, created_at)
+            SELECT lower(hex(randomblob(16))), ?, x.text, x.category, unixepoch('now')
+            FROM (
+                SELECT 'GFCI protection is missing in kitchen/bathroom/exterior receptacles; recommend installation per current code.' AS text, 'Electrical' AS category UNION ALL
+                SELECT 'Receptacle is wired with reverse polarity; recommend correction by qualified electrician.', 'Electrical' UNION ALL
+                SELECT 'Active leak observed at supply line/drain; recommend prompt repair by qualified plumber.', 'Plumbing' UNION ALL
+                SELECT 'Water heater TPR valve discharge pipe is missing/improperly terminated; recommend correction.', 'Plumbing' UNION ALL
+                SELECT 'Roof shingles show granule loss; recommend a qualified roofer evaluate remaining service life.', 'Roof' UNION ALL
+                SELECT 'Garage door auto-reverse safety did not function on test; recommend service by qualified technician.', 'Garage' UNION ALL
+                SELECT 'Smoke detector missing/non-functional in required location; recommend installation.', 'Electrical' UNION ALL
+                SELECT 'Carbon monoxide detector missing; recommend installation per current code.', 'Electrical'
+            ) AS x
+            WHERE NOT EXISTS (SELECT 1 FROM comments c WHERE c.tenant_id = ? AND c.text = x.text)
+        `).bind(tenantId, tenantId).run();
+    } catch {
+        // non-fatal: tenant creation must not fail because of seed data
+    }
+}
+
 /**
  * Standalone implementation of IntegrationProvider.
  * Used in the open-source version where Core is managed directly or via local CLI/Admin UI.
@@ -68,6 +93,10 @@ export class StandaloneProvider implements IntegrationProvider {
                     schema: JSON.stringify({ title: 'Standard Home Inspection', sections: [] }),
                     createdAt: now,
                 });
+
+                // Default Comment Library — gives new inspectors a starting set
+                // so they aren't typing every defect description from scratch.
+                await seedDefaultComments(this.db, tenantId);
             } else {
                 await db.update(users).set({ passwordHash: adminPasswordHash }).where(eq(users.id, existingUser.id));
             }

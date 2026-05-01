@@ -748,7 +748,9 @@ const listCommentsRoute = createRoute({
     path: '/comments',
     tags: ['Comments'],
     summary: 'List comment library entries',
-    middleware: [requireRole(['owner', 'admin'])],
+    // Inspectors need read access so the inspection-edit picker (T7+1) can
+    // populate. Create/delete remain admin-only further below.
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         200: {
             content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ comments: z.array(CommentResponseSchema) }) }) } },
