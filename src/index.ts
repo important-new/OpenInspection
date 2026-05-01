@@ -23,6 +23,7 @@ import { BUILD } from './generated/version';
 
 import { LoginPage } from './templates/pages/login';
 import { DashboardPage } from './templates/pages/dashboard';
+import { ReportsPage } from './templates/pages/reports';
 import { SettingsPage } from './templates/pages/settings';
 import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
@@ -479,6 +480,10 @@ app.get('/messages/:token', (c) => {
 
 // Pages with Auth
 app.get('/dashboard', htmlAuthGuard(), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
+app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
+    const b = c.get('branding');
+    return c.html(ReportsPage(b ? { branding: b } : {}));
+});
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), (c) => c.html(AgentDashboardPage({ branding: c.get('branding') })));
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
 app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
