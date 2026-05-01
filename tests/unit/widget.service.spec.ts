@@ -67,6 +67,14 @@ describe('WidgetService.isOriginAllowed', () => {
     it('returns false for missing tenant config', async () => {
         expect(await svc.isOriginAllowed('00000000-0000-0000-0000-000000000099', 'https://anything.com')).toBe(false);
     });
+
+    it('returns false for protocol mismatch (http vs https)', async () => {
+        expect(await svc.isOriginAllowed(TENANT_ID, 'http://acme.com')).toBe(false);
+    });
+
+    it('returns false for port mismatch', async () => {
+        expect(await svc.isOriginAllowed(TENANT_ID, 'https://acme.com:8080')).toBe(false);
+    });
 });
 
 describe('WidgetService.recordEvent', () => {

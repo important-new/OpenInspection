@@ -30,8 +30,13 @@ export class WidgetService {
     async setAllowedOrigins(tenantId: string, origins: string[]): Promise<void> {
         // Validate each is a syntactically valid URL with http/https only
         for (const o of origins) {
+            const wildcardCount = (o.match(/\*/g) || []).length;
+            if (wildcardCount > 1) {
+                throw new Error(`Origin pattern may contain at most one wildcard: ${o}`);
+            }
+            // Validate as URL (replace `*` placeholder so URL constructor accepts it)
             try {
-                const u = new URL(o);
+                const u = new URL(o.replace('*', 'wildcard'));
                 if (u.protocol !== 'http:' && u.protocol !== 'https:') {
                     throw new Error(`Origin must be http or https: ${o}`);
                 }
