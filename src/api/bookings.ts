@@ -132,6 +132,19 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         if (!isValid) throw Errors.Forbidden('Security verification failed.');
     }
 
+    // B2: when the booking originates from an embedded widget, enforce
+    // per-tenant origin allowlist. Non-embed (direct /book visit) submissions
+    // are unaffected.
+    const isWidgetSubmit = c.req.query('embed') === '1';
+    const originHeader = c.req.header('origin');
+    if (isWidgetSubmit) {
+        const ok = await c.var.services.widget.isOriginAllowed(tenantId, originHeader ?? null);
+        if (!ok) {
+            await c.var.services.widget.recordEvent(tenantId, 'error', { origin: originHeader, reason: 'origin_not_allowed' });
+            throw Errors.Forbidden('Widget submissions from this origin are not allowed for this workspace.');
+        }
+    }
+
     const db = drizzle(c.env.DB);
     let inspectorId = body.inspectorId;
 
@@ -182,9 +195,15 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         ).catch(e => logger.error('Booking confirmation email failed', {}, e instanceof Error ? e : undefined));
     })());
 
-    return c.json({ 
-        success: true, 
-        data: { success: true, inspectionId } 
+    if (isWidgetSubmit) {
+        c.executionCtx.waitUntil(
+            c.var.services.widget.recordEvent(tenantId, 'success', { origin: originHeader, inspectionId })
+        );
+    }
+
+    return c.json({
+        success: true,
+        data: { success: true, inspectionId }
     }, 200);
 });
 
