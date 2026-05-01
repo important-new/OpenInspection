@@ -904,6 +904,12 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     const service = c.var.services.inspection;
     const { inspection } = await service.getInspection(id, tenantId);
 
+    // Idempotency: if already completed, short-circuit to prevent accidental
+    // email storms when the client retries on network errors or double-clicks.
+    if (inspection.status === 'completed' || inspection.status === 'delivered') {
+        return c.json({ success: true, data: { success: true } }, 200);
+    }
+
     const db = drizzle(c.env.DB);
     await db.update(inspectionTable).set({ status: 'completed' }).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
