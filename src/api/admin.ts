@@ -820,6 +820,50 @@ adminRoutes.openapi(deleteCommentRoute, async (c) => {
     return c.json({ success: true }, 200);
 });
 
+// --- Widget Origin Allowlist ---
+
+const getWidgetOriginsRoute = createRoute({
+    method: 'get',
+    path: '/widget/origins',
+    tags: ['Widget'],
+    summary: 'Get current widget allowed-origin list',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ origins: z.array(z.string()) }) }) } },
+            description: 'Success',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(getWidgetOriginsRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const origins = await c.var.services.widget.getAllowedOrigins(tenantId);
+    return c.json({ success: true as const, data: { origins } }, 200);
+});
+
+const setWidgetOriginsRoute = createRoute({
+    method: 'put',
+    path: '/widget/origins',
+    tags: ['Widget'],
+    summary: 'Replace widget allowed-origin list',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: { body: { content: { 'application/json': { schema: z.object({ origins: z.array(z.string().min(1)).max(50) }) } } } },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ origins: z.array(z.string()) }) }) } },
+            description: 'Saved',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(setWidgetOriginsRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { origins } = c.req.valid('json');
+    await c.var.services.widget.setAllowedOrigins(tenantId, origins);
+    return c.json({ success: true as const, data: { origins } }, 200);
+});
+
 // --- ICS Subscription Token ---
 
 const icsTokenRoute = createRoute({

@@ -41,6 +41,7 @@ import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
 import { SettingsAutomationsPage } from './templates/pages/settings-automations';
+import { SettingsWidgetPage } from './templates/pages/settings-widget';
 import { MetricsPage } from './templates/pages/metrics';
 import { SettingsDataPage } from './templates/pages/settings-data';
 import { MessagesPublicPage } from './templates/pages/messages-public';
@@ -506,6 +507,10 @@ app.get('/marketplace', htmlAuthGuard(['owner', 'admin']), (c) => c.html(Marketp
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
 app.get('/settings/automations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAutomationsPage({ branding: c.get('branding') })));
 app.get('/settings/data', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsDataPage({ branding: c.get('branding') })));
+app.get('/settings/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsWidgetPage(b ? { branding: b } : {}));
+});
 app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage({ branding: c.get('branding') })));
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
