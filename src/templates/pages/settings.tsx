@@ -154,6 +154,22 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         </div>
                     </section>
 
+                    {/* Workspace admin / API key sections — collapsed by default to keep the
+                        inspector-facing settings (Profile / Branding / Telemetry / Apple Calendar /
+                        Password) above the fold. Open this group when wiring up integrations. */}
+                    <details class="glass-panel rounded-[3.5rem] shadow-xl shadow-slate-100/50 [&>summary]:list-none">
+                        <summary class="cursor-pointer p-8 md:p-10 flex items-center justify-between gap-5">
+                            <div class="flex items-center gap-5">
+                                {sectionIcon('M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', 'bg-slate-700/10 text-slate-700')}
+                                <div>
+                                    <h2 class="text-2xl font-black text-slate-900 tracking-tightest">Workspace Integrations</h2>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email · Bot Protection · AI · Google Calendar · Admin keys</p>
+                                </div>
+                            </div>
+                            <svg class="w-5 h-5 text-slate-400 details-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </summary>
+                        <div class="px-8 md:px-10 pb-10 space-y-8 border-t border-slate-100/50 pt-8">
+
                     {/* ── Email ── */}
                     <section class="glass-panel p-10 md:p-12 rounded-[3.5rem] shadow-xl shadow-slate-100/50 space-y-8">
                         <div class="flex items-center gap-5 pb-6 border-b border-slate-100/50">
@@ -269,6 +285,9 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                             </button>
                         </div>
                     </section>
+
+                        </div>
+                    </details>
 
                     {/* ── Apple Calendar / ICS Subscription ── */}
                     <section class="glass-panel p-10 md:p-12 rounded-[3.5rem] shadow-xl shadow-slate-100/50 space-y-8">

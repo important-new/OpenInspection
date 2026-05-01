@@ -125,14 +125,23 @@ textarea {
    Animations
    ============================================================ */
 
+/* `to` uses `transform: none` (not `translateY(0)`) so animated elements do
+   not retain a transform after `animation-fill-mode: forwards` completes.
+   A non-none transform creates a stacking context AND a containing block
+   for `position: fixed` descendants — which traps modals/popovers inside
+   the animated wrapper (root cause of the dashboard create-inspection
+   modal appearing transparent). */
+/* <details> chevron flip when open. Used by collapsible Settings sections. */
+details[open] > summary > .details-chevron { transform: rotate(180deg); }
+
 @keyframes slideIn {
     from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: none; }
 }
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(12px); }
-    to   { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: none; }
 }
 
 .animate-slide-in {
