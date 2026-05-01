@@ -1,0 +1,62 @@
+{
+  "id": "seed_condo_v1",
+  "name": "Condominium Inspection",
+  "description": "Inspection template for condominium units — focuses on unit-interior systems and limits common-area items per HOA boundary.",
+  "version": 1,
+  "schema": {
+    "sections": [
+      {
+        "id": "s_unit_entry", "title": "Unit Entry & Common Door",
+        "items": [
+          { "id": "i_entry_door",       "label": "Entry Door & Lock",        "type": "rating" },
+          { "id": "i_peephole",         "label": "Peephole / Viewer",        "type": "rating" },
+          { "id": "i_intercom",         "label": "Intercom / Buzzer System", "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_kitchen", "title": "Kitchen",
+        "items": [
+          { "id": "i_appliances",       "label": "Built-in Appliances",     "type": "rating" },
+          { "id": "i_cabinets",         "label": "Cabinets & Countertops",  "type": "rating" },
+          { "id": "i_kitchen_plumb",    "label": "Sink & Plumbing",         "type": "rating" },
+          { "id": "i_kitchen_electric", "label": "Electrical Outlets",      "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_bathrooms", "title": "Bathrooms",
+        "items": [
+          { "id": "i_tub_shower",       "label": "Tub / Shower",            "type": "rating" },
+          { "id": "i_toilet",           "label": "Toilet",                  "type": "rating" },
+          { "id": "i_bath_vanity",      "label": "Vanity / Sink",           "type": "rating" },
+          { "id": "i_bath_vent",        "label": "Exhaust Fan / Ventilation","type": "rating" }
+        ]
+      },
+      {
+        "id": "s_living", "title": "Living Areas",
+        "items": [
+          { "id": "i_walls_ceil",       "label": "Walls & Ceilings",        "type": "rating" },
+          { "id": "i_flooring",         "label": "Flooring",                "type": "rating" },
+          { "id": "i_windows",          "label": "Windows & Sliding Doors", "type": "rating" },
+          { "id": "i_balcony",          "label": "Balcony / Patio (Limited)","type": "rating" }
+        ]
+      },
+      {
+        "id": "s_unit_systems", "title": "In-Unit Systems",
+        "items": [
+          { "id": "i_hvac",             "label": "HVAC / In-Unit Climate",  "type": "rating" },
+          { "id": "i_electrical_panel", "label": "Unit Electrical Panel",   "type": "rating" },
+          { "id": "i_water_heater",     "label": "Water Heater (if in-unit)","type": "rating" },
+          { "id": "i_smoke_co",         "label": "Smoke / CO Detectors",    "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_common_obs", "title": "Common Areas (Observation Only)",
+        "items": [
+          { "id": "i_hallway",          "label": "Shared Hallway Condition","type": "rating" },
+          { "id": "i_stairs_elev",      "label": "Stairs / Elevator (visual)","type": "rating" },
+          { "id": "i_parking",          "label": "Assigned Parking Space",  "type": "rating" }
+        ]
+      }
+    ]
+  }
+}

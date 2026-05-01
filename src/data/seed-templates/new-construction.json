@@ -1,0 +1,73 @@
+{
+  "id": "seed_new_construction_v1",
+  "name": "New Construction Pre-Drywall Inspection",
+  "description": "Pre-drywall (mid-build) inspection template — captures framing, rough plumbing, rough electrical, and waterproofing before walls are closed up.",
+  "version": 1,
+  "schema": {
+    "sections": [
+      {
+        "id": "s_site", "title": "Site & Foundation",
+        "items": [
+          { "id": "i_lot_grading",     "label": "Lot Grading & Drainage",       "type": "rating" },
+          { "id": "i_foundation_walls","label": "Foundation Walls (visible)",   "type": "rating" },
+          { "id": "i_waterproofing",   "label": "Foundation Waterproofing",     "type": "rating" },
+          { "id": "i_anchor_bolts",    "label": "Anchor Bolts / Hold-downs",    "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_framing", "title": "Framing",
+        "items": [
+          { "id": "i_floor_joists",    "label": "Floor Joists & Subfloor",      "type": "rating" },
+          { "id": "i_wall_framing",    "label": "Wall Studs & Plates",          "type": "rating" },
+          { "id": "i_headers",         "label": "Headers & Lintels",            "type": "rating" },
+          { "id": "i_roof_framing",    "label": "Roof Trusses / Rafters",       "type": "rating" },
+          { "id": "i_sheathing",       "label": "Wall & Roof Sheathing",        "type": "rating" },
+          { "id": "i_fasteners",       "label": "Nail Patterns & Fasteners",    "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_envelope", "title": "Building Envelope",
+        "items": [
+          { "id": "i_house_wrap",      "label": "House Wrap / Weather Barrier", "type": "rating" },
+          { "id": "i_window_flashing", "label": "Window Rough Openings & Flashing","type": "rating" },
+          { "id": "i_door_flashing",   "label": "Door Rough Openings & Flashing", "type": "rating" },
+          { "id": "i_roof_underlay",   "label": "Roof Underlayment / Ice & Water","type": "rating" }
+        ]
+      },
+      {
+        "id": "s_rough_plumbing", "title": "Rough Plumbing",
+        "items": [
+          { "id": "i_supply_lines",    "label": "Supply Line Materials & Routing","type": "rating" },
+          { "id": "i_dwv",             "label": "Drain / Waste / Vent (DWV)",   "type": "rating" },
+          { "id": "i_pressure_test",   "label": "Pressure Test Verification",   "type": "rating" },
+          { "id": "i_shut_offs",       "label": "Shut-off Valve Locations",     "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_rough_electric", "title": "Rough Electrical",
+        "items": [
+          { "id": "i_panel_location",  "label": "Service Panel Location & Size","type": "rating" },
+          { "id": "i_wire_routing",    "label": "Wire Routing & Stapling",      "type": "rating" },
+          { "id": "i_box_install",     "label": "Receptacle / Switch Box Install","type": "rating" },
+          { "id": "i_grounding",       "label": "Grounding & Bonding",          "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_hvac_rough", "title": "HVAC Rough-In",
+        "items": [
+          { "id": "i_duct_install",    "label": "Ductwork Installation & Sealing","type": "rating" },
+          { "id": "i_register_loc",    "label": "Register / Return Locations",  "type": "rating" },
+          { "id": "i_equip_pad",       "label": "Equipment Pad / Platform",     "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_insulation", "title": "Insulation Readiness",
+        "items": [
+          { "id": "i_air_seal",        "label": "Air Sealing at Penetrations",  "type": "rating" },
+          { "id": "i_fire_caulk",      "label": "Fire Caulk at Plates / Penetrations","type": "rating" },
+          { "id": "i_blocking",        "label": "Blocking for Fixtures",        "type": "rating" }
+        ]
+      }
+    ]
+  }
+}

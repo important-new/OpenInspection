@@ -1,0 +1,55 @@
+{
+  "id": "seed_radon_v1",
+  "name": "Radon Measurement Report",
+  "description": "Short-term radon measurement protocol — captures device placement, closed-house conditions, and post-test calculation of pCi/L average.",
+  "version": 1,
+  "schema": {
+    "sections": [
+      {
+        "id": "s_test_setup", "title": "Test Setup & Conditions",
+        "items": [
+          { "id": "i_device_type",       "label": "Device Type & Serial",           "type": "rating" },
+          { "id": "i_calibration",       "label": "Calibration / Cert Date",        "type": "rating" },
+          { "id": "i_test_start",        "label": "Test Start Date / Time",         "type": "rating" },
+          { "id": "i_test_end",          "label": "Test End Date / Time",           "type": "rating" },
+          { "id": "i_test_duration",     "label": "Test Duration (hrs)",            "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_placement", "title": "Device Placement",
+        "items": [
+          { "id": "i_floor_level",       "label": "Floor Level (Lowest Lived-In)",  "type": "rating" },
+          { "id": "i_distance_walls",    "label": "Distance from Walls / Floor",    "type": "rating" },
+          { "id": "i_no_drafts",         "label": "Free of Drafts / Direct Sun",    "type": "rating" },
+          { "id": "i_no_obstruct",       "label": "Free of Obstructions",           "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_closed_house", "title": "Closed-House Conditions",
+        "items": [
+          { "id": "i_doors_closed",      "label": "Exterior Doors Closed (12hr+)",  "type": "rating" },
+          { "id": "i_windows_closed",    "label": "Windows Closed Throughout Test", "type": "rating" },
+          { "id": "i_hvac_normal",       "label": "HVAC Operating Normally",        "type": "rating" },
+          { "id": "i_no_fans",           "label": "No Window/Whole-House Fans Used","type": "rating" }
+        ]
+      },
+      {
+        "id": "s_results", "title": "Results & Calculation",
+        "items": [
+          { "id": "i_avg_picocuries",    "label": "Average Radon Concentration (pCi/L)","type": "rating" },
+          { "id": "i_high_reading",      "label": "Highest Hourly Reading",         "type": "rating" },
+          { "id": "i_low_reading",       "label": "Lowest Hourly Reading",          "type": "rating" },
+          { "id": "i_temp_humidity",     "label": "Temp / Humidity Logged",         "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_recommendation", "title": "Recommendation",
+        "items": [
+          { "id": "i_action_threshold",  "label": "Above EPA 4.0 pCi/L Action Level","type": "rating" },
+          { "id": "i_mitigation",        "label": "Mitigation Recommended",         "type": "rating" },
+          { "id": "i_retest",            "label": "Retest Recommended (+90 days)",  "type": "rating" }
+        ]
+      }
+    ]
+  }
+}

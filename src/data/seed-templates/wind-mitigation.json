@@ -1,0 +1,63 @@
+{
+  "id": "seed_wind_mitigation_v1",
+  "name": "Wind Mitigation Survey",
+  "description": "Florida-style Uniform Mitigation Verification (OIR-B1-1802) survey — captures features that may qualify the property for hurricane wind insurance discounts.",
+  "version": 1,
+  "schema": {
+    "sections": [
+      {
+        "id": "s_building_code", "title": "Building Code & Year Built",
+        "items": [
+          { "id": "i_year_built",        "label": "Year Built / Permit Date",       "type": "rating" },
+          { "id": "i_fbc_compliance",    "label": "FBC / IRC Compliance Evidence",  "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_roof_covering", "title": "Roof Covering",
+        "items": [
+          { "id": "i_roof_material",     "label": "Roof Covering Type & Permit",    "type": "rating" },
+          { "id": "i_roof_install_year", "label": "Roof Covering Installation Year","type": "rating" },
+          { "id": "i_meets_fbc_2001",    "label": "Meets FBC 2001+ Compliance",     "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_roof_deck", "title": "Roof Deck Attachment",
+        "items": [
+          { "id": "i_deck_type",         "label": "Deck Type (Plywood/OSB/Other)",  "type": "rating" },
+          { "id": "i_nail_size",         "label": "Nail Size (6d / 8d / Larger)",   "type": "rating" },
+          { "id": "i_nail_spacing",      "label": "Nail Spacing (Edge / Field)",    "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_roof_to_wall", "title": "Roof-to-Wall Attachment",
+        "items": [
+          { "id": "i_attachment_type",   "label": "Toe Nails / Clips / Single Wrap / Double Wrap","type": "rating" },
+          { "id": "i_min_3_nails",       "label": "Minimum 3 Nails per Connector",  "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_roof_geometry", "title": "Roof Geometry",
+        "items": [
+          { "id": "i_geometry",          "label": "Hip / Non-Hip / Other Geometry", "type": "rating" },
+          { "id": "i_hip_percentage",    "label": "Total Hip Roof Perimeter %",     "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_secondary_water", "title": "Secondary Water Resistance (SWR)",
+        "items": [
+          { "id": "i_swr_present",       "label": "SWR Barrier Present",            "type": "rating" },
+          { "id": "i_swr_meets_code",    "label": "SWR Meets Code Requirements",    "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_openings", "title": "Opening Protection",
+        "items": [
+          { "id": "i_windows_protect",   "label": "All Glazed Openings Protected",  "type": "rating" },
+          { "id": "i_doors_protect",     "label": "All Exterior Doors Protected",   "type": "rating" },
+          { "id": "i_garage_protect",    "label": "Garage Door Wind-Rated",         "type": "rating" },
+          { "id": "i_protection_class",  "label": "Protection Class (Impact-Rated A / Other B-C-N)","type": "rating" }
+        ]
+      }
+    ]
+  }
+}

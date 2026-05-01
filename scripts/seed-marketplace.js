@@ -32,18 +32,23 @@ try {
   }
 } catch { /* fallback */ }
 
-if (count >= 3) {
-  console.log(`Seed skipped: ${count} marketplace templates already exist.`);
-  process.exit(0);
-}
-
 const SEED_DIR = join(__dirname, '../src/data/seed-templates');
 
 const TEMPLATES = [
-  { file: 'residential.json', name: 'Standard Residential Inspection', category: 'residential', changelog: 'Initial release: standard US residential home inspection template.' },
-  { file: 'trec-rei-7-6.json', name: 'TREC REI 7-6 Inspection Report', category: 'trec', changelog: 'Initial release: Texas Real Estate Commission REI 7-6 compliant template.' },
-  { file: 'commercial.json', name: 'Commercial Property Inspection', category: 'commercial', changelog: 'Initial release: light commercial property inspection template.' },
+  { file: 'residential.json',      name: 'Standard Residential Inspection',         category: 'residential',       changelog: 'Initial release: standard US residential home inspection template.' },
+  { file: 'trec-rei-7-6.json',     name: 'TREC REI 7-6 Inspection Report',          category: 'trec',              changelog: 'Initial release: Texas Real Estate Commission REI 7-6 compliant template.' },
+  { file: 'commercial.json',       name: 'Commercial Property Inspection',          category: 'commercial',        changelog: 'Initial release: light commercial property inspection template.' },
+  { file: 'condo.json',            name: 'Condominium Inspection',                  category: 'condo',             changelog: 'Initial release: condo unit-focused inspection (HOA boundary aware).' },
+  { file: 'new-construction.json', name: 'New Construction Pre-Drywall Inspection', category: 'new_construction',  changelog: 'Initial release: pre-drywall mid-build inspection (framing/plumbing/electrical/envelope).' },
+  { file: 'wind-mitigation.json',  name: 'Wind Mitigation Survey',                  category: 'residential',       changelog: 'Initial release: Florida-style Uniform Mitigation Verification (OIR-B1-1802).' },
+  { file: 'septic.json',           name: 'Septic System Inspection',                category: 'residential',       changelog: 'Initial release: septic tank, distribution, and drain field add-on.' },
+  { file: 'radon.json',            name: 'Radon Measurement Report',                category: 'residential',       changelog: 'Initial release: short-term radon test protocol with EPA 4.0 pCi/L threshold check.' },
 ];
+
+if (count >= TEMPLATES.length) {
+  console.log(`Seed skipped: ${count} marketplace templates already exist (target ${TEMPLATES.length}).`);
+  process.exit(0);
+}
 
 const now = new Date().toISOString();
 
@@ -57,7 +62,10 @@ for (const t of TEMPLATES) {
   const safeName = t.name.replace(/'/g, "''");
   const safeSchema = schema.replace(/'/g, "''");
 
-  const sql = `INSERT OR IGNORE INTO marketplace_templates (id, name, category, semver, schema, author_id, changelog, download_count, created_at, updated_at) VALUES ('${id}', '${safeName}', '${t.category}', '1.0.0', '${safeSchema}', 'system', '${safeChangelog}', 0, '${now}', '${now}');`;
+  // De-dupe by name (not id) since id is regenerated on every run. Without
+  // this guard, re-running after adding new templates would duplicate the
+  // already-seeded ones.
+  const sql = `INSERT INTO marketplace_templates (id, name, category, semver, schema, author_id, changelog, download_count, created_at, updated_at) SELECT '${id}', '${safeName}', '${t.category}', '1.0.0', '${safeSchema}', 'system', '${safeChangelog}', 0, '${now}', '${now}' WHERE NOT EXISTS (SELECT 1 FROM marketplace_templates WHERE name = '${safeName}');`;
 
   const sqlFile = join(tmpDir, `${t.category}.sql`);
   writeFileSync(sqlFile, sql, 'utf8');
