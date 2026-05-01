@@ -67,6 +67,7 @@ import dataRoutes from './api/data';
 import icsRoutes from './api/ics';
 import userRoutes from './api/users';
 import messageRoutes from './api/messages';
+import widgetRoutes from './api/widget';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -292,6 +293,7 @@ app.route('/', coreAuthRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 app.route('/api/ai', aiRoutes);
 app.route('/api/public', bookingsRoutes);
+app.route('/api/public/widget', widgetRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/agent', agentRoutes);
 app.route('/api/availability', availabilityRoutes);
