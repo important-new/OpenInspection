@@ -41,6 +41,9 @@ export interface AppEnv {
     // Rate Limiting
     RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 
+    // PDF Generation (Cloudflare Browser Rendering — beta)
+    BROWSER?: Fetcher;
+
     // SaaS Portal Integration
     PORTAL_API_URL?: string;
     PORTAL_M2M_SECRET?: string;
