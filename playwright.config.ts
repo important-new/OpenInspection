@@ -29,6 +29,12 @@ export default defineConfig({
             dependencies: ['api'],
         },
         {
+            name: 'mobile',
+            testMatch: 'standalone-mobile.spec.ts',
+            // No dependency — the SETUP test in this spec is idempotent and
+            // will create test data if not already present.
+        },
+        {
             name: 'cloud',
             testMatch: 'cloud-e2e.spec.ts',
             use: {
