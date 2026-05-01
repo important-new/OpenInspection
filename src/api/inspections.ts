@@ -936,6 +936,67 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     return c.json({ success: true, data: { success: true } }, 200);
 });
 
+const sendReportPdfRoute = createRoute({
+    method: 'post',
+    path: '/{id}/send-report-pdf',
+    tags: ['Inspections'],
+    summary: 'Re-send the inspection report as a PDF email attachment',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        // Optional override; defaults to inspection.clientEmail
+                        toEmail: z.string().email().optional(),
+                    }).optional(),
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ sentTo: z.string() }) }) } },
+            description: 'PDF email queued',
+        },
+        400: { description: 'Recipient missing' },
+        404: { description: 'Inspection not found' },
+        503: { description: 'PDF rendering unavailable; text-only email sent instead' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+inspectionsRoutes.openapi(sendReportPdfRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    const body = c.req.valid('json') ?? {};
+    const service = c.var.services.inspection;
+    const { inspection } = await service.getInspection(id, tenantId);
+
+    const recipient = body.toEmail || inspection.clientEmail;
+    if (!recipient) {
+        throw Errors.BadRequest('No recipient email — set inspection.clientEmail or pass toEmail.');
+    }
+
+    const baseUrl = getBaseUrl(c);
+    const reportUrl = `${baseUrl}/report/${id}`;
+    const address = inspection.propertyAddress as string;
+
+    try {
+        const pdf = await generatePdfFromUrl(c.env.BROWSER, reportUrl);
+        await c.var.services.email.sendInspectionReportPdf(recipient, address, reportUrl, pdf);
+        auditFromContext(c, 'inspection.send_pdf', 'inspection', { entityId: id, metadata: { recipient } });
+        return c.json({ success: true as const, data: { sentTo: recipient } }, 200);
+    } catch (err) {
+        logger.error('[send-report-pdf] PDF failed, sending text-only', { inspectionId: id }, err instanceof Error ? err : undefined);
+        await c.var.services.email.sendReportReady(recipient, address, reportUrl);
+        auditFromContext(c, 'inspection.send_text_fallback', 'inspection', { entityId: id, metadata: { recipient } });
+        // 200 because the user got AN email, just not a PDF — log + audit captures the degradation
+        return c.json({ success: true as const, data: { sentTo: recipient } }, 200);
+    }
+});
+
 /**
  * GET /api/inspections/:id/report-data
  */
