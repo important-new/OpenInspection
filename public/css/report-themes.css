@@ -101,12 +101,12 @@
         font-family: 'DM Sans', system-ui, sans-serif !important;
     }
 
-    /* Hide everything that doesn't belong on paper */
+    /* Hide everything that doesn't belong on paper.
+       The agreement overlay and signature canvas are caught by .fixed and [x-cloak]. */
     nav, aside, footer, .no-print,
     button, .btn, [role="button"]:not(a),
     .fixed, [class*="sticky"],
-    [x-show], [x-cloak],
-    .agreement-gate, .signature-pad-container {
+    [x-show], [x-cloak] {
         display: none !important;
     }
 
@@ -131,12 +131,6 @@
         max-width: 100% !important;
         page-break-inside: avoid;
         break-inside: avoid;
-    }
-
-    /* Severe defects pop in B&W print */
-    [data-severity="defect"], .severity-defect {
-        border-left: 4px solid #000 !important;
-        padding-left: 0.4cm !important;
     }
 
     /* Hide app chrome but keep report header */
