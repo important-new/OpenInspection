@@ -17,6 +17,11 @@ import { HonoConfig } from '../../types/hono';
 export const securityHeaders: MiddlewareHandler<HonoConfig> = async (c, next) => {
     await next();
 
+    // B2: /book?embed=1 is the embeddable booking widget — must allow framing
+    // by any origin. Origin-allowlist enforcement on the actual booking submit
+    // (POST /api/public/book) is the security boundary, not frame-ancestors.
+    const isWidgetEmbed = c.req.path === '/book' && c.req.query('embed') === '1';
+
     // NOTE: 'unsafe-inline' is needed for inline scripts in templates. 'unsafe-eval' is required
     // by Alpine.js which uses `new Function()` to evaluate x-data/x-show/x-text expressions.
     // To drop 'unsafe-eval', switch to Alpine's CSP build (alpinejs/csp).
@@ -30,13 +35,15 @@ export const securityHeaders: MiddlewareHandler<HonoConfig> = async (c, next) =>
             "img-src 'self' data: blob:",
             "connect-src 'self' https://challenges.cloudflare.com",
             "frame-src https://challenges.cloudflare.com",
-            "frame-ancestors 'none'",
+            isWidgetEmbed ? "frame-ancestors *" : "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
             "object-src 'none'",
         ].join('; ')
     );
-    c.header('X-Frame-Options', 'DENY');
+    if (!isWidgetEmbed) {
+        c.header('X-Frame-Options', 'DENY');
+    }
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
     c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');

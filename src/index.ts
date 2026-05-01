@@ -403,18 +403,6 @@ app.get('/book', (c) => {
     }));
 });
 
-// B2: when /book is loaded as a widget embed, allow framing by any origin in
-// the tenant's allowlist. Implementation simplification: allow all origins
-// (any X-Frame-Options header gets dropped); cross-origin POST is the actual
-// security boundary, enforced by Origin-header check on /api/public/book.
-app.use('/book', async (c, next) => {
-    await next();
-    if (c.req.query('embed') === '1') {
-        c.res.headers.delete('X-Frame-Options');
-        c.res.headers.set('Content-Security-Policy', "frame-ancestors *");
-    }
-});
-
 // Public agreement signing page (no auth required — token is the secret)
 app.get('/agreements/sign/:token', async (c) => {
     const token = c.req.param('token') as string;
