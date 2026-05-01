@@ -387,7 +387,17 @@ app.get('/setup', (c) => {
 
 app.get('/book', (c) => {
     const branding = c.get('branding');
-    return c.html(PublicBookingPage({ siteKey: c.env.TURNSTILE_SITE_KEY, branding }));
+    const embedRaw = c.req.query('embed');
+    const styleRaw = c.req.query('style') || 'light';
+    const embed = embedRaw === '1';
+    const style: 'light' | 'dark' | 'branded' =
+        styleRaw === 'dark' || styleRaw === 'branded' ? styleRaw as 'dark' | 'branded' : 'light';
+    return c.html(PublicBookingPage({
+        siteKey: c.env.TURNSTILE_SITE_KEY,
+        ...(branding ? { branding } : {}),
+        embed,
+        style,
+    }));
 });
 
 // Public agreement signing page (no auth required — token is the secret)

@@ -2,23 +2,42 @@ import { BareLayout } from '../layouts/main-layout';
 import { AtmosphericBg } from '../components/atmospheric-bg';
 import { BrandingConfig } from '../../types/auth';
 
-export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, branding?: BrandingConfig | undefined }): JSX.Element => {
+interface PublicBookingPageProps {
+    siteKey: string;
+    branding?: BrandingConfig | undefined;
+    embed?: boolean;
+    style?: 'light' | 'dark' | 'branded';
+}
+
+export const PublicBookingPage = ({ siteKey, branding, embed, style }: PublicBookingPageProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
+    const isEmbed = embed === true;
+    const widgetStyle = style || 'light';
+    const brandColor = branding?.primaryColor || '#4f46e5';
 
     return (
         <BareLayout title={`Book Inspection | ${siteName}`} branding={branding}>
-            <div class="relative min-h-screen py-20 px-6 lg:px-8 font-sans overflow-hidden">
-                <AtmosphericBg />
+            <div
+                data-widget-embed={isEmbed ? '1' : '0'}
+                data-widget-style={widgetStyle}
+                {...(isEmbed ? { style: `--widget-brand:${brandColor}` } : {})}
+                class={isEmbed
+                    ? 'oi-widget-embed relative min-h-screen py-8 px-4 font-sans'
+                    : 'relative min-h-screen py-20 px-6 lg:px-8 font-sans overflow-hidden'}
+            >
+                {!isEmbed && <AtmosphericBg />}
 
-                <div class="max-w-3xl mx-auto animate-fade-in">
-                    <nav class="mb-16 flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-100">
-                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class={isEmbed ? 'max-w-2xl mx-auto' : 'max-w-3xl mx-auto animate-fade-in'}>
+                    {!isEmbed && (
+                        <nav class="mb-16 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-100">
+                                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <span class="text-2xl font-black text-slate-900 tracking-tightest">{siteName}</span>
                             </div>
-                            <span class="text-2xl font-black text-slate-900 tracking-tightest">{siteName}</span>
-                        </div>
-                    </nav>
+                        </nav>
+                    )}
 
                     <div class="glass-panel p-10 md:p-16 rounded-[3.5rem] shadow-2xl shadow-slate-200/50 border border-white/40">
                         <div class="mb-16">
@@ -39,7 +58,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                                         <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Site Address</label>
                                         <div class="relative group">
                                             <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur opacity-0 group-focus-within:opacity-20 transition-opacity"></div>
-                                            <input type="text" name="address" required placeholder="123 Inspection Way, City, State" 
+                                            <input type="text" name="address" required placeholder="123 Inspection Way, City, State"
                                                 class="premium-input relative w-full px-7 py-5 rounded-2xl border-0 ring-2 ring-slate-100 focus:ring-2 focus:ring-indigo-600 outline-none transition-all placeholder:text-slate-300 font-bold text-sm" />
                                         </div>
                                     </div>
@@ -77,7 +96,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                                         <label class="block text-xs font-black text-slate-900 ml-1 uppercase tracking-widest">Inspection Date</label>
                                         <div class="relative group">
                                             <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur opacity-0 group-focus-within:opacity-20 transition-opacity"></div>
-                                            <input type="date" name="date" required 
+                                            <input type="date" name="date" required
                                                 class="premium-input relative w-full px-7 py-5 rounded-2xl border-0 ring-2 ring-slate-100 focus:ring-2 focus:ring-indigo-600 outline-none transition-all font-bold text-sm" />
                                         </div>
                                     </div>
@@ -99,7 +118,7 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                                 <div class="cf-turnstile" data-sitekey={siteKey}></div>
                             </div>
 
-                            <button type="submit" id="submitBtn" 
+                            <button type="submit" id="submitBtn"
                                 class="premium-button w-full py-6 px-10 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-[0.3em] shadow-[0_20px_50px_rgba(0,0,0,0.2)] hover:bg-black transition-all active:scale-95 disabled:bg-slate-300 disabled:pointer-events-none">
                                 Submit Request
                             </button>
@@ -108,6 +127,25 @@ export const PublicBookingPage = ({ siteKey, branding }: { siteKey: string, bran
                         <div id="message" class="mt-12 p-6 rounded-2xl text-center font-black text-sm uppercase tracking-widest hidden animate-fade-in"></div>
                     </div>
                 </div>
+
+                {isEmbed && (
+                    <script dangerouslySetInnerHTML={{ __html: `
+                        (function() {
+                            function postHeight() {
+                                var h = document.documentElement.scrollHeight;
+                                window.parent.postMessage({ type: 'oi:widget:height', height: h }, '*');
+                            }
+                            window.addEventListener('load', postHeight);
+                            new ResizeObserver(postHeight).observe(document.documentElement);
+                            window.addEventListener('oi:widget:event', function(e) {
+                                window.parent.postMessage({ type: 'oi:widget:event', event: e.detail.event, metadata: e.detail.metadata || {} }, '*');
+                            });
+                            setTimeout(function() {
+                                window.dispatchEvent(new CustomEvent('oi:widget:event', { detail: { event: 'view' } }));
+                            }, 50);
+                        })();
+                    ` }} />
+                )}
             </div>
             <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
             <script src="/js/booking.js"></script>
