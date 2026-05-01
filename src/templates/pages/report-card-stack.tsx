@@ -117,7 +117,7 @@ export function ReportCardStackPage(props: ReportPageProps) {
             Hidden in @media print so it doesn't appear in the output. */}
         <button
             type="button"
-            onclick="window.print()"
+            {...{ 'x-on:click': 'window.print()' }}
             class="no-print fixed bottom-6 right-6 z-50 px-5 py-3 rounded-full bg-slate-900 text-white text-xs font-bold uppercase tracking-widest shadow-2xl hover:bg-indigo-600 transition-all flex items-center gap-2"
             aria-label="Download PDF (opens browser print dialog)"
         >
