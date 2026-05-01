@@ -192,3 +192,49 @@ details[open] > summary > .details-chevron { transform: rotate(180deg); }
     .grid { display: flex !important; flex-wrap: wrap; gap: 1rem; }
     .grid > div { flex: 1 1 calc(50% - 1rem); }
 }
+
+/* ============================================================
+   B2 Embeddable Widget — style presets applied to /book?embed=1
+   The page's outermost wrapper has `[data-widget-embed="1"][data-widget-style="..."]`.
+   `--widget-brand` is set inline from tenant primaryColor when style="branded".
+   ============================================================ */
+
+[data-widget-embed="1"] {
+    background: var(--widget-bg, #ffffff);
+    color: var(--widget-text, #0f172a);
+}
+
+[data-widget-embed="1"] .glass-panel {
+    background: var(--widget-card, #ffffff) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 4px 24px var(--widget-shadow, rgba(15, 23, 42, 0.06)) !important;
+    border: 1px solid var(--widget-border, #e2e8f0) !important;
+}
+
+[data-widget-embed="1"] input,
+[data-widget-embed="1"] select,
+[data-widget-embed="1"] textarea {
+    background: var(--widget-input-bg, #f8fafc) !important;
+    color: var(--widget-text, #0f172a) !important;
+}
+
+[data-widget-embed="1"] button[type="submit"],
+[data-widget-embed="1"] .premium-button {
+    background: var(--widget-accent, #4f46e5) !important;
+    color: #ffffff !important;
+}
+
+[data-widget-embed="1"][data-widget-style="dark"] {
+    --widget-bg: #0f172a;
+    --widget-text: #f8fafc;
+    --widget-card: #1e293b;
+    --widget-border: rgba(255, 255, 255, 0.08);
+    --widget-shadow: rgba(0, 0, 0, 0.4);
+    --widget-input-bg: #0f172a;
+    --widget-accent: #6366f1;
+}
+
+[data-widget-embed="1"][data-widget-style="branded"] {
+    --widget-accent: var(--widget-brand, #4f46e5);
+}
