@@ -113,6 +113,20 @@ export function ReportCardStackPage(props: ReportPageProps) {
           </div>
         </template>
 
+        {/* Download PDF — Stage 1 PDF export via browser print dialog.
+            Hidden in @media print so it doesn't appear in the output. */}
+        <button
+            type="button"
+            onclick="window.print()"
+            class="no-print fixed bottom-6 right-6 z-50 px-5 py-3 rounded-full bg-slate-900 text-white text-xs font-bold uppercase tracking-widest shadow-2xl hover:bg-indigo-600 transition-all flex items-center gap-2"
+            aria-label="Download PDF (opens browser print dialog)"
+        >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+            </svg>
+            Download PDF
+        </button>
+
         {/* Main content — blurred when agreement gate is active */}
         <div {...{':class': "agreementGate && !agreementLoading ? 'blur-sm pointer-events-none select-none' : ''"}}>
 

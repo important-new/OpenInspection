@@ -327,4 +327,11 @@ test.describe.serial('Standalone Browser Tests', () => {
             }
         }
     });
+
+    test('UI-PDF: Public /report page exposes Download PDF button', async ({ page }) => {
+        if (!createdInspectionId) test.skip();
+        await page.goto(`${BASE_URL}/report/${createdInspectionId}`, { timeout: NAV_TIMEOUT });
+        const btn = page.locator('button[aria-label*="Download PDF"]');
+        await expect(btn).toBeVisible();
+    });
 });
