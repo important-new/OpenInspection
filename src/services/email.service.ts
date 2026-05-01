@@ -104,6 +104,34 @@ export class EmailService {
     }
 
     /**
+     * Sends an inspection report email with the PDF attached.
+     * Falls back to caller responsibility if pdfBytes is null/empty —
+     * use sendReportReady for the no-attachment variant.
+     */
+    async sendInspectionReportPdf(
+        to: string,
+        address: string,
+        reportUrl: string,
+        pdfBytes: ArrayBuffer,
+    ) {
+        const safeAddress = address.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+        await this.sendEmail(
+            [to],
+            `Property Inspection Report: ${address}`,
+            `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                <h1 style="color: #4f46e5;">Your Inspection Report</h1>
+                <p>The inspection for <strong>${address}</strong> is complete. The full report is attached as a PDF and also available online.</p>
+                <div style="margin: 32px 0;">
+                    <a href="${reportUrl}" style="background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Interactive Report</a>
+                </div>
+                <p style="font-size: 14px; color: #666;">PDF attachment: <strong>${safeAddress}-report.pdf</strong></p>
+                <p style="font-size: 12px; color: #999;">Online link: ${reportUrl}</p>
+            </div>`,
+            [{ filename: `${safeAddress}-report.pdf`, content: pdfBytes }],
+        );
+    }
+
+    /**
      * Sends an agreement signing request email to a client.
      */
     async sendAgreementRequest(to: string, clientName: string | null, agreementName: string, signUrl: string) {
