@@ -68,3 +68,20 @@ export const auditLogs = sqliteTable('audit_logs', {
     index('idx_audit_tenant_created').on(t.tenantId, t.createdAt),
     index('idx_audit_entity').on(t.entityType, t.entityId),
 ]);
+
+export const notifications = sqliteTable('notifications', {
+    id:          text('id').primaryKey().notNull(),
+    tenantId:    text('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+    userId:      text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    type:        text('type').notNull(),
+    title:       text('title').notNull(),
+    body:        text('body'),
+    entityType:  text('entity_type'),
+    entityId:    text('entity_id'),
+    metadata:    text('metadata', { mode: 'json' }).$type<Record<string, unknown>>(),
+    readAt:      integer('read_at', { mode: 'timestamp' }),
+    archivedAt:  integer('archived_at', { mode: 'timestamp' }),
+    createdAt:   integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (t) => [
+    index('idx_notifications_tenant_user_created').on(t.tenantId, t.userId, t.createdAt),
+]);
