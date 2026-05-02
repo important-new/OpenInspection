@@ -228,6 +228,27 @@ async function validateDiscount() {
 window.toggleService = toggleService;
 window.validateDiscount = validateDiscount;
 
+// Alpine factory for the dashboard earnings panel.
+// Owner/admin only — fetch silently fails for inspectors (RBAC), and the
+// x-show predicate hides the card when there's no revenue activity.
+function dashboardEarnings() {
+    return {
+        earnings: { paid: 0, pending: 0, count: 0 },
+        formatCurrency(cents) {
+            return '$' + ((cents || 0) / 100).toFixed(2);
+        },
+        async loadEarnings() {
+            try {
+                const r = await authFetch('/api/admin/earnings-summary');
+                if (!r.ok) return;
+                const d = await r.json();
+                this.earnings = d.data || { paid: 0, pending: 0, count: 0 };
+            } catch {}
+        },
+    };
+}
+window.dashboardEarnings = dashboardEarnings;
+
 function renderTabCounts() {
     // Map tab keys to API response keys (only in_progress differs)
     const countKeyMap = { in_progress: 'inProgress' };

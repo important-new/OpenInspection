@@ -49,6 +49,22 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     ))}
                 </div>
 
+                {/* Earnings Panel — only visible when there's revenue activity */}
+                <div x-data="dashboardEarnings()" x-init="loadEarnings()" x-show="earnings.paid > 0 || earnings.pending > 0" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" style="display: none;">
+                    <div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Paid this period</div>
+                        <div class="mt-1 text-3xl font-black text-emerald-600" x-text="formatCurrency(earnings.paid)"></div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pending</div>
+                        <div class="mt-1 text-3xl font-black text-amber-600" x-text="formatCurrency(earnings.pending)"></div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Paid invoices</div>
+                        <div class="mt-1 text-3xl font-black text-slate-900" x-text="earnings.count"></div>
+                    </div>
+                </div>
+
                 {/* Inspections Table Container */}
                 <div class="glass-panel relative overflow-hidden rounded-[3rem] min-h-[500px] animate-fade-in shadow-2xl shadow-slate-200/50" style="animation-delay: 0.3s">
                     <div class="px-10 py-8 border-b border-slate-100/50 flex flex-col sm:flex-row items-center justify-between gap-6">
