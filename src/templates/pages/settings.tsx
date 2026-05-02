@@ -289,6 +289,29 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         </div>
                     </details>
 
+                    {/* ── Payments (Stripe Connect) ── */}
+                    <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-4" x-data="stripeConnectPanel()" x-init="load()">
+                        <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                            Payments (Stripe Connect)
+                            <span x-show="connected" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>
+                            <span x-show="!connected" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Not connected</span>
+                        </h3>
+                        <p class="text-xs text-slate-500">
+                            Accept card payments on invoices. Create your Stripe Express account at
+                            <a href="https://dashboard.stripe.com/connect/express" target="_blank" rel="noopener" class="text-indigo-600 hover:underline">dashboard.stripe.com/connect/express</a>,
+                            then paste the account ID (starts with <code>acct_</code>) below.
+                        </p>
+                        <div x-show="!connected">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Stripe account ID</label>
+                            <input type="text" x-model="accountInput" placeholder="acct_1AbCdEfGhIjKlMnO" class="w-full px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm" />
+                            <button type="button" x-on:click="save()" x-bind:disabled="saving" class="mt-3 px-5 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-black disabled:opacity-50">Connect Account</button>
+                        </div>
+                        <div x-show="connected" class="text-sm text-slate-600 space-y-2">
+                            <div>Connected account: <code class="font-mono text-xs px-2 py-1 rounded bg-slate-100" x-text="accountId"></code></div>
+                            <button type="button" x-on:click="disconnect()" class="px-4 py-2 rounded-lg ring-2 ring-rose-200 text-rose-600 text-xs font-bold uppercase tracking-widest hover:bg-rose-50">Disconnect</button>
+                        </div>
+                    </section>
+
                     {/* ── Apple Calendar / ICS Subscription ── */}
                     <section class="glass-panel p-10 md:p-12 rounded-[3.5rem] shadow-xl shadow-slate-100/50 space-y-8">
                         <div class="flex items-center gap-5 pb-6 border-b border-slate-100/50">
