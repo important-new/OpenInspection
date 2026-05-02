@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { invoices } from '../lib/db/schema/invoice';
 import { Errors } from '../lib/errors';
 import { safeISODate } from '../lib/date';
@@ -82,5 +82,24 @@ export class InvoiceService {
         const existing = await db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId))).get();
         if (!existing) throw Errors.NotFound('Invoice not found');
         await db.delete(invoices).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
+    }
+
+    /**
+     * Returns aggregated earnings for a tenant.
+     * paid: sum of paid invoice amounts (cents).
+     * pending: sum of sent-but-unpaid invoice amounts.
+     * count: number of paid invoices.
+     */
+    async getEarningsSummary(tenantId: string): Promise<{ paid: number; pending: number; count: number }> {
+        const db = this.getDrizzle();
+        const row = await db.select({
+            paid:    sql<number>`coalesce(sum(case when ${invoices.paidAt} is not null then ${invoices.amountCents} else 0 end), 0)`,
+            pending: sql<number>`coalesce(sum(case when ${invoices.sentAt} is not null and ${invoices.paidAt} is null then ${invoices.amountCents} else 0 end), 0)`,
+            count:   sql<number>`coalesce(sum(case when ${invoices.paidAt} is not null then 1 else 0 end), 0)`,
+        })
+        .from(invoices)
+        .where(eq(invoices.tenantId, tenantId))
+        .get();
+        return { paid: row?.paid ?? 0, pending: row?.pending ?? 0, count: row?.count ?? 0 };
     }
 }

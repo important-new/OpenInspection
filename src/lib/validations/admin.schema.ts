@@ -90,6 +90,14 @@ export const StripeConnectBodySchema = z.object({
 });
 
 /**
+ * Body schema for inspector-facing PUT /api/admin/stripe-connect.
+ * Validates the account ID matches Stripe's `acct_*` format.
+ */
+export const StripeConnectAccountSchema = z.object({
+    accountId: z.string().regex(/^acct_[a-zA-Z0-9]{10,}$/, 'Invalid Stripe account ID — must look like acct_xxxxx').openapi({ example: 'acct_1AbCdEfGhIjKlMnO' }),
+}).openapi('StripeConnectAccount');
+
+/**
  * Response Schemas
  */
 export const AdminExportResponseSchema = createApiResponseSchema(z.object({

@@ -25,6 +25,7 @@ import {
     EraseDataResponseSchema,
     CommentSchema,
     CommentResponseSchema,
+    StripeConnectAccountSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { templates, agreements as agreementTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
@@ -862,6 +863,105 @@ adminRoutes.openapi(setWidgetOriginsRoute, async (c) => {
     const { origins } = c.req.valid('json');
     await c.var.services.widget.setAllowedOrigins(tenantId, origins);
     return c.json({ success: true as const, data: { origins } }, 200);
+});
+
+// --- Stripe Connect (inspector-facing) ---
+
+const getStripeConnectRoute = createRoute({
+    method: 'get',
+    path: '/stripe-connect',
+    tags: ['Stripe'],
+    summary: 'Get the tenant Stripe Connect account ID',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ accountId: z.string().nullable() }) }) } },
+            description: 'Success',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(getStripeConnectRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { accountId } = await c.var.services.admin.getStripeConnect(tenantId);
+    return c.json({ success: true as const, data: { accountId } }, 200);
+});
+
+const setStripeConnectRoute = createRoute({
+    method: 'put',
+    path: '/stripe-connect',
+    tags: ['Stripe'],
+    summary: 'Set the tenant Stripe Connect account ID',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: { body: { content: { 'application/json': { schema: StripeConnectAccountSchema } } } },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ accountId: z.string() }) }) } },
+            description: 'Saved',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(setStripeConnectRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { accountId } = c.req.valid('json');
+    await c.var.services.admin.setStripeConnect(tenantId, accountId);
+    auditFromContext(c, 'config.integration.update', 'tenant_config', { metadata: { stripeConnect: 'set' } });
+    return c.json({ success: true as const, data: { accountId } }, 200);
+});
+
+const deleteStripeConnectRoute = createRoute({
+    method: 'delete',
+    path: '/stripe-connect',
+    tags: ['Stripe'],
+    summary: 'Disconnect the tenant Stripe Connect account',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ accountId: z.null() }) }) } },
+            description: 'Cleared',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(deleteStripeConnectRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    await c.var.services.admin.setStripeConnect(tenantId, null);
+    auditFromContext(c, 'config.integration.update', 'tenant_config', { metadata: { stripeConnect: 'cleared' } });
+    return c.json({ success: true as const, data: { accountId: null } }, 200);
+});
+
+// --- Earnings Summary ---
+
+const getEarningsSummaryRoute = createRoute({
+    method: 'get',
+    path: '/earnings-summary',
+    tags: ['Stripe'],
+    summary: 'Get aggregated invoice earnings (paid/pending/count)',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(true),
+                        data: z.object({
+                            paid: z.number(),
+                            pending: z.number(),
+                            count: z.number(),
+                        }),
+                    }),
+                },
+            },
+            description: 'Success',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(getEarningsSummaryRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const summary = await c.var.services.invoice.getEarningsSummary(tenantId);
+    return c.json({ success: true as const, data: summary }, 200);
 });
 
 // --- ICS Subscription Token ---

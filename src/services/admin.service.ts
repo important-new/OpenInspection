@@ -1,14 +1,15 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, inArray, desc, and as dbAnd, or as dbOr, lt as dbLt } from 'drizzle-orm';
-import { 
-    users, 
-    tenantInvites, 
-    auditLogs, 
-    agreements, 
-    inspections, 
-    inspectionResults, 
-    templates, 
-    inspectionAgreements 
+import {
+    users,
+    tenantInvites,
+    auditLogs,
+    agreements,
+    inspections,
+    inspectionResults,
+    templates,
+    inspectionAgreements,
+    tenants,
 } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 
@@ -172,6 +173,25 @@ export class AdminService {
             throw new Error('IntegrationProvider not configured or does not support Stripe Connect');
         }
         await this.integration.handleStripeConnect(subdomain, accountId);
+    }
+
+    /**
+     * Reads the tenant's Stripe Connect account ID (inspector-facing, JWT-scoped).
+     */
+    async getStripeConnect(tenantId: string): Promise<{ accountId: string | null }> {
+        const db = this.getDrizzle();
+        const row = await db.select({ id: tenants.stripeConnectAccountId })
+            .from(tenants).where(eq(tenants.id, tenantId)).get();
+        return { accountId: row?.id ?? null };
+    }
+
+    /**
+     * Sets or clears the tenant's Stripe Connect account ID directly (inspector-facing, JWT-scoped).
+     */
+    async setStripeConnect(tenantId: string, accountId: string | null): Promise<void> {
+        const db = this.getDrizzle();
+        await db.update(tenants).set({ stripeConnectAccountId: accountId })
+            .where(eq(tenants.id, tenantId));
     }
 }
 
