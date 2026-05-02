@@ -238,3 +238,34 @@ details[open] > summary > .details-chevron { transform: rotate(180deg); }
 [data-widget-embed="1"][data-widget-style="branded"] {
     --widget-accent: var(--widget-brand, #4f46e5);
 }
+
+/* ============================================================
+   P4 — Mobile P0 fixes
+   ============================================================ */
+
+/* iOS Safari auto-zooms when an input/textarea/select with font-size < 16px
+   gains focus. The whole app uses Tailwind's `text-sm` (14px) on form fields,
+   which triggers the zoom every single time an inspector taps a notes field
+   on an iPhone. Override at the mobile breakpoint only — desktop visual
+   density is preserved. */
+@media (max-width: 768px) {
+    input, textarea, select {
+        font-size: 16px !important;
+    }
+}
+
+/* Honour iPhone notch / safe area insets on the global body so sticky headers
+   and floating action buttons don't sit behind the system UI. */
+@supports (padding: max(0px)) {
+    body {
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+}
+
+/* Eliminate the 300ms tap-delay that older mobile browsers add. Modern
+   browsers are fine with `width=device-width` viewport, but `touch-action:
+   manipulation` on interactive elements is belt-and-suspenders cheap. */
+button, a, [role="button"] {
+    touch-action: manipulation;
+}
