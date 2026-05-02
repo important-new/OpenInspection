@@ -45,6 +45,7 @@ import { SettingsWidgetPage } from './templates/pages/settings-widget';
 import { MetricsPage } from './templates/pages/metrics';
 import { SettingsDataPage } from './templates/pages/settings-data';
 import { MessagesPublicPage } from './templates/pages/messages-public';
+import { NotificationsPage } from './templates/pages/notifications';
 
 
 import coreAuthRoutes from './api/auth';
@@ -519,6 +520,10 @@ app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html
 app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
 app.get('/invoices', htmlAuthGuard(['owner', 'admin']), (c) => c.html(InvoicesPage({ branding: c.get('branding') })));
 app.get('/calendar', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(CalendarPage({ branding: c.get('branding') })));
+app.get('/notifications', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
+    const b = c.get('branding');
+    return c.html(NotificationsPage(b ? { branding: b } : {}));
+});
 
 // Field Inspection Form
 app.get('/inspections/:id/form', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
