@@ -33,6 +33,32 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
         class="min-h-screen"
         style="background: #faf9f7; background-image: radial-gradient(circle, #d5d0c8 0.6px, transparent 0.6px); background-size: 20px 20px;"
       >
+        {/* P2 — AI Suggest Comment popover (shared scope with inspectionEditor) */}
+        <div x-cloak x-show="showAiPopover" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div {...{ 'x-on:click.stop': '$event' }}
+               class="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4"
+               {...{ 'x-transition:enter': 'transition ease-out duration-150', 'x-transition:enter-start': 'opacity-0 scale-95', 'x-transition:enter-end': 'opacity-100 scale-100' }}>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                <h3 class="font-bold text-slate-900">AI Suggestions</h3>
+              </div>
+              <button type="button" x-on:click="showAiPopover = false" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Close">×</button>
+            </div>
+            <p class="text-xs text-slate-500">Pick one to insert into the notes field.</p>
+            <div class="space-y-2">
+              <template x-for="(s, idx) in aiSuggestions" x-bind:key="idx">
+                <button type="button" x-on:click="insertSuggestion(s)" class="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-sm text-slate-700">
+                  <span x-text="s"></span>
+                </button>
+              </template>
+            </div>
+            <div class="flex justify-end pt-2">
+              <button type="button" x-on:click="showAiPopover = false" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100">Cancel</button>
+            </div>
+          </div>
+        </div>
+
         {/* ===== Mobile View ===== */}
         <div x-show="!isDesktop" class="lg:hidden">
           {/* Sticky Header */}
@@ -154,6 +180,13 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                     <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                       Library
+                    </button>
+                    <button type="button"
+                      x-on:click="suggestComment(item.label, section.title, document.getElementById('notes-mob-' + item.id), $event)"
+                      class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                      style="background: #fef3c7; color: #b45309">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                      Suggest
                     </button>
                   </div>
                   {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
@@ -517,6 +550,13 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                       <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                         Library
+                      </button>
+                      <button type="button"
+                        x-on:click="suggestComment(item.label, section.title, document.getElementById('notes-dsk-' + item.id), $event)"
+                        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                        style="background: #fef3c7; color: #b45309">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                        Suggest
                       </button>
                     </div>
                     {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
