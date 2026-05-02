@@ -348,4 +348,15 @@ test.describe.serial('Standalone Browser Tests', () => {
         const styleAttr = await wrapper.getAttribute('data-widget-style');
         expect(styleAttr).toBe('dark');
     });
+
+    test('UI-NOTIFY: /notifications page renders + dashboard sidebar carries bell badge', async ({ page }) => {
+        // 1. Dashboard sidebar contains the unread badge element
+        await gotoAuth(page, '/dashboard', adminToken);
+        await expect(page.locator('#notifyUnreadBadge')).toBeAttached();
+
+        // 2. /notifications page renders for an authenticated admin
+        await gotoAuth(page, '/notifications', adminToken);
+        await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
+        await expect(page.locator('button:has-text("Mark all read")')).toBeVisible();
+    });
 });
