@@ -93,9 +93,15 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                         </div>
                         <span class="text-lg font-extrabold text-slate-900 tracking-tight">{siteName}</span>
                     </div>
-                    <button x-on:click="mobileMenu = true" class="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-indigo-600 transition-colors" aria-label="Open menu">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                    </button>
+                    <div class="flex items-center gap-1">
+                        <a href="/notifications" class="relative flex items-center justify-center w-10 h-10 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-indigo-600 transition-all" aria-label="Notifications">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                            <span id="notifyUnreadBadgeMobile" class="hidden absolute -top-0.5 -right-0.5 px-1.5 min-w-[1.25rem] h-5 text-center rounded-full bg-rose-500 text-white text-[10px] font-bold leading-5"></span>
+                        </a>
+                        <button x-on:click="mobileMenu = true" class="p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-indigo-600 transition-colors" aria-label="Open menu">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        </button>
+                    </div>
                 </div>
 
                 {/* Mobile Menu Overlay */}
@@ -178,6 +184,10 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                                 <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
                             </div>
                             <span class="text-xl font-extrabold text-slate-900 tracking-tight leading-tight">{siteName}</span>
+                            <a href="/notifications" class="ml-auto relative flex items-center justify-center w-10 h-10 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-indigo-600 transition-all" aria-label="Notifications">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                                <span id="notifyUnreadBadge" class="hidden absolute -top-0.5 -right-0.5 px-1.5 min-w-[1.25rem] h-5 text-center rounded-full bg-rose-500 text-white text-[10px] font-bold leading-5"></span>
+                            </a>
                         </div>
 
                         <nav class="flex-1 p-6 space-y-2 overflow-y-auto">
@@ -292,6 +302,30 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                         if (typeof authFetch !== 'undefined') {
                             document.addEventListener('DOMContentLoaded', pollUnread);
                             setInterval(pollUnread, 60000);
+                        }
+                    })();
+                ` }} />
+                {/* B3 — notifications inbox unread badge polling */}
+                <script dangerouslySetInnerHTML={{ __html: `
+                    (function() {
+                        async function pollNotify() {
+                            try {
+                                const r = await authFetch('/api/notifications/unread-count');
+                                if (!r.ok) return;
+                                const d = await r.json();
+                                const count = d.data?.count || 0;
+                                const display = count > 99 ? '99+' : String(count);
+                                ['notifyUnreadBadge', 'notifyUnreadBadgeMobile'].forEach(function(id) {
+                                    const el = document.getElementById(id);
+                                    if (!el) return;
+                                    if (count > 0) { el.textContent = display; el.classList.remove('hidden'); }
+                                    else { el.classList.add('hidden'); }
+                                });
+                            } catch {}
+                        }
+                        if (typeof authFetch !== 'undefined') {
+                            document.addEventListener('DOMContentLoaded', pollNotify);
+                            setInterval(pollNotify, 60000);
                         }
                     })();
                 ` }} />
