@@ -935,6 +935,17 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
         c.executionCtx.waitUntil(deliver());
     }
 
+    // B3: in-app notification for report ready
+    c.executionCtx.waitUntil(
+        c.var.services.notification.createForAllAdmins(tenantId, {
+            type: 'report.published',
+            title: `Report ready — ${inspection.propertyAddress ?? 'inspection'}`,
+            entityType: 'inspection',
+            entityId: inspection.id,
+            metadata: { clientEmail: inspection.clientEmail ?? null },
+        })
+    );
+
     auditFromContext(c, 'inspection.complete', 'inspection', {
         entityId: id,
         metadata: { propertyAddress: inspection.propertyAddress },

@@ -3,6 +3,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { customerMessages, inspections } from '../lib/db/schema';
 import type { MessageAttachment } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
+import type { NotificationService } from './notification.service';
 
 interface CreateMessageInput {
     tenantId: string;
@@ -14,7 +15,7 @@ interface CreateMessageInput {
 }
 
 export class MessageService {
-    constructor(private d1: D1Database) {}
+    constructor(private d1: D1Database, private notification?: NotificationService) {}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private db() { return drizzle(this.d1 as any); }
 
@@ -34,6 +35,29 @@ export class MessageService {
         });
         const [row] = await this.db().select().from(customerMessages).where(eq(customerMessages.id, id)).limit(1);
         if (!row) throw Errors.Internal('Failed to create message');
+
+        // B3: in-app notification — when a client posts, alert the inspector
+        // who owns this inspection. Inspector-originated messages don't fire
+        // (the client receives them via email separately).
+        if (this.notification && input.fromRole === 'client') {
+            const insp = await this.db().select({ inspectorId: inspections.inspectorId, address: inspections.propertyAddress })
+                .from(inspections)
+                .where(and(eq(inspections.id, input.inspectionId), eq(inspections.tenantId, input.tenantId)))
+                .get();
+            if (insp?.inspectorId) {
+                await this.notification.create({
+                    tenantId: input.tenantId,
+                    userId: insp.inspectorId,
+                    type: 'message.received',
+                    title: `New message from ${input.fromName ?? 'client'}`,
+                    body: input.body.length > 120 ? input.body.slice(0, 117) + '...' : input.body,
+                    entityType: 'inspection',
+                    entityId: input.inspectionId,
+                    metadata: { address: insp.address ?? null },
+                });
+            }
+        }
+
         return row;
     }
 

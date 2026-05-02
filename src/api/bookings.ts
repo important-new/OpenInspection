@@ -201,6 +201,18 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         );
     }
 
+    // B3: in-app notification for the inspector workspace
+    c.executionCtx.waitUntil(
+        c.var.services.notification.createForAllAdmins(tenantId, {
+            type: 'booking.received',
+            title: `New booking — ${body.address ?? 'no address'}`,
+            body: body.clientName ? `From ${body.clientName}` : null,
+            entityType: 'inspection',
+            entityId: inspectionId,
+            metadata: { source: isWidgetSubmit ? 'widget' : 'public_form' },
+        })
+    );
+
     return c.json({
         success: true,
         data: { success: true, inspectionId }
@@ -286,7 +298,29 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
     const { token } = c.req.valid('param');
     const { signatureBase64 } = c.req.valid('json');
     const svc = c.var.services.agreement;
-    await svc.signRequest(token, signatureBase64);
+    const signed = await svc.signRequest(token, signatureBase64);
+
+    // B3: in-app notification — fetch agreement name for richer title
+    c.executionCtx.waitUntil((async () => {
+        try {
+            const agreement = await svc.getAgreementByToken(token);
+            await c.var.services.notification.createForAllAdmins(signed.tenantId, {
+                type: 'agreement.signed',
+                title: `Agreement signed — ${agreement.agreement.name}`,
+                body: signed.clientName ? `By ${signed.clientName}` : null,
+                entityType: 'agreement',
+                entityId: signed.id,
+                metadata: {
+                    agreementId: signed.agreementId,
+                    inspectionId: signed.inspectionId ?? null,
+                    clientEmail: signed.clientEmail,
+                },
+            });
+        } catch (e) {
+            logger.error('agreement.signed notification failed', {}, e instanceof Error ? e : undefined);
+        }
+    })());
+
     return c.json({ success: true as const }, 200);
 });
 

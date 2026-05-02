@@ -109,7 +109,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.marketplace = new MarketplaceService(c.env.DB, c.get('tenantId'));
                     break;
                 case 'message':
-                    target.message = new MessageService(c.env.DB);
+                    target.message = new MessageService(c.env.DB, new NotificationService(c.env.DB));
                     break;
                 case 'widget':
                     target.widget = new WidgetService(c.env.DB);
