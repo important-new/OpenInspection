@@ -65,6 +65,7 @@ import { ServiceService } from '../services/service.service';
 import { AutomationService } from '../services/automation.service';
 import { MarketplaceService } from '../services/marketplace.service';
 import { MessageService } from '../services/message.service';
+import { NotificationService } from '../services/notification.service';
 import { WidgetService } from '../services/widget.service';
 import { AuthVariables } from './auth';
 
@@ -90,6 +91,7 @@ export interface AppServices {
     automation: AutomationService;
     marketplace: MarketplaceService;
     message: MessageService;
+    notification: NotificationService;
     widget: WidgetService;
 }
 
