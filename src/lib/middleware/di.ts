@@ -100,7 +100,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.service = new ServiceService(c.env.DB);
                     break;
                 case 'automation':
-                    target.automation = new AutomationService(c.env.DB);
+                    target.automation = new AutomationService(
+                        c.env.DB,
+                        new NotificationService(c.env.DB),
+                    );
                     break;
                 case 'marketplace':
                     target.marketplace = new MarketplaceService(c.env.DB, c.get('tenantId'));

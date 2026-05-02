@@ -5,6 +5,7 @@ import { AUTOMATION_SEEDS } from '../data/automation-seeds';
 import { nanoid } from 'nanoid';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
+import type { NotificationService } from './notification.service';
 
 function interpolate(template: string, vars: Record<string, string>): string {
     return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
@@ -19,7 +20,7 @@ interface TriggerContext {
 }
 
 export class AutomationService {
-    constructor(private db: D1Database) {}
+    constructor(private db: D1Database, private notification?: NotificationService) {}
 
     private getDrizzle() { return drizzle(this.db as any); }
 
@@ -123,6 +124,15 @@ export class AutomationService {
         });
 
         if (logs.length > 0) await db.insert(automationLogs).values(logs);
+        if (logs.length > 0 && this.notification) {
+            await this.notification.createForAllAdmins(ctx.tenantId, {
+                type: ctx.triggerEvent,
+                title: this.titleFor(ctx.triggerEvent, insp),
+                entityType: 'inspection',
+                entityId: ctx.inspectionId,
+                metadata: { fromAutomation: true, rules: rules.length },
+            });
+        }
         logger.info('AutomationService: enqueued', { event: ctx.triggerEvent, count: logs.length });
     }
 
@@ -195,5 +205,18 @@ export class AutomationService {
         return db.select().from(automationLogs)
             .where(and(eq(automationLogs.tenantId, tenantId), eq(automationLogs.inspectionId, inspectionId)))
             .orderBy(sql`${automationLogs.sendAt} desc`);
+    }
+
+    private titleFor(event: string, insp: typeof inspections.$inferSelect): string {
+        const addr = insp.propertyAddress || 'inspection';
+        switch (event) {
+            case 'inspection.created':   return `New inspection scheduled — ${addr}`;
+            case 'inspection.confirmed': return `Inspection confirmed — ${addr}`;
+            case 'inspection.cancelled': return `Inspection cancelled — ${addr}`;
+            case 'report.published':     return `Report published — ${addr}`;
+            case 'invoice.created':      return `Invoice created — ${addr}`;
+            case 'payment.received':     return `Payment received — ${addr}`;
+            default:                     return `${event} — ${addr}`;
+        }
     }
 }
