@@ -69,6 +69,7 @@ import icsRoutes from './api/ics';
 import userRoutes from './api/users';
 import messageRoutes from './api/messages';
 import widgetRoutes from './api/widget';
+import notificationsRoutes from './api/notifications';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -313,6 +314,7 @@ app.route('/api/integration', integrationRoutes);
 app.route('/api/ics', icsRoutes);
 app.route('/api/users', userRoutes);
 app.route('/api/messages', messageRoutes);
+app.route('/api/notifications', notificationsRoutes);
 
 // OpenAPI Documentation
 app.doc('/doc', {
