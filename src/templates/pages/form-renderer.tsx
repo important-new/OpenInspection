@@ -134,6 +134,23 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                                                     </button>
                                                 </div>
 
+                                                {/* Recommendations */}
+                                                <div class="mt-4 mb-8">
+                                                    <div class="flex items-center justify-between mb-2">
+                                                        <label class="text-xs font-bold text-slate-600 uppercase tracking-wider">Recommendations</label>
+                                                        <button type="button" x-on:click="openRecommendationPickerFor(item.id, section.title)" class="text-xs text-indigo-600 font-semibold hover:underline">+ Add</button>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-2">
+                                                        <template x-for="(rec, ridx) in recommendationsList(item.id)" {...{ 'x-bind:key': "rec.recommendationId + '_' + ridx" }}>
+                                                            <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-full text-xs">
+                                                                <span class="font-semibold text-indigo-900" x-text="recommendationLabel(rec)"></span>
+                                                                <button type="button" x-on:click="removeRecommendation(item.id, ridx)" class="text-indigo-400 hover:text-indigo-700 font-bold">&times;</button>
+                                                            </div>
+                                                        </template>
+                                                        <p x-show="recommendationsList(item.id).length === 0" class="text-xs text-slate-400 italic">No recommendations attached</p>
+                                                    </div>
+                                                </div>
+
                                                 {/* Multimedia Evidence Architecture */}
                                                 <div class="space-y-6">
                                                     <div class="flex items-center gap-4">
@@ -324,8 +341,53 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                     </div>
                 </div>
                 
+                {/* Recommendation Picker Overlay */}
+                <div x-data="recommendationPicker" x-cloak x-show="open" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" {...{ 'x-on:click': 'if ($event.target === $el) close()' }}>
+                    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[80vh] flex flex-col">
+                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <h2 class="text-lg font-bold text-slate-900">Attach recommendation</h2>
+                            <button x-on:click="close()" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+                        </div>
+                        <div class="p-5 space-y-3 border-b border-slate-100">
+                            <input type="text" x-model="search" x-on:input="applyFilter()" placeholder="Search recommendations..." class="w-full px-4 py-2 rounded-lg border border-slate-200 text-sm" />
+                            <div class="flex gap-3 flex-wrap">
+                                <select x-model="categoryFilter" x-on:change="applyFilter()" class="px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                                    <option value="">All categories</option>
+                                    <template x-for="cat in [...new Set(allItems.map(r => r.category).filter(Boolean))].sort()" {...{ 'x-bind:key': 'cat' }}>
+                                        <option x-bind:value="cat" x-text="cat"></option>
+                                    </template>
+                                </select>
+                                <select x-model="severityFilter" x-on:change="applyFilter()" class="px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                                    <option value="">All severities</option>
+                                    <option value="satisfactory">Satisfactory</option>
+                                    <option value="monitor">Monitor</option>
+                                    <option value="defect">Defect</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="p-5 flex-1 overflow-y-auto">
+                            <p x-show="loading" class="text-sm text-slate-400 italic">Loading library...</p>
+                            <p x-show="!loading && results.length === 0" class="text-sm text-slate-400 italic">No matching recommendations.</p>
+                            <div class="space-y-2">
+                                <template x-for="rec in results" {...{ 'x-bind:key': 'rec.id' }}>
+                                    <button type="button" x-on:click="attach(rec)" class="block w-full text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" x-bind:class="severityClass(rec.severity)" x-text="rec.severity"></span>
+                                            <span class="text-xs text-slate-500" x-text="rec.category || '(no category)'"></span>
+                                            <span class="text-xs font-bold text-slate-700 ml-auto" x-text="estimateLabel(rec)"></span>
+                                        </div>
+                                        <p class="font-bold text-slate-900" x-text="rec.name"></p>
+                                        <p class="text-xs text-slate-500 mt-1 line-clamp-2" x-text="rec.defaultRepairSummary"></p>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <script src="/js/modal-dialog.js"></script>
                 {/* template-drift-banner is loaded by main-layout — don't double-load */}
+                <script src="/js/recommendation-picker.js"></script>
                 <script type="module" src="/js/form-renderer.js"></script>
             </div>
         </BareLayout>

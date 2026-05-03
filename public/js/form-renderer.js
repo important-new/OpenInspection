@@ -89,7 +89,7 @@ document.addEventListener('alpine:init', () => {
 
         this.templateSchema.sections.forEach(s => {
           s.items.forEach(i => {
-            this.results[i.id] = { status: null, notes: '', photos: [] };
+            this.results[i.id] = { status: null, notes: '', photos: [], recommendations: [] };
             this.uploading[i.id] = false;
           });
         });
@@ -187,6 +187,53 @@ document.addEventListener('alpine:init', () => {
 
     removePhoto(itemId, index) {
       this.results[itemId].photos.splice(index, 1);
+      this.results[itemId].updatedAt = Date.now();
+      this.saveLocally();
+    },
+
+    recommendationsList(itemId) {
+      const arr = this.results[itemId]?.recommendations;
+      return Array.isArray(arr) ? arr : [];
+    },
+
+    recommendationLabel(rec) {
+      const min = rec.estimateSnapshotMin;
+      const max = rec.estimateSnapshotMax;
+      let est = '';
+      if (min != null || max != null) {
+        if (min === max && min != null) est = ` ($${(min / 100).toFixed(0)})`;
+        else if (min != null && max != null) est = ` ($${(min / 100).toFixed(0)}-${(max / 100).toFixed(0)})`;
+        else if (max != null) est = ` (≤$${(max / 100).toFixed(0)})`;
+        else est = ` (≥$${(min / 100).toFixed(0)})`;
+      }
+      const snippet = (rec.summarySnapshot || '').slice(0, 40);
+      return snippet + (snippet.length === 40 ? '...' : '') + est;
+    },
+
+    openRecommendationPickerFor(itemId, sectionTitle) {
+      if (typeof window.openRecommendationPicker !== 'function') {
+        console.warn('Recommendation picker not loaded');
+        return;
+      }
+      window.openRecommendationPicker(itemId, sectionTitle, (snapshot) => {
+        this.attachRecommendation(itemId, snapshot);
+      });
+    },
+
+    attachRecommendation(itemId, snapshot) {
+      if (!this.results[itemId]) this.results[itemId] = { status: '', notes: '', photos: [], recommendations: [] };
+      if (!Array.isArray(this.results[itemId].recommendations)) {
+        this.results[itemId].recommendations = [];
+      }
+      this.results[itemId].recommendations.push(snapshot);
+      this.results[itemId].updatedAt = Date.now();
+      this.saveLocally();
+    },
+
+    removeRecommendation(itemId, ridx) {
+      const arr = this.results[itemId]?.recommendations;
+      if (!Array.isArray(arr)) return;
+      arr.splice(ridx, 1);
       this.results[itemId].updatedAt = Date.now();
       this.saveLocally();
     },
