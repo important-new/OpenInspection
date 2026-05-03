@@ -3,6 +3,7 @@
 // file don't need to change; under the hood it writes `photo.upload` rows
 // that the sync engine drains.
 import { db as offlineDb, openDb as openOfflineDb } from './db.js';
+import { drainQueue } from './sync-engine.js';
 
 const pendingPhotoDb = {
     async open() { await openOfflineDb(); return offlineDb; },
@@ -47,6 +48,7 @@ document.addEventListener('alpine:init', () => {
     uploading: {},
     isDelivered: false,
     scrolled: false,
+    _lastSyncedAt: 0,
 
     // Annotation State
     showAnnotationModal: false,
@@ -116,6 +118,12 @@ document.addEventListener('alpine:init', () => {
 
     setItemStatus(itemId, status) {
       this.results[itemId].status = status;
+      this.results[itemId].updatedAt = Date.now();
+      this.saveLocally();
+    },
+
+    noteChanged(itemId) {
+      if (this.results[itemId]) this.results[itemId].updatedAt = Date.now();
       this.saveLocally();
     },
 
@@ -130,6 +138,7 @@ document.addEventListener('alpine:init', () => {
         const dataUrl = await fileToDataUrl(file);
         await pendingPhotoDb.add({ id: localId, inspectionId: this.inspectionId, itemId, blob: file, type: 'upload' });
         this.results[itemId].photos.push({ key: localId, pending: true, dataUrl });
+        this.results[itemId].updatedAt = Date.now();
         this.saveLocally();
         event.target.value = '';
         return;
@@ -144,6 +153,7 @@ document.addEventListener('alpine:init', () => {
         if (res.ok) {
           const { key } = await res.json();
           this.results[itemId].photos.push({ key });
+          this.results[itemId].updatedAt = Date.now();
           this.saveLocally();
         } else {
           modalAlert('Failed to upload photo', 'Error');
@@ -158,6 +168,7 @@ document.addEventListener('alpine:init', () => {
 
     removePhoto(itemId, index) {
       this.results[itemId].photos.splice(index, 1);
+      this.results[itemId].updatedAt = Date.now();
       this.saveLocally();
     },
 
@@ -275,6 +286,7 @@ document.addEventListener('alpine:init', () => {
             type: 'annotation',
           });
           this.results[this.annotationTarget.itemId].photos[this.annotationTarget.index] = { key: localId, pending: true, dataUrl };
+          this.results[this.annotationTarget.itemId].updatedAt = Date.now();
           this.saveLocally();
           this.showAnnotationModal = false;
           return;
@@ -287,6 +299,7 @@ document.addEventListener('alpine:init', () => {
         if (res.ok) {
           const { key } = await res.json();
           this.results[this.annotationTarget.itemId].photos[this.annotationTarget.index].key = key;
+          this.results[this.annotationTarget.itemId].updatedAt = Date.now();
           this.saveLocally();
           this.showAnnotationModal = false;
         } else {
@@ -339,29 +352,34 @@ document.addEventListener('alpine:init', () => {
     },
 
     async saveLocally() {
-      localStorage.setItem(`inspection_${this.inspectionId}`, JSON.stringify(this.results));
-      if (this.online) { this.syncData(); }
+      await openOfflineDb();
+      const now = Date.now();
+      await offlineDb.results.put({
+        inspectionId: this.inspectionId,
+        data: this.results,
+        updatedAt: now,
+        syncedAt: this._lastSyncedAt || 0,
+      });
+      const baseRow = await offlineDb.bases.get(this.inspectionId);
+      const base = baseRow?.data || {};
+      await offlineDb.syncQueue.put({
+        id: `merge:${this.inspectionId}`, // upsert key — multiple edits collapse to one queued merge
+        op: 'results.merge',
+        payload: { inspectionId: this.inspectionId, baseSyncedAt: this._lastSyncedAt || 0, base, ours: this.results },
+        attempts: 0, createdAt: now,
+      });
+      if (this.online) { drainQueue(); }
     },
 
     async getLocalData() {
-      const data = localStorage.getItem(`inspection_${this.inspectionId}`);
-      return data ? JSON.parse(data) : null;
+      await openOfflineDb();
+      const r = await offlineDb.results.get(this.inspectionId);
+      if (r?.syncedAt) this._lastSyncedAt = r.syncedAt;
+      return r?.data || null;
     },
 
     async syncData() {
-      if (this.syncing || !this.online) return;
-      this.syncing = true;
-      try {
-        await fetch(`/api/inspections/${this.inspectionId}/results`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: this.results })
-        });
-      } catch (e) {
-        console.error('Sync failed', e);
-      } finally {
-        this.syncing = false;
-      }
+      await drainQueue();
     },
 
     async finishInspection() {
@@ -395,6 +413,7 @@ document.addEventListener('alpine:init', () => {
         const data = await res.json();
         if (data.text) {
           this.results[itemId].notes = data.text;
+          this.results[itemId].updatedAt = Date.now();
           this.saveLocally();
         }
       } catch (e) {

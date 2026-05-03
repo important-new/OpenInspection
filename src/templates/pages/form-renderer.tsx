@@ -114,7 +114,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                                                 <div class="relative group mb-8">
                                                     <textarea
                                                         x-model="results[item.id].notes"
-                                                        {...{ 'x-on:input.debounce.500ms': 'saveLocally' }}
+                                                        {...{ 'x-on:input.debounce.500ms': `noteChanged(item.id)` }}
                                                         placeholder="Record clinical observations..."
                                                         class="w-full bg-slate-50/50 border-2 border-transparent rounded-[1.5rem] p-6 text-sm font-medium focus:bg-white focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 outline-none min-h-[140px] transition-all placeholder:text-slate-300 leading-relaxed"
                                                     ></textarea>
