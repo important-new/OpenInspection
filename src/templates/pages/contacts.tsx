@@ -18,6 +18,13 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                             <option value="agent">Agents</option>
                             <option value="client">Clients</option>
                         </select>
+                        <button
+                            type="button"
+                            x-on:click="$dispatch('open-csv-modal')"
+                            class="px-4 py-2 rounded-lg ring-2 ring-slate-300 text-slate-700 text-xs font-bold uppercase tracking-widest hover:bg-slate-50"
+                        >
+                            Import CSV
+                        </button>
                         <button onclick="showCreateModal()" class="premium-button flex items-center gap-2 px-8 py-4 rounded-2xl bg-indigo-600 text-white font-bold shadow-xl hover:bg-slate-900 transition">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                             Add Contact
@@ -86,9 +93,77 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                     </div>
                 </div>
 
+                {/* CSV import modal — mounted at page root */}
+                <div
+                    x-data="csvImportModal"
+                    x-init="$el.addEventListener('open-csv-modal', () => show(), { once: false })"
+                    x-show="open"
+                    x-cloak
+                    class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+                    {...{ 'x-on:click': 'if ($event.target === $el) close()' }}
+                >
+                    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        <header class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                            <h2 class="text-lg font-bold text-slate-900">Import contacts from CSV</h2>
+                            <button x-on:click="close()" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+                        </header>
+
+                        {/* Step 1: Upload */}
+                        <div x-show="step === 'upload'" class="p-6 space-y-4">
+                            <p class="text-sm text-slate-600">Upload a CSV with your contacts. Spectora and ITB exports work out of the box.</p>
+                            <input type="file" accept=".csv,text/csv" x-on:change="onFileChange($event)" class="text-sm" />
+                            <p x-show="fileName" class="text-xs text-slate-500" x-text={"`Selected: ${fileName}`"}></p>
+                            <textarea x-model="csvText" rows={6} placeholder="...or paste CSV content here" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono"></textarea>
+                            <button x-on:click="preview()" {...{ 'x-bind:disabled': 'loading || !csvText.trim()' }} class="px-5 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50">
+                                <span x-text="loading ? 'Previewing...' : 'Preview'"></span>
+                            </button>
+                        </div>
+
+                        {/* Step 2: Preview */}
+                        <div x-show="step === 'preview'" class="p-6 space-y-4">
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div class="p-4 bg-emerald-50 rounded-lg">
+                                    <div class="text-3xl font-black text-emerald-700" x-text="previewResult?.imported || 0"></div>
+                                    <div class="text-xs text-emerald-700 mt-1">New contacts</div>
+                                </div>
+                                <div class="p-4 bg-amber-50 rounded-lg">
+                                    <div class="text-3xl font-black text-amber-700" x-text="previewResult?.skipped || 0"></div>
+                                    <div class="text-xs text-amber-700 mt-1">Duplicates (skipped)</div>
+                                </div>
+                                <div class="p-4 bg-rose-50 rounded-lg">
+                                    <div class="text-3xl font-black text-rose-700" x-text="previewResult?.errors?.length || 0"></div>
+                                    <div class="text-xs text-rose-700 mt-1">Errors</div>
+                                </div>
+                            </div>
+                            <div x-show="previewResult?.errors?.length > 0" class="bg-rose-50 p-3 rounded-lg text-xs text-rose-700">
+                                <div class="font-bold mb-1">Errors:</div>
+                                <ul class="space-y-1">
+                                    <template x-for="err in previewResult?.errors?.slice(0, 5)" {...{ 'x-bind:key': 'err' }}>
+                                        <li x-text="err"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                            <div class="flex gap-3 justify-end">
+                                <button x-on:click="step = 'upload'" class="px-5 py-2 rounded-lg ring-2 ring-slate-300 text-slate-700 text-xs font-bold">Back</button>
+                                <button x-on:click="confirm()" {...{ 'x-bind:disabled': 'loading || (previewResult?.imported || 0) === 0' }} class="px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50">
+                                    <span x-text="loading ? 'Importing...' : 'Confirm Import'"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Step 3: Done */}
+                        <div x-show="step === 'done'" class="p-6 text-center">
+                            <div class="text-5xl mb-3">✓</div>
+                            <p class="text-lg font-bold text-emerald-700" x-text={"`Imported ${finalResult?.imported || 0} contacts`"}></p>
+                            <button x-on:click="close()" class="mt-4 px-5 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold uppercase tracking-widest">Done</button>
+                        </div>
+                    </div>
+                </div>
+
                 <script src="/js/modal-dialog.js"></script>
                 <script src="/js/auth.js"></script>
                 <script src="/js/contacts.js"></script>
+                <script type="module" src="/js/csv-import-modal.js"></script>
             </div>
         </MainLayout>
     );
