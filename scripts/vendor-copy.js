@@ -31,6 +31,15 @@ for (const [src, dest] of jsFiles) {
   console.log(`  vendor/${dest}`);
 }
 
+// ── Dexie (offline IndexedDB ORM) ──────────────────────────────────────────────
+cpSync(join(nm, 'dexie/dist/modern/dexie.mjs'), join(vendorDir, 'dexie.mjs'));
+console.log('  vendor/dexie.mjs');
+
+// ── node-diff3 (server-side three-way merge) ───────────────────────────────────
+// Vendored to public/ for the SW only — server uses the npm package directly.
+cpSync(join(nm, 'node-diff3/index.mjs'), join(vendorDir, 'node-diff3.mjs'));
+console.log('  vendor/node-diff3.mjs');
+
 // ── Quill ──────────────────────────────────────────────────────────────────────
 // Quill 2.x ships an unminified UMD bundle as `quill.js` (no `quill.min.js`).
 const quillDir = join(vendorDir, 'quill');
