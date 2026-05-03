@@ -35,8 +35,10 @@ dataRoutes.get('/export/contacts', requireRole(['owner', 'admin']), async (c) =>
 });
 
 // POST /api/data/import/contacts — multipart/form-data or text/csv body
+// Query: ?dry_run=true — parse and count rows without writing to DB
 dataRoutes.post('/import/contacts', requireRole(['owner', 'admin']), async (c) => {
     const tenantId = c.get('tenantId');
+    const dryRun = c.req.query('dry_run') === 'true';
     const contentType = c.req.header('content-type') ?? '';
     let csvText = '';
 
@@ -53,8 +55,8 @@ dataRoutes.post('/import/contacts', requireRole(['owner', 'admin']), async (c) =
     if (csvText.length > 5 * 1024 * 1024) throw Errors.BadRequest('CSV too large (max 5MB)');
 
     const svc = new DataService(c.env.DB);
-    const result = await svc.importContactsCSV(tenantId, csvText);
-    return c.json({ success: true, data: result });
+    const result = await svc.importContactsCSV(tenantId, csvText, { dryRun });
+    return c.json({ success: true, data: result, dryRun }, 200);
 });
 
 export default dataRoutes;
