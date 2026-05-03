@@ -4,7 +4,7 @@
  */
 export const TemplateDriftBanner = () => (
     <div
-        x-data="templateDriftBanner()"
+        x-data="templateDriftBanner"
         x-show="show"
         x-cloak
         class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-4 rounded-r-lg"

@@ -4,8 +4,7 @@
  */
 export const ConflictModal = () => (
     <div
-        x-data="conflictModal()"
-        x-init="init()"
+        x-data="conflictModal"
         x-show="open"
         x-cloak
         class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"

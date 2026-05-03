@@ -1,7 +1,8 @@
 import { db, openDb } from './db.js';
 import { drainQueue } from './sync-engine.js';
 
-window.conflictModal = function conflictModal() {
+// See network-pill.js for the rationale behind alpine:init registration.
+function conflictModalFactory() {
     return {
         open: false,
         conflicts: [],
@@ -47,4 +48,12 @@ window.conflictModal = function conflictModal() {
             await drainQueue();
         },
     };
-};
+}
+
+if (window.Alpine) {
+    window.Alpine.data('conflictModal', conflictModalFactory);
+} else {
+    document.addEventListener('alpine:init', () => {
+        window.Alpine.data('conflictModal', conflictModalFactory);
+    });
+}

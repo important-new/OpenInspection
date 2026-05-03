@@ -1,4 +1,5 @@
-window.templateDriftBanner = function templateDriftBanner() {
+// See network-pill.js for the rationale behind alpine:init registration.
+function templateDriftBannerFactory() {
     return {
         show: false,
         snapshotVersion: 1,
@@ -28,4 +29,12 @@ window.templateDriftBanner = function templateDriftBanner() {
             this.show = false;
         },
     };
-};
+}
+
+if (window.Alpine) {
+    window.Alpine.data('templateDriftBanner', templateDriftBannerFactory);
+} else {
+    document.addEventListener('alpine:init', () => {
+        window.Alpine.data('templateDriftBanner', templateDriftBannerFactory);
+    });
+}

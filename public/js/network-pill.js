@@ -2,7 +2,11 @@ import { db, openDb } from './db.js';
 import { drainQueue, syncEngineState } from './sync-engine.js';
 import { detectTier } from './device-tier.js';
 
-window.networkPill = function networkPill() {
+// Register via alpine:init so this works regardless of script load order.
+// Module scripts load deferred AFTER classic scripts (i.e. after Alpine boots),
+// so window.* registration races with Alpine's x-data evaluation. Alpine.data()
+// inside an alpine:init listener is the project's standard pattern.
+function networkPillFactory() {
     return {
         online: navigator.onLine,
         engineStatus: 'idle',
@@ -51,4 +55,12 @@ window.networkPill = function networkPill() {
             this.syncNow();
         },
     };
-};
+}
+
+if (window.Alpine) {
+    window.Alpine.data('networkPill', networkPillFactory);
+} else {
+    document.addEventListener('alpine:init', () => {
+        window.Alpine.data('networkPill', networkPillFactory);
+    });
+}

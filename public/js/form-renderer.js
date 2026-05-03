@@ -107,7 +107,7 @@ document.addEventListener('alpine:init', () => {
 
         // B4 — drift detection. Compare snapshot vs master template version.
         if (this.inspection?.templateSnapshotVersion != null && this.template?.version != null) {
-          const bannerEl = document.querySelector('[x-data="templateDriftBanner()"]');
+          const bannerEl = document.querySelector('[x-data="templateDriftBanner"]');
           const banner = window.Alpine?.$data?.(bannerEl);
           banner?.check?.(this.inspectionId, this.inspection.templateSnapshotVersion, this.template.version);
         }
