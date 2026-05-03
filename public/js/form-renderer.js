@@ -1,42 +1,29 @@
-// ���� Offline photo queue ??IndexedDB store for blobs pending upload ����������
+// B4 — Offline photo queue is now backed by the unified Dexie syncQueue store.
+// `pendingPhotoDb` retains the Phase O shape so call sites elsewhere in this
+// file don't need to change; under the hood it writes `photo.upload` rows
+// that the sync engine drains.
+import { db as offlineDb, openDb as openOfflineDb } from './db.js';
+
 const pendingPhotoDb = {
-  _db: null,
-  open() {
-    if (this._db) return Promise.resolve(this._db);
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open('oi_pending_photos', 1);
-      req.onupgradeneeded = e => e.target.result.createObjectStore('queue', { keyPath: 'id' });
-      req.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
-      req.onerror = () => reject(req.error);
-    });
-  },
-  async add(record) {
-    const db = await this.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('queue', 'readwrite');
-      tx.objectStore('queue').put(record);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-  },
-  async getAll() {
-    const db = await this.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('queue', 'readonly');
-      const req = tx.objectStore('queue').getAll();
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  },
-  async remove(id) {
-    const db = await this.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('queue', 'readwrite');
-      tx.objectStore('queue').delete(id);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-  }
+    async open() { await openOfflineDb(); return offlineDb; },
+    async add(record) {
+        await openOfflineDb();
+        await offlineDb.syncQueue.add({
+            id: record.id || crypto.randomUUID(),
+            op: 'photo.upload',
+            payload: { inspectionId: record.inspectionId, itemId: record.itemId, blob: record.blob, fileName: record.fileName },
+            attempts: 0, createdAt: Date.now(),
+        });
+    },
+    async getAll() {
+        await openOfflineDb();
+        const rows = await offlineDb.syncQueue.where('op').equals('photo.upload').toArray();
+        return rows.map(r => ({ id: r.id, inspectionId: r.payload.inspectionId, itemId: r.payload.itemId, blob: r.payload.blob }));
+    },
+    async remove(id) {
+        await openOfflineDb();
+        await offlineDb.syncQueue.delete(id);
+    },
 };
 
 function fileToDataUrl(file) {
