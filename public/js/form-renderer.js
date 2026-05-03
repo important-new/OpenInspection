@@ -104,6 +104,13 @@ document.addEventListener('alpine:init', () => {
             this.results = { ...this.results, ...resultData.data };
           }
         }
+
+        // B4 — drift detection. Compare snapshot vs master template version.
+        if (this.inspection?.templateSnapshotVersion != null && this.template?.version != null) {
+          const bannerEl = document.querySelector('[x-data="templateDriftBanner()"]');
+          const banner = window.Alpine?.$data?.(bannerEl);
+          banner?.check?.(this.inspectionId, this.inspection.templateSnapshotVersion, this.template.version);
+        }
       } catch (e) {
         console.error('Failed to load inspection data', e);
       }

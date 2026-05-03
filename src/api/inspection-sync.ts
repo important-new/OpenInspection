@@ -13,7 +13,7 @@ import {
     ResultsBlobSchema,
     InspectorSignatureSchema,
 } from '../lib/validations/sync.schema';
-import { inspections, inspectionResults } from '../lib/db/schema';
+import { inspections, inspectionResults, templates } from '../lib/db/schema';
 
 const syncRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -226,6 +226,45 @@ syncRoutes.openapi(createRoute({
     }
 
     return c.json({ success: true as const, data: { savedAt: signedAt } }, 200);
+});
+
+/* ── POST /api/inspections/:id/template/upgrade ───────────────────────────── */
+syncRoutes.openapi(createRoute({
+    method: 'post',
+    path: '/{id}/template/upgrade',
+    tags: ['Inspections'],
+    summary: 'Upgrade inspection template snapshot to current master version',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: { 200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ from: z.number(), to: z.number() }) }) } }, description: 'Upgraded' } },
+}), async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId') as string;
+    const db = drizzle(c.env.DB);
+
+    const insp = await db.select().from(inspections)
+        .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId))).get();
+    if (!insp) throw Errors.NotFound('Inspection not found');
+    if (!insp.templateId) throw Errors.BadRequest('Inspection has no master template');
+
+    const tpl = await db.select().from(templates)
+        .where(and(eq(templates.id, insp.templateId), eq(templates.tenantId, tenantId))).get();
+    if (!tpl) throw Errors.NotFound('Master template not found');
+
+    const fromVersion = insp.templateSnapshotVersion ?? 1;
+    if (tpl.version <= fromVersion) {
+        return c.json({ success: true as const, data: { from: fromVersion, to: fromVersion } }, 200);
+    }
+
+    await db.update(inspections)
+        .set({ templateSnapshot: tpl.schema, templateSnapshotVersion: tpl.version })
+        .where(eq(inspections.id, id));
+
+    auditFromContext(c, 'inspection.template_upgraded', 'inspection', {
+        entityId: id, metadata: { from: fromVersion, to: tpl.version },
+    });
+
+    return c.json({ success: true as const, data: { from: fromVersion, to: tpl.version } }, 200);
 });
 
 export default syncRoutes;

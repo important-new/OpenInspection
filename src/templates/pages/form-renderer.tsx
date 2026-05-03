@@ -1,5 +1,6 @@
 import { BareLayout } from '../layouts/main-layout';
 import { AtmosphericBg } from '../components/atmospheric-bg';
+import { TemplateDriftBanner } from '../components/template-drift-banner';
 import { BrandingConfig } from '../../types/auth';
 
 export const FormRendererPage = (props: { inspectionId: string, branding?: BrandingConfig | undefined }): JSX.Element => {
@@ -53,6 +54,9 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                             </div>
                         </div>
                     </div>
+
+                    {/* B4 — Template drift banner (shown when master template has been bumped since this inspection started) */}
+                    <TemplateDriftBanner />
 
                     {/* Inspection Architecture Loop */}
                     <div class="space-y-8 animate-slide-in">
@@ -321,6 +325,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                 </div>
                 
                 <script src="/js/modal-dialog.js"></script>
+                <script type="module" src="/js/template-drift-banner.js"></script>
                 <script type="module" src="/js/form-renderer.js"></script>
             </div>
         </BareLayout>
