@@ -23,6 +23,7 @@ import {
 } from '../lib/validations/inspection.schema';
 import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
+import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
@@ -579,6 +580,61 @@ inspectionsRoutes.openapi(updateResultsRoute, async (c) => {
     const service = c.var.services.inspection;
     await service.updateResults(id, c.get('tenantId'), data);
     return c.json({ success: true, data: { success: true } }, 200);
+});
+
+/**
+ * GET /api/inspections/:id/recommendations
+ * Flattens all attached recommendations across all items + computes totals.
+ * Spec 3 report renderer will consume this to build the consolidated repair list.
+ */
+const aggregateRecommendationsRoute = createRoute({
+    method: 'get',
+    path: '/{id}/recommendations',
+    tags: ['Inspections'],
+    summary: 'Aggregate all attached recommendations + totals for repair list',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+        200: { content: { 'application/json': { schema: AggregatedRecommendationsResponseSchema } }, description: 'Aggregated recommendations' },
+    },
+});
+
+inspectionsRoutes.openapi(aggregateRecommendationsRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId') as string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = drizzle(c.env.DB as any);
+    const row = await db.select().from(inspectionResults)
+        .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId))).get();
+    const data = (row?.data as Record<string, { recommendations?: Array<Record<string, unknown>> }>) ?? {};
+
+    const items: Array<{ recommendationId: string; estimateSnapshotMin: number | null; estimateSnapshotMax: number | null; summarySnapshot: string; attachedAt: number; itemId: string }> = [];
+    let estimateMinSum = 0;
+    let estimateMaxSum = 0;
+    for (const [itemId, item] of Object.entries(data)) {
+        const recs = item?.recommendations ?? [];
+        for (const rec of recs) {
+            const r = rec as { recommendationId?: string; estimateSnapshotMin?: number | null; estimateSnapshotMax?: number | null; summarySnapshot?: string; attachedAt?: number };
+            items.push({
+                recommendationId:    r.recommendationId ?? '',
+                estimateSnapshotMin: r.estimateSnapshotMin ?? null,
+                estimateSnapshotMax: r.estimateSnapshotMax ?? null,
+                summarySnapshot:     r.summarySnapshot ?? '',
+                attachedAt:          r.attachedAt ?? 0,
+                itemId,
+            });
+            estimateMinSum += r.estimateSnapshotMin ?? 0;
+            estimateMaxSum += r.estimateSnapshotMax ?? 0;
+        }
+    }
+
+    return c.json({
+        success: true as const,
+        data: {
+            items,
+            totals: { count: items.length, estimateMinSum, estimateMaxSum },
+        },
+    }, 200);
 });
 
 /**
