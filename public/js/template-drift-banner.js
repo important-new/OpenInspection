@@ -31,10 +31,7 @@ function templateDriftBannerFactory() {
     };
 }
 
-if (window.Alpine) {
+document.addEventListener('alpine:init', () => {
     window.Alpine.data('templateDriftBanner', templateDriftBannerFactory);
-} else {
-    document.addEventListener('alpine:init', () => {
-        window.Alpine.data('templateDriftBanner', templateDriftBannerFactory);
-    });
-}
+});
+window.__b4ModuleRegistered?.();

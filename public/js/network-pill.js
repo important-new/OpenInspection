@@ -57,10 +57,7 @@ function networkPillFactory() {
     };
 }
 
-if (window.Alpine) {
+document.addEventListener('alpine:init', () => {
     window.Alpine.data('networkPill', networkPillFactory);
-} else {
-    document.addEventListener('alpine:init', () => {
-        window.Alpine.data('networkPill', networkPillFactory);
-    });
-}
+});
+window.__b4ModuleRegistered?.();

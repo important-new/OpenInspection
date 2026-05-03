@@ -325,7 +325,7 @@ export const FormRendererPage = (props: { inspectionId: string, branding?: Brand
                 </div>
                 
                 <script src="/js/modal-dialog.js"></script>
-                <script type="module" src="/js/template-drift-banner.js"></script>
+                {/* template-drift-banner is loaded by main-layout — don't double-load */}
                 <script type="module" src="/js/form-renderer.js"></script>
             </div>
         </BareLayout>

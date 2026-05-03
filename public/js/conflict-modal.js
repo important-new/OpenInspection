@@ -50,10 +50,7 @@ function conflictModalFactory() {
     };
 }
 
-if (window.Alpine) {
+document.addEventListener('alpine:init', () => {
     window.Alpine.data('conflictModal', conflictModalFactory);
-} else {
-    document.addEventListener('alpine:init', () => {
-        window.Alpine.data('conflictModal', conflictModalFactory);
-    });
-}
+});
+window.__b4ModuleRegistered?.();

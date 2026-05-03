@@ -25,8 +25,38 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
             <title>{title}</title>
             <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
             <link rel="stylesheet" href="/fonts.css" />
+            {/* B4 — defer Alpine boot until offline-first modules register their components.
+                Without this, Alpine evaluates x-data="networkPill" before our deferred
+                module scripts load (modules run AFTER classic-defer scripts) and the
+                Alpine.data() registration arrives too late to populate the scope. */}
+            <script dangerouslySetInnerHTML={{ __html: `
+                (function() {
+                    var pending = 0, started = false, alpineStart = null;
+                    window.deferLoadingAlpine = function(start) { alpineStart = start; tryStart(); };
+                    window.__b4ModuleRegistered = function() { pending--; tryStart(); };
+                    window.__b4ExpectModules = function(n) { pending += n; tryStart(); };
+                    function tryStart() {
+                        if (started || !alpineStart || pending > 0) return;
+                        started = true;
+                        alpineStart();
+                    }
+                    // Failsafe: if modules never register within 3s, start Alpine anyway.
+                    setTimeout(function() { pending = 0; tryStart(); }, 3000);
+                })();
+                window.__b4ExpectModules(3); // network-pill + conflict-modal + template-drift-banner
+            ` }} />
             <script defer src="/vendor/alpine-collapse.min.js"></script>
             <script defer src="/vendor/alpine.min.js"></script>
+            {/* B4 — Dexie importmap: must precede every type="module" script that imports 'dexie' */}
+            <script
+                type="importmap"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify({
+                    imports: { dexie: '/vendor/dexie.mjs' },
+                }) }}
+            />
+            <script type="module" src="/js/network-pill.js"></script>
+            <script type="module" src="/js/conflict-modal.js"></script>
+            <script type="module" src="/js/template-drift-banner.js"></script>
             <link rel="stylesheet" href="/styles.css" />
             <style dangerouslySetInnerHTML={{ __html: `
                 :root {
@@ -68,6 +98,8 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
             />
             <body class="bg-[#fdfdfd] text-slate-900 antialiased min-h-screen selection:bg-indigo-100 selection:text-indigo-900">
                 {children}
+                <NetworkPill />
+                <ConflictModal />
             </body>
         </html>
     );
@@ -275,16 +307,9 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                         });
                     })();
                 ` }} />
-                {/* B4 — Dexie importmap: must precede any type="module" script that imports 'dexie' */}
-                <script
-                    type="importmap"
-                    dangerouslySetInnerHTML={{ __html: JSON.stringify({
-                        imports: { dexie: '/vendor/dexie.mjs' },
-                    }) }}
-                />
+                {/* B4 module loads moved into SharedHead so BareLayout pages
+                    (form-renderer) get the offline pill / modal / banner too. */}
                 <script src="/js/toast.js"></script>
-                <script type="module" src="/js/network-pill.js"></script>
-                <script type="module" src="/js/conflict-modal.js"></script>
                 <script dangerouslySetInnerHTML={{ __html: `
                     document.getElementById('mobileLogoutBtn')?.addEventListener('click', function() {
                         document.getElementById('logoutBtn')?.click();
