@@ -58,16 +58,12 @@ function commentsAdminFactory() {
                     text: this.form.text,
                     category: this.form.category || null,
                 };
-                // API supports POST (create) and DELETE. For edit we delete + re-create.
-                if (this.editingId) {
-                    const delRes = await authFetch('/api/admin/comments/' + this.editingId, { method: 'DELETE' });
-                    if (!delRes.ok) {
-                        const err = await delRes.json().catch(() => ({}));
-                        throw new Error(err?.error?.message || 'HTTP ' + delRes.status);
-                    }
-                }
-                const res = await authFetch('/api/admin/comments', {
-                    method: 'POST',
+                const url = this.editingId
+                    ? '/api/admin/comments/' + this.editingId
+                    : '/api/admin/comments';
+                const method = this.editingId ? 'PUT' : 'POST';
+                const res = await authFetch(url, {
+                    method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body),
                 });

@@ -25,6 +25,7 @@ import {
     EraseDataResponseSchema,
     CommentSchema,
     CommentResponseSchema,
+    UpdateCommentSchema,
     StripeConnectAccountSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
@@ -819,6 +820,45 @@ adminRoutes.openapi(deleteCommentRoute, async (c) => {
     if (!existing) throw Errors.NotFound('Comment not found');
     await db.delete(comments).where(and(eq(comments.id, id), eq(comments.tenantId, tenantId)));
     return c.json({ success: true }, 200);
+});
+
+const updateCommentRoute = createRoute({
+    method: 'put',
+    path: '/comments/{id}',
+    tags: ['Comments'],
+    summary: 'Update a comment library entry',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: UpdateCommentSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ comment: CommentResponseSchema }) }) } },
+            description: 'Updated',
+        },
+        404: { description: 'Not found' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+adminRoutes.openapi(updateCommentRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { id } = c.req.valid('param');
+    const { text, category } = c.req.valid('json');
+    const db = drizzle(c.env.DB);
+    const existing = await db.select().from(comments)
+        .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId))).get();
+    if (!existing) throw Errors.NotFound('Comment not found');
+    await db.update(comments)
+        .set({ text, category: category ?? null })
+        .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId)));
+    const updated = { ...existing, text, category: category ?? null };
+    auditFromContext(c, 'comment.updated', 'comment', {
+        entityId: id,
+        metadata: { category: category ?? null, textPreview: text.slice(0, 80) },
+    });
+    return c.json({ success: true as const, data: { comment: { ...updated, createdAt: safeISODate(updated.createdAt) } } }, 200);
 });
 
 // --- Widget Origin Allowlist ---

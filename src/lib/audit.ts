@@ -38,6 +38,7 @@ export type AuditAction =
     | 'data.import'
     | 'data.delete'
     | 'audit.view'
+    | 'comment.updated'
     | 'config.integration.update'
     | 'config.secrets.update';
 

@@ -212,6 +212,11 @@ export const CommentSchema = z.object({
     category: z.string().max(50).optional().nullable().openapi({ example: 'Roofing' }),
 }).openapi('Comment');
 
+export const UpdateCommentSchema = z.object({
+    text: z.string().min(1).max(1000).openapi({ example: 'Evidence of previous repair was observed.' }),
+    category: z.string().max(50).nullable().optional().openapi({ example: 'Roofing' }),
+}).openapi('UpdateComment');
+
 export const CommentResponseSchema = z.object({
     id: z.string().uuid(),
     tenantId: z.string().uuid(),
