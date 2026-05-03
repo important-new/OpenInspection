@@ -184,6 +184,17 @@ export class InspectionService {
         const status = 'draft' as const;
         const date = data.date || createdAt.toISOString();
 
+        let templateSnapshot: unknown = null;
+        let templateSnapshotVersion = 1;
+        if (data.templateId) {
+            const tpl = await drizzle(this.db).select().from(templates)
+                .where(and(eq(templates.id, data.templateId), eq(templates.tenantId, tenantId))).get();
+            if (tpl) {
+                templateSnapshot = tpl.schema;
+                templateSnapshotVersion = tpl.version;
+            }
+        }
+
         const newInspection = {
             id,
             tenantId,
@@ -193,6 +204,8 @@ export class InspectionService {
             clientEmail: (data.clientEmail as string | null) || null,
             clientPhone: data.clientPhone ?? null,
             templateId: data.templateId,
+            templateSnapshot,
+            templateSnapshotVersion,
             status,
             date,
             referredByAgentId: (data.referredByAgentId as string | null) || null,
@@ -318,6 +331,11 @@ export class InspectionService {
     async uploadPhoto(id: string, tenantId: string, itemId: string, file: File) {
         if (!this.r2) throw Errors.BadRequest('Storage not available');
         await this.getInspection(id, tenantId); // Ownership check
+
+        const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+        if (file.size > MAX_PHOTO_BYTES) {
+            throw Errors.BadRequest(`Photo exceeds ${MAX_PHOTO_BYTES} bytes (got ${file.size})`);
+        }
 
         const key = `${tenantId}/${id}/${itemId}_${crypto.randomUUID()}_${file.name}`;
         await this.r2.put(key, await file.arrayBuffer(), {
