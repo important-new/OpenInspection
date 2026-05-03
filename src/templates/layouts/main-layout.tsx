@@ -25,26 +25,6 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
             <title>{title}</title>
             <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
             <link rel="stylesheet" href="/fonts.css" />
-            {/* B4 — defer Alpine boot until offline-first modules register their components.
-                Without this, Alpine evaluates x-data="networkPill" before our deferred
-                module scripts load (modules run AFTER classic-defer scripts) and the
-                Alpine.data() registration arrives too late to populate the scope. */}
-            <script dangerouslySetInnerHTML={{ __html: `
-                (function() {
-                    var pending = 0, started = false, alpineStart = null;
-                    window.deferLoadingAlpine = function(start) { alpineStart = start; tryStart(); };
-                    window.__b4ModuleRegistered = function() { pending--; tryStart(); };
-                    window.__b4ExpectModules = function(n) { pending += n; tryStart(); };
-                    function tryStart() {
-                        if (started || !alpineStart || pending > 0) return;
-                        started = true;
-                        alpineStart();
-                    }
-                    // Failsafe: if modules never register within 3s, start Alpine anyway.
-                    setTimeout(function() { pending = 0; tryStart(); }, 3000);
-                })();
-                window.__b4ExpectModules(3); // network-pill + conflict-modal + template-drift-banner
-            ` }} />
             <script defer src="/vendor/alpine-collapse.min.js"></script>
             <script defer src="/vendor/alpine.min.js"></script>
             {/* B4 — Dexie importmap: must precede every type="module" script that imports 'dexie' */}

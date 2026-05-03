@@ -57,7 +57,18 @@ function networkPillFactory() {
     };
 }
 
-document.addEventListener('alpine:init', () => {
-    window.Alpine.data('networkPill', networkPillFactory);
-});
-window.__b4ModuleRegistered?.();
+// Module scripts load AFTER Alpine boots in Alpine v3 (deferLoadingAlpine
+// is a v2-only API, removed in v3). So register both via alpine:init for the
+// rare case Alpine hasn't started AND immediately + re-init existing elements
+// for the common case where Alpine already evaluated x-data with empty scope.
+function registerB4Component(name, factory) {
+    document.addEventListener('alpine:init', () => window.Alpine.data(name, factory));
+    if (window.Alpine && typeof window.Alpine.data === 'function') {
+        window.Alpine.data(name, factory);
+        document.querySelectorAll(`[x-data="${name}"]`).forEach(el => {
+            try { window.Alpine.destroyTree?.(el); } catch {}
+            try { window.Alpine.initTree(el); } catch {}
+        });
+    }
+}
+registerB4Component('networkPill', networkPillFactory);

@@ -50,7 +50,15 @@ function conflictModalFactory() {
     };
 }
 
-document.addEventListener('alpine:init', () => {
-    window.Alpine.data('conflictModal', conflictModalFactory);
-});
-window.__b4ModuleRegistered?.();
+// See network-pill.js for the rationale behind this dual registration.
+function registerB4Component(name, factory) {
+    document.addEventListener('alpine:init', () => window.Alpine.data(name, factory));
+    if (window.Alpine && typeof window.Alpine.data === 'function') {
+        window.Alpine.data(name, factory);
+        document.querySelectorAll(`[x-data="${name}"]`).forEach(el => {
+            try { window.Alpine.destroyTree?.(el); } catch {}
+            try { window.Alpine.initTree(el); } catch {}
+        });
+    }
+}
+registerB4Component('conflictModal', conflictModalFactory);
