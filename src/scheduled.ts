@@ -1,4 +1,5 @@
 import { AutomationService } from './services/automation.service';
+import { AgreementService } from './services/agreement.service';
 import { logger } from './lib/logger';
 
 export interface ScheduledEnv {
@@ -11,10 +12,19 @@ export interface ScheduledEnv {
 }
 
 export async function scheduled(
-    _event: ScheduledEvent,
+    event: ScheduledEvent,
     env: ScheduledEnv,
     _ctx: ExecutionContext,
 ): Promise<void> {
+    // Daily at 02:00 UTC — expire stale agreement_requests (Spec 2A)
+    if (event.cron === '0 2 * * *') {
+        const agreementService = new AgreementService(env.DB);
+        const count = await agreementService.expireOlderThan(14);
+        logger.info('[cron] expired agreements', { count });
+        return;
+    }
+
+    // Every-minute — automation flush
     if (!env.RESEND_API_KEY) {
         logger.info('scheduled: RESEND_API_KEY not set, skipping');
     } else {
