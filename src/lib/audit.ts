@@ -8,6 +8,7 @@ export type AuditAction =
     | 'inspection.create'
     | 'inspection.delete'
     | 'inspection.status_change'
+    | 'inspection.status_changed'
     | 'inspection.complete'
     | 'inspection.send_pdf'
     | 'inspection.send_text_fallback'
