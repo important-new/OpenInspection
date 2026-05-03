@@ -1,10 +1,19 @@
 import { diff3Merge } from 'node-diff3';
 
+export interface AttachedRecommendation {
+    recommendationId:    string;
+    estimateSnapshotMin: number | null;
+    estimateSnapshotMax: number | null;
+    summarySnapshot:     string;
+    attachedAt:          number;
+}
+
 export interface ItemResult {
     status: string | null;
     notes:  string;
     photos: Array<{ key: string; annotatedKey?: string; annotationsJson?: string }>;
     updatedAt: number;
+    recommendations?: AttachedRecommendation[];   // optional — older inspection results may lack it
 }
 export type ResultsBlob = Record<string, ItemResult>;
 
@@ -81,6 +90,17 @@ function mergeOne(
         if (!seen.has(p.key)) { seen.add(p.key); photos.push(p); }
     }
 
+    // Recommendations union by recommendationId (snapshots are immutable per attach;
+    // any duplicate ID is treated as the same attachment regardless of snapshot text)
+    const seenRec = new Set<string>();
+    const recommendations: ItemResult['recommendations'] = [];
+    for (const r of [...(ours.recommendations || []), ...(theirs.recommendations || [])]) {
+        if (!seenRec.has(r.recommendationId)) {
+            seenRec.add(r.recommendationId);
+            recommendations.push(r);
+        }
+    }
+
     // diff3 merge for notes
     const notesResult = mergeNotes(base.notes || '', ours.notes || '', theirs.notes || '');
     const item: ItemResult = {
@@ -88,6 +108,7 @@ function mergeOne(
         notes: notesResult.text,
         photos,
         updatedAt: Math.max(ours.updatedAt, theirs.updatedAt),
+        ...(recommendations.length > 0 ? { recommendations } : {}),  // omit field entirely if empty
     };
 
     if (notesResult.conflict) {

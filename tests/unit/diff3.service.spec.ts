@@ -56,4 +56,34 @@ describe('mergeResults', () => {
         expect(out.merged.item2).toBeDefined();
         expect(out.merged.item2.status).toBe('defect');
     });
+
+    it('takes union of recommendations (each side adds different recs)', () => {
+        const baseR: ResultsBlob = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 1 } };
+        const ours: ResultsBlob   = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 2,
+            recommendations: [{ recommendationId: 'r_A', estimateSnapshotMin: null, estimateSnapshotMax: null, summarySnapshot: 'A', attachedAt: 100 }] } };
+        const theirs: ResultsBlob = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 2,
+            recommendations: [{ recommendationId: 'r_B', estimateSnapshotMin: null, estimateSnapshotMax: null, summarySnapshot: 'B', attachedAt: 100 }] } };
+        const out = mergeResults(baseR, ours, theirs);
+        const ids = (out.merged.item1.recommendations || []).map(r => r.recommendationId).sort();
+        expect(ids).toEqual(['r_A', 'r_B']);
+        expect(out.conflicts).toHaveLength(0);
+    });
+
+    it('dedupes recommendations by recommendationId', () => {
+        const baseR: ResultsBlob = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 1 } };
+        const ours: ResultsBlob   = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 2,
+            recommendations: [{ recommendationId: 'r_A', estimateSnapshotMin: 100, estimateSnapshotMax: 200, summarySnapshot: 'A-ours', attachedAt: 100 }] } };
+        const theirs: ResultsBlob = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 2,
+            recommendations: [{ recommendationId: 'r_A', estimateSnapshotMin: 100, estimateSnapshotMax: 200, summarySnapshot: 'A-theirs', attachedAt: 100 }] } };
+        const out = mergeResults(baseR, ours, theirs);
+        expect((out.merged.item1.recommendations || []).length).toBe(1);
+    });
+
+    it('handles missing recommendations field on either side', () => {
+        const baseR: ResultsBlob = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 1 } };
+        const ours: ResultsBlob   = { item1: { status: 'satisfactory', notes: '', photos: [], updatedAt: 2,
+            recommendations: [{ recommendationId: 'r_A', estimateSnapshotMin: null, estimateSnapshotMax: null, summarySnapshot: 'A', attachedAt: 100 }] } };
+        const out = mergeResults(baseR, ours, baseR);
+        expect((out.merged.item1.recommendations || []).map(r => r.recommendationId)).toEqual(['r_A']);
+    });
 });

@@ -1,5 +1,13 @@
 import { z } from '@hono/zod-openapi';
 
+const AttachedRecommendationSchema = z.object({
+    recommendationId:    z.string(),
+    estimateSnapshotMin: z.number().nullable(),
+    estimateSnapshotMax: z.number().nullable(),
+    summarySnapshot:     z.string(),
+    attachedAt:          z.number().int().nonnegative(),
+});
+
 const ItemResultSchema = z.object({
     status: z.string().nullable(),
     notes:  z.string(),
@@ -8,8 +16,9 @@ const ItemResultSchema = z.object({
         annotatedKey:    z.string().optional(),
         annotationsJson: z.string().optional(),
     })),
-    updatedAt: z.number().int().nonnegative(),
-}).passthrough();
+    updatedAt:       z.number().int().nonnegative(),
+    recommendations: z.array(AttachedRecommendationSchema).optional(),
+});
 
 export const ResultsBlobSchema = z.record(z.string(), ItemResultSchema).openapi('ResultsBlob');
 
