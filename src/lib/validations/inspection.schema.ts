@@ -70,10 +70,19 @@ export const UpdateInspectionSchema = z.object({
     county:         z.string().max(100).nullable().optional(),
 }).openapi('UpdateInspection');
 
+export const CancellationReasonSchema = z.enum([
+    'client_cancelled',
+    'weather',
+    'inspector_unavailable',
+    'property_unavailable',
+    'rescheduled',
+    'other',
+]).openapi('CancellationReason');
+
 export const CancelInspectionSchema = z.object({
-    reason: z.enum(['client_cancelled', 'scheduling_conflict', 'weather', 'other']),
+    reason: CancellationReasonSchema,
     notes:  z.string().max(500).optional(),
-}).openapi('CancelInspection');
+}).openapi('CancelInspectionRequest');
 
 export const InspectionCountsSchema = z.object({
     all:         z.number().openapi({ example: 42 }),
@@ -176,3 +185,26 @@ export const ReportDataResponseSchema = z.object({
     isDefect: z.boolean(),
   })),
 }).openapi('ReportData');
+
+export const InspectionListItemSchema = z.object({
+    id:                z.string(),
+    inspectionDate:    z.string().nullable(),
+    propertyAddress:   z.string().nullable(),
+    clientName:        z.string().nullable(),
+    status:            z.string(),
+    confirmedAt:       z.string().nullable(),
+    cancelReason:      z.string().nullable(),
+    cancelNotes:       z.string().nullable(),
+    cancelledAt:       z.string().nullable(),
+    reportPublishedAt: z.string().nullable(),
+}).openapi('InspectionListItem');
+
+export const DashboardResponseSchema = z.object({
+    needsAttention: z.array(InspectionListItemSchema),
+    today:          z.array(InspectionListItemSchema),
+    thisWeek:       z.array(InspectionListItemSchema),
+    later:          z.array(InspectionListItemSchema),
+    laterTotal:     z.number(),
+    recentReports:  z.array(InspectionListItemSchema),
+    cancelled:      z.array(InspectionListItemSchema),
+}).openapi('DashboardResponse');
