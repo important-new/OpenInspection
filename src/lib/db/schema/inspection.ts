@@ -46,6 +46,8 @@ export const inspections = sqliteTable('inspections', {
     sellingAgentId:      text('selling_agent_id'),
     disableAutomations:  integer('disable_automations', { mode: 'boolean' }).notNull().default(false),
     messageToken:        text('message_token').unique('idx_inspections_msg_token'),
+    templateSnapshot:    text('template_snapshot', { mode: 'json' }),
+    templateSnapshotVersion: integer('template_snapshot_version').default(1),
 });
 
 export const agreements = sqliteTable('agreements', {
