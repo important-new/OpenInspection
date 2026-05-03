@@ -6,6 +6,7 @@ import { sign } from 'hono/jwt';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { logger } from '../lib/logger';
 import { getBaseUrl } from '../lib/url';
 import { checkRateLimit } from '../lib/rate-limit';
 import { requireCsrfToken } from '../lib/middleware/csrf';
@@ -325,6 +326,15 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
 
     // Cleanup code
     if (c.env.TENANT_CACHE) await c.env.TENANT_CACHE.delete('setup_verification_code');
+
+    // Auto-seed default recommendations library for the new tenant
+    try {
+        const { RECOMMENDATION_SEEDS } = await import('../data/recommendation-seeds');
+        await c.var.services.recommendation.bulkSeed(tenantId, RECOMMENDATION_SEEDS);
+    } catch (seedErr) {
+        // Don't block setup if seed fails — log and continue
+        logger.error('Auto-seed recommendations failed during setup', { tenantId }, seedErr instanceof Error ? seedErr : undefined);
+    }
 
     // 4. Issue a JWT for the new admin so the caller can authenticate immediately
     const newUser = await db.select().from(users).where(eq(users.email, body.email)).get().catch(() => null);

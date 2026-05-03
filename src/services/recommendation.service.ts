@@ -3,6 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 import { recommendations } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
+import type { SeedRecommendation } from '../data/recommendation-seeds';
 
 export type Recommendation = InferSelectModel<typeof recommendations>;
 
@@ -79,5 +80,41 @@ export class RecommendationService {
         const db = this.getDrizzle();
         await db.delete(recommendations)
             .where(and(eq(recommendations.id, id), eq(recommendations.tenantId, tenantId)));
+    }
+
+    /**
+     * Bulk-insert default recommendations for a tenant. Idempotent: skips any
+     * entry whose (category, name) pair already exists for the tenant.
+     */
+    async bulkSeed(tenantId: string, seeds: SeedRecommendation[]): Promise<{ inserted: number; skipped: number }> {
+        const db = this.getDrizzle();
+        const existing = await db.select().from(recommendations).where(eq(recommendations.tenantId, tenantId)).all();
+        const existingKeys = new Set(existing.map(r => `${r.category ?? ''}::${r.name}`));
+
+        let inserted = 0;
+        let skipped = 0;
+
+        for (const seed of seeds) {
+            const key = `${seed.category ?? ''}::${seed.name}`;
+            if (existingKeys.has(key)) {
+                skipped++;
+                continue;
+            }
+            await db.insert(recommendations).values({
+                id: crypto.randomUUID(),
+                tenantId,
+                category: seed.category ?? null,
+                name: seed.name,
+                severity: seed.severity,
+                defaultEstimateMin: seed.defaultEstimateMin ?? null,
+                defaultEstimateMax: seed.defaultEstimateMax ?? null,
+                defaultRepairSummary: seed.defaultRepairSummary,
+                createdByUserId: null,
+                createdAt: new Date(),
+            });
+            inserted++;
+        }
+
+        return { inserted, skipped };
     }
 }

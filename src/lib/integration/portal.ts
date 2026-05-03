@@ -1,8 +1,9 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
-import { tenants, users } from '../db/schema';
+import { tenants, users, recommendations } from '../db/schema';
 import { IntegrationProvider, TenantUpdateParams } from '../integration';
 import { logger } from '../logger';
+import { RECOMMENDATION_SEEDS } from '../../data/recommendation-seeds';
 
 /**
  * Portal implementation of IntegrationProvider.
@@ -26,8 +27,9 @@ export class PortalProvider implements IntegrationProvider {
             .get();
 
         if (!existingTenant) {
+            const newTenantId = id || crypto.randomUUID();
             await db.insert(tenants).values({
-                id: id || crypto.randomUUID(),
+                id: newTenantId,
                 subdomain,
                 name: name || subdomain,
                 status: (status as 'active' | 'suspended' | 'trial') || 'active',
@@ -35,6 +37,26 @@ export class PortalProvider implements IntegrationProvider {
                 ...(maxUsers != null ? { maxUsers } : {}),
                 createdAt: new Date(),
             });
+
+            // Auto-seed default recommendations library for the new tenant
+            try {
+                for (const seed of RECOMMENDATION_SEEDS) {
+                    await db.insert(recommendations).values({
+                        id: crypto.randomUUID(),
+                        tenantId: newTenantId,
+                        category: seed.category ?? null,
+                        name: seed.name,
+                        severity: seed.severity,
+                        defaultEstimateMin: seed.defaultEstimateMin ?? null,
+                        defaultEstimateMax: seed.defaultEstimateMax ?? null,
+                        defaultRepairSummary: seed.defaultRepairSummary,
+                        createdByUserId: null,
+                        createdAt: new Date(),
+                    });
+                }
+            } catch (seedErr) {
+                logger.error('Auto-seed recommendations failed in portal provider', { tenantId: newTenantId }, seedErr instanceof Error ? seedErr : undefined);
+            }
         } else {
             await db.update(tenants)
                 .set({

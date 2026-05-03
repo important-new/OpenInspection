@@ -1,6 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { HonoConfig } from '../types/hono';
-import type { Recommendation } from '../services/recommendation.service';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { Errors } from '../lib/errors';
@@ -123,32 +122,8 @@ recommendationsRoutes.openapi(createRoute({
     },
 }), async (c) => {
     const tenantId = c.get('tenantId') as string;
-    const userId = (c.get('user') as { sub?: string } | undefined)?.sub;
-    const svc = c.var.services.recommendation;
-    const existing = await svc.listByTenant(tenantId);
-    const existingKeys = new Set(existing.map((r: Recommendation) => `${r.category ?? ''}::${r.name}`));
-
-    let inserted = 0;
-    let skipped = 0;
-    for (const seed of RECOMMENDATION_SEEDS) {
-        const key = `${seed.category}::${seed.name}`;
-        if (existingKeys.has(key)) {
-            skipped++;
-            continue;
-        }
-        await svc.create(tenantId, {
-            category:             seed.category,
-            name:                 seed.name,
-            severity:             seed.severity,
-            defaultEstimateMin:   seed.defaultEstimateMin,
-            defaultEstimateMax:   seed.defaultEstimateMax,
-            defaultRepairSummary: seed.defaultRepairSummary,
-            createdByUserId:      userId ?? null,
-        });
-        inserted++;
-    }
-
-    return c.json({ success: true as const, data: { inserted, skipped } }, 200);
+    const result = await c.var.services.recommendation.bulkSeed(tenantId, RECOMMENDATION_SEEDS);
+    return c.json({ success: true as const, data: result }, 200);
 });
 
 export default recommendationsRoutes;
