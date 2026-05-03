@@ -185,6 +185,29 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <input type="datetime-local" id="inspectionDate"
                                         class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
+                                <div x-data="contactSelector" class="relative mb-3">
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">Search or create contact</label>
+                                    <input
+                                        type="text"
+                                        x-model="searchText"
+                                        x-on:input="onInput()"
+                                        x-on:focus="showDropdown = searchText.length > 0"
+                                        placeholder="Type contact name to search..."
+                                        class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                                        autocomplete="off"
+                                    />
+                                    <div x-show="showDropdown && (results.length > 0 || searchText.trim().length > 0)" x-cloak class="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                                        <template x-for="c in results" {...{ 'x-bind:key': 'c.id' }}>
+                                            <button type="button" x-on:click="selectContact(c)" class="w-full px-3 py-2 text-left hover:bg-indigo-50 text-sm">
+                                                <div class="font-semibold" x-text="c.name"></div>
+                                                <div class="text-xs text-slate-500" x-text="(c.email || '') + (c.agency ? ' · ' + c.agency : '')"></div>
+                                            </button>
+                                        </template>
+                                        <button type="button" x-show="searchText.trim().length > 0 && !results.some(r => r.name.toLowerCase() === searchText.trim().toLowerCase())" x-on:click="createNew()" {...{ 'x-bind:disabled': 'creating' }} class="w-full px-3 py-2 text-left bg-indigo-50 hover:bg-indigo-100 text-sm border-t border-slate-100">
+                                            <span x-text="`+ Create '${searchText.trim()}' as new contact`" class="font-semibold text-indigo-700"></span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Client Name</label>
                                     <input type="text" id="clientName" placeholder="e.g., John Doe"
@@ -254,6 +277,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                 <script src="/js/modal-dialog.js"></script>
                 <script src="/js/auth.js"></script>
                 <script src="/js/dashboard.js"></script>
+                <script type="module" src="/js/contact-selector.js"></script>
             </div>
         </MainLayout>
     );
