@@ -28,6 +28,7 @@ export const inspections = sqliteTable('inspections', {
     // Phase 0 parity additions
     confirmedAt:         text('confirmed_at'),
     cancelReason:        text('cancel_reason'),
+    cancelNotes:         text('cancel_notes'),  // Spec 3A
     paymentRequired:     integer('payment_required', { mode: 'boolean' }).notNull().default(false),
     agreementRequired:   integer('agreement_required', { mode: 'boolean' }).notNull().default(false),
     discountCodeId:      text('discount_code_id'),
