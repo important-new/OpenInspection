@@ -5,7 +5,8 @@
 //   - HTML navigation: network-first, fall back to cache for offline shell
 //   - /api/* requests: network-only (offline handled by IndexedDB in the app)
 
-const CACHE_NAME = 'openinspection-v1';
+const SW_VERSION  = 'v2-b4';
+const CACHE_NAME  = `openinspection-${SW_VERSION}`;
 
 const PRECACHE_ASSETS = [
   '/styles.css',
@@ -36,6 +37,9 @@ self.addEventListener('activate', (event) => {
   );
   // Take control of all open clients immediately
   self.clients.claim();
+  self.clients.matchAll().then(clients => {
+    clients.forEach(c => c.postMessage({ type: 'sw-updated', version: SW_VERSION }));
+  });
 });
 
 // ���� Fetch ����������������������������������������������������������������������������������������������������������������������������������������
@@ -52,7 +56,14 @@ self.addEventListener('fetch', (event) => {
   }
 
   // All other API calls: network-only; offline handled by IndexedDB / photo queue
-  if (url.pathname.startsWith('/api/')) return;
+  if (url.pathname.startsWith('/api/')) {
+    const isInspectionRead = /^\/api\/inspections\/[^/]+(\/results)?$/.test(url.pathname);
+    if (isInspectionRead && request.method === 'GET') {
+      event.respondWith(cacheFirstWithRefresh(request));
+      return;
+    }
+    return; // all other API calls: network-only
+  }
 
   // Static assets on our origin: stale-while-revalidate
   const isStaticAsset =
@@ -114,3 +125,21 @@ async function networkFirstWithCacheFallback(request) {
     });
   }
 }
+
+// ── Background Sync (Chromium only — iOS Safari throws on register) ─────────
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'queue-changed') {
+    try {
+      self.registration.sync?.register('oi-sync');
+    } catch { /* iOS Safari has no SyncManager */ }
+  }
+});
+
+self.addEventListener('sync', (event) => {
+  if (event.tag !== 'oi-sync') return;
+  event.waitUntil((async () => {
+    // Cannot import ES modules into a classic SW — open a client to drive it
+    const clients = await self.clients.matchAll({ includeUncontrolled: true });
+    if (clients[0]) clients[0].postMessage({ type: 'drain-queue' });
+  })());
+});
