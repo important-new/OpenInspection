@@ -41,5 +41,26 @@ export const ListRecommendationsQuerySchema = z.object({
     severity: SeverityEnum.optional(),
 }).openapi('ListRecommendationsQuery');
 
+export const AttachedRecommendationItemSchema = z.object({
+    recommendationId:    z.string(),
+    estimateSnapshotMin: z.number().int().nullable(),
+    estimateSnapshotMax: z.number().int().nullable(),
+    summarySnapshot:     z.string(),
+    attachedAt:          z.number().int().nonnegative(),
+    itemId:              z.string(),
+}).openapi('AttachedRecommendationItem');
+
+export const AggregatedRecommendationsResponseSchema = z.object({
+    success: z.literal(true),
+    data: z.object({
+        items: z.array(AttachedRecommendationItemSchema),
+        totals: z.object({
+            count:           z.number().int().nonnegative(),
+            estimateMinSum:  z.number().int().nonnegative(),
+            estimateMaxSum:  z.number().int().nonnegative(),
+        }),
+    }),
+}).openapi('AggregatedRecommendationsResponse');
+
 export type CreateRecommendationInput = z.infer<typeof CreateRecommendationSchema>;
 export type UpdateRecommendationInput = z.infer<typeof UpdateRecommendationSchema>;
