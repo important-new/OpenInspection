@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import type { NotificationService } from './notification.service';
+import type { AgreementService } from './agreement.service';
 
 function interpolate(template: string, vars: Record<string, string>): string {
     return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
@@ -20,7 +21,7 @@ interface TriggerContext {
 }
 
 export class AutomationService {
-    constructor(private db: D1Database, private notification?: NotificationService) {}
+    constructor(private db: D1Database, private notification?: NotificationService, private agreementService?: AgreementService) {}
 
     private getDrizzle() { return drizzle(this.db as any); }
 
@@ -113,8 +114,19 @@ export class AutomationService {
         const insp = inspRows[0];
         if (!insp || insp.disableAutomations) return;
 
+        // Skip rules whose template requires {{agreement_sign_url}} but this
+        // inspection didn't opt-in to agreements (agreementRequired = false)
+        const filteredRules = rules.filter(rule => {
+            if (rule.bodyTemplate.includes('{{agreement_sign_url}}') ||
+                rule.subjectTemplate.includes('{{agreement_sign_url}}')) {
+                return insp.agreementRequired === true;
+            }
+            return true;
+        });
+        if (filteredRules.length === 0) return;
+
         const now = new Date();
-        const logs = rules.flatMap(rule => {
+        const logs = filteredRules.flatMap(rule => {
             const email = this.resolveEmail(rule.recipient as string, insp);
             if (!email) return [];
             const sendAt = new Date(now.getTime() + rule.delayMinutes * 60_000).toISOString();
@@ -130,7 +142,7 @@ export class AutomationService {
                 title: this.titleFor(ctx.triggerEvent, insp),
                 entityType: 'inspection',
                 entityId: ctx.inspectionId,
-                metadata: { fromAutomation: true, rules: rules.length },
+                metadata: { fromAutomation: true, rules: filteredRules.length },
             });
         }
         logger.info('AutomationService: enqueued', { event: ctx.triggerEvent, count: logs.length });
@@ -165,11 +177,30 @@ export class AutomationService {
                     scheduled_date:   inspection.date,
                     inspector_name:   '',
                     report_url:       `${appBaseUrl}/report/${inspection.id}`,
-                    sign_url:         `${appBaseUrl}/sign/${inspection.id}`,
                     invoice_url:      `${appBaseUrl}/invoices`,
                     payment_url:      `${appBaseUrl}/invoices`,
                     company_name:     appName,
                 };
+
+                // Lazy: only create agreement_request when this rule actually needs it
+                const needsAgreementUrl = automation.bodyTemplate.includes('{{agreement_sign_url}}') ||
+                                          automation.subjectTemplate.includes('{{agreement_sign_url}}');
+                if (needsAgreementUrl) {
+                    if (!this.agreementService) {
+                        await db.update(automationLogs).set({ status: 'failed', error: 'AgreementService not configured' })
+                            .where(eq(automationLogs.id, log.id));
+                        continue;
+                    }
+                    try {
+                        const ar = await this.agreementService.findOrCreate(inspection.tenantId, inspection.id);
+                        vars.agreement_sign_url = `${appBaseUrl}/sign-agreement/${ar.token}`;
+                    } catch (e) {
+                        const errMsg = e instanceof Error ? e.message : 'Failed to create agreement_request';
+                        await db.update(automationLogs).set({ status: 'failed', error: errMsg.slice(0, 500) })
+                            .where(eq(automationLogs.id, log.id));
+                        continue;
+                    }
+                }
 
                 const subject = interpolate(automation.subjectTemplate, vars);
                 const html    = interpolate(automation.bodyTemplate, vars);
