@@ -114,10 +114,12 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     clientEmail: text('client_email').notNull(),
     clientName: text('client_name'),
     token: text('token').notNull().unique(),
-    status: text('status', { enum: ['pending', 'viewed', 'signed'] }).notNull().default('pending'),
+    status: text('status', { enum: ['pending', 'sent', 'viewed', 'signed', 'declined', 'expired'] }).notNull().default('pending'),
     signatureBase64: text('signature_base64'),
     signedAt: integer('signed_at', { mode: 'timestamp' }),
     viewedAt: integer('viewed_at', { mode: 'timestamp' }),
+    sentAt: integer('sent_at', { mode: 'timestamp' }),
+    lastError: text('last_error'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
@@ -166,6 +168,7 @@ export const automations = sqliteTable('automations', {
         enum: [
             'inspection.created', 'inspection.confirmed', 'inspection.cancelled',
             'report.published', 'invoice.created', 'payment.received', 'agreement.signed',
+            'agreement.viewed', 'agreement.declined', 'agreement.expired',
         ],
     }).notNull(),
     recipient: text('recipient', {
