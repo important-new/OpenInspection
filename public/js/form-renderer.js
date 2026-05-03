@@ -4,6 +4,7 @@
 // that the sync engine drains.
 import { db as offlineDb, openDb as openOfflineDb } from './db.js';
 import { drainQueue } from './sync-engine.js';
+import { resizeImage } from './photo-resize.js';
 
 const pendingPhotoDb = {
     async open() { await openOfflineDb(); return offlineDb; },
@@ -132,11 +133,22 @@ document.addEventListener('alpine:init', () => {
       if (!file) return;
       if (!this.results[itemId].photos) this.results[itemId].photos = [];
 
+      // B4 — resize before storing in IndexedDB or uploading. Caps on iOS Safari are
+      // the chokepoint; 2048-px / q=0.85 brings 4-12 MB iPhone photos to ~250-500 KB.
+      const resized = await resizeImage(file, 2048, 0.85);
+      const RESIZED_MAX = 10 * 1024 * 1024;
+      if (resized.size > RESIZED_MAX) {
+        if (typeof window.showToast === 'function') window.showToast('Photo too large after resize (max 10 MB).', true);
+        event.target.value = '';
+        return;
+      }
+      const uploadFile = new File([resized], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+
       if (!this.online) {
         // Queue locally ??upload when back online
         const localId = 'pending:' + crypto.randomUUID();
-        const dataUrl = await fileToDataUrl(file);
-        await pendingPhotoDb.add({ id: localId, inspectionId: this.inspectionId, itemId, blob: file, type: 'upload' });
+        const dataUrl = await fileToDataUrl(uploadFile);
+        await pendingPhotoDb.add({ id: localId, inspectionId: this.inspectionId, itemId, blob: uploadFile, type: 'upload' });
         this.results[itemId].photos.push({ key: localId, pending: true, dataUrl });
         this.results[itemId].updatedAt = Date.now();
         this.saveLocally();
@@ -147,7 +159,7 @@ document.addEventListener('alpine:init', () => {
       this.uploading[itemId] = true;
       try {
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', uploadFile);
         formData.append('itemId', itemId);
         const res = await fetch(`/api/inspections/${this.inspectionId}/upload`, { method: 'POST', body: formData });
         if (res.ok) {
