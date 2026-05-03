@@ -1,4 +1,6 @@
 import { BrandingConfig } from '../../types/auth';
+import { NetworkPill } from '../components/network-pill';
+import { ConflictModal } from '../components/conflict-modal';
 
 function sanitizePrimaryColor(branding?: BrandingConfig): string {
     const raw = branding?.primaryColor || '#6366f1';
@@ -273,7 +275,16 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                         });
                     })();
                 ` }} />
+                {/* B4 — Dexie importmap: must precede any type="module" script that imports 'dexie' */}
+                <script
+                    type="importmap"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify({
+                        imports: { dexie: '/vendor/dexie.mjs' },
+                    }) }}
+                />
                 <script src="/js/toast.js"></script>
+                <script type="module" src="/js/network-pill.js"></script>
+                <script type="module" src="/js/conflict-modal.js"></script>
                 <script dangerouslySetInnerHTML={{ __html: `
                     document.getElementById('mobileLogoutBtn')?.addEventListener('click', function() {
                         document.getElementById('logoutBtn')?.click();
@@ -329,6 +340,19 @@ export const MainLayout = (props: { title: string, children: unknown, branding?:
                         }
                     })();
                 ` }} />
+                {/* B4 — SW message handlers: drain queue on bg-sync, toast on SW update */}
+                <script dangerouslySetInnerHTML={{ __html: `
+navigator.serviceWorker?.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'drain-queue') {
+        import('/js/sync-engine.js').then(function(m) { m.drainQueue(); }).catch(function() {});
+    }
+    if (e.data && e.data.type === 'sw-updated' && typeof window.showToast === 'function') {
+        window.showToast('New version available — reload to apply.', false);
+    }
+});
+` }} />
+                <NetworkPill />
+                <ConflictModal />
             </body>
         </html>
     );
