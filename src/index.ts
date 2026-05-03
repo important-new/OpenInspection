@@ -36,6 +36,7 @@ import { AgreementsPage } from './templates/pages/agreements';
 import { AgreementSignPage } from './templates/pages/agreement-sign';
 import { CalendarPage } from './templates/pages/calendar';
 import { ContactsPage } from './templates/pages/contacts';
+import { RecommendationsPage } from './templates/pages/recommendations';
 import { InvoicesPage } from './templates/pages/invoices';
 import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
@@ -72,6 +73,7 @@ import messageRoutes from './api/messages';
 import widgetRoutes from './api/widget';
 import notificationsRoutes from './api/notifications';
 import inspectionSyncRoutes from './api/inspection-sync';
+import recommendationsRoutes from './api/recommendations';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -307,6 +309,7 @@ app.route('/api/calendar/events', calendarEventsRoutes);
 app.route('/api/calendar', calendarRoutes);
 app.route('/api/team', teamRoutes);
 app.route('/api/contacts', contactRoutes);
+app.route('/api/recommendations', recommendationsRoutes);
 app.route('/api/invoices', invoiceRoutes);
 app.route('/api/services', servicesRoutes);
 app.route('/api/automations', automationsRoutes);
@@ -520,6 +523,10 @@ app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
 app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
+app.get('/recommendations', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
+    const b = c.get('branding');
+    return c.html(RecommendationsPage(b ? { branding: b } : {}));
+});
 app.get('/invoices', htmlAuthGuard(['owner', 'admin']), (c) => c.html(InvoicesPage({ branding: c.get('branding') })));
 app.get('/calendar', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(CalendarPage({ branding: c.get('branding') })));
 app.get('/notifications', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
