@@ -34,7 +34,9 @@ export const securityHeaders: MiddlewareHandler<HonoConfig> = async (c, next) =>
             "font-src 'self' data:",
             "img-src 'self' data: blob:",
             "connect-src 'self' https://challenges.cloudflare.com",
-            "frame-src https://challenges.cloudflare.com",
+            // 'self' required so the Settings → Embed Widget page can iframe
+            // its own /book?embed=1 preview. Without it the live preview is blank.
+            "frame-src 'self' https://challenges.cloudflare.com",
             isWidgetEmbed ? "frame-ancestors *" : "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

@@ -303,7 +303,7 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         </p>
                         <div x-show="!connected">
                             <label class="block text-xs font-bold text-slate-600 mb-1">Stripe account ID</label>
-                            <input type="text" x-model="accountInput" placeholder="acct_1AbCdEfGhIjKlMnO" class="w-full px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm" />
+                            <input type="text" x-model="accountInput" name="stripe-account-id" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck={false} placeholder="acct_1AbCdEfGhIjKlMnO" class="w-full px-3 py-2 rounded-lg border border-slate-200 font-mono text-sm" />
                             <button type="button" x-on:click="save()" x-bind:disabled="saving" class="mt-3 px-5 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-black disabled:opacity-50">Connect Account</button>
                         </div>
                         <div x-show="connected" class="text-sm text-slate-600 space-y-2">

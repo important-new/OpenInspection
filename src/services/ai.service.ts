@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { inspections, inspectionResults } from '../lib/db/schema';
 import { logger } from '../lib/logger';
+import { Errors } from '../lib/errors';
 
 /**
  * Service to handle AI-powered features using Google Gemini.
@@ -96,7 +97,9 @@ Summary:`;
 
     /**
      * Suggests 3 professional inspection comments for a specific form item.
-     * Returns empty array if Gemini key is absent or the call fails.
+     * Throws 503 ServiceUnavailable when GEMINI_API_KEY is not configured so the
+     * UI can surface a clear "set up your API key" message instead of a silent
+     * empty popover. Runtime Gemini failures still degrade to an empty array.
      */
     async suggestComment(params: {
         itemName:         string;
@@ -106,7 +109,11 @@ Summary:`;
         yearBuilt?:       number | null;
         sqft?:            number | null;
     }): Promise<string[]> {
-        if (!this.apiKey || this.apiKey.includes('your_api_key')) return [];
+        if (!this.apiKey || this.apiKey.includes('your_api_key')) {
+            throw Errors.ServiceUnavailable(
+                'AI Suggest is not available: GEMINI_API_KEY is not configured. Add the key in Settings → API Keys.'
+            );
+        }
 
         const context = [
             params.rating    ? `Rating: ${params.rating}` : null,

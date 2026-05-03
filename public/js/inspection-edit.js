@@ -405,21 +405,30 @@ function inspectionEditor(inspectionId) {
       const origText = btn.textContent;
       btn.textContent = '...';
       btn.disabled = true;
+      const toast = (m, err) => { if (typeof showToast === 'function') showToast(m, err); };
       try {
         const res = await authFetch('/api/ai/suggest-comment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ itemName, sectionName }),
         });
-        if (!res.ok) return;
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = json?.error?.message || `AI Suggest failed (${res.status}).`;
+          toast(msg, true);
+          return;
+        }
         const suggestions = json.data || [];
-        if (!suggestions.length) return;
+        if (!suggestions.length) {
+          toast('AI returned no suggestions. Try again.', true);
+          return;
+        }
         this.aiSuggestions = suggestions;
         this.aiTargetField = targetField;
         this.showAiPopover = true;
       } catch (e) {
         console.error('[AI] suggestComment error', e);
+        toast('AI Suggest network error. Check connection.', true);
       } finally {
         btn.textContent = origText;
         btn.disabled = false;

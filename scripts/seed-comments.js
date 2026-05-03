@@ -312,9 +312,13 @@ if (count >= COMMENTS.length) {
   process.exit(0);
 }
 
+// Drizzle column `comments.created_at` is `integer({ mode: 'timestamp' })`,
+// which stores Unix seconds (Drizzle multiplies by 1000 on read). Writing
+// `Date.now()` (milliseconds) gives a date in year 58296 once read back.
+const nowSec = Math.floor(Date.now() / 1000);
 const values = COMMENTS.map(c => {
   const id = randomUUID();
-  return `('${id}', '${TENANT_ID}', '${c.category}', '${c.text.replace(/'/g, "''")}', '${c.severity}', ${Date.now()})`;
+  return `('${id}', '${TENANT_ID}', '${c.category}', '${c.text.replace(/'/g, "''")}', '${c.severity}', ${nowSec})`;
 }).join(',\n');
 
 const sql = `INSERT INTO comments (id, tenant_id, category, text, severity, created_at) VALUES\n${values};`;
