@@ -321,6 +321,63 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
         }
     })());
 
+    // Spec 2A — also fire automation event so per-tenant rules can react
+    if (signed.inspectionId) {
+        c.var.services.automation.trigger({
+            tenantId: signed.tenantId,
+            inspectionId: signed.inspectionId,
+            triggerEvent: 'agreement.signed',
+            companyName: c.env.APP_NAME || 'OpenInspection',
+            reportBaseUrl: c.env.APP_BASE_URL || '',
+        }).catch(() => {});
+    }
+
+    return c.json({ success: true as const }, 200);
+});
+
+/**
+ * POST /api/public/agreements/:token/decline — client declines the agreement
+ */
+const declineAgreementRoute = createRoute({
+    method: 'post',
+    path: '/agreements/:token/decline',
+    tags: ['Public'],
+    summary: 'Decline agreement (public, token-gated)',
+    request: {
+        params: z.object({ token: z.string().min(1) }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: z.object({ reason: z.string().max(500).optional() }),
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true) }) } },
+            description: 'Declined',
+        },
+    },
+});
+
+bookingsRoutes.openapi(declineAgreementRoute, async (c) => {
+    const { token } = c.req.valid('param');
+    const { reason } = c.req.valid('json');
+    const svc = c.var.services.agreement;
+    const r = await svc.markDeclined(token, reason);
+
+    // Fire automation event so per-tenant rules can notify the inspector
+    if (r.inspectionId) {
+        c.var.services.automation.trigger({
+            tenantId: r.tenantId,
+            inspectionId: r.inspectionId,
+            triggerEvent: 'agreement.declined',
+            companyName: c.env.APP_NAME || 'OpenInspection',
+            reportBaseUrl: c.env.APP_BASE_URL || '',
+        }).catch(() => {});
+    }
+
     return c.json({ success: true as const }, 200);
 });
 

@@ -105,6 +105,14 @@ export const AgreementSignPage = ({ token, agreementName, agreementContent, clie
                                         <button onclick="clearSig()" class="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-slate-50 border border-slate-200 transition">Clear</button>
                                         <button onclick="submitSignature()" id="submitSigBtn" class="flex-[2] py-3 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-200 hover:bg-slate-900 transition">Sign Agreement</button>
                                     </div>
+                                    <details class="mt-6">
+                                        <summary class="cursor-pointer text-xs text-rose-600 hover:underline font-semibold">Decline this agreement</summary>
+                                        <div class="mt-3 p-4 bg-rose-50 rounded-lg border border-rose-100">
+                                            <label class="block text-[10px] font-black text-rose-700 uppercase tracking-widest mb-2">Reason (optional)</label>
+                                            <textarea id="declineReason" rows={3} class="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm" placeholder="Let the inspector know why..."></textarea>
+                                            <button type="button" onclick="declineAgreement()" id="declineBtn" class="mt-3 px-5 py-2 rounded-xl bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition">Decline Agreement</button>
+                                        </div>
+                                    </details>
                                 </div>
                                 <div id="sigSuccess" class="hidden px-10 py-10 text-center">
                                     <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -178,6 +186,33 @@ export const AgreementSignPage = ({ token, agreementName, agreementContent, clie
                         alert('Network error. Please try again.');
                         btn.disabled = false;
                         btn.textContent = 'Sign Agreement';
+                    }
+                }
+
+                async function declineAgreement() {
+                    if (!confirm('Are you sure you want to decline this agreement? The inspector will be notified.')) return;
+                    var reason = (document.getElementById('declineReason').value || '').trim();
+                    var btn = document.getElementById('declineBtn');
+                    btn.disabled = true;
+                    btn.textContent = 'Submitting...';
+                    try {
+                        var res = await fetch('/api/public/agreements/' + TOKEN + '/decline', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ reason: reason || undefined })
+                        });
+                        if (res.ok) {
+                            document.body.innerHTML = '<div style="padding:60px 24px;text-align:center;font-family:Inter,sans-serif;max-width:500px;margin:0 auto"><h1 style="font-weight:900;color:#0f172a">Thank you</h1><p style="color:#64748b;margin-top:12px">The inspector has been notified that you declined this agreement.</p></div>';
+                        } else {
+                            var d = await res.json();
+                            alert(d.error?.message || 'Failed to submit. Please try again.');
+                            btn.disabled = false;
+                            btn.textContent = 'Decline Agreement';
+                        }
+                    } catch (e) {
+                        alert('Network error. Please try again.');
+                        btn.disabled = false;
+                        btn.textContent = 'Decline Agreement';
                     }
                 }
             ` }}></script>
