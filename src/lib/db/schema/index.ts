@@ -16,6 +16,7 @@ export {
     automationLogs,
 } from './inspection';
 export { contacts } from './contact';
+export { recommendations } from './recommendation';
 export { invoices } from './invoice';
 export { marketplaceTemplates, tenantMarketplaceImports } from './marketplace';
 export { customerMessages } from './message';
