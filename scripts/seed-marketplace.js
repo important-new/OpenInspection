@@ -56,7 +56,16 @@ const tmpDir = join(tmpdir(), 'oi-seed-marketplace');
 mkdirSync(tmpDir, { recursive: true });
 
 for (const t of TEMPLATES) {
-  const schema = readFileSync(join(SEED_DIR, t.file), 'utf8');
+  // Spec 1 fix: the seed JSON file is shaped {id, name, description, version, schema: {sections}}.
+  // We must store ONLY the inner .schema (i.e. {sections: ...}) in marketplace_templates.schema,
+  // not the entire file. Otherwise importTemplate copies the wrong shape into templates.schema
+  // and the form-renderer can't find sections at templates.schema.sections.
+  const fileContent = JSON.parse(readFileSync(join(SEED_DIR, t.file), 'utf8'));
+  if (!fileContent.schema || !Array.isArray(fileContent.schema.sections)) {
+    console.error(`Seed file ${t.file} missing schema.sections; skipping.`);
+    continue;
+  }
+  const schema = JSON.stringify(fileContent.schema);
   const id = randomUUID();
   const safeChangelog = t.changelog.replace(/'/g, "''");
   const safeName = t.name.replace(/'/g, "''");
