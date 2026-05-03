@@ -1,0 +1,231 @@
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { drizzle } from 'drizzle-orm/d1';
+import { and, eq } from 'drizzle-orm';
+import type { HonoConfig } from '../types/hono';
+import { requireRole } from '../lib/middleware/rbac';
+import { Errors } from '../lib/errors';
+import { auditFromContext } from '../lib/audit';
+import { mergeResults, type ResultsBlob } from '../services/diff3.service';
+import {
+    ResultsMergeRequestSchema,
+    ResultsMergeResponseSchema,
+    MergeConflictSchema,
+    ResultsBlobSchema,
+    InspectorSignatureSchema,
+} from '../lib/validations/sync.schema';
+import { inspections, inspectionResults } from '../lib/db/schema';
+
+const syncRoutes = new OpenAPIHono<HonoConfig>();
+
+/* ── POST /api/inspections/:id/results/merge ──────────────────────────────── */
+syncRoutes.openapi(createRoute({
+    method: 'post',
+    path: '/{id}/results/merge',
+    tags: ['Inspections'],
+    summary: 'Three-way merge sync of offline results',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: ResultsMergeRequestSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: ResultsMergeResponseSchema } },
+            description: 'Merged',
+        },
+        409: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(false),
+                        error: z.object({
+                            code: z.literal('MERGE_CONFLICT'),
+                            message: z.string(),
+                            details: z.object({
+                                base:      ResultsBlobSchema,
+                                theirs:    ResultsBlobSchema,
+                                conflicts: z.array(MergeConflictSchema),
+                            }),
+                        }),
+                    }).openapi('MergeConflictResponse'),
+                },
+            },
+            description: 'Conflict — inspector adjudication required',
+        },
+    },
+}), async (c) => {
+    const { id } = c.req.valid('param');
+    const { base, ours } = c.req.valid('json');
+    const tenantId = c.get('tenantId') as string;
+    const db = drizzle(c.env.DB);
+
+    const insp = await db.select().from(inspections)
+        .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId))).get();
+    if (!insp) throw Errors.NotFound('Inspection not found');
+
+    const row = await db.select().from(inspectionResults)
+        .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId))).get();
+
+    const theirs: ResultsBlob = (row?.data as ResultsBlob) ?? {};
+
+    // True 3-way merge: client supplies its last server-confirmed `base` snapshot
+    // (server doesn't keep result history). diff3 uses base to distinguish the
+    // client's edits from server-side third-party concurrent writes.
+    const { merged, conflicts } = mergeResults(base as ResultsBlob, ours as ResultsBlob, theirs);
+
+    if (conflicts.length > 0) {
+        return c.json({
+            success: false as const,
+            error: {
+                code: 'MERGE_CONFLICT' as const,
+                message: 'Field-level conflicts require inspector adjudication',
+                details: { base: base as ResultsBlob, theirs, conflicts },
+            },
+        }, 409);
+    }
+
+    const newSyncedAt = new Date();
+    if (row) {
+        await db.update(inspectionResults)
+            .set({ data: merged as unknown as object, lastSyncedAt: newSyncedAt })
+            .where(eq(inspectionResults.id, row.id));
+    } else {
+        await db.insert(inspectionResults).values({
+            id: crypto.randomUUID(),
+            tenantId,
+            inspectionId: id,
+            data: merged as unknown as object,
+            lastSyncedAt: newSyncedAt,
+        });
+    }
+
+    auditFromContext(c, 'inspection.results_merged', 'inspection', {
+        entityId: id,
+        metadata: { items: Object.keys(merged).length, autoMerged: true },
+    });
+
+    return c.json({
+        success: true as const,
+        data: {
+            merged,
+            syncedAt: Math.floor(newSyncedAt.getTime() / 1000),
+            conflicts: [] as Array<never>,
+        },
+    }, 200);
+});
+
+/* ── DELETE /api/inspections/:id/items/:itemId/photos/:photoIndex ─────────── */
+syncRoutes.openapi(createRoute({
+    method: 'delete',
+    path: '/{id}/items/{itemId}/photos/{photoIndex}',
+    tags: ['Inspections'],
+    summary: 'Authoritative delete of a photo from a result item',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({
+            id:         z.string().uuid(),
+            itemId:     z.string(),
+            photoIndex: z.coerce.number().int().nonnegative(),
+        }),
+    },
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(true),
+                        data: z.object({ deletedKey: z.string().nullable() }),
+                    }),
+                },
+            },
+            description: 'Deleted',
+        },
+    },
+}), async (c) => {
+    const { id, itemId, photoIndex } = c.req.valid('param');
+    const tenantId = c.get('tenantId') as string;
+    const db = drizzle(c.env.DB);
+
+    const insp = await db.select().from(inspections)
+        .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId))).get();
+    if (!insp) throw Errors.NotFound('Inspection not found');
+
+    const row = await db.select().from(inspectionResults)
+        .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId))).get();
+    if (!row) throw Errors.NotFound('Results not found');
+
+    const data = row.data as Record<string, { photos?: Array<{ key: string }> }>;
+    const photos = data[itemId]?.photos ?? [];
+    if (photoIndex >= photos.length) throw Errors.NotFound('Photo index out of range');
+
+    const deletedKey = photos[photoIndex]?.key ?? null;
+    photos.splice(photoIndex, 1);
+
+    await db.update(inspectionResults)
+        .set({ data: data as unknown as object, lastSyncedAt: new Date() })
+        .where(eq(inspectionResults.id, row.id));
+
+    if (deletedKey && c.env.PHOTOS) {
+        await c.env.PHOTOS.delete(deletedKey).catch(() => {});
+    }
+
+    return c.json({ success: true as const, data: { deletedKey } }, 200);
+});
+
+/* ── POST /api/inspections/:id/inspector-signature ────────────────────────── */
+syncRoutes.openapi(createRoute({
+    method: 'post',
+    path: '/{id}/inspector-signature',
+    tags: ['Inspections'],
+    summary: 'Record inspector signature on an inspection (authenticated)',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: InspectorSignatureSchema } } },
+    },
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(true),
+                        data: z.object({ savedAt: z.number().int().positive() }),
+                    }),
+                },
+            },
+            description: 'Saved',
+        },
+    },
+}), async (c) => {
+    const { id } = c.req.valid('param');
+    const { signatureBase64, signedAt } = c.req.valid('json');
+    const tenantId = c.get('tenantId') as string;
+    const db = drizzle(c.env.DB);
+
+    const insp = await db.select().from(inspections)
+        .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId))).get();
+    if (!insp) throw Errors.NotFound('Inspection not found');
+
+    const row = await db.select().from(inspectionResults)
+        .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId))).get();
+    const data = (row?.data as Record<string, unknown>) ?? {};
+    data['_inspector_signature'] = { signatureBase64, signedAt, updatedAt: signedAt };
+
+    if (row) {
+        await db.update(inspectionResults)
+            .set({ data: data as object, lastSyncedAt: new Date() })
+            .where(eq(inspectionResults.id, row.id));
+    } else {
+        await db.insert(inspectionResults).values({
+            id: crypto.randomUUID(),
+            tenantId,
+            inspectionId: id,
+            data: data as object,
+            lastSyncedAt: new Date(),
+        });
+    }
+
+    return c.json({ success: true as const, data: { savedAt: signedAt } }, 200);
+});
+
+export default syncRoutes;
