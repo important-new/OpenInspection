@@ -37,6 +37,7 @@ import { AgreementSignPage } from './templates/pages/agreement-sign';
 import { CalendarPage } from './templates/pages/calendar';
 import { ContactsPage } from './templates/pages/contacts';
 import { RecommendationsPage } from './templates/pages/recommendations';
+import { CommentsPage } from './templates/pages/comments';
 import { InvoicesPage } from './templates/pages/invoices';
 import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
@@ -526,6 +527,10 @@ app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPa
 app.get('/recommendations', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(RecommendationsPage(b ? { branding: b } : {}));
+});
+app.get('/comments', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(CommentsPage(b ? { branding: b } : {}));
 });
 app.get('/invoices', htmlAuthGuard(['owner', 'admin']), (c) => c.html(InvoicesPage({ branding: c.get('branding') })));
 app.get('/calendar', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(CalendarPage({ branding: c.get('branding') })));

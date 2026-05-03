@@ -16,7 +16,7 @@ function openCommentPicker(btn) {
     _targetTextarea = btn.closest('[x-show]')?.querySelector('textarea') || null;
     loadCommentsLibrary().then(function () {
         if (_allComments.length === 0) {
-            picker.innerHTML = '<p class="text-sm text-slate-400 text-center py-2">No saved comments. Add them in Templates \u2192 Comments.</p>';
+            picker.innerHTML = '<p class="text-sm text-slate-400 text-center py-2">No saved comments. Add them in Templates → Comments.</p>';
         } else {
             picker.innerHTML = _allComments.map(function (c) {
                 var label = (c.category ? '<span class="text-[10px] text-indigo-400 font-black uppercase mr-1">' + _escapeHtml(c.category) + '</span>' : '') + _escapeHtml(c.text);
