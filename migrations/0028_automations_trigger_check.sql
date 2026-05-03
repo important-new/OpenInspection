@@ -1,15 +1,41 @@
 -- Spec 2A — extend automations.trigger CHECK to allow new agreement.* events.
 -- SQLite cannot ALTER CHECK; standard workaround = create_new + INSERT SELECT
--- + DROP old + RENAME. Same pattern as 0027 used for agreement_requests.
+-- + DROP old + RENAME.
 --
--- automation_logs has a FK to automations(id). PRAGMA defer_foreign_keys=ON
--- inside a transaction defers FK enforcement to COMMIT time — by then the
--- new automations table exists with the same row IDs (preserved via INSERT
--- SELECT), so existing FK refs in automation_logs remain valid.
+-- D1 doesn't allow explicit BEGIN TRANSACTION in --file execution (each
+-- statement runs in its own implicit transaction via the Workers Storage API).
+-- Cannot use PRAGMA defer_foreign_keys to bridge the FK gap from
+-- automation_logs.automation_id → automations.id during the table swap.
+--
+-- Resolution: recreate automation_logs FIRST without the FK (orphaned-log
+-- protection lost — but acceptable; logs are emails-already-sent, never
+-- delete automation rules in practice). Then safely drop+recreate
+-- automations with extended CHECK.
 
-PRAGMA defer_foreign_keys = ON;
+CREATE TABLE automation_logs_new (
+    id              TEXT    PRIMARY KEY,
+    tenant_id       TEXT    NOT NULL,
+    automation_id   TEXT    NOT NULL,
+    inspection_id   TEXT    NOT NULL,
+    recipient_email TEXT    NOT NULL,
+    send_at         TEXT    NOT NULL,
+    delivered_at    TEXT,
+    status          TEXT    NOT NULL DEFAULT 'pending'
+                    CHECK(status IN ('pending','sent','failed','skipped')),
+    error           TEXT
+);
 
-BEGIN TRANSACTION;
+INSERT INTO automation_logs_new
+    (id, tenant_id, automation_id, inspection_id, recipient_email, send_at, delivered_at, status, error)
+SELECT id, tenant_id, automation_id, inspection_id, recipient_email, send_at, delivered_at, status, error
+FROM automation_logs;
+
+DROP TABLE automation_logs;
+
+ALTER TABLE automation_logs_new RENAME TO automation_logs;
+
+CREATE INDEX idx_automation_logs_pending ON automation_logs(tenant_id, status, send_at);
+CREATE INDEX idx_automation_logs_insp    ON automation_logs(inspection_id);
 
 CREATE TABLE automations_new (
     id               TEXT    PRIMARY KEY,
@@ -37,10 +63,7 @@ SELECT id, tenant_id, name, trigger, recipient, delay_minutes,
 FROM automations;
 
 DROP TABLE automations;
+
 ALTER TABLE automations_new RENAME TO automations;
 
 CREATE INDEX idx_automations_tenant ON automations(tenant_id);
-
-COMMIT;
-
-PRAGMA defer_foreign_keys = OFF;
