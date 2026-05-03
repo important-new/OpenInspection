@@ -24,16 +24,7 @@ async function seedFor(testDb: BetterSQLite3Database<typeof schema>, agreementRe
     ]);
 }
 
-// TODO(spec2a): these 3 tests fail because AutomationService.trigger() calls
-// ensureSeeds() which inserts AUTOMATION_SEEDS rules with new triggers
-// (agreement.viewed/declined). The SQL CHECK constraint on automations.trigger
-// from migration 0016 only allows the original 7 values — needs migration to
-// recreate the table with extended CHECK (analogous to 0027 for
-// agreement_requests). Migration 0028 attempt failed due to FK constraint with
-// automation_logs through wrangler. Resolve in follow-up: write a wrangler-
-// compatible 0028 (drop+recreate automation_logs FK temporarily, or use
-// PRAGMA across separate execute calls).
-describe.skip('AutomationService.trigger — agreement filter', () => {
+describe('AutomationService.trigger — agreement filter', () => {
     let testDb: BetterSQLite3Database<typeof schema>;
     let svc: AutomationService;
 
@@ -44,6 +35,9 @@ describe.skip('AutomationService.trigger — agreement filter', () => {
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(testDb);
         const agr = new AgreementService({} as D1Database);
         svc = new AutomationService({} as D1Database, undefined, agr);
+        // Stub ensureSeeds so tests verify filter logic without seed-rule pollution.
+        // Tests insert their own automation rules below.
+        vi.spyOn(svc, 'ensureSeeds').mockResolvedValue();
     });
 
     it('skips rules with {{agreement_sign_url}} when agreementRequired=false', async () => {
