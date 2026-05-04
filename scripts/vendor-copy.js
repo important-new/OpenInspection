@@ -24,6 +24,8 @@ const jsFiles = [
   ['swagger-ui-dist/swagger-ui-bundle.js', 'swagger-ui-bundle.js'],
   ['swagger-ui-dist/swagger-ui.css', 'swagger-ui.css'],
   ['chart.js/dist/chart.umd.min.js', 'chart.min.js'],
+  ['flatpickr/dist/flatpickr.min.js', 'flatpickr.min.js'],
+  ['flatpickr/dist/flatpickr.min.css', 'flatpickr.min.css'],
 ];
 
 for (const [src, dest] of jsFiles) {
