@@ -315,7 +315,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 </div>
                                 <div class="space-y-2">
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Inspection Date &amp; Time</label>
-                                    <input type="datetime-local" id="inspectionDate"
+                                    <input type="text" id="inspectionDate" data-flatpickr data-min-date="today" autocomplete="off" placeholder="YYYY-MM-DD HH:MM"
                                         class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div x-data="contactSelector" class="relative mb-3">
