@@ -44,6 +44,23 @@ export function SettingsAutomationsPage({ branding }: SettingsAutomationsPagePro
                     </template>
                 </div>
 
+                <section class="mt-10 space-y-3">
+                    <h2 class="text-sm font-bold text-slate-700">Recent Activity</h2>
+                    <div x-show="logsLoading" class="text-xs text-slate-400">Loading activity…</div>
+                    <div x-show="!logsLoading && logs.length === 0" class="text-xs text-slate-400">No automation activity yet.</div>
+                    <div x-show="!logsLoading && logs.length > 0" class="space-y-1">
+                        <template x-for="log in logs" {...{ 'x-bind:key': 'log.id' }}>
+                            <div class="flex items-center justify-between text-xs px-3 py-2 bg-white border border-slate-100 rounded-lg">
+                                <div class="flex items-center gap-3 flex-1 min-w-0">
+                                    <span x-text="new Date(log.sendAt).toLocaleString()" class="text-slate-400 font-mono text-[10px]" />
+                                    <span x-text="log.recipientEmail" class="text-slate-700 truncate" />
+                                </div>
+                                <span x-bind:class="statusClass(log.status)" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full" x-text="log.status" />
+                            </div>
+                        </template>
+                    </div>
+                </section>
+
                 <script src="/js/auth.js" />
                 <script src="/js/automations.js" />
             </div>

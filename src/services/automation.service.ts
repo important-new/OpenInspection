@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, lte, sql } from 'drizzle-orm';
+import { eq, and, lte, sql, desc } from 'drizzle-orm';
 import { automations, automationLogs, inspections } from '../lib/db/schema';
 import { AUTOMATION_SEEDS } from '../data/automation-seeds';
 import { nanoid } from 'nanoid';
@@ -236,6 +236,15 @@ export class AutomationService {
         return db.select().from(automationLogs)
             .where(and(eq(automationLogs.tenantId, tenantId), eq(automationLogs.inspectionId, inspectionId)))
             .orderBy(sql`${automationLogs.sendAt} desc`);
+    }
+
+    async listRecentLogs(tenantId: string, limit = 50) {
+        const db = this.getDrizzle();
+        return await db.select()
+            .from(automationLogs)
+            .where(eq(automationLogs.tenantId, tenantId))
+            .orderBy(desc(automationLogs.sendAt))
+            .limit(limit);
     }
 
     private titleFor(event: string, insp: typeof inspections.$inferSelect): string {
