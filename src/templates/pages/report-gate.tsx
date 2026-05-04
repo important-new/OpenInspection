@@ -1,15 +1,19 @@
 import type { FC } from 'hono/jsx';
 
 interface ReportGateProps {
-    reason: 'payment' | 'agreement';
-    companyName: string;
-    primaryColor: string;
-    actionUrl: string;
-    actionLabel: string;
+    reason:           'payment' | 'agreement';
+    companyName:      string;
+    primaryColor:     string;
+    actionUrl:        string;
+    actionLabel:      string;
+    propertyAddress?: string | null;   // Spec 3A — inspection summary card
+    inspectorName?:   string | null;   // Spec 3A — TODO: requires join to users table
+    scheduledDate?:   string | null;   // Spec 3A — ISO date string
 }
 
 export const ReportGatePage: FC<ReportGateProps> = ({
     reason, companyName, primaryColor, actionUrl, actionLabel,
+    propertyAddress, inspectorName, scheduledDate,
 }) => {
     const icon = reason === 'payment' ? '💳' : '📝';
     const title = reason === 'payment'
@@ -47,6 +51,13 @@ export const ReportGatePage: FC<ReportGateProps> = ({
                     <div class="icon">{icon}</div>
                     <h1>{title}</h1>
                     <p>{message}</p>
+                    {(propertyAddress || inspectorName || scheduledDate) && (
+                        <div style="background:#f8fafc;border-radius:12px;padding:16px;margin:8px 0 24px;text-align:left;font-size:13px;color:#475569;">
+                            {propertyAddress && <div style="font-weight:700;color:#0f172a;margin-bottom:6px;">{propertyAddress}</div>}
+                            {inspectorName && <div style="margin-bottom:2px;">Inspector: {inspectorName}</div>}
+                            {scheduledDate && <div>Scheduled: {new Date(scheduledDate).toLocaleString()}</div>}
+                        </div>
+                    )}
                     <a href={actionUrl}>{actionLabel}</a>
                     <div class="brand">{companyName}</div>
                 </div>

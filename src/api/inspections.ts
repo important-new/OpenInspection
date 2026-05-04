@@ -841,6 +841,9 @@ inspectionsRoutes.get('/:id/report', async (c) => {
             companyName, primaryColor,
             actionUrl: `${baseUrl}/invoices?inspection=${id}`,
             actionLabel: 'View Invoice & Pay',
+            propertyAddress: inspection.propertyAddress ?? null,
+            inspectorName:   null, // TODO: requires join to users table
+            scheduledDate:   inspection.date ?? null,
         }) as string);
     }
 
@@ -859,6 +862,9 @@ inspectionsRoutes.get('/:id/report', async (c) => {
                 companyName, primaryColor,
                 actionUrl: `${baseUrl}/sign/${id}`,
                 actionLabel: 'Sign Agreement',
+                propertyAddress: inspection.propertyAddress ?? null,
+                inspectorName:   null, // TODO: requires join to users table
+                scheduledDate:   inspection.date ?? null,
             }) as string);
         }
     }
