@@ -154,6 +154,15 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         inspectorId = first.id;
     }
 
+    // Spec 3C — enforce inspector availability + availability_overrides + existing-bookings collision check.
+    // Reuses BookingService.getAvailableSlots (returns [{time:'HH:MM', available:bool}, ...]).
+    const slots = await service.getAvailableSlots(tenantId, inspectorId, body.date);
+    const requestedTime = body.timeSlot === 'morning' ? '08:00' : '13:00';
+    const targetSlot = slots.find(s => s.time === requestedTime);
+    if (!targetSlot || !targetSlot.available) {
+        throw Errors.Conflict('That time slot is no longer available. Please pick another time.');
+    }
+
     const inspectionId = crypto.randomUUID();
     await db.insert(inspections).values({
         id: inspectionId,
