@@ -25,8 +25,11 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
             <title>{title}</title>
             <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
             <link rel="stylesheet" href="/fonts.css" />
+            <link rel="stylesheet" href="/vendor/flatpickr.min.css" />
             <script defer src="/vendor/alpine-collapse.min.js"></script>
             <script defer src="/vendor/alpine.min.js"></script>
+            <script defer src="/vendor/flatpickr.min.js"></script>
+            <script defer src="/js/flatpickr-init.js"></script>
             {/* B4 — Dexie importmap: must precede every type="module" script that imports 'dexie' */}
             <script
                 type="importmap"

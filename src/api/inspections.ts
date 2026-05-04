@@ -20,6 +20,7 @@ import {
     PublishInspectionSchema,
     ReportDataResponseSchema,
     CancelInspectionSchema,
+    DashboardResponseSchema,
 } from '../lib/validations/inspection.schema';
 import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
@@ -29,6 +30,26 @@ import { inspections as inspectionTable, inspectionResults, agreements, inspecti
 import { eq, inArray, and } from 'drizzle-orm';
 
 const inspectionsRoutes = new OpenAPIHono<HonoConfig>();
+
+// --- GET /api/inspections/dashboard — Spec 3A ---
+const dashboardRoute = createRoute({
+    method: 'get',
+    path:   '/dashboard',
+    tags:   ['Inspections'],
+    summary: 'Bucketed inspections for dashboard',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    responses: {
+        200: {
+            content: { 'application/json': { schema: createApiResponseSchema(DashboardResponseSchema) } },
+            description: 'Dashboard buckets',
+        },
+    },
+});
+inspectionsRoutes.openapi(dashboardRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const buckets  = await c.var.services.inspection.getDashboardBuckets(tenantId);
+    return c.json({ success: true, data: buckets });
+});
 
 /**
  * GET /api/inspections

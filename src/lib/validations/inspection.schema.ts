@@ -187,17 +187,16 @@ export const ReportDataResponseSchema = z.object({
 }).openapi('ReportData');
 
 export const InspectionListItemSchema = z.object({
-    id:                z.string(),
-    inspectionDate:    z.string().nullable(),
-    propertyAddress:   z.string().nullable(),
-    clientName:        z.string().nullable(),
-    status:            z.string(),
-    confirmedAt:       z.string().nullable(),
-    cancelReason:      z.string().nullable(),
-    cancelNotes:       z.string().nullable(),
-    cancelledAt:       z.string().nullable(),
-    reportPublishedAt: z.string().nullable(),
-}).openapi('InspectionListItem');
+    id:           z.string(),
+    date:         z.string().nullable(),
+    address:      z.string().nullable().optional(),
+    clientName:   z.string().nullable().optional(),
+    status:       z.string(),
+    confirmedAt:  z.string().nullable().optional(),
+    cancelReason: z.string().nullable().optional(),
+    cancelNotes:  z.string().nullable().optional(),
+    createdAt:    z.string().nullable().optional(),
+}).passthrough().openapi('InspectionListItem');
 
 export const DashboardResponseSchema = z.object({
     needsAttention: z.array(InspectionListItemSchema),
