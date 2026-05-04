@@ -50,6 +50,15 @@ export const CreateDiscountCodeSchema = z.object({
     expiresAt: z.string().datetime().optional(),
 }).openapi('CreateDiscountCode');
 
+export const UpdateDiscountCodeSchema = z.object({
+    code:      z.string().min(1).max(50).optional(),
+    type:      z.enum(['fixed', 'percent']).optional(),
+    value:     z.number().int().min(0).optional(),
+    maxUses:   z.number().int().min(0).nullable().optional(),
+    expiresAt: z.string().nullable().optional(),
+    active:    z.boolean().optional(),
+}).openapi('UpdateDiscountCode');
+
 export const ValidateDiscountSchema = z.object({
     code:     z.string().min(1),
     subtotal: z.number().int().min(0),

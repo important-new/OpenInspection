@@ -81,6 +81,24 @@ export class ServiceService {
             .where(eq(discountCodes.tenantId, tenantId));
     }
 
+    async updateDiscountCode(tenantId: string, id: string, data: Partial<typeof discountCodes.$inferInsert>) {
+        const db = this.getDrizzle();
+        const updated = await db.update(discountCodes)
+            .set(data)
+            .where(and(eq(discountCodes.id, id), eq(discountCodes.tenantId, tenantId)))
+            .returning();
+        if (updated.length === 0) throw Errors.NotFound('Discount code not found');
+        return updated[0];
+    }
+
+    async deleteDiscountCode(tenantId: string, id: string) {
+        const db = this.getDrizzle();
+        const result = await db.delete(discountCodes)
+            .where(and(eq(discountCodes.id, id), eq(discountCodes.tenantId, tenantId)))
+            .returning({ id: discountCodes.id });
+        if (result.length === 0) throw Errors.NotFound('Discount code not found');
+    }
+
     async createDiscountCode(tenantId: string, data: CreateDiscountData) {
         const db = this.getDrizzle();
         const id = nanoid();

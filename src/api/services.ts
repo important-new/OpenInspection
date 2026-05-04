@@ -4,7 +4,7 @@ import { requireRole } from '../lib/middleware/rbac';
 import type { HonoConfig } from '../types/hono';
 import {
     CreateServiceSchema, UpdateServiceSchema, ServiceResponseSchema,
-    ServiceListResponseSchema, CreateDiscountCodeSchema,
+    ServiceListResponseSchema, CreateDiscountCodeSchema, UpdateDiscountCodeSchema,
     ValidateDiscountSchema, ValidateDiscountResponseSchema,
 } from '../lib/validations/service.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
@@ -49,6 +49,50 @@ servicesRoutes.openapi(createRoute({
     const data = c.req.valid('json');
     await c.var.services.service.createDiscountCode(tenantId, data);
     return c.json({ success: true }, 201);
+});
+
+// GET /api/services/discount-codes — MUST be before /:id routes
+servicesRoutes.openapi(createRoute({
+    method: 'get', path: '/discount-codes',
+    tags: ['Services'], summary: 'List discount codes',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'OK' } },
+}), async (c) => {
+    const tenantId = c.get('tenantId');
+    const rows = await c.var.services.service.listDiscountCodes(tenantId);
+    return c.json({ success: true, data: rows });
+});
+
+// PUT /api/services/discount-codes/:id — MUST be before /:id routes
+servicesRoutes.openapi(createRoute({
+    method: 'put', path: '/discount-codes/{id}',
+    tags: ['Services'], summary: 'Update discount code',
+    middleware: [requireRole(['owner', 'admin'])] as const,
+    request: {
+        params: z.object({ id: z.string() }),
+        body: { content: { 'application/json': { schema: UpdateDiscountCodeSchema } } },
+    },
+    responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Updated' } },
+}), async (c) => {
+    const tenantId = c.get('tenantId');
+    const { id } = c.req.valid('param');
+    const data = c.req.valid('json');
+    const row = await c.var.services.service.updateDiscountCode(tenantId, id, data);
+    return c.json({ success: true, data: row });
+});
+
+// DELETE /api/services/discount-codes/:id — MUST be before /:id routes
+servicesRoutes.openapi(createRoute({
+    method: 'delete', path: '/discount-codes/{id}',
+    tags: ['Services'], summary: 'Delete discount code',
+    middleware: [requireRole(['owner', 'admin'])] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Deleted' } },
+}), async (c) => {
+    const tenantId = c.get('tenantId');
+    const { id } = c.req.valid('param');
+    await c.var.services.service.deleteDiscountCode(tenantId, id);
+    return c.json({ success: true });
 });
 
 // POST /api/services
