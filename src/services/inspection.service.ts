@@ -581,10 +581,10 @@ export class InspectionService {
 
     async cancelInspection(tenantId: string, id: string, reason: string, notes?: string): Promise<void> {
         const { db } = await this.fetchForStatusChange(tenantId, id);
-        const cancelNote = notes ? `${reason}: ${notes}` : reason;
         await db.update(inspections).set({
             status:       'cancelled' as any,
-            cancelReason: cancelNote,
+            cancelReason: reason,
+            cancelNotes:  notes ?? null,
         }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
         fireAutomation(this.db, tenantId, id, 'inspection.cancelled');
     }
@@ -595,7 +595,67 @@ export class InspectionService {
         await db.update(inspections).set({
             status:       'scheduled' as any,
             cancelReason: null,
+            cancelNotes:  null,
         }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+    }
+
+    /**
+     * Returns bucketed inspection lists for the dashboard view.
+     * All filtering is done in-process from a single tenant query.
+     * Note: uses the `date` column (TEXT "YYYY-MM-DD") for scheduling logic.
+     */
+    async getDashboardBuckets(tenantId: string) {
+        const db  = this.getDrizzle();
+        const all = await db.select().from(inspections)
+            .where(eq(inspections.tenantId, tenantId));
+
+        const now           = Date.now();
+        const startOfToday  = new Date(); startOfToday.setHours(0, 0, 0, 0);
+        const endOfToday    = new Date(); endOfToday.setHours(23, 59, 59, 999);
+        const in48h         = new Date(now + 48 * 3600 * 1000);
+        const in7days       = new Date(now + 7 * 86400 * 1000);
+        const minus30days   = new Date(now - 30 * 86400 * 1000);
+        const minus24h      = new Date(now - 24 * 3600 * 1000);
+
+        // Parse the text `date` column ("YYYY-MM-DD") to a Date at midnight UTC.
+        const insDate = (i: typeof inspections.$inferSelect) =>
+            i.date ? new Date(i.date) : null;
+
+        const isToday = (i: typeof inspections.$inferSelect) => {
+            const d = insDate(i);
+            return d !== null && d >= startOfToday && d <= endOfToday;
+        };
+
+        // Needs attention: scheduled within 48h OR in_progress >24h after inspection date.
+        const needsAttention = all.filter(i => {
+            const d = insDate(i);
+            if (i.status === 'scheduled' && d && d <= in48h) return true;
+            if (i.status === 'in_progress' && d && d <= minus24h) return true;
+            return false;
+        });
+
+        const today = all.filter(i => isToday(i) && i.status !== 'cancelled');
+
+        const thisWeek = all.filter(i => {
+            const d = insDate(i);
+            return d !== null && d > endOfToday && d <= in7days && i.status !== 'cancelled';
+        });
+
+        const laterAll = all.filter(i => {
+            const d = insDate(i);
+            return d !== null && d > in7days && i.status !== 'cancelled';
+        });
+        const later      = laterAll.slice(0, 50);
+        const laterTotal = laterAll.length;
+
+        const recentReports = all.filter(i => i.status === 'completed' || i.status === 'delivered');
+
+        // Cancelled within last 30 days (no updatedAt on inspections — use createdAt as fallback proxy).
+        const cancelled = all.filter(i =>
+            i.status === 'cancelled' && new Date(i.createdAt) >= minus30days
+        ).slice(0, 20);
+
+        return { needsAttention, today, thisWeek, later, laterTotal, recentReports, cancelled };
     }
 
     /**
