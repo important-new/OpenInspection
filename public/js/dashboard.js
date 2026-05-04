@@ -428,6 +428,7 @@ function dashboardFactory() {
                 // Auto-expand needsAttention or today if they have items; collapse others if empty
                 if (this.buckets.needsAttention.length > 0) this.sections.needsAttention = true;
                 if (this.buckets.today.length > 0) this.sections.today = true;
+                this.computeStats();
             } catch (e) {
                 if (typeof window.showToast === 'function') {
                     window.showToast('Failed to load dashboard: ' + e.message, true);
@@ -435,6 +436,35 @@ function dashboardFactory() {
             } finally {
                 this.loading = false;
             }
+        },
+
+        computeStats() {
+            const b = this.buckets;
+            const allActive = [...b.today, ...b.thisWeek, ...b.later];
+            const inProgressItems = [
+                ...b.needsAttention.filter(i => i.status === 'in_progress'),
+                ...b.today.filter(i => i.status === 'in_progress'),
+                ...b.thisWeek.filter(i => i.status === 'in_progress'),
+                ...b.later.filter(i => i.status === 'in_progress'),
+            ];
+            const completedItems = [
+                ...b.needsAttention.filter(i => i.status === 'completed'),
+                ...b.today.filter(i => i.status === 'completed'),
+                ...b.thisWeek.filter(i => i.status === 'completed'),
+                ...b.later.filter(i => i.status === 'completed'),
+                ...b.recentReports,
+            ];
+            const dedupCount = (rows) => new Set(rows.map(r => r.id)).size;
+
+            const setText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = String(val);
+            };
+
+            setText('statActive',    allActive.length);
+            setText('statProgress',  dedupCount(inProgressItems));
+            setText('statReview',    b.recentReports.length);
+            setText('statCompleted', dedupCount(completedItems));
         },
 
         async loadAllLater() {
