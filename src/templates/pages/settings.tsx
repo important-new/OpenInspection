@@ -19,6 +19,12 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
     return (
         <MainLayout title={`${siteName} | Settings`} branding={branding}>
             <div class="max-w-5xl mx-auto space-y-16 animate-fade-in">
+                {/* Resume-setup banner — shown by JS when onboarding was skipped */}
+                <div id="resumeSetupBanner" class="hidden mb-6 px-5 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                    <span class="text-sm text-amber-800 font-semibold">Setup is incomplete. Finish configuring your workspace to unlock all features.</span>
+                    <a href="/setup" class="text-sm text-amber-900 font-bold hover:underline ml-4 whitespace-nowrap">Resume setup →</a>
+                </div>
+
                 <div class="space-y-4">
                     <div class="flex items-center gap-3">
                         <span class="inline-flex items-center rounded-lg bg-indigo-600/10 px-3 py-1 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ring-1 ring-inset ring-indigo-600/20">Settings</span>
@@ -383,6 +389,20 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
 
                 <script src="/js/auth.js"></script>
                 <script src="/js/settings.js"></script>
+                <script dangerouslySetInnerHTML={{ __html: `
+(function () {
+    fetch('/api/auth/me', { credentials: 'include' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            var state = data && data.data && data.data.user && data.data.user.onboardingState;
+            if (state && state.skipped && !state.completed) {
+                var banner = document.getElementById('resumeSetupBanner');
+                if (banner) banner.classList.remove('hidden');
+            }
+        })
+        .catch(function () { /* best-effort */ });
+})();
+` }} />
             </div>
         </MainLayout>
     );

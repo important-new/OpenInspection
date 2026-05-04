@@ -65,13 +65,20 @@ export const SetupPage = ({ branding }: { branding?: BrandingConfig | undefined 
                             </div>
 
                             <div>
-                                <button type="submit" id="submitBtn" 
+                                <button type="submit" id="submitBtn"
                                     class="premium-button flex w-full justify-center rounded-2xl bg-emerald-600 px-6 py-5 text-base font-bold text-white shadow-xl shadow-emerald-100 hover:bg-slate-900 hover:shadow-emerald-200 active:scale-95 disabled:bg-slate-300 transition-all">
                                     Create Account
                                 </button>
                             </div>
+
+                            <div class="flex justify-center pt-2">
+                                <button type="button" id="skipBtn" onclick="confirmSkip()"
+                                        class="text-sm text-slate-500 hover:text-slate-900 font-semibold transition-colors">
+                                    Skip for now →
+                                </button>
+                            </div>
                         </form>
-                        
+
                         <div id="errorMsg" class="mt-6 p-4 rounded-xl bg-red-50 text-center text-sm text-red-600 font-bold border border-red-100 hidden animate-fade-in"></div>
 
                         <div class="mt-12 flex items-center justify-center gap-2">

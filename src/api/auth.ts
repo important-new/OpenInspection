@@ -10,6 +10,7 @@ import { logger } from '../lib/logger';
 import { getBaseUrl } from '../lib/url';
 import { checkRateLimit } from '../lib/rate-limit';
 import { requireCsrfToken } from '../lib/middleware/csrf';
+import { requireRole } from '../lib/middleware/rbac';
 import {
     LoginSchema,
     ChangePasswordSchema,
@@ -358,6 +359,37 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
     }, 200);
 });
 
+const skipSetupRoute = createRoute({
+    method: 'post',
+    path: '/setup/skip',
+    summary: 'Skip Onboarding Wizard',
+    description: 'Marks the onboarding wizard as skipped for the current user.',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    responses: {
+        200: {
+            content: {
+                'application/json': { schema: SuccessResponseSchema }
+            },
+            description: 'Onboarding marked as skipped'
+        },
+        401: { description: 'Unauthorized' }
+    }
+});
+
+coreAuthRoutes.openapi(skipSetupRoute, async (c) => {
+    const user = c.get('user');
+    if (!user?.sub) throw Errors.Unauthorized('Not signed in');
+
+    const db = drizzle(c.env.DB);
+    const me = await db.select().from(users).where(eq(users.id, user.sub)).get();
+    const onboardingState = ((me?.onboardingState ?? {}) as Record<string, boolean>);
+    onboardingState.skipped = true;
+
+    await db.update(users).set({ onboardingState }).where(eq(users.id, user.sub));
+
+    return c.json({ success: true, data: { skipped: true } }, 200);
+});
+
 const meRoute = createRoute({
     method: 'get',
     path: '/me',
@@ -372,7 +404,8 @@ const meRoute = createRoute({
                             id: z.string(),
                             email: z.string().optional(),
                             tenantId: z.string().optional(),
-                            role: z.string()
+                            role: z.string(),
+                            onboardingState: z.record(z.string(), z.boolean()).nullable().optional(),
                         })
                     }))
                 }
@@ -394,6 +427,7 @@ coreAuthRoutes.openapi(meRoute, async (c) => {
         name: users.name,
         phone: users.phone,
         licenseNumber: users.licenseNumber,
+        onboardingState: users.onboardingState,
     }).from(users).where(eq(users.id, user.sub)).get();
 
     return c.json({
@@ -405,6 +439,7 @@ coreAuthRoutes.openapi(meRoute, async (c) => {
                 name: row?.name || null,
                 phone: row?.phone || null,
                 licenseNumber: row?.licenseNumber || null,
+                onboardingState: row?.onboardingState ?? null,
                 tenantId: c.get('tenantId'),
                 role: c.get('userRole')
             }
