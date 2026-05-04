@@ -1,5 +1,6 @@
 import { MainLayout } from '../layouts/main-layout';
 import { BrandingConfig } from '../../types/auth';
+import { CancelModal } from '../components/cancel-modal';
 
 export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
@@ -7,7 +8,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
     return (
         <MainLayout title={`${siteName} | Dashboard`} branding={branding}>
             <div class="space-y-12 animate-fade-in">
-                
+
                 {/* Header Section */}
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-8">
                     <div class="space-y-4">
@@ -17,7 +18,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                         <h1 class="text-5xl font-black tracking-tight text-slate-900 sm:text-6xl text-gradient">Inspections</h1>
                         <p class="text-lg text-slate-500 max-w-2xl font-semibold leading-relaxed">Manage your inspections.</p>
                     </div>
-                    
+
                     <div class="flex items-center gap-4">
                         <button type="button" onclick="showCreateModal()" class="premium-button group relative flex items-center justify-center gap-3 overflow-hidden px-10 py-5 rounded-[1.5rem] bg-indigo-600 text-white font-bold shadow-2xl shadow-indigo-100 hover:bg-slate-900 hover:shadow-indigo-200 active:scale-95 transition-all">
                             <svg class="w-5 h-5 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,88 +66,220 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </div>
                 </div>
 
-                {/* Inspections Table Container */}
-                <div class="glass-panel relative overflow-hidden rounded-[3rem] min-h-[500px] animate-fade-in shadow-2xl shadow-slate-200/50" style="animation-delay: 0.3s">
-                    <div class="px-10 py-8 border-b border-slate-100/50 flex flex-col sm:flex-row items-center justify-between gap-6">
-                        <div class="flex items-center gap-6">
-                             <h2 class="text-2xl font-black text-slate-900 tracking-tightest">Recent Inspections</h2>
+                {/* Collapsible Inspection Sections */}
+                <div x-data="dashboard()" x-init="init()" class="space-y-4 mt-8">
+
+                    {/* Loading spinner */}
+                    <div x-show="loading" class="flex items-center justify-center py-16">
+                        <div class="relative w-12 h-12">
+                            <div class="absolute inset-0 border-4 border-indigo-50 rounded-full"></div>
+                            <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
                         </div>
-                        <div class="flex items-center gap-4 w-full sm:w-auto">
-                            <select id="filterInspector" aria-label="Filter by inspector" class="premium-input px-4 py-4 rounded-2xl text-sm font-bold border-0 ring-2 ring-slate-100 focus:ring-2 focus:ring-indigo-600 transition-all bg-white min-w-[160px]">
-                                <option value="">All Inspectors</option>
-                            </select>
-                            <div class="relative w-full sm:w-80 group">
-                                <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl blur opacity-0 group-focus-within:opacity-10 transition-opacity"></div>
-                                <input type="text" id="filterSearch" placeholder="Search entries..." class="premium-input relative w-full pl-12 pr-6 py-4 rounded-2xl text-sm font-bold border-0 ring-2 ring-slate-100 focus:ring-2 focus:ring-indigo-600 transition-all placeholder:text-slate-400" />
-                                <svg class="w-5 h-5 text-slate-400 absolute left-4 top-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+
+                    {/* Section: Needs Attention */}
+                    <section x-show="!loading && buckets.needsAttention.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                        <button type="button" x-on:click="sections.needsAttention = !sections.needsAttention"
+                                class="w-full flex items-center justify-between px-5 py-4 text-left">
+                            <div class="flex items-center gap-3">
+                                <span class="text-amber-600">&#9888;</span>
+                                <span class="font-bold text-slate-900">Needs attention</span>
+                                <span class="text-xs font-bold text-amber-700 bg-amber-100 rounded-full px-2 py-0.5" x-text="buckets.needsAttention.length"></span>
+                            </div>
+                            <span x-text="sections.needsAttention ? '−' : '+'" class="text-slate-400 text-xl"></span>
+                        </button>
+                        <div x-show="sections.needsAttention" {...{ 'x-collapse': true }}>
+                            <template x-for="i in buckets.needsAttention" {...{ 'x-bind:key': 'i.id' }}>
+                                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-test="inspection-row">
+                                    <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
+                                        <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
+                                        <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                    </a>
+                                    <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
+                                        <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
+                                        <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                                            <template x-for="a in validActions()" {...{ 'x-bind:key': 'a' }}>
+                                                <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50" x-text="actionLabel(a)"></button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+
+                    {/* Section: Today */}
+                    <section x-show="!loading && buckets.today.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                        <button type="button" x-on:click="sections.today = !sections.today"
+                                class="w-full flex items-center justify-between px-5 py-4 text-left">
+                            <div class="flex items-center gap-3">
+                                <span class="text-blue-600">&#128197;</span>
+                                <span class="font-bold text-slate-900">Today</span>
+                                <span class="text-xs font-bold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5" x-text="buckets.today.length"></span>
+                            </div>
+                            <span x-text="sections.today ? '−' : '+'" class="text-slate-400 text-xl"></span>
+                        </button>
+                        <div x-show="sections.today" {...{ 'x-collapse': true }}>
+                            <template x-for="i in buckets.today" {...{ 'x-bind:key': 'i.id' }}>
+                                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-test="inspection-row">
+                                    <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
+                                        <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
+                                        <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                    </a>
+                                    <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
+                                        <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
+                                        <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                                            <template x-for="a in validActions()" {...{ 'x-bind:key': 'a' }}>
+                                                <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50" x-text="actionLabel(a)"></button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+
+                    {/* Section: This Week */}
+                    <section x-show="!loading && buckets.thisWeek.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                        <button type="button" x-on:click="sections.thisWeek = !sections.thisWeek"
+                                class="w-full flex items-center justify-between px-5 py-4 text-left">
+                            <div class="flex items-center gap-3">
+                                <span class="text-slate-500">&#128197;</span>
+                                <span class="font-bold text-slate-900">This week</span>
+                                <span class="text-xs font-bold text-slate-700 bg-slate-100 rounded-full px-2 py-0.5" x-text="buckets.thisWeek.length"></span>
+                            </div>
+                            <span x-text="sections.thisWeek ? '−' : '+'" class="text-slate-400 text-xl"></span>
+                        </button>
+                        <div x-show="sections.thisWeek" {...{ 'x-collapse': true }}>
+                            <template x-for="i in buckets.thisWeek" {...{ 'x-bind:key': 'i.id' }}>
+                                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-test="inspection-row">
+                                    <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
+                                        <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
+                                        <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                    </a>
+                                    <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
+                                        <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
+                                        <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                                            <template x-for="a in validActions()" {...{ 'x-bind:key': 'a' }}>
+                                                <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50" x-text="actionLabel(a)"></button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+
+                    {/* Section: Later */}
+                    <section x-show="!loading && (buckets.later.length > 0 || buckets.laterTotal > 0)" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                        <button type="button" x-on:click="sections.later = !sections.later"
+                                class="w-full flex items-center justify-between px-5 py-4 text-left">
+                            <div class="flex items-center gap-3">
+                                <span class="text-slate-500">&#128197;</span>
+                                <span class="font-bold text-slate-900">Later</span>
+                                <span class="text-xs font-bold text-slate-700 bg-slate-100 rounded-full px-2 py-0.5" x-text="buckets.laterTotal || buckets.later.length"></span>
+                            </div>
+                            <span x-text="sections.later ? '−' : '+'" class="text-slate-400 text-xl"></span>
+                        </button>
+                        <div x-show="sections.later" {...{ 'x-collapse': true }}>
+                            <template x-for="i in buckets.later" {...{ 'x-bind:key': 'i.id' }}>
+                                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-test="inspection-row">
+                                    <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
+                                        <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
+                                        <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                    </a>
+                                    <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
+                                        <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
+                                        <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                                            <template x-for="a in validActions()" {...{ 'x-bind:key': 'a' }}>
+                                                <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50" x-text="actionLabel(a)"></button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <div x-show="buckets.laterTotal > buckets.later.length" class="px-5 py-3 border-t border-slate-100">
+                                <button type="button" x-on:click="loadAllLater()"
+                                        class="text-sm text-indigo-600 font-semibold hover:text-indigo-800 transition-colors"
+                                        x-text="'Show all (' + buckets.later.length + ' of ' + buckets.laterTotal + ')'"></button>
                             </div>
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Unconfirmed warning banner */}
-                    <div id="unconfirmedBanner" class="mx-8 mb-0 mt-4 px-4 py-3 rounded-xl flex items-center gap-3 text-sm font-semibold" style="display:none; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;">
-                        <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                        <span id="unconfirmedBannerText"></span>
-                        <button onclick="setTab('unconfirmed')" class="ml-auto text-xs underline font-bold">View</button>
-                    </div>
-
-                    {/* Tab strip */}
-                    <div class="px-8 pt-4 pb-0 flex gap-1 flex-wrap" id="inspectionTabStrip">
-                        {[
-                            { key: 'all',         label: 'All',         color: '#6366f1' },
-                            { key: 'today',       label: 'Today',       color: '#f59e0b' },
-                            { key: 'upcoming',    label: 'Upcoming',    color: '#3b82f6' },
-                            { key: 'past',        label: 'Past',        color: '#94a3b8' },
-                            { key: 'unconfirmed', label: 'Unconfirmed', color: '#ef4444' },
-                            { key: 'in_progress', label: 'In Progress', color: '#22c55e' },
-                        ].map(({ key, label, color }) => (
-                            <button
-                                key={key}
-                                data-tab={key}
-                                onclick={`setTab('${key}')`}
-                                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-500"
-                            >
-                                {label}
-                                <span id={`tab-count-${key}`} class="text-white text-[9px] font-black rounded-full px-1.5 py-0.5 min-w-[18px] text-center" style={`background: ${color}`}>0</span>
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Desktop table — visible at md+ */}
-                    <div class="hidden md:block overflow-x-auto custom-scrollbar">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-50/40">
-                                <tr>
-                                    <th class="py-6 px-10 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Address</th>
-                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Client</th>
-                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Inspector</th>
-                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Date</th>
-                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Status</th>
-                                    <th class="py-6 px-8 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Fee</th>
-                                    <th class="relative py-6 pl-3 pr-10 text-right"><span class="sr-only">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="inspectionsList" class="divide-y divide-slate-100/50">
-                                <tr id="loadingRow">
-                                    <td colspan={7} class="py-32 text-center">
-                                        <div class="flex flex-col items-center gap-6">
-                                            <div class="relative w-16 h-16">
-                                                <div class="absolute inset-0 border-[6px] border-indigo-50 rounded-full"></div>
-                                                <div class="absolute inset-0 border-[6px] border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
-                                            </div>
-                                            <p class="text-sm font-black text-slate-300 uppercase tracking-[0.3em]">Loading</p>
+                    {/* Section: Recent Reports */}
+                    <section x-show="!loading && buckets.recentReports.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                        <button type="button" x-on:click="sections.recentReports = !sections.recentReports"
+                                class="w-full flex items-center justify-between px-5 py-4 text-left">
+                            <div class="flex items-center gap-3">
+                                <span class="text-emerald-600">&#10003;</span>
+                                <span class="font-bold text-slate-900">Recent reports</span>
+                                <span class="text-xs font-bold text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5" x-text="buckets.recentReports.length"></span>
+                            </div>
+                            <span x-text="sections.recentReports ? '−' : '+'" class="text-slate-400 text-xl"></span>
+                        </button>
+                        <div x-show="sections.recentReports" {...{ 'x-collapse': true }}>
+                            <template x-for="i in buckets.recentReports" {...{ 'x-bind:key': 'i.id' }}>
+                                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-test="inspection-row">
+                                    <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
+                                        <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
+                                        <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                    </a>
+                                    <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
+                                        <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
+                                        <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                                            <template x-for="a in validActions()" {...{ 'x-bind:key': 'a' }}>
+                                                <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50" x-text="actionLabel(a)"></button>
+                                            </template>
                                         </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+
+                    {/* Section: Cancelled */}
+                    <section x-show="!loading && buckets.cancelled.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                        <button type="button" x-on:click="sections.cancelled = !sections.cancelled"
+                                class="w-full flex items-center justify-between px-5 py-4 text-left">
+                            <div class="flex items-center gap-3">
+                                <span class="text-rose-600">&#128683;</span>
+                                <span class="font-bold text-slate-900">Cancelled</span>
+                                <span class="text-xs font-bold text-rose-700 bg-rose-100 rounded-full px-2 py-0.5" x-text="buckets.cancelled.length"></span>
+                            </div>
+                            <span x-text="sections.cancelled ? '−' : '+'" class="text-slate-400 text-xl"></span>
+                        </button>
+                        <div x-show="sections.cancelled" {...{ 'x-collapse': true }}>
+                            <template x-for="i in buckets.cancelled" {...{ 'x-bind:key': 'i.id' }}>
+                                <div class="px-5 py-3 border-t border-slate-100 flex items-center justify-between" data-test="inspection-row">
+                                    <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
+                                        <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
+                                        <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                    </a>
+                                    <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
+                                        <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
+                                        <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+                                            <template x-for="a in validActions()" {...{ 'x-bind:key': 'a' }}>
+                                                <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50" x-text="actionLabel(a)"></button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </section>
+
+                    {/* Empty state */}
+                    <div x-show="!loading && allBucketsEmpty" {...{ 'x-cloak': true }} class="text-center py-16 text-slate-400">
+                        <div class="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-10 h-10 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        </div>
+                        <p class="text-sm">No inspections yet. Create one above to get started.</p>
                     </div>
 
-                    {/* Mobile card list — visible below md */}
-                    <div id="inspectionsCardList" class="md:hidden flex flex-col gap-3 px-4 pb-4"></div>
+                    <CancelModal />
                 </div>
 
-                {/* Initializing Inspection Modal */}
+                {/* Create Inspection Modal */}
                 <div id="createModal" class="fixed inset-0 z-[100] hidden overflow-y-auto">
                     <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xl transition-opacity animate-fade-in" onclick="closeModal()"></div>
                     <div class="flex min-h-full items-center justify-center p-6">
@@ -156,7 +289,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <svg class="w-6 h-6 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
-                            
+
                             <div class="mb-10">
                                 <div class="w-14 h-14 bg-emerald-600/10 rounded-2xl flex items-center justify-center text-emerald-600 mb-6">
                                     <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
@@ -164,7 +297,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 <h3 class="text-3xl font-black text-slate-900 tracking-tightest mb-2 leading-none">New Inspection</h3>
                                 <p class="text-sm text-slate-500 font-semibold tracking-tight">Enter the details for this inspection.</p>
                             </div>
-                            
+
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                                 <div class="space-y-2 md:col-span-2">
                                     <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Property Address</label>
@@ -276,6 +409,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
 
                 <script src="/js/modal-dialog.js"></script>
                 <script src="/js/auth.js"></script>
+                <script src="/js/action-menu.js"></script>
                 <script src="/js/dashboard.js"></script>
                 <script type="module" src="/js/contact-selector.js"></script>
             </div>
