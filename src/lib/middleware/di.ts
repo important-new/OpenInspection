@@ -16,6 +16,13 @@ import { InvoiceService } from '../../services/invoice.service';
 import { ServiceService } from '../../services/service.service';
 import { AutomationService } from '../../services/automation.service';
 import { MarketplaceService } from '../../services/marketplace.service';
+import { MessageService } from '../../services/message.service';
+import { NotificationService } from '../../services/notification.service';
+import { WidgetService } from '../../services/widget.service';
+import { RecommendationService } from '../../services/recommendation.service';
+import { EventService } from '../../services/event.service';
+import { TotpService } from '../../services/totp.service';
+import { TemplateSeedService } from '../../services/template-seed.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -97,10 +104,34 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.service = new ServiceService(c.env.DB);
                     break;
                 case 'automation':
-                    target.automation = new AutomationService(c.env.DB);
+                    target.automation = new AutomationService(
+                        c.env.DB,
+                        new NotificationService(c.env.DB),
+                    );
                     break;
                 case 'marketplace':
                     target.marketplace = new MarketplaceService(c.env.DB, c.get('tenantId'));
+                    break;
+                case 'message':
+                    target.message = new MessageService(c.env.DB, new NotificationService(c.env.DB));
+                    break;
+                case 'widget':
+                    target.widget = new WidgetService(c.env.DB);
+                    break;
+                case 'notification':
+                    target.notification = new NotificationService(c.env.DB);
+                    break;
+                case 'recommendation':
+                    target.recommendation = new RecommendationService(c.env.DB);
+                    break;
+                case 'event':
+                    target.event = new EventService(c.env.DB);
+                    break;
+                case 'totp':
+                    target.totp = new TotpService();
+                    break;
+                case 'templateSeed':
+                    target.templateSeed = new TemplateSeedService(c.env.DB);
                     break;
             }
             return target[prop];

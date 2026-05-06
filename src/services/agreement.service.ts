@@ -1,7 +1,8 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and } from 'drizzle-orm';
-import { agreements, agreementRequests } from '../lib/db/schema';
+import { eq, and, inArray, sql } from 'drizzle-orm';
+import { agreements, agreementRequests, inspections } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
+import { logger } from '../lib/logger';
 
 /**
  * Sanitize HTML output from Quill editor.
@@ -23,7 +24,12 @@ function sanitizeAgreementHtml(html: string): string {
     }
 
     // Remove HTML comments (could hide payload like <!--><script>...)
-    out = out.replace(/<!--[\s\S]*?-->/g, '');
+    // CodeQL js/incomplete-multi-character-sanitization — single pass can leave reconstructed
+    // <!-- after a partial removal. Loop until stable.
+    {
+        let prev;
+        do { prev = out; out = out.replace(/<!--[\s\S]*?-->/g, ''); } while (out !== prev);
+    }
 
     // Allow-listed tags. Anything else gets stripped (tags only, content preserved).
     const allowed = new Set(['p', 'strong', 'em', 'u', 'b', 'i', 'h2', 'h3', 'ol', 'ul', 'li', 'br', 'span']);
@@ -47,7 +53,15 @@ function sanitizeAgreementHtml(html: string): string {
     });
 
     // Strip any remaining `javascript:`, `data:`, or event-handler attribute leftovers (defense in depth)
-    out = out.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '').replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+    // CodeQL js/incomplete-multi-character-sanitization — loop until stable so chained on*
+    // attributes (e.g., on  x  on  click=...) are fully removed.
+    {
+        let prev;
+        do {
+            prev = out;
+            out = out.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '').replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+        } while (out !== prev);
+    }
 
     return out;
 }
@@ -177,17 +191,8 @@ export class AgreementService {
     }
 
     /**
-     * Marks a signing request as viewed (idempotent, no pre-SELECT needed).
-     */
-    async markViewed(token: string) {
-        await this.getDrizzle()
-            .update(agreementRequests)
-            .set({ status: 'viewed', viewedAt: new Date() })
-            .where(and(eq(agreementRequests.token, token), eq(agreementRequests.status, 'pending')));
-    }
-
-    /**
-     * Records a client signature on a signing request.
+     * Records a client signature on a signing request (legacy route handler API).
+     * Use markSigned() for state-machine flows with explicit signedAtMs.
      */
     async signRequest(token: string, signatureBase64: string) {
         const request = await this.getRequestByToken(token);
@@ -208,5 +213,156 @@ export class AgreementService {
         return this.getDrizzle().select().from(agreementRequests)
             .where(eq(agreementRequests.tenantId, tenantId))
             .all();
+    }
+
+    // -------------------------------------------------------------------------
+    // State machine — Spec 2A
+    // -------------------------------------------------------------------------
+
+    /**
+     * Idempotent — returns existing non-terminal request for the inspection,
+     * or creates a new row with status='sent'. Throws if the tenant has no
+     * agreement template at all (admin must create one in /agreements first).
+     */
+    async findOrCreate(tenantId: string, inspectionId: string): Promise<{ token: string; status: string; alreadyExists: boolean }> {
+        const db = this.getDrizzle();
+        // Look for an existing non-terminal request
+        const existing = await db.select().from(agreementRequests)
+            .where(and(
+                eq(agreementRequests.tenantId, tenantId),
+                eq(agreementRequests.inspectionId, inspectionId),
+                inArray(agreementRequests.status, ['pending', 'sent', 'viewed']),
+            )).limit(1);
+        if (existing.length > 0) {
+            return { token: existing[0].token, status: existing[0].status, alreadyExists: true };
+        }
+        // Find inspection + a usable agreement template
+        const inspRows = await db.select().from(inspections)
+            .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId))).limit(1);
+        if (inspRows.length === 0) throw Errors.NotFound('Inspection not found');
+        const insp = inspRows[0];
+        // Pick the tenant's first agreement template (simplest MVP)
+        const agrRows = await db.select().from(agreements)
+            .where(eq(agreements.tenantId, tenantId)).limit(1);
+        if (agrRows.length === 0) throw Errors.NotFound('No agreement template configured');
+        const agreement = agrRows[0];
+        // Insert new agreement_request row
+        const token = crypto.randomUUID();
+        const now = new Date();
+        const newRow = {
+            id: crypto.randomUUID(),
+            tenantId,
+            inspectionId,
+            agreementId: agreement.id,
+            clientEmail: insp.clientEmail || '',
+            clientName: insp.clientName,
+            token,
+            status: 'sent' as const,
+            signatureBase64: null,
+            signedAt: null,
+            viewedAt: null,
+            sentAt: now,
+            lastError: null,
+            createdAt: now,
+        };
+        await db.insert(agreementRequests).values(newRow);
+        logger.info('AgreementService.findOrCreate created', { tenantId, inspectionId, token });
+        return { token, status: 'sent', alreadyExists: false };
+    }
+
+    /**
+     * Marks a request as viewed. Returns tenantId + inspectionId + agreementId,
+     * or null if the token is not found or is expired.
+     * Idempotent — calling on an already-viewed/signed/declined row is a no-op.
+     *
+     * NOTE: Route handler fires 'agreement.viewed' automation event after this
+     * returns, avoiding AgreementService <-> AutomationService circular DI.
+     */
+    async markViewed(token: string): Promise<{ tenantId: string; inspectionId: string | null; agreementId: string } | null> {
+        const db = this.getDrizzle();
+        const rows = await db.select().from(agreementRequests).where(eq(agreementRequests.token, token)).limit(1);
+        if (rows.length === 0) return null;
+        const row = rows[0];
+        if (row.status === 'expired') return null;
+        if (row.status === 'pending' || row.status === 'sent') {
+            await db.update(agreementRequests)
+                .set({ status: 'viewed', viewedAt: new Date() })
+                .where(eq(agreementRequests.token, token));
+        }
+        return { tenantId: row.tenantId, inspectionId: row.inspectionId, agreementId: row.agreementId };
+    }
+
+    /**
+     * Records a client signature on a signing request.
+     * Throws Conflict if the request is declined or expired.
+     * Idempotent if already signed.
+     *
+     * NOTE: Route handler fires 'agreement.signed' automation event after this returns.
+     */
+    async markSigned(token: string, signatureBase64: string, signedAtMs: number): Promise<{ tenantId: string; inspectionId: string | null }> {
+        const db = this.getDrizzle();
+        const rows = await db.select().from(agreementRequests).where(eq(agreementRequests.token, token)).limit(1);
+        if (rows.length === 0) throw Errors.NotFound('Agreement request not found');
+        const row = rows[0];
+        if (row.status === 'declined' || row.status === 'expired') {
+            throw Errors.Conflict('Agreement is no longer signable');
+        }
+        if (row.status === 'signed') {
+            // Idempotent — already signed
+            return { tenantId: row.tenantId, inspectionId: row.inspectionId };
+        }
+        await db.update(agreementRequests)
+            .set({ status: 'signed', signatureBase64, signedAt: new Date(signedAtMs) })
+            .where(eq(agreementRequests.token, token));
+        return { tenantId: row.tenantId, inspectionId: row.inspectionId };
+    }
+
+    /**
+     * Marks a signing request as declined with an optional reason stored in lastError.
+     * Throws Conflict if the request is already signed or expired.
+     * Idempotent if already declined.
+     *
+     * NOTE: Route handler fires 'agreement.declined' automation event after this returns.
+     */
+    async markDeclined(token: string, reason?: string): Promise<{ tenantId: string; inspectionId: string | null }> {
+        const db = this.getDrizzle();
+        const rows = await db.select().from(agreementRequests).where(eq(agreementRequests.token, token)).limit(1);
+        if (rows.length === 0) throw Errors.NotFound('Agreement request not found');
+        const row = rows[0];
+        if (row.status === 'signed' || row.status === 'expired') {
+            throw Errors.Conflict('Agreement cannot be declined');
+        }
+        if (row.status === 'declined') return { tenantId: row.tenantId, inspectionId: row.inspectionId };
+        await db.update(agreementRequests)
+            .set({ status: 'declined', lastError: reason ? reason.slice(0, 500) : null })
+            .where(eq(agreementRequests.token, token));
+        return { tenantId: row.tenantId, inspectionId: row.inspectionId };
+    }
+
+    /**
+     * Cron handler — marks all non-terminal rows with sentAt older than N days
+     * as expired. Returns the count of newly-expired rows.
+     * Idempotent — re-running picks up nothing once all old rows are expired.
+     */
+    async expireOlderThan(days: number): Promise<number> {
+        const db = this.getDrizzle();
+        // Use epoch milliseconds integer directly — better-sqlite3 cannot bind Date objects
+        // in comparison expressions, but D1 also expects an integer for timestamp columns.
+        const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+        await db.update(agreementRequests)
+            .set({ status: 'expired' })
+            .where(and(
+                inArray(agreementRequests.status, ['pending', 'sent', 'viewed']),
+                sql`${agreementRequests.sentAt} < ${cutoffMs}`,
+            ));
+        // D1/Drizzle does not expose rowsAffected; count expired rows within the cutoff window
+        const expiredRows = await db.select().from(agreementRequests)
+            .where(and(
+                eq(agreementRequests.status, 'expired'),
+                sql`${agreementRequests.sentAt} < ${cutoffMs}`,
+            ));
+        const count = expiredRows.length;
+        logger.info('AgreementService.expireOlderThan', { days, count });
+        return count;
     }
 }

@@ -6,6 +6,8 @@ import { auditFromContext } from '../lib/audit';
 import { getBaseUrl } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { generatePdfFromUrl } from '../lib/pdf';
 import {
     InspectionListQuerySchema,
     CreateInspectionSchema,
@@ -18,14 +20,36 @@ import {
     PublishInspectionSchema,
     ReportDataResponseSchema,
     CancelInspectionSchema,
+    DashboardResponseSchema,
 } from '../lib/validations/inspection.schema';
 import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
+import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { drizzle } from 'drizzle-orm/d1';
-import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests } from '../lib/db/schema';
+import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 
 const inspectionsRoutes = new OpenAPIHono<HonoConfig>();
+
+// --- GET /api/inspections/dashboard — Spec 3A ---
+const dashboardRoute = createRoute({
+    method: 'get',
+    path:   '/dashboard',
+    tags:   ['Inspections'],
+    summary: 'Bucketed inspections for dashboard',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    responses: {
+        200: {
+            content: { 'application/json': { schema: createApiResponseSchema(DashboardResponseSchema) } },
+            description: 'Dashboard buckets',
+        },
+    },
+});
+inspectionsRoutes.openapi(dashboardRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const buckets  = await c.var.services.inspection.getDashboardBuckets(tenantId);
+    return c.json({ success: true, data: buckets });
+});
 
 /**
  * GET /api/inspections
@@ -101,6 +125,8 @@ const listTemplatesRoute = createRoute({
                                 id: z.string(),
                                 name: z.string(),
                                 version: z.number(),
+                                itemCount: z.number().optional(),
+                                source: z.enum(['marketplace', 'custom']).optional(),
                             })),
                         }),
                     }),
@@ -580,6 +606,61 @@ inspectionsRoutes.openapi(updateResultsRoute, async (c) => {
 });
 
 /**
+ * GET /api/inspections/:id/recommendations
+ * Flattens all attached recommendations across all items + computes totals.
+ * Spec 3 report renderer will consume this to build the consolidated repair list.
+ */
+const aggregateRecommendationsRoute = createRoute({
+    method: 'get',
+    path: '/{id}/recommendations',
+    tags: ['Inspections'],
+    summary: 'Aggregate all attached recommendations + totals for repair list',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+        200: { content: { 'application/json': { schema: AggregatedRecommendationsResponseSchema } }, description: 'Aggregated recommendations' },
+    },
+});
+
+inspectionsRoutes.openapi(aggregateRecommendationsRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId') as string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = drizzle(c.env.DB as any);
+    const row = await db.select().from(inspectionResults)
+        .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId))).get();
+    const data = (row?.data as Record<string, { recommendations?: Array<Record<string, unknown>> }>) ?? {};
+
+    const items: Array<{ recommendationId: string; estimateSnapshotMin: number | null; estimateSnapshotMax: number | null; summarySnapshot: string; attachedAt: number; itemId: string }> = [];
+    let estimateMinSum = 0;
+    let estimateMaxSum = 0;
+    for (const [itemId, item] of Object.entries(data)) {
+        const recs = item?.recommendations ?? [];
+        for (const rec of recs) {
+            const r = rec as { recommendationId?: string; estimateSnapshotMin?: number | null; estimateSnapshotMax?: number | null; summarySnapshot?: string; attachedAt?: number };
+            items.push({
+                recommendationId:    r.recommendationId ?? '',
+                estimateSnapshotMin: r.estimateSnapshotMin ?? null,
+                estimateSnapshotMax: r.estimateSnapshotMax ?? null,
+                summarySnapshot:     r.summarySnapshot ?? '',
+                attachedAt:          r.attachedAt ?? 0,
+                itemId,
+            });
+            estimateMinSum += r.estimateSnapshotMin ?? 0;
+            estimateMaxSum += r.estimateSnapshotMax ?? 0;
+        }
+    }
+
+    return c.json({
+        success: true as const,
+        data: {
+            items,
+            totals: { count: items.length, estimateMinSum, estimateMaxSum },
+        },
+    }, 200);
+});
+
+/**
  * POST /api/inspections
  */
 const createInspectionRoute = createRoute({
@@ -739,12 +820,14 @@ inspectionsRoutes.get('/:id/report', async (c) => {
         const db = drizzle(c.env.DB);
         const results = await db.select().from(inspectionResults)
             .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, resolved.tenantId))).get();
+        const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
         return c.html(renderProfessionalReport({
             inspection: { ...inspection, internalNotes: null, paymentStatus: null, paymentRequired: false } as never,
             template: template as never,
             results: (results || { data: {} }) as never,
             branding: c.get('branding'),
             isAuthenticated: false,
+            resolvedTheme,
         }));
     }
 
@@ -756,12 +839,25 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     const companyName = branding?.siteName || c.env.APP_NAME || 'InspectorHub';
     const primaryColor = branding?.primaryColor || c.env.PRIMARY_COLOR || '#6366f1';
 
+    let inspectorName: string | null = null;
+    if (inspection.inspectorId) {
+        const dbForName = drizzle(c.env.DB as any);
+        const inspectorRow = await dbForName.select({ name: users.name })
+            .from(users)
+            .where(and(eq(users.id, inspection.inspectorId), eq(users.tenantId, c.get('tenantId'))))
+            .get();
+        inspectorName = inspectorRow?.name ?? null;
+    }
+
     if (inspection.paymentRequired === true && inspection.paymentStatus !== 'paid') {
         return c.html(ReportGatePage({
             reason: 'payment',
             companyName, primaryColor,
             actionUrl: `${baseUrl}/invoices?inspection=${id}`,
             actionLabel: 'View Invoice & Pay',
+            propertyAddress: inspection.propertyAddress ?? null,
+            inspectorName,
+            scheduledDate:   inspection.date ?? null,
         }) as string);
     }
 
@@ -780,6 +876,9 @@ inspectionsRoutes.get('/:id/report', async (c) => {
                 companyName, primaryColor,
                 actionUrl: `${baseUrl}/sign/${id}`,
                 actionLabel: 'Sign Agreement',
+                propertyAddress: inspection.propertyAddress ?? null,
+                inspectorName,
+                scheduledDate:   inspection.date ?? null,
             }) as string);
         }
     }
@@ -787,13 +886,38 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     const db = drizzle(c.env.DB);
     const results = await db.select().from(inspectionResults).where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, c.get('tenantId')))).get();
 
+    const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
     return c.html(renderProfessionalReport({
         inspection: inspection as never,
         template: template as never,
         results: (results || { data: {} }) as never,
         branding: c.get('branding'),
-        isAuthenticated: true
+        isAuthenticated: true,
+        resolvedTheme,
     }));
+});
+
+/**
+ * GET /api/inspections/:id/full — Spec 4E
+ * Returns combined { inspection, template, results } for offline prefetch.
+ * Avoids 3 separate fetches per inspection (saves ~150 round-trips for 50 inspections).
+ */
+inspectionsRoutes.get('/:id/full', requireRole(['owner', 'admin', 'inspector']), async (c) => {
+    const id       = c.req.param('id') as string;
+    const tenantId = c.get('tenantId');
+    const svc      = c.var.services.inspection;
+    try {
+        const { inspection, template } = await svc.getInspection(id, tenantId);
+        const db = drizzle(c.env.DB);
+        const results = await db.select().from(inspectionResults)
+            .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId))).get();
+        return c.json({ success: true, data: { inspection, template: template || null, results: results || null, base: null } });
+    } catch (err) {
+        if (err instanceof Error && err.message.includes('not found')) {
+            return c.json({ success: false, error: 'Inspection not found' }, 404);
+        }
+        throw err;
+    }
 });
 
 /**
@@ -902,20 +1026,114 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     const service = c.var.services.inspection;
     const { inspection } = await service.getInspection(id, tenantId);
 
+    // Idempotency: if already completed, short-circuit to prevent accidental
+    // email storms when the client retries on network errors or double-clicks.
+    if (inspection.status === 'completed' || inspection.status === 'delivered') {
+        return c.json({ success: true, data: { success: true } }, 200);
+    }
+
     const db = drizzle(c.env.DB);
     await db.update(inspectionTable).set({ status: 'completed' }).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (inspection.clientEmail) {
-        const reportUrl = `${getBaseUrl(c)}/api/inspections/${id}/report`;
-        const emailPromise = c.var.services.email.sendReportReady(inspection.clientEmail, inspection.propertyAddress as string, reportUrl);
-        c.executionCtx.waitUntil(emailPromise);
+        const baseUrl = getBaseUrl(c);
+        const reportUrl = `${baseUrl}/report/${id}`;
+        const clientEmail = inspection.clientEmail;
+        const address = inspection.propertyAddress as string;
+
+        // Best-effort PDF: if BROWSER binding is missing or rendering fails,
+        // fall back to the existing text-only "Report Ready" email so we
+        // never block inspection completion on an optional dependency.
+        const deliver = async () => {
+            try {
+                const pdf = await generatePdfFromUrl(c.env.BROWSER, reportUrl);
+                await c.var.services.email.sendInspectionReportPdf(clientEmail, address, reportUrl, pdf);
+            } catch (err) {
+                logger.error('[complete] PDF generation failed, falling back to text-only email',
+                    { inspectionId: id }, err instanceof Error ? err : undefined);
+                await c.var.services.email.sendReportReady(clientEmail, address, reportUrl);
+            }
+        };
+        c.executionCtx.waitUntil(deliver());
     }
+
+    // B3: in-app notification for report ready
+    c.executionCtx.waitUntil(
+        c.var.services.notification.createForAllAdmins(tenantId, {
+            type: 'report.published',
+            title: `Report ready — ${inspection.propertyAddress ?? 'inspection'}`,
+            entityType: 'inspection',
+            entityId: inspection.id,
+            metadata: { clientEmail: inspection.clientEmail ?? null },
+        })
+    );
 
     auditFromContext(c, 'inspection.complete', 'inspection', {
         entityId: id,
         metadata: { propertyAddress: inspection.propertyAddress },
     });
     return c.json({ success: true, data: { success: true } }, 200);
+});
+
+const sendReportPdfRoute = createRoute({
+    method: 'post',
+    path: '/{id}/send-report-pdf',
+    tags: ['Inspections'],
+    summary: 'Re-send the inspection report as a PDF email attachment',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        // Optional override; defaults to inspection.clientEmail
+                        toEmail: z.string().email().optional(),
+                    }).optional(),
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ sentTo: z.string() }) }) } },
+            description: 'PDF email queued',
+        },
+        400: { description: 'Recipient missing' },
+        404: { description: 'Inspection not found' },
+        503: { description: 'PDF rendering unavailable; text-only email sent instead' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+inspectionsRoutes.openapi(sendReportPdfRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    const body = c.req.valid('json') ?? {};
+    const service = c.var.services.inspection;
+    const { inspection } = await service.getInspection(id, tenantId);
+
+    const recipient = body.toEmail || inspection.clientEmail;
+    if (!recipient) {
+        throw Errors.BadRequest('No recipient email — set inspection.clientEmail or pass toEmail.');
+    }
+
+    const baseUrl = getBaseUrl(c);
+    const reportUrl = `${baseUrl}/report/${id}`;
+    const address = inspection.propertyAddress as string;
+
+    try {
+        const pdf = await generatePdfFromUrl(c.env.BROWSER, reportUrl);
+        await c.var.services.email.sendInspectionReportPdf(recipient, address, reportUrl, pdf);
+        auditFromContext(c, 'inspection.send_pdf', 'inspection', { entityId: id, metadata: { recipient } });
+        return c.json({ success: true as const, data: { sentTo: recipient } }, 200);
+    } catch (err) {
+        logger.error('[send-report-pdf] PDF failed, sending text-only', { inspectionId: id }, err instanceof Error ? err : undefined);
+        await c.var.services.email.sendReportReady(recipient, address, reportUrl);
+        auditFromContext(c, 'inspection.send_text_fallback', 'inspection', { entityId: id, metadata: { recipient } });
+        // 200 because the user got AN email, just not a PDF — log + audit captures the degradation
+        return c.json({ success: true as const, data: { sentTo: recipient } }, 200);
+    }
 });
 
 /**
@@ -1060,6 +1278,52 @@ inspectionsRoutes.openapi(createRoute({
     const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
     const baseUrl = getBaseUrl(c);
     return c.json({ success: true, data: { token, url: `${baseUrl}/report/${id}?view=agent&token=${token}` } });
+});
+
+// ── Phase T (T12): Photo annotation save ────────────────────────────────────────
+const saveAnnotationRoute = createRoute({
+    method: 'post',
+    path: '/{id}/items/{itemId}/photos/{photoIndex}/annotation',
+    tags: ['Inspections'],
+    summary: 'Save photo annotation (composite PNG + Konva nodes JSON)',
+    request: {
+        params: z.object({
+            id: z.string(),
+            itemId: z.string(),
+            photoIndex: z.coerce.number().int().min(0),
+        }),
+        body: {
+            content: {
+                'multipart/form-data': {
+                    schema: z.object({
+                        image: z.unknown().openapi({ type: 'string', format: 'binary' }),
+                        nodes: z.string(),
+                    }),
+                },
+            },
+        },
+    },
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: createApiResponseSchema(z.object({ annotatedKey: z.string() })) } },
+            description: 'Annotation saved',
+        },
+    },
+});
+
+inspectionsRoutes.openapi(saveAnnotationRoute, async (c) => {
+    const { id, itemId, photoIndex } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    const formData = await c.req.parseBody();
+    const file = formData['image'] as File | undefined;
+    const nodesJson = String(formData['nodes'] ?? '[]');
+    if (!file) throw Errors.BadRequest('image file required');
+    const bytes = await file.arrayBuffer();
+    const result = await c.var.services.inspection.saveAnnotation(
+        id, tenantId, itemId, photoIndex, bytes, nodesJson,
+    );
+    return c.json({ success: true, data: result }, 200);
 });
 
 export default inspectionsRoutes;

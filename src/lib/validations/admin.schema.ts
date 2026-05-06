@@ -10,6 +10,7 @@ export const UpdateBrandingSchema = z.object({
     supportEmail: z.string().email('Invalid email address').optional().openapi({ example: 'support@example.com' }),
     billingUrl: z.string().url('Invalid URL').or(z.literal('')).optional().openapi({ example: 'https://example.com/billing' }),
     gaMeasurementId: z.string().regex(/^G-[A-Z0-9]+$/, 'Invalid GA Measurement ID').or(z.literal('')).optional().openapi({ example: 'G-12345678' }),
+    reportTheme: z.enum(['modern', 'classic', 'minimal']).optional().openapi({ example: 'modern' }),
 }).openapi('UpdateBranding');
 
 /**
@@ -88,6 +89,14 @@ export const TenantStatusBodySchema = z.object({
 export const StripeConnectBodySchema = z.object({
     accountId: z.string().min(1),
 });
+
+/**
+ * Body schema for inspector-facing PUT /api/admin/stripe-connect.
+ * Validates the account ID matches Stripe's `acct_*` format.
+ */
+export const StripeConnectAccountSchema = z.object({
+    accountId: z.string().regex(/^acct_[a-zA-Z0-9]{10,}$/, 'Invalid Stripe account ID — must look like acct_xxxxx').openapi({ example: 'acct_1AbCdEfGhIjKlMnO' }),
+}).openapi('StripeConnectAccount');
 
 /**
  * Response Schemas
@@ -203,6 +212,11 @@ export const CommentSchema = z.object({
     text: z.string().min(1).max(1000).openapi({ example: 'Evidence of previous repair was observed.' }),
     category: z.string().max(50).optional().nullable().openapi({ example: 'Roofing' }),
 }).openapi('Comment');
+
+export const UpdateCommentSchema = z.object({
+    text: z.string().min(1).max(1000).openapi({ example: 'Evidence of previous repair was observed.' }),
+    category: z.string().max(50).nullable().optional().openapi({ example: 'Roofing' }),
+}).openapi('UpdateComment');
 
 export const CommentResponseSchema = z.object({
     id: z.string().uuid(),

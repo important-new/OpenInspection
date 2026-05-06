@@ -23,6 +23,7 @@ import { BUILD } from './generated/version';
 
 import { LoginPage } from './templates/pages/login';
 import { DashboardPage } from './templates/pages/dashboard';
+import { ReportsPage } from './templates/pages/reports';
 import { SettingsPage } from './templates/pages/settings';
 import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
@@ -35,13 +36,21 @@ import { AgreementsPage } from './templates/pages/agreements';
 import { AgreementSignPage } from './templates/pages/agreement-sign';
 import { CalendarPage } from './templates/pages/calendar';
 import { ContactsPage } from './templates/pages/contacts';
+import { RecommendationsPage } from './templates/pages/recommendations';
+import { CommentsPage } from './templates/pages/comments';
 import { InvoicesPage } from './templates/pages/invoices';
 import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
 import { SettingsAutomationsPage } from './templates/pages/settings-automations';
+import { SettingsWidgetPage } from './templates/pages/settings-widget';
+import { SettingsServicesPage } from './templates/pages/settings-services';
+import { SettingsEventTypesPage } from './templates/pages/settings-event-types';
 import { MetricsPage } from './templates/pages/metrics';
 import { SettingsDataPage } from './templates/pages/settings-data';
+import { MessagesPublicPage } from './templates/pages/messages-public';
+import { NotificationsPage } from './templates/pages/notifications';
+import { SettingsSecurityPage } from './templates/pages/settings-security';
 
 
 import coreAuthRoutes from './api/auth';
@@ -63,6 +72,13 @@ import metricsRoutes from './api/metrics';
 import marketplaceRoutes from './api/marketplace';
 import dataRoutes from './api/data';
 import icsRoutes from './api/ics';
+import userRoutes from './api/users';
+import messageRoutes from './api/messages';
+import widgetRoutes from './api/widget';
+import notificationsRoutes from './api/notifications';
+import inspectionSyncRoutes from './api/inspection-sync';
+import recommendationsRoutes from './api/recommendations';
+import eventsRoutes from './api/events';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -149,8 +165,8 @@ const STATIC_ASSET_EXT = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|tt
 // Global JWT Middleware — extracts tenantId / userRole from Bearer token or cookie.
 app.use('*', async (c, next) => {
     const path = c.req.path;
-    const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path === '/book' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/agreements/sign/') || STATIC_ASSET_EXT.test(path);
+    const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup' || path === '/api/auth/login/2fa';
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/agreements/sign/') || path.startsWith('/messages/') || STATIC_ASSET_EXT.test(path);
 
     if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
@@ -163,9 +179,15 @@ app.use('*', async (c, next) => {
             const db = drizzle(c.env.DB);
             const user = await db.select().from(users).limit(1).get();
             if (!user) {
-                // Use CSPRNG instead of Math.random so the one-hour bootstrap code isn't predictable.
-                const rand = crypto.getRandomValues(new Uint32Array(1))[0];
-                const newCode = (100000 + (rand % 900000)).toString();
+                // Use CSPRNG with rejection sampling so the one-hour bootstrap code is unbiased
+                // and unpredictable. CodeQL js/biased-cryptographic-random — modulo on
+                // crypto.getRandomValues introduces non-uniform distribution; reject any value
+                // beyond the largest multiple of RANGE that still fits in Uint32.
+                const RANGE = 900000;
+                const MAX = Math.floor(0xFFFFFFFF / RANGE) * RANGE;
+                let rand: number;
+                do { rand = crypto.getRandomValues(new Uint32Array(1))[0]!; } while (rand >= MAX);
+                const newCode = (100000 + (rand % RANGE)).toString();
                 await c.env.TENANT_CACHE.put('setup_verification_code', newCode, { expirationTtl: 3600 });
                 logger.warn('New system detected. System initialization code generated.');
                 logger.info('Initialization code stored in KV. Use SETUP_CODE env var in production.');
@@ -286,8 +308,10 @@ app.use('/api/*', requireActiveSubscription);
 app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
 app.route('/api/inspections', inspectionsRoutes);
+app.route('/api/inspections', inspectionSyncRoutes);
 app.route('/api/ai', aiRoutes);
 app.route('/api/public', bookingsRoutes);
+app.route('/api/public/widget', widgetRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/agent', agentRoutes);
 app.route('/api/availability', availabilityRoutes);
@@ -296,6 +320,8 @@ app.route('/api/calendar/events', calendarEventsRoutes);
 app.route('/api/calendar', calendarRoutes);
 app.route('/api/team', teamRoutes);
 app.route('/api/contacts', contactRoutes);
+app.route('/api/recommendations', recommendationsRoutes);
+app.route('/api', eventsRoutes);
 app.route('/api/invoices', invoiceRoutes);
 app.route('/api/services', servicesRoutes);
 app.route('/api/automations', automationsRoutes);
@@ -304,6 +330,9 @@ app.route('/api/templates/marketplace', marketplaceRoutes);
 app.route('/api/data', dataRoutes);
 app.route('/api/integration', integrationRoutes);
 app.route('/api/ics', icsRoutes);
+app.route('/api/users', userRoutes);
+app.route('/api/messages', messageRoutes);
+app.route('/api/notifications', notificationsRoutes);
 
 // OpenAPI Documentation
 app.doc('/doc', {
@@ -381,7 +410,17 @@ app.get('/setup', (c) => {
 
 app.get('/book', (c) => {
     const branding = c.get('branding');
-    return c.html(PublicBookingPage({ siteKey: c.env.TURNSTILE_SITE_KEY, branding }));
+    const embedRaw = c.req.query('embed');
+    const styleRaw = c.req.query('style') || 'light';
+    const embed = embedRaw === '1';
+    const style: 'light' | 'dark' | 'branded' =
+        styleRaw === 'dark' || styleRaw === 'branded' ? styleRaw as 'dark' | 'branded' : 'light';
+    return c.html(PublicBookingPage({
+        siteKey: c.env.TURNSTILE_SITE_KEY,
+        ...(branding ? { branding } : {}),
+        embed,
+        style,
+    }));
 });
 
 // Public agreement signing page (no auth required — token is the secret)
@@ -466,8 +505,18 @@ app.get('/report/:id', async (c) => {
     }
 });
 
+// Phase T (T24) — Public client messages page (token-gated, no JWT)
+app.get('/messages/:token', (c) => {
+    const token = c.req.param('token') as string;
+    return c.html(MessagesPublicPage({ token, branding: c.get('branding') }));
+});
+
 // Pages with Auth
 app.get('/dashboard', htmlAuthGuard(), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
+app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
+    const b = c.get('branding');
+    return c.html(ReportsPage(b ? { branding: b } : {}));
+});
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), (c) => c.html(AgentDashboardPage({ branding: c.get('branding') })));
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
 app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
@@ -478,12 +527,41 @@ app.get('/marketplace', htmlAuthGuard(['owner', 'admin']), (c) => c.html(Marketp
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
 app.get('/settings/automations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAutomationsPage({ branding: c.get('branding') })));
 app.get('/settings/data', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsDataPage({ branding: c.get('branding') })));
+app.get('/settings/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsWidgetPage(b ? { branding: b } : {}));
+});
+app.get('/settings/services', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsServicesPage(b ? { branding: b } : {}));
+});
+app.get('/settings/event-types', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsEventTypesPage(b ? { branding: b } : {}));
+});
+// Spec 4A — TOTP 2FA settings page (per-user, all roles allowed).
+app.get('/settings/security', htmlAuthGuard(), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsSecurityPage(b ? { branding: b } : {}));
+});
 app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage({ branding: c.get('branding') })));
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
 app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
+app.get('/recommendations', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
+    const b = c.get('branding');
+    return c.html(RecommendationsPage(b ? { branding: b } : {}));
+});
+app.get('/comments', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(CommentsPage(b ? { branding: b } : {}));
+});
 app.get('/invoices', htmlAuthGuard(['owner', 'admin']), (c) => c.html(InvoicesPage({ branding: c.get('branding') })));
 app.get('/calendar', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(CalendarPage({ branding: c.get('branding') })));
+app.get('/notifications', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
+    const b = c.get('branding');
+    return c.html(NotificationsPage(b ? { branding: b } : {}));
+});
 
 // Field Inspection Form
 app.get('/inspections/:id/form', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {

@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, or, lt, gte, lte, sql, inArray } from 'drizzle-orm';
 import { inspections, inspectionResults, templates, inspectionAgreements, users, services, inspectionServices } from '../lib/db/schema';
+import { contacts } from '../lib/db/schema/contact';
 import { Errors } from '../lib/errors';
 import { computeReportStats, getRatingColor, getRatingBucket, type RatingLevel } from '../lib/report-utils';
 import { z } from 'zod';
@@ -183,6 +184,17 @@ export class InspectionService {
         const status = 'draft' as const;
         const date = data.date || createdAt.toISOString();
 
+        let templateSnapshot: unknown = null;
+        let templateSnapshotVersion = 1;
+        if (data.templateId) {
+            const tpl = await drizzle(this.db).select().from(templates)
+                .where(and(eq(templates.id, data.templateId), eq(templates.tenantId, tenantId))).get();
+            if (tpl) {
+                templateSnapshot = tpl.schema;
+                templateSnapshotVersion = tpl.version;
+            }
+        }
+
         const newInspection = {
             id,
             tenantId,
@@ -192,6 +204,8 @@ export class InspectionService {
             clientEmail: (data.clientEmail as string | null) || null,
             clientPhone: data.clientPhone ?? null,
             templateId: data.templateId,
+            templateSnapshot,
+            templateSnapshotVersion,
             status,
             date,
             referredByAgentId: (data.referredByAgentId as string | null) || null,
@@ -200,6 +214,35 @@ export class InspectionService {
 
         await this.sdb.insert(inspections, newInspection);
         fireAutomation(this.db, tenantId, id, 'inspection.created');
+
+        // Soft-upsert the client into Contacts so it shows up in the Contacts list
+        // for future re-use (search, agent linking). Idempotent on tenantId+email
+        // (or tenantId+name if no email). Failures are non-fatal — inspection
+        // creation must not break because of a contact-side issue.
+        if (newInspection.clientName && newInspection.clientName !== 'Private Client') {
+            try {
+                const dbForContacts = this.getDrizzle();
+                const matchConds = [eq(contacts.tenantId, tenantId), eq(contacts.type, 'client')];
+                if (newInspection.clientEmail) matchConds.push(eq(contacts.email, newInspection.clientEmail));
+                else matchConds.push(eq(contacts.name, newInspection.clientName));
+                const existing = await dbForContacts.select().from(contacts).where(and(...matchConds)).get();
+                if (!existing) {
+                    await dbForContacts.insert(contacts).values({
+                        id: crypto.randomUUID(),
+                        tenantId,
+                        type: 'client',
+                        name: newInspection.clientName,
+                        email: newInspection.clientEmail,
+                        phone: newInspection.clientPhone,
+                        agency: null,
+                        notes: null,
+                        createdAt: createdAt,
+                    });
+                }
+            } catch (err) {
+                logger.error('contact upsert from inspection failed', { inspectionId: id }, err instanceof Error ? err : undefined);
+            }
+        }
 
         // Link selected services
         if (data.serviceIds && data.serviceIds.length > 0) {
@@ -289,11 +332,72 @@ export class InspectionService {
         if (!this.r2) throw Errors.BadRequest('Storage not available');
         await this.getInspection(id, tenantId); // Ownership check
 
+        const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+        if (file.size > MAX_PHOTO_BYTES) {
+            throw Errors.BadRequest(`Photo exceeds ${MAX_PHOTO_BYTES} bytes (got ${file.size})`);
+        }
+
         const key = `${tenantId}/${id}/${itemId}_${crypto.randomUUID()}_${file.name}`;
         await this.r2.put(key, await file.arrayBuffer(), {
             httpMetadata: { contentType: file.type }
         });
         return key;
+    }
+
+    /**
+     * Phase T (T11): Saves an annotated composite PNG and Konva node tree for re-editing.
+     * Updates inspection_results.data so that data[itemId].photos[photoIndex] gains
+     * `annotatedKey` and `annotationsJson` fields. The original photo key is preserved.
+     */
+    async saveAnnotation(
+        inspectionId: string,
+        tenantId: string,
+        itemId: string,
+        photoIndex: number,
+        compositeBytes: ArrayBuffer,
+        nodesJson: string,
+    ): Promise<{ annotatedKey: string }> {
+        if (!this.r2) throw Errors.BadRequest('Storage not available');
+        await this.getInspection(inspectionId, tenantId);
+
+        const annotatedKey = `${tenantId}/${inspectionId}/${itemId}_${crypto.randomUUID()}_annotated.png`;
+        await this.r2.put(annotatedKey, compositeBytes, {
+            httpMetadata: { contentType: 'image/png' }
+        });
+
+        const db = this.getDrizzle();
+        const [row] = await db.select().from(inspectionResults)
+            .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
+            .limit(1);
+
+        interface ResultEntry {
+            rating?: string;
+            notes?: string;
+            photos?: Array<{ key: string; annotatedKey?: string; annotationsJson?: string }>;
+        }
+        const data: Record<string, ResultEntry> = (typeof row?.data === 'string'
+            ? JSON.parse(row.data)
+            : row?.data) ?? {};
+        const entry = data[itemId] ?? {};
+        const photos = entry.photos ?? [];
+        if (!photos[photoIndex]) throw Errors.NotFound('Photo not found at index');
+        photos[photoIndex] = { ...photos[photoIndex], annotatedKey, annotationsJson: nodesJson };
+        data[itemId] = { ...entry, photos };
+
+        if (row) {
+            await db.update(inspectionResults)
+                .set({ data, lastSyncedAt: new Date() })
+                .where(eq(inspectionResults.id, row.id));
+        } else {
+            await db.insert(inspectionResults).values({
+                id: crypto.randomUUID(),
+                tenantId,
+                inspectionId,
+                data,
+                lastSyncedAt: new Date(),
+            });
+        }
+        return { annotatedKey };
     }
 
     /**
@@ -317,7 +421,8 @@ export class InspectionService {
         interface SchemaItem { id: string; label: string; icon?: string }
         interface SchemaSection { id: string; title: string; icon?: string; items: SchemaItem[] }
         interface SchemaData { sections: SchemaSection[]; ratingSystem?: { levels: RatingLevel[] } }
-        interface ResultEntry { rating?: string; notes?: string; photos?: { key: string }[]; recommendation?: string; estimateMin?: number; estimateMax?: number }
+        interface PhotoEntry { key: string; annotatedKey?: string; annotationsJson?: string }
+        interface ResultEntry { rating?: string; notes?: string; photos?: PhotoEntry[]; recommendation?: string; estimateMin?: number; estimateMax?: number }
 
         const rawSchema = template?.schema
             ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema)
@@ -345,10 +450,15 @@ export class InspectionService {
                 const bucket = getRatingBucket(ratingId, levels);
                 const level = levels.find((l: RatingLevel) => l.id === ratingId);
 
-                const photos = (res.photos || []).map((p: { key: string }) => ({
-                    key: p.key,
-                    url: `/api/inspections/${inspectionId}/photos/${encodeURIComponent(p.key)}`,
-                }));
+                // Phase T (T16): prefer annotated composite when present; expose original via originalKey.
+                const photos = (res.photos || []).map((p: PhotoEntry) => {
+                    const displayKey = p.annotatedKey || p.key;
+                    return {
+                        key: displayKey,
+                        originalKey: p.key,
+                        url: `/api/inspections/${inspectionId}/photos/${encodeURIComponent(displayKey)}`,
+                    };
+                });
 
                 return {
                     id: item.id,
@@ -471,10 +581,10 @@ export class InspectionService {
 
     async cancelInspection(tenantId: string, id: string, reason: string, notes?: string): Promise<void> {
         const { db } = await this.fetchForStatusChange(tenantId, id);
-        const cancelNote = notes ? `${reason}: ${notes}` : reason;
         await db.update(inspections).set({
             status:       'cancelled' as any,
-            cancelReason: cancelNote,
+            cancelReason: reason,
+            cancelNotes:  notes ?? null,
         }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
         fireAutomation(this.db, tenantId, id, 'inspection.cancelled');
     }
@@ -485,7 +595,68 @@ export class InspectionService {
         await db.update(inspections).set({
             status:       'scheduled' as any,
             cancelReason: null,
+            cancelNotes:  null,
         }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+    }
+
+    /**
+     * Returns bucketed inspection lists for the dashboard view.
+     * All filtering is done in-process from a single tenant query.
+     * Note: uses the `date` column (TEXT "YYYY-MM-DD") for scheduling logic.
+     */
+    async getDashboardBuckets(tenantId: string) {
+        const db  = this.getDrizzle();
+        const all = await db.select().from(inspections)
+            .where(eq(inspections.tenantId, tenantId));
+
+        const now           = Date.now();
+        // Use UTC boundaries to match the `date` column which stores "YYYY-MM-DD" (UTC midnight when parsed).
+        const startOfToday  = new Date(); startOfToday.setUTCHours(0, 0, 0, 0);
+        const endOfToday    = new Date(); endOfToday.setUTCHours(23, 59, 59, 999);
+        const in48h         = new Date(now + 48 * 3600 * 1000);
+        const in7days       = new Date(now + 7 * 86400 * 1000);
+        const minus30days   = new Date(now - 30 * 86400 * 1000);
+        const minus24h      = new Date(now - 24 * 3600 * 1000);
+
+        // Parse the text `date` column ("YYYY-MM-DD") to a Date at midnight UTC.
+        const insDate = (i: typeof inspections.$inferSelect) =>
+            i.date ? new Date(i.date) : null;
+
+        const isToday = (i: typeof inspections.$inferSelect) => {
+            const d = insDate(i);
+            return d !== null && d >= startOfToday && d <= endOfToday;
+        };
+
+        // Needs attention: scheduled within 48h OR in_progress >24h after inspection date.
+        const needsAttention = all.filter(i => {
+            const d = insDate(i);
+            if (i.status === 'scheduled' && d && d <= in48h) return true;
+            if (i.status === 'in_progress' && d && d <= minus24h) return true;
+            return false;
+        });
+
+        const today = all.filter(i => isToday(i) && i.status !== 'cancelled');
+
+        const thisWeek = all.filter(i => {
+            const d = insDate(i);
+            return d !== null && d > endOfToday && d <= in7days && i.status !== 'cancelled';
+        });
+
+        const laterAll = all.filter(i => {
+            const d = insDate(i);
+            return d !== null && d > in7days && i.status !== 'cancelled';
+        });
+        const later      = laterAll.slice(0, 50);
+        const laterTotal = laterAll.length;
+
+        const recentReports = all.filter(i => i.status === 'completed' || i.status === 'delivered');
+
+        // Cancelled within last 30 days (no updatedAt on inspections — use createdAt as fallback proxy).
+        const cancelled = all.filter(i =>
+            i.status === 'cancelled' && new Date(i.createdAt) >= minus30days
+        ).slice(0, 20);
+
+        return { needsAttention, today, thisWeek, later, laterTotal, recentReports, cancelled };
     }
 
     /**

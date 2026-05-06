@@ -33,6 +33,32 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
         class="min-h-screen"
         style="background: #faf9f7; background-image: radial-gradient(circle, #d5d0c8 0.6px, transparent 0.6px); background-size: 20px 20px;"
       >
+        {/* P2 — AI Suggest Comment popover (shared scope with inspectionEditor) */}
+        <div x-cloak x-show="showAiPopover" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div {...{ 'x-on:click.stop': '$event' }}
+               class="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4"
+               {...{ 'x-transition:enter': 'transition ease-out duration-150', 'x-transition:enter-start': 'opacity-0 scale-95', 'x-transition:enter-end': 'opacity-100 scale-100' }}>
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                <h3 class="font-bold text-slate-900">AI Suggestions</h3>
+              </div>
+              <button type="button" x-on:click="showAiPopover = false" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Close">×</button>
+            </div>
+            <p class="text-xs text-slate-500">Pick one to insert into the notes field.</p>
+            <div class="space-y-2">
+              <template x-for="(s, idx) in aiSuggestions" x-bind:key="idx">
+                <button type="button" x-on:click="insertSuggestion(s)" class="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-sm text-slate-700">
+                  <span x-text="s"></span>
+                </button>
+              </template>
+            </div>
+            <div class="flex justify-end pt-2">
+              <button type="button" x-on:click="showAiPopover = false" class="px-4 py-2 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100">Cancel</button>
+            </div>
+          </div>
+        </div>
+
         {/* ===== Mobile View ===== */}
         <div x-show="!isDesktop" class="lg:hidden">
           {/* Sticky Header */}
@@ -94,11 +120,15 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   <span class="w-3 h-3 rounded-full" x-bind:style="'background:' + getRatingColor(getItemRating(item.id))"></span>
                 </div>
 
-                {/* Rating Buttons */}
-                <div class="flex flex-wrap gap-1.5 mb-3">
+                {/* Rating Buttons — `data-rating-row` is the anchor target the
+                    onboarding overlay (T6 / step 0) highlights so the user
+                    knows which buttons the tour is talking about. */}
+                <div data-rating-row class="flex flex-wrap gap-1.5 mb-3">
                   <template x-for="level in ratingLevels" x-bind:key="level.id">
                     <button
                       x-on:click="setRating(item.id, level.id)"
+                      x-bind:title="level.description ? level.label + ' — ' + level.description : level.label"
+                      x-bind:aria-label="level.label"
                       class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
                       x-bind:class="getItemRating(item.id) === level.id ? 'text-white border-transparent' : 'text-gray-400 hover:text-gray-600'"
                       x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e8e4dd'"
@@ -119,14 +149,28 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
 
                 {/* Expanded Detail */}
                 <div x-show="expanded[item.id]" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(232,228,221,0.5)">
-                  <textarea
-                    x-model="results[item.id].notes"
-                    x-on:input="debounceSave()"
-                    placeholder="Add notes..."
-                    class="w-full p-3 text-sm rounded-xl border resize-none"
-                    style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
-                    rows={3}
-                  ></textarea>
+                  <div class="relative">
+                    <textarea
+                      x-bind:id="'notes-mob-' + item.id"
+                      x-model="results[item.id].notes"
+                      x-on:input="debounceSave()"
+                      placeholder="Add notes..."
+                      class="w-full p-3 text-sm rounded-xl border resize-none"
+                      style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
+                      rows={3}
+                    ></textarea>
+                    <button type="button"
+                      x-bind:data-mic-target="'notes-mob-' + item.id"
+                      x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
+                      class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-surface-200 flex items-center justify-center hover:bg-white"
+                      title="Dictate (Web Speech)"
+                      aria-label="Dictate notes">
+                      <svg class="w-3.5 h-3.5 text-ink-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M19 11h-1.7c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72z"/>
+                      </svg>
+                    </button>
+                  </div>
                   <div class="mt-2 flex gap-2 flex-wrap">
                     <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef4ff; color: #4a72ff">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -137,11 +181,56 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                       Library
                     </button>
+                    <button type="button"
+                      x-on:click="suggestComment(item.label, section.title, document.getElementById('notes-mob-' + item.id), $event)"
+                      class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                      style="background: #fef3c7; color: #b45309">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                      Suggest
+                    </button>
+                  </div>
+                  {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
+                  <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-3 gap-2">
+                    <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
+                      <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e8e4dd;">
+                        <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
+                          class="w-full h-full object-cover" alt="Photo" />
+                        <button type="button"
+                          x-on:click="window.dispatchEvent(new CustomEvent('annotate', { detail: { inspectionId, itemId: item.id, photoIndex: pi, imageUrl: '/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.key), existingNodesJson: photo.annotationsJson || null } }))"
+                          class="absolute inset-0 bg-black/50 text-white text-[10px] font-bold opacity-0 group-hover:opacity-100 active:opacity-100 flex items-center justify-center transition">
+                          Annotate
+                        </button>
+                      </div>
+                    </template>
                   </div>
                 </div>
               </div>
             </template>
           </div>
+
+          {/* Spec 4D mobile — Inspection Events compact list */}
+          <section x-data={`inspectionEventsSection('${inspectionId}')`} x-init="load()" class="mx-4 mb-24 mt-3 rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+            <header class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-bold text-slate-900">Events</h2>
+                <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500" x-show="events.length > 0" x-text="events.length"></span>
+              </div>
+              <button type="button" x-on:click="openCreate()" class="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[11px] font-bold">+ Add</button>
+            </header>
+            <ul class="mt-2 space-y-1.5">
+              <template x-for="ev in events" {...{ 'x-bind:key': 'ev.id' }}>
+                <li class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg text-xs">
+                  <span class="w-2 h-2 rounded-full flex-shrink-0" {...{ 'x-bind:style': "'background:' + eventTypeColor(ev.eventTypeId)" }}></span>
+                  <span class="font-bold text-slate-900 truncate" x-text="eventTypeName(ev.eventTypeId)"></span>
+                  <span class="text-slate-500 text-[10px]" x-text="formatDate(ev.scheduledAt)"></span>
+                  <span class="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" x-text="(ev.status || '').replace('_', ' ')" {...{ 'x-bind:class': 'statusBadgeClass(ev.status)' }}></span>
+                  <button type="button" x-show="ev.status === 'scheduled'" x-on:click="markComplete(ev.id)" class="text-emerald-600 text-xs font-bold" title="Done">&#10003;</button>
+                  <button type="button" x-on:click="del(ev.id)" class="text-rose-600 text-xs font-bold" title="Delete">&times;</button>
+                </li>
+              </template>
+              <li x-show="!events.length && !loading" class="text-[10px] text-slate-400 px-2">No events yet.</li>
+            </ul>
+          </section>
 
           {/* Bottom Bar */}
           <div class="fixed bottom-0 left-0 right-0 z-40 px-4 py-3 flex gap-3" style="background: rgba(255,253,250,0.90); backdrop-filter: blur(16px); border-top: 1px solid rgba(232,228,221,0.5);">
@@ -204,6 +293,20 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   <span x-bind:class="inspection.agreementRequired ? 'translate-x-3' : 'translate-x-0.5'" class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" />
                 </button>
               </label>
+              <div class="mt-2">
+                <label class="block text-[10px] font-mono font-semibold uppercase tracking-wide mb-1" style="color: #908a83">Report Theme Override</label>
+                <select
+                  x-bind:value="inspection.reportThemeOverride || ''"
+                  x-on:change={`const v=$event.target.value||null;authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({reportThemeOverride:v})}).then(r=>r.json()).then(d=>{if(d.success)inspection.reportThemeOverride=v;});`}
+                  class="w-full px-2 py-1 text-xs border rounded bg-white"
+                  style="border-color: rgba(232,228,221,0.6); color: #46423c"
+                >
+                  <option value="">Use tenant default</option>
+                  <option value="modern">Modern</option>
+                  <option value="classic">Classic</option>
+                  <option value="minimal">Minimal</option>
+                </select>
+              </div>
               <div class="mt-1">
                 <span x-show="inspection.paymentStatus === 'paid'" class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: #dcfce7; color: #16a34a">Paid</span>
                 <span x-show="inspection.paymentStatus !== 'paid'" class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: #fee2e2; color: #dc2626" x-text="'Unpaid · $' + ((inspection.price || 0) / 100).toFixed(2)"></span>
@@ -409,6 +512,83 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 </div>
             </div>
 
+            {/* Inspection Events (Spec 4D.T9) */}
+            <section x-data={`inspectionEventsSection('${inspectionId}')`} x-init="load()" class="mx-6 mt-3 rounded-2xl bg-white p-5 ring-1 ring-slate-200">
+                <header class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-base font-bold text-slate-900">Events</h2>
+                        <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500" x-show="events.length > 0" x-text="events.length + ' total'"></span>
+                    </div>
+                    <button type="button" x-on:click="openCreate()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">+ Add event</button>
+                </header>
+                <ul class="mt-3 space-y-2">
+                    <template x-for="ev in events" {...{ 'x-bind:key': 'ev.id' }}>
+                        <li class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg text-sm">
+                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" {...{ 'x-bind:style': "'background:' + eventTypeColor(ev.eventTypeId)" }}></span>
+                            <span class="font-bold text-slate-900" x-text="eventTypeName(ev.eventTypeId)"></span>
+                            <span class="text-slate-500 text-xs" x-text="formatDate(ev.scheduledAt)"></span>
+                            <span class="text-slate-400 text-xs" x-show="ev.durationMin" x-text="(ev.durationMin || 0) + ' min'"></span>
+                            <span class="ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" x-text="(ev.status || '').replace('_', ' ')" {...{ 'x-bind:class': 'statusBadgeClass(ev.status)' }}></span>
+                            <button type="button" x-show="ev.status === 'scheduled'" x-on:click="markComplete(ev.id)" class="text-emerald-600 text-xs font-bold hover:underline" title="Mark complete">&#10003;</button>
+                            <button type="button" x-on:click="del(ev.id)" class="text-rose-600 text-xs font-bold hover:underline" title="Delete">&times;</button>
+                        </li>
+                    </template>
+                    <li x-show="!events.length && !loading" class="text-xs text-slate-400">No events yet. Add a radon pickup, sewer scope, follow-up visit, etc.</li>
+                </ul>
+
+                {/* Create modal */}
+                <div x-show="showCreate" x-cloak class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" {...{ 'x-on:click': 'if ($event.target === $el) showCreate = false' }}>
+                    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                        <h3 class="text-lg font-bold text-slate-900 mb-4">New event</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Type</label>
+                                <select x-model="form.eventTypeId" x-on:change="onTypeChange()" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                                    <option value="">— Select —</option>
+                                    <template x-for="t in types" {...{ 'x-bind:key': 't.id' }}>
+                                        <option {...{ 'x-bind:value': 't.id' }} x-text="t.name"></option>
+                                    </template>
+                                </select>
+                                <p x-show="!types.length" class="text-[10px] text-amber-600 mt-1">No event types defined. <a href="/settings/event-types" class="underline">Create one</a> first.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Date &amp; time</label>
+                                <input type="datetime-local" x-model="form.scheduledAt" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">Duration (min)</label>
+                                    <input type="number" {...{ 'x-model.number': 'form.durationMin' }} min="1" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">Price (cents)</label>
+                                    <input type="number" {...{ 'x-model.number': 'form.priceCents' }} min="0" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Inspector (optional)</label>
+                                <select x-model="form.inspectorId" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                                    <option value="">Unassigned</option>
+                                    <template x-for="i in inspectors" {...{ 'x-bind:key': 'i.id' }}>
+                                        <option {...{ 'x-bind:value': 'i.id' }} x-text="i.name || i.email"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Notes (optional)</label>
+                                <textarea x-model="form.notes" rows={2} class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"></textarea>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 justify-end mt-5">
+                            <button type="button" x-on:click="showCreate = false" class="px-4 py-2 rounded-lg ring-2 ring-slate-200 text-slate-600 text-xs font-bold">Cancel</button>
+                            <button type="button" x-on:click="submitCreate()" {...{ 'x-bind:disabled': 'saving' }} class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold disabled:opacity-50">
+                                <span x-text="saving ? 'Saving...' : 'Add event'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Card Grid */}
             <div class="p-6 grid grid-cols-2 xl:grid-cols-3 gap-4">
               <template x-for="item in currentSectionItems" x-bind:key="item.id">
@@ -438,6 +618,8 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                     <template x-for="level in ratingLevels" x-bind:key="level.id">
                       <button
                         x-on:click="setRating(item.id, level.id)"
+                        x-bind:title="level.description ? level.label + ' — ' + level.description : level.label"
+                        x-bind:aria-label="level.label"
                         class="px-2.5 py-1 text-[10px] font-semibold rounded-lg border transition-all"
                         x-bind:class="getItemRating(item.id) === level.id ? 'text-white border-transparent' : 'text-gray-400 hover:text-gray-600'"
                         x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e8e4dd'"
@@ -452,14 +634,28 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
 
                   {/* Expanded Detail (desktop) */}
                   <div x-show="expanded[item.id] && !batchMode" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(232,228,221,0.5)" x-on:click="$event.stopPropagation()">
-                    <textarea
-                      x-model="results[item.id].notes"
-                      x-on:input="debounceSave()"
-                      placeholder="Add notes..."
-                      class="w-full p-3 text-sm rounded-xl border resize-none"
-                      style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
-                      rows={3}
-                    ></textarea>
+                    <div class="relative">
+                      <textarea
+                        x-bind:id="'notes-dsk-' + item.id"
+                        x-model="results[item.id].notes"
+                        x-on:input="debounceSave()"
+                        placeholder="Add notes..."
+                        class="w-full p-3 text-sm rounded-xl border resize-none"
+                        style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
+                        rows={3}
+                      ></textarea>
+                      <button type="button"
+                        x-bind:data-mic-target="'notes-dsk-' + item.id"
+                        x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
+                        class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-surface-200 flex items-center justify-center hover:bg-white"
+                        title="Dictate (Web Speech)"
+                        aria-label="Dictate notes">
+                        <svg class="w-3.5 h-3.5 text-ink-500" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                          <path d="M19 11h-1.7c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72z"/>
+                        </svg>
+                      </button>
+                    </div>
                     <div class="mt-2 flex gap-2 flex-wrap">
                       <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef4ff; color: #4a72ff">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -470,6 +666,27 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                         Library
                       </button>
+                      <button type="button"
+                        x-on:click="suggestComment(item.label, section.title, document.getElementById('notes-dsk-' + item.id), $event)"
+                        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                        style="background: #fef3c7; color: #b45309">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                        Suggest
+                      </button>
+                    </div>
+                    {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
+                    <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-4 gap-2">
+                      <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
+                        <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e8e4dd;">
+                          <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
+                            class="w-full h-full object-cover" alt="Photo" />
+                          <button type="button"
+                            x-on:click="window.dispatchEvent(new CustomEvent('annotate', { detail: { inspectionId, itemId: item.id, photoIndex: pi, imageUrl: '/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.key), existingNodesJson: photo.annotationsJson || null } }))"
+                            class="absolute inset-0 bg-black/50 text-white text-xs font-bold opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
+                            Annotate
+                          </button>
+                        </div>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -521,18 +738,159 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
             </div>
             <div class="flex gap-3 mt-6">
               <button x-on:click="showPublishModal = false" class="flex-1 py-3 text-sm font-semibold rounded-xl border" style="border-color: #e8e4dd; color: #46423c">Cancel</button>
+              <button
+                type="button"
+                {...{ 'x-on:click': 'sendReportPdf()' }}
+                {...{ 'x-bind:disabled': 'sendingPdf' }}
+                class="px-5 py-3 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50 transition-all"
+              >
+                <span x-show="!sendingPdf">📧 Send PDF to Client</span>
+                <span x-show="sendingPdf">Sending…</span>
+              </button>
               <button x-on:click="publish()" class="flex-1 py-3 text-sm font-bold rounded-xl text-white" style="background: #4a72ff" x-bind:disabled="publishing">
                 <span x-text="publishing ? 'Publishing...' : 'Confirm Publish'"></span>
               </button>
             </div>
           </div>
         </div>
+
+        {/* Onboarding overlay (T6) */}
+        <div x-data="inspectionOnboarding()" {...{'x-on:rating-levels-ready.window': 'init($event.detail)'}}>
+            <div x-show="active" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(15,23,42,0.78);backdrop-filter:blur(6px);">
+                <div class="rounded-3xl p-8 max-w-md w-full shadow-2xl" style="background:rgba(255,253,250,0.96);border:1px solid rgba(255,255,255,0.6);">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span x-show="currentStep.abbr" class="px-3 py-1 rounded-lg text-white font-mono font-bold text-sm"
+                              x-bind:style="'background:' + currentStep.color"
+                              x-text="currentStep.abbr"></span>
+                        <h3 class="text-xl font-bold" style="color:#1a1815" x-text="currentStep.title"></h3>
+                    </div>
+                    <p class="text-sm leading-relaxed mb-6" style="color:#46423c" x-text="currentStep.body"></p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-mono" style="color:#b0aaa3" x-text="(stepIdx + 1) + ' / ' + totalSteps"></span>
+                        <div class="flex gap-2">
+                            <button x-on:click="skip()" class="px-4 py-2 rounded-xl text-sm" style="color:#6b6560">Skip</button>
+                            <button x-on:click="next()" class="px-5 py-2 rounded-xl text-white text-sm font-semibold" style="background:#4a72ff">
+                                <span x-text="stepIdx + 1 === totalSteps ? 'Done' : 'Next'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* Photo Annotator Modal (T13) */}
+        <div x-data="photoAnnotator()" {...{'x-on:annotate.window': 'openPhoto($event.detail)'}} x-show="open" x-cloak class="fixed inset-0 z-50 flex flex-col" style="background:rgba(15,23,42,0.92);">
+            {/* Toolbar */}
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-white" style="background:#1e293b;">
+                <div class="flex items-center gap-1 flex-wrap">
+                    <template x-for="tool in tools" x-bind:key="tool.id">
+                        <button x-on:click="setTool(tool.id)"
+                            x-bind:title="tool.label"
+                            x-bind:class="currentTool === tool.id ? 'bg-blue-600' : 'hover:bg-slate-700'"
+                            class="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                            <span x-text="tool.icon"></span>
+                            <span class="hidden md:inline" x-text="tool.label"></span>
+                        </button>
+                    </template>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="color" x-model="color" class="w-9 h-9 rounded cursor-pointer border-0" title="Color" />
+                    <select x-model="lineWidth" class="px-2 py-1 rounded bg-slate-700 text-white text-xs" title="Line width">
+                        <option value="2">Thin</option>
+                        <option value="4">Medium</option>
+                        <option value="6">Thick</option>
+                    </select>
+                    <button x-on:click="undo()" class="px-3 py-2 hover:bg-slate-700 rounded text-xs" title="Undo">↶</button>
+                    <button x-on:click="redo()" class="px-3 py-2 hover:bg-slate-700 rounded text-xs" title="Redo">↷</button>
+                    <button x-on:click="clear()" class="px-3 py-2 hover:bg-slate-700 rounded text-xs" title="Clear">⌫</button>
+                    <button x-on:click="cancel()" class="px-4 py-2 rounded-lg text-xs font-semibold hover:bg-slate-700">Cancel</button>
+                    <button x-on:click="save()" x-bind:disabled="saving"
+                        class="px-4 py-2 rounded-lg text-xs font-semibold"
+                        style="background:#10b981;">
+                        <span x-text="saving ? 'Saving...' : 'Save'"></span>
+                    </button>
+                </div>
+            </div>
+            {/* Canvas container */}
+            <div class="flex-1 flex items-center justify-center overflow-hidden p-4">
+                <div id="annotatorContainer" class="bg-white max-w-full max-h-full"></div>
+            </div>
+        </div>
+
+        {/* Phase T (T23) — Inspector Messages panel (slide-in from right) */}
+        <div x-data={`messagesInspector('${inspectionId}')`} x-init="init()">
+            {/* Floating button */}
+            <button x-on:click="open = !open" class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-2xl text-white flex items-center justify-center" style="background:#4a72ff;">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                <span x-show="messages.length > 0" class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center" x-text="messages.length"></span>
+            </button>
+            {/* Slide-in panel */}
+            <div x-show="open" x-cloak class="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col shadow-2xl" style="background:#faf9f7;">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-900">Messages</h2>
+                    <button x-on:click="open = false" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500">×</button>
+                </div>
+                <div x-show="token" class="px-4 py-2 border-b border-slate-100 bg-slate-50">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Public link for client</p>
+                    <input readonly x-bind:value="publicLink" class="w-full px-2 py-1.5 bg-white rounded text-xs font-mono text-slate-600 border border-slate-200" x-on:click="$event.target.select()" />
+                </div>
+                <div class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                    <template x-for="m in messages" x-bind:key="m.id">
+                        <div x-bind:class="m.fromRole === 'inspector' ? 'ml-12' : 'mr-12'" class="rounded-2xl p-3" x-bind:style="m.fromRole === 'inspector' ? 'background:#eef4ff;' : 'background:#f3f1ed;'">
+                            <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                                <span x-text="(m.fromName || m.fromRole) + ' · ' + new Date(m.createdAt).toLocaleString()"></span>
+                            </div>
+                            <p class="text-sm whitespace-pre-wrap text-slate-900" x-text="m.body"></p>
+                            <div x-show="m.attachments && m.attachments.length" class="mt-2 flex flex-wrap gap-2">
+                                <template x-for="a in (m.attachments || [])" x-bind:key="a.id">
+                                    <a x-bind:href="'/api/photos/' + encodeURIComponent(a.key)" target="_blank"
+                                       class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 hover:bg-slate-50" x-text="a.name"></a>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <p x-show="messages.length === 0" class="text-center text-sm text-slate-400 py-8">No messages yet.</p>
+                </div>
+                <div class="border-t border-slate-200 p-3 bg-white">
+                    <textarea x-model="composeBody" rows={3} placeholder="Reply..." class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none"></textarea>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <template x-for="(a, i) in pendingAttachments" x-bind:key="a.id">
+                            <span class="text-xs bg-slate-100 rounded-lg px-2 py-1 flex items-center gap-1">
+                                <span x-text="a.name"></span>
+                                <button x-on:click="pendingAttachments.splice(i,1)" class="text-rose-500 hover:text-rose-700">×</button>
+                            </span>
+                        </template>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between">
+                        <label class="cursor-pointer text-sm text-slate-600 hover:text-indigo-600 inline-flex items-center gap-1">
+                            <span>📎</span> <span class="text-xs">Attach</span>
+                            <input type="file" multiple class="hidden" x-on:change="upload($event.target.files)" />
+                        </label>
+                        <button x-on:click="send()" x-bind:disabled="!composeBody || sending"
+                            class="px-4 py-2 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
+                            style="background:#4a72ff;">
+                            <span x-text="sending ? 'Sending...' : 'Send'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
       </div>
       <div id="commentPicker" class="hidden fixed z-[200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 w-72 max-h-64 overflow-y-auto"></div>
       <script src="/js/auth.js"></script>
+      <script src="/js/modal-dialog.js"></script>
       <script src="/js/comments-library.js"></script>
       <script src="/js/toast.js"></script>
       <script src="/js/inspection-edit.js"></script>
+      <script src="/js/inspection-events.js"></script>
+      {/* Phase T (T14) — Konva-based photo annotator. konva.min.js (~150KB) is
+          lazy-loaded by photo-annotator.js on the first `annotate` event so it
+          doesn't block first paint of the inspection edit page. */}
+      <script src="/js/photo-annotator.js"></script>
+      <script src="/js/onboarding.js"></script>
+      <script src="/js/voice-input.js"></script>
+      {/* Phase T (T23) — Messages panel script */}
+      <script src="/js/messages-inspector.js"></script>
       </>
     ),
   });

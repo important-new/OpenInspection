@@ -36,11 +36,11 @@ function templateEditor() {
                 defaultLevelId: 'S',
                 source: null,
                 levels: [
-                    { id: 'S', label: 'Satisfactory', abbreviation: 'Sat', color: '#22c55e', severity: 'good', isDefect: false, default: true, description: 'In good working order' },
-                    { id: 'M', label: 'Monitor', abbreviation: 'Mon', color: '#f59e0b', severity: 'marginal', isDefect: false, default: false, description: 'May need maintenance' },
-                    { id: 'D', label: 'Defect', abbreviation: 'D', color: '#ef4444', severity: 'significant', isDefect: true, default: false, description: 'Repair needed' },
-                    { id: 'NI', label: 'Not Inspected', abbreviation: 'NI', color: '#9ca3af', severity: 'minor', isDefect: false, default: false, description: '' },
-                    { id: 'NP', label: 'Not Present', abbreviation: 'NP', color: '#6b7280', severity: 'minor', isDefect: false, default: false, description: '' },
+                    { id: 'S',  label: 'Satisfactory',  abbreviation: 'Sat', color: '#22c55e', severity: 'good',        isDefect: false, default: true,  description: 'Item is functioning as intended; no concerns observed.' },
+                    { id: 'M',  label: 'Monitor',       abbreviation: 'Mon', color: '#f59e0b', severity: 'marginal',    isDefect: false, default: false, description: 'Item is functional but shows wear; recommend periodic re-inspection.' },
+                    { id: 'D',  label: 'Defect',        abbreviation: 'D',   color: '#ef4444', severity: 'significant', isDefect: true,  default: false, description: 'Item is broken, deteriorated, or unsafe; recommend repair or replacement.' },
+                    { id: 'NI', label: 'Not Inspected', abbreviation: 'NI',  color: '#9ca3af', severity: 'minor',       isDefect: false, default: false, description: 'Item could not be inspected (inaccessible, unsafe, or excluded).' },
+                    { id: 'NP', label: 'Not Present',   abbreviation: 'NP',  color: '#6b7280', severity: 'minor',       isDefect: false, default: false, description: 'Item is not present at this property.' },
                 ]
             },
             sections: []
@@ -48,33 +48,33 @@ function templateEditor() {
 
         ratingPresets: [
             { name: 'Standard 3-Level', levels: [
-                { id: 'S', label: 'Satisfactory', abbreviation: 'S', color: '#22c55e', severity: 'good', isDefect: false, default: true },
-                { id: 'M', label: 'Monitor', abbreviation: 'M', color: '#f59e0b', severity: 'marginal', isDefect: false, default: false },
-                { id: 'D', label: 'Defect', abbreviation: 'D', color: '#ef4444', severity: 'significant', isDefect: true, default: false },
+                { id: 'S', label: 'Satisfactory', abbreviation: 'S', color: '#22c55e', severity: 'good', isDefect: false, default: true,  description: 'Item is functioning as intended; no concerns observed.' },
+                { id: 'M', label: 'Monitor',      abbreviation: 'M', color: '#f59e0b', severity: 'marginal', isDefect: false, default: false, description: 'Item is functional but shows wear; recommend periodic re-inspection.' },
+                { id: 'D', label: 'Defect',       abbreviation: 'D', color: '#ef4444', severity: 'significant', isDefect: true,  default: false, description: 'Item is broken, deteriorated, or unsafe; recommend repair or replacement.' },
             ]},
             { name: 'Standard 5-Level', levels: [
-                { id: 'S', label: 'Satisfactory', abbreviation: 'Sat', color: '#22c55e', severity: 'good', isDefect: false, default: true },
-                { id: 'M', label: 'Monitor', abbreviation: 'Mon', color: '#f59e0b', severity: 'marginal', isDefect: false, default: false },
-                { id: 'D', label: 'Defect', abbreviation: 'D', color: '#ef4444', severity: 'significant', isDefect: true, default: false },
-                { id: 'NI', label: 'Not Inspected', abbreviation: 'NI', color: '#9ca3af', severity: 'minor', isDefect: false, default: false },
-                { id: 'NP', label: 'Not Present', abbreviation: 'NP', color: '#6b7280', severity: 'minor', isDefect: false, default: false },
+                { id: 'S',  label: 'Satisfactory',  abbreviation: 'Sat', color: '#22c55e', severity: 'good',        isDefect: false, default: true,  description: 'Item is functioning as intended; no concerns observed.' },
+                { id: 'M',  label: 'Monitor',       abbreviation: 'Mon', color: '#f59e0b', severity: 'marginal',    isDefect: false, default: false, description: 'Item is functional but shows wear; recommend periodic re-inspection.' },
+                { id: 'D',  label: 'Defect',        abbreviation: 'D',   color: '#ef4444', severity: 'significant', isDefect: true,  default: false, description: 'Item is broken, deteriorated, or unsafe; recommend repair or replacement.' },
+                { id: 'NI', label: 'Not Inspected', abbreviation: 'NI',  color: '#9ca3af', severity: 'minor',       isDefect: false, default: false, description: 'Item could not be inspected (inaccessible, unsafe, or excluded).' },
+                { id: 'NP', label: 'Not Present',   abbreviation: 'NP',  color: '#6b7280', severity: 'minor',       isDefect: false, default: false, description: 'Item is not present at this property.' },
             ]},
             { name: 'TREC', levels: [
-                { id: 'I', label: 'Inspected', abbreviation: 'I', color: '#22c55e', severity: 'good', isDefect: false, default: true },
-                { id: 'D', label: 'Deficient', abbreviation: 'D', color: '#ef4444', severity: 'significant', isDefect: true, default: false },
-                { id: 'NI', label: 'Not Inspected', abbreviation: 'NI', color: '#9ca3af', severity: 'minor', isDefect: false, default: false },
-                { id: 'NP', label: 'Not Present', abbreviation: 'NP', color: '#6b7280', severity: 'minor', isDefect: false, default: false },
-                { id: 'INR', label: 'In Need of Repair', abbreviation: 'INR', color: '#f97316', severity: 'significant', isDefect: true, default: false },
+                { id: 'I',   label: 'Inspected',         abbreviation: 'I',   color: '#22c55e', severity: 'good',        isDefect: false, default: true,  description: 'Item was inspected and meets the Texas Standards of Practice.' },
+                { id: 'D',   label: 'Deficient',         abbreviation: 'D',   color: '#ef4444', severity: 'significant', isDefect: true,  default: false, description: 'Item shows deficiencies that warrant repair, replacement, or further evaluation.' },
+                { id: 'NI',  label: 'Not Inspected',     abbreviation: 'NI',  color: '#9ca3af', severity: 'minor',       isDefect: false, default: false, description: 'Item was not inspected per Standards of Practice (inaccessible, unsafe, or excluded).' },
+                { id: 'NP',  label: 'Not Present',       abbreviation: 'NP',  color: '#6b7280', severity: 'minor',       isDefect: false, default: false, description: 'Item is not present at this property.' },
+                { id: 'INR', label: 'In Need of Repair', abbreviation: 'INR', color: '#f97316', severity: 'significant', isDefect: true,  default: false, description: 'Item is functioning but requires repair to remain in serviceable condition.' },
             ]},
             { name: 'ITB Default (8-Level)', levels: [
-                { id: 'F', label: 'Functional', abbreviation: 'F', color: '#22c55e', severity: 'good', isDefect: false, default: true },
-                { id: 'LM', label: 'Maintenance Item', abbreviation: 'LM', color: '#84cc16', severity: 'marginal', isDefect: false, default: false },
-                { id: 'Mon', label: 'Monitor', abbreviation: 'Mon', color: '#eab308', severity: 'marginal', isDefect: false, default: false },
-                { id: 'Mar', label: 'Marginal', abbreviation: 'Mar', color: '#f59e0b', severity: 'marginal', isDefect: false, default: false },
-                { id: 'D', label: 'Defective', abbreviation: 'D', color: '#ef4444', severity: 'significant', isDefect: true, default: false },
-                { id: 'H', label: 'Hazardous', abbreviation: 'H', color: '#dc2626', severity: 'significant', isDefect: true, default: false },
-                { id: 'NP', label: 'Not Present', abbreviation: 'NP', color: '#9ca3af', severity: 'minor', isDefect: false, default: false },
-                { id: 'NI', label: 'Not Inspected', abbreviation: 'NI', color: '#6b7280', severity: 'minor', isDefect: false, default: false },
+                { id: 'F',   label: 'Functional',        abbreviation: 'F',   color: '#22c55e', severity: 'good',        isDefect: false, default: true,  description: 'Item visually inspected and observed to be in serviceable, functional condition.' },
+                { id: 'LM',  label: 'Maintenance Item',  abbreviation: 'LM',  color: '#84cc16', severity: 'marginal',    isDefect: false, default: false, description: 'Item requires routine maintenance to preserve serviceability.' },
+                { id: 'Mon', label: 'Monitor',           abbreviation: 'Mon', color: '#eab308', severity: 'marginal',    isDefect: false, default: false, description: 'Item is functional but should be monitored for further deterioration.' },
+                { id: 'Mar', label: 'Marginal',          abbreviation: 'Mar', color: '#f59e0b', severity: 'marginal',    isDefect: false, default: false, description: 'Item is functioning but approaching end of useful life or showing notable wear.' },
+                { id: 'D',   label: 'Defective',         abbreviation: 'D',   color: '#ef4444', severity: 'significant', isDefect: true,  default: false, description: 'Item is not functioning as intended; repair or replacement is recommended.' },
+                { id: 'H',   label: 'Hazardous',         abbreviation: 'H',   color: '#dc2626', severity: 'significant', isDefect: true,  default: false, description: 'Item presents an immediate safety hazard and should be addressed without delay.' },
+                { id: 'NP',  label: 'Not Present',       abbreviation: 'NP',  color: '#9ca3af', severity: 'minor',       isDefect: false, default: false, description: 'Item is not present at this property.' },
+                { id: 'NI',  label: 'Not Inspected',     abbreviation: 'NI',  color: '#6b7280', severity: 'minor',       isDefect: false, default: false, description: 'Item could not be inspected (inaccessible, unsafe, or excluded).' },
             ]},
         ],
 
@@ -148,7 +148,19 @@ function templateEditor() {
             if (!this.selectedItem.options) this.selectedItem.options = {};
             this.selectedItem.options.choices = this.choicesText.split('\n').map(s => s.trim()).filter(Boolean);
         },
-        applyRatingPreset(preset) {
+        async applyRatingPreset(preset) {
+            // Guard against accidental overwrite of customised levels.
+            // Only prompt if the user has actually edited away from a previous preset
+            // (heuristic: levels exist and at least one description differs from blank).
+            const cur = this.template.ratingSystem.levels || [];
+            const hasCustom = cur.length > 0 && cur.some(l => l.description || l.color);
+            if (hasCustom) {
+                const ok = await modalConfirm(
+                    `Replace the current ${cur.length}-level rating system with "${preset.name}" (${preset.levels.length} levels)? Custom labels, colors, and descriptions will be lost.`,
+                    'Replace rating system?'
+                );
+                if (!ok) return;
+            }
             this.template.ratingSystem.name = preset.name;
             this.template.ratingSystem.levels = JSON.parse(JSON.stringify(preset.levels));
             this.template.ratingSystem.defaultLevelId = preset.levels.find(l => l.default)?.id || preset.levels[0]?.id;

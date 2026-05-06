@@ -68,12 +68,22 @@ export const UpdateInspectionSchema = z.object({
     bathrooms:      z.number().min(0).max(20).nullable().optional().openapi({ example: 2.5 }),
     unit:           z.string().max(50).nullable().optional(),
     county:         z.string().max(100).nullable().optional(),
+    reportThemeOverride: z.enum(['modern', 'classic', 'minimal']).nullable().optional().openapi({ example: 'classic' }),
 }).openapi('UpdateInspection');
 
+export const CancellationReasonSchema = z.enum([
+    'client_cancelled',
+    'weather',
+    'inspector_unavailable',
+    'property_unavailable',
+    'rescheduled',
+    'other',
+]).openapi('CancellationReason');
+
 export const CancelInspectionSchema = z.object({
-    reason: z.enum(['client_cancelled', 'scheduling_conflict', 'weather', 'other']),
+    reason: CancellationReasonSchema,
     notes:  z.string().max(500).optional(),
-}).openapi('CancelInspection');
+}).openapi('CancelInspectionRequest');
 
 export const InspectionCountsSchema = z.object({
     all:         z.number().openapi({ example: 42 }),
@@ -176,3 +186,25 @@ export const ReportDataResponseSchema = z.object({
     isDefect: z.boolean(),
   })),
 }).openapi('ReportData');
+
+export const InspectionListItemSchema = z.object({
+    id:           z.string(),
+    date:         z.string().nullable(),
+    address:      z.string().nullable().optional(),
+    clientName:   z.string().nullable().optional(),
+    status:       z.string(),
+    confirmedAt:  z.string().nullable().optional(),
+    cancelReason: z.string().nullable().optional(),
+    cancelNotes:  z.string().nullable().optional(),
+    createdAt:    z.string().nullable().optional(),
+}).passthrough().openapi('InspectionListItem');
+
+export const DashboardResponseSchema = z.object({
+    needsAttention: z.array(InspectionListItemSchema),
+    today:          z.array(InspectionListItemSchema),
+    thisWeek:       z.array(InspectionListItemSchema),
+    later:          z.array(InspectionListItemSchema),
+    laterTotal:     z.number(),
+    recentReports:  z.array(InspectionListItemSchema),
+    cancelled:      z.array(InspectionListItemSchema),
+}).openapi('DashboardResponse');

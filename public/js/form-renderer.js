@@ -1,42 +1,31 @@
-// ���� Offline photo queue ??IndexedDB store for blobs pending upload ����������
+// B4 — Offline photo queue is now backed by the unified Dexie syncQueue store.
+// `pendingPhotoDb` retains the Phase O shape so call sites elsewhere in this
+// file don't need to change; under the hood it writes `photo.upload` rows
+// that the sync engine drains.
+import { db as offlineDb, openDb as openOfflineDb } from './db.js';
+import { drainQueue } from './sync-engine.js';
+import { resizeImage } from './photo-resize.js';
+
 const pendingPhotoDb = {
-  _db: null,
-  open() {
-    if (this._db) return Promise.resolve(this._db);
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open('oi_pending_photos', 1);
-      req.onupgradeneeded = e => e.target.result.createObjectStore('queue', { keyPath: 'id' });
-      req.onsuccess = e => { this._db = e.target.result; resolve(this._db); };
-      req.onerror = () => reject(req.error);
-    });
-  },
-  async add(record) {
-    const db = await this.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('queue', 'readwrite');
-      tx.objectStore('queue').put(record);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-  },
-  async getAll() {
-    const db = await this.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('queue', 'readonly');
-      const req = tx.objectStore('queue').getAll();
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  },
-  async remove(id) {
-    const db = await this.open();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('queue', 'readwrite');
-      tx.objectStore('queue').delete(id);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-    });
-  }
+    async open() { await openOfflineDb(); return offlineDb; },
+    async add(record) {
+        await openOfflineDb();
+        await offlineDb.syncQueue.add({
+            id: record.id || crypto.randomUUID(),
+            op: 'photo.upload',
+            payload: { inspectionId: record.inspectionId, itemId: record.itemId, blob: record.blob, fileName: record.fileName },
+            attempts: 0, createdAt: Date.now(),
+        });
+    },
+    async getAll() {
+        await openOfflineDb();
+        const rows = await offlineDb.syncQueue.where('op').equals('photo.upload').toArray();
+        return rows.map(r => ({ id: r.id, inspectionId: r.payload.inspectionId, itemId: r.payload.itemId, blob: r.payload.blob }));
+    },
+    async remove(id) {
+        await openOfflineDb();
+        await offlineDb.syncQueue.delete(id);
+    },
 };
 
 function fileToDataUrl(file) {
@@ -60,6 +49,7 @@ document.addEventListener('alpine:init', () => {
     uploading: {},
     isDelivered: false,
     scrolled: false,
+    _lastSyncedAt: 0,
 
     // Annotation State
     showAnnotationModal: false,
@@ -99,7 +89,7 @@ document.addEventListener('alpine:init', () => {
 
         this.templateSchema.sections.forEach(s => {
           s.items.forEach(i => {
-            this.results[i.id] = { status: null, notes: '', photos: [] };
+            this.results[i.id] = { status: null, notes: '', photos: [], recommendations: [] };
             this.uploading[i.id] = false;
           });
         });
@@ -113,6 +103,13 @@ document.addEventListener('alpine:init', () => {
           if (resultData.data) {
             this.results = { ...this.results, ...resultData.data };
           }
+        }
+
+        // B4 — drift detection. Compare snapshot vs master template version.
+        if (this.inspection?.templateSnapshotVersion != null && this.template?.version != null) {
+          const bannerEl = document.querySelector('[x-data="templateDriftBanner"]');
+          const banner = window.Alpine?.$data?.(bannerEl);
+          banner?.check?.(this.inspectionId, this.inspection.templateSnapshotVersion, this.template.version);
         }
       } catch (e) {
         console.error('Failed to load inspection data', e);
@@ -129,6 +126,12 @@ document.addEventListener('alpine:init', () => {
 
     setItemStatus(itemId, status) {
       this.results[itemId].status = status;
+      this.results[itemId].updatedAt = Date.now();
+      this.saveLocally();
+    },
+
+    noteChanged(itemId) {
+      if (this.results[itemId]) this.results[itemId].updatedAt = Date.now();
       this.saveLocally();
     },
 
@@ -137,12 +140,24 @@ document.addEventListener('alpine:init', () => {
       if (!file) return;
       if (!this.results[itemId].photos) this.results[itemId].photos = [];
 
+      // B4 — resize before storing in IndexedDB or uploading. Caps on iOS Safari are
+      // the chokepoint; 2048-px / q=0.85 brings 4-12 MB iPhone photos to ~250-500 KB.
+      const resized = await resizeImage(file, 2048, 0.85);
+      const RESIZED_MAX = 10 * 1024 * 1024;
+      if (resized.size > RESIZED_MAX) {
+        if (typeof window.showToast === 'function') window.showToast('Photo too large after resize (max 10 MB).', true);
+        event.target.value = '';
+        return;
+      }
+      const uploadFile = new File([resized], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+
       if (!this.online) {
         // Queue locally ??upload when back online
         const localId = 'pending:' + crypto.randomUUID();
-        const dataUrl = await fileToDataUrl(file);
-        await pendingPhotoDb.add({ id: localId, inspectionId: this.inspectionId, itemId, blob: file, type: 'upload' });
+        const dataUrl = await fileToDataUrl(uploadFile);
+        await pendingPhotoDb.add({ id: localId, inspectionId: this.inspectionId, itemId, blob: uploadFile, type: 'upload' });
         this.results[itemId].photos.push({ key: localId, pending: true, dataUrl });
+        this.results[itemId].updatedAt = Date.now();
         this.saveLocally();
         event.target.value = '';
         return;
@@ -151,12 +166,13 @@ document.addEventListener('alpine:init', () => {
       this.uploading[itemId] = true;
       try {
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', uploadFile);
         formData.append('itemId', itemId);
         const res = await fetch(`/api/inspections/${this.inspectionId}/upload`, { method: 'POST', body: formData });
         if (res.ok) {
           const { key } = await res.json();
           this.results[itemId].photos.push({ key });
+          this.results[itemId].updatedAt = Date.now();
           this.saveLocally();
         } else {
           modalAlert('Failed to upload photo', 'Error');
@@ -169,8 +185,70 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    removePhoto(itemId, index) {
+    async removePhoto(itemId, index) {
       this.results[itemId].photos.splice(index, 1);
+      this.results[itemId].updatedAt = Date.now();
+      // B4 trigger Task 2 — enqueue a photo.delete op so the sync engine hits
+      // DELETE /api/inspections/:id/items/:itemId/photos/:photoIndex once online.
+      try {
+        await openOfflineDb();
+        await offlineDb.syncQueue.add({
+          id: crypto.randomUUID(),
+          op: 'photo.delete',
+          payload: { inspectionId: this.inspectionId, itemId, photoIndex: index },
+          attempts: 0,
+          createdAt: Date.now(),
+        });
+      } catch (err) {
+        console.error('[form-renderer] photo.delete enqueue failed', err);
+      }
+      this.saveLocally();
+    },
+
+    recommendationsList(itemId) {
+      const arr = this.results[itemId]?.recommendations;
+      return Array.isArray(arr) ? arr : [];
+    },
+
+    recommendationLabel(rec) {
+      const min = rec.estimateSnapshotMin;
+      const max = rec.estimateSnapshotMax;
+      let est = '';
+      if (min != null || max != null) {
+        if (min === max && min != null) est = ` ($${(min / 100).toFixed(0)})`;
+        else if (min != null && max != null) est = ` ($${(min / 100).toFixed(0)}-${(max / 100).toFixed(0)})`;
+        else if (max != null) est = ` (≤$${(max / 100).toFixed(0)})`;
+        else est = ` (≥$${(min / 100).toFixed(0)})`;
+      }
+      const snippet = (rec.summarySnapshot || '').slice(0, 40);
+      return snippet + (snippet.length === 40 ? '...' : '') + est;
+    },
+
+    openRecommendationPickerFor(itemId, sectionTitle) {
+      if (typeof window.openRecommendationPicker !== 'function') {
+        console.warn('Recommendation picker not loaded');
+        return;
+      }
+      window.openRecommendationPicker(itemId, sectionTitle, (snapshot) => {
+        this.attachRecommendation(itemId, snapshot);
+      });
+    },
+
+    attachRecommendation(itemId, snapshot) {
+      if (!this.results[itemId]) this.results[itemId] = { status: '', notes: '', photos: [], recommendations: [] };
+      if (!Array.isArray(this.results[itemId].recommendations)) {
+        this.results[itemId].recommendations = [];
+      }
+      this.results[itemId].recommendations.push(snapshot);
+      this.results[itemId].updatedAt = Date.now();
+      this.saveLocally();
+    },
+
+    removeRecommendation(itemId, ridx) {
+      const arr = this.results[itemId]?.recommendations;
+      if (!Array.isArray(arr)) return;
+      arr.splice(ridx, 1);
+      this.results[itemId].updatedAt = Date.now();
       this.saveLocally();
     },
 
@@ -288,6 +366,7 @@ document.addEventListener('alpine:init', () => {
             type: 'annotation',
           });
           this.results[this.annotationTarget.itemId].photos[this.annotationTarget.index] = { key: localId, pending: true, dataUrl };
+          this.results[this.annotationTarget.itemId].updatedAt = Date.now();
           this.saveLocally();
           this.showAnnotationModal = false;
           return;
@@ -300,6 +379,7 @@ document.addEventListener('alpine:init', () => {
         if (res.ok) {
           const { key } = await res.json();
           this.results[this.annotationTarget.itemId].photos[this.annotationTarget.index].key = key;
+          this.results[this.annotationTarget.itemId].updatedAt = Date.now();
           this.saveLocally();
           this.showAnnotationModal = false;
         } else {
@@ -352,29 +432,34 @@ document.addEventListener('alpine:init', () => {
     },
 
     async saveLocally() {
-      localStorage.setItem(`inspection_${this.inspectionId}`, JSON.stringify(this.results));
-      if (this.online) { this.syncData(); }
+      await openOfflineDb();
+      const now = Date.now();
+      await offlineDb.results.put({
+        inspectionId: this.inspectionId,
+        data: this.results,
+        updatedAt: now,
+        syncedAt: this._lastSyncedAt || 0,
+      });
+      const baseRow = await offlineDb.bases.get(this.inspectionId);
+      const base = baseRow?.data || {};
+      await offlineDb.syncQueue.put({
+        id: `merge:${this.inspectionId}`, // upsert key — multiple edits collapse to one queued merge
+        op: 'results.merge',
+        payload: { inspectionId: this.inspectionId, baseSyncedAt: this._lastSyncedAt || 0, base, ours: this.results },
+        attempts: 0, createdAt: now,
+      });
+      if (this.online) { drainQueue(); }
     },
 
     async getLocalData() {
-      const data = localStorage.getItem(`inspection_${this.inspectionId}`);
-      return data ? JSON.parse(data) : null;
+      await openOfflineDb();
+      const r = await offlineDb.results.get(this.inspectionId);
+      if (r?.syncedAt) this._lastSyncedAt = r.syncedAt;
+      return r?.data || null;
     },
 
     async syncData() {
-      if (this.syncing || !this.online) return;
-      this.syncing = true;
-      try {
-        await fetch(`/api/inspections/${this.inspectionId}/results`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: this.results })
-        });
-      } catch (e) {
-        console.error('Sync failed', e);
-      } finally {
-        this.syncing = false;
-      }
+      await drainQueue();
     },
 
     async finishInspection() {
@@ -408,6 +493,7 @@ document.addEventListener('alpine:init', () => {
         const data = await res.json();
         if (data.text) {
           this.results[itemId].notes = data.text;
+          this.results[itemId].updatedAt = Date.now();
           this.saveLocally();
         }
       } catch (e) {

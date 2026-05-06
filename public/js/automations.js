@@ -3,9 +3,11 @@ document.addEventListener('alpine:init', () => {
         rules: [],
         loading: true,
         error: '',
+        logs: [],
+        logsLoading: false,
 
         async init() {
-            await this.load();
+            await Promise.all([this.load(), this.loadLogs()]);
         },
 
         async load() {
@@ -60,6 +62,27 @@ document.addEventListener('alpine:init', () => {
             if (minutes === 0) return 'Immediately';
             if (minutes < 60) return `${minutes} min delay`;
             return `${minutes / 60}h delay`;
+        },
+
+        statusClass(status) {
+            if (status === 'sent')    return 'bg-emerald-100 text-emerald-700';
+            if (status === 'failed')  return 'bg-rose-100 text-rose-700';
+            if (status === 'skipped') return 'bg-amber-100 text-amber-700';
+            return 'bg-slate-100 text-slate-500'; // pending / unknown
+        },
+
+        async loadLogs() {
+            this.logsLoading = true;
+            try {
+                const res = await authFetch('/api/automations/logs/recent?limit=50');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                this.logs = json.data || [];
+            } catch (e) {
+                console.warn('[automations] loadLogs failed', e);
+            } finally {
+                this.logsLoading = false;
+            }
         },
     }));
 });

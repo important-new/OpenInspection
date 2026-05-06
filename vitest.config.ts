@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Per-file environment overrides: add `// @vitest-environment happy-dom`
+    // docblock to client-side test files (db, sync-engine, photo-resize, etc.)
+    // that need a DOM environment. This is the vitest v4 equivalent of the
+    // v1 `environmentMatchGlobs` option (removed in v2+).
+    setupFiles: ['tests/unit/setup-client.ts'],
     include: ['tests/unit/**/*.spec.ts'],
     coverage: {
       provider: 'v8',

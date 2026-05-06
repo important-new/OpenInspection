@@ -1,0 +1,61 @@
+{
+  "id": "seed_septic_v1",
+  "name": "Septic System Inspection",
+  "description": "Septic system inspection covering tank, distribution, drain field, and environmental factors. Add-on for properties on private waste systems.",
+  "version": 1,
+  "schema": {
+    "sections": [
+      {
+        "id": "s_records", "title": "System Records & History",
+        "items": [
+          { "id": "i_install_year",      "label": "Original Installation Year",     "type": "rating" },
+          { "id": "i_last_pump",         "label": "Last Pump-Out Date",             "type": "rating" },
+          { "id": "i_permit_records",    "label": "Permit / As-Built Records",      "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_tank", "title": "Septic Tank",
+        "items": [
+          { "id": "i_tank_material",     "label": "Tank Material (Concrete/Plastic/Steel)","type": "rating" },
+          { "id": "i_tank_capacity",     "label": "Tank Capacity (gal)",            "type": "rating" },
+          { "id": "i_tank_lid",          "label": "Lid Condition & Risers",         "type": "rating" },
+          { "id": "i_baffles",           "label": "Inlet / Outlet Baffles",         "type": "rating" },
+          { "id": "i_scum_layer",        "label": "Scum Layer Depth",               "type": "rating" },
+          { "id": "i_sludge_depth",      "label": "Sludge Depth Measurement",       "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_distribution", "title": "Distribution",
+        "items": [
+          { "id": "i_dbox",              "label": "Distribution Box Condition",     "type": "rating" },
+          { "id": "i_d_lines",           "label": "Distribution Lines / Headers",   "type": "rating" },
+          { "id": "i_pump_chamber",      "label": "Pump Chamber (if applicable)",   "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_drainfield", "title": "Drain Field / Leach Field",
+        "items": [
+          { "id": "i_field_visible",     "label": "Field Surface Condition",        "type": "rating" },
+          { "id": "i_ponding",           "label": "Ponding / Surface Effluent",     "type": "rating" },
+          { "id": "i_vegetation",        "label": "Unusual Vegetation Patterns",    "type": "rating" },
+          { "id": "i_setback",           "label": "Setback from Wells/Property Lines","type": "rating" }
+        ]
+      },
+      {
+        "id": "s_function", "title": "Functional Test",
+        "items": [
+          { "id": "i_flow_test",         "label": "Hydraulic Loading / Flow Test",  "type": "rating" },
+          { "id": "i_house_drain",       "label": "House-to-Tank Sewer Drain Flow", "type": "rating" },
+          { "id": "i_alarm_panel",       "label": "Alarm Panel (advanced systems)", "type": "rating" }
+        ]
+      },
+      {
+        "id": "s_recs", "title": "Recommendations",
+        "items": [
+          { "id": "i_pump_due",          "label": "Pump-Out Recommended Within",    "type": "rating" },
+          { "id": "i_repairs_needed",    "label": "Repairs Needed Before Sale",     "type": "rating" }
+        ]
+      }
+    ]
+  }
+}

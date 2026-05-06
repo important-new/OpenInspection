@@ -1,10 +1,12 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, lte, sql } from 'drizzle-orm';
+import { eq, and, lte, sql, desc } from 'drizzle-orm';
 import { automations, automationLogs, inspections } from '../lib/db/schema';
 import { AUTOMATION_SEEDS } from '../data/automation-seeds';
 import { nanoid } from 'nanoid';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
+import type { NotificationService } from './notification.service';
+import type { AgreementService } from './agreement.service';
 
 function interpolate(template: string, vars: Record<string, string>): string {
     return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
@@ -19,7 +21,7 @@ interface TriggerContext {
 }
 
 export class AutomationService {
-    constructor(private db: D1Database) {}
+    constructor(private db: D1Database, private notification?: NotificationService, private agreementService?: AgreementService) {}
 
     private getDrizzle() { return drizzle(this.db as any); }
 
@@ -112,8 +114,19 @@ export class AutomationService {
         const insp = inspRows[0];
         if (!insp || insp.disableAutomations) return;
 
+        // Skip rules whose template requires {{agreement_sign_url}} but this
+        // inspection didn't opt-in to agreements (agreementRequired = false)
+        const filteredRules = rules.filter(rule => {
+            if (rule.bodyTemplate.includes('{{agreement_sign_url}}') ||
+                rule.subjectTemplate.includes('{{agreement_sign_url}}')) {
+                return insp.agreementRequired === true;
+            }
+            return true;
+        });
+        if (filteredRules.length === 0) return;
+
         const now = new Date();
-        const logs = rules.flatMap(rule => {
+        const logs = filteredRules.flatMap(rule => {
             const email = this.resolveEmail(rule.recipient as string, insp);
             if (!email) return [];
             const sendAt = new Date(now.getTime() + rule.delayMinutes * 60_000).toISOString();
@@ -123,6 +136,15 @@ export class AutomationService {
         });
 
         if (logs.length > 0) await db.insert(automationLogs).values(logs);
+        if (logs.length > 0 && this.notification) {
+            await this.notification.createForAllAdmins(ctx.tenantId, {
+                type: ctx.triggerEvent,
+                title: this.titleFor(ctx.triggerEvent, insp),
+                entityType: 'inspection',
+                entityId: ctx.inspectionId,
+                metadata: { fromAutomation: true, rules: filteredRules.length },
+            });
+        }
         logger.info('AutomationService: enqueued', { event: ctx.triggerEvent, count: logs.length });
     }
 
@@ -155,11 +177,49 @@ export class AutomationService {
                     scheduled_date:   inspection.date,
                     inspector_name:   '',
                     report_url:       `${appBaseUrl}/report/${inspection.id}`,
-                    sign_url:         `${appBaseUrl}/sign/${inspection.id}`,
                     invoice_url:      `${appBaseUrl}/invoices`,
                     payment_url:      `${appBaseUrl}/invoices`,
                     company_name:     appName,
+                    // Spec 4D — event-related vars (populated below if log.eventId set)
+                    event_type_name:      '',
+                    event_scheduled_at:   '',
+                    event_inspector_name: '',
                 };
+
+                // Spec 4D — populate event vars when log was created by EventService.
+                if (log.eventId) {
+                    try {
+                        const { eventTypes, inspectionEvents } = await import('../lib/db/schema');
+                        const ev = await db.select().from(inspectionEvents).where(eq(inspectionEvents.id, log.eventId)).get();
+                        if (ev) {
+                            const et = await db.select().from(eventTypes).where(eq(eventTypes.id, ev.eventTypeId as string)).get();
+                            vars.event_type_name    = (et?.name as string) ?? '';
+                            vars.event_scheduled_at = ev.scheduledAt ? new Date(ev.scheduledAt as Date).toLocaleString() : '';
+                        }
+                    } catch (err) {
+                        logger.error('Failed to load event vars for automation log', { logId: log.id, eventId: log.eventId }, err instanceof Error ? err : undefined);
+                    }
+                }
+
+                // Lazy: only create agreement_request when this rule actually needs it
+                const needsAgreementUrl = automation.bodyTemplate.includes('{{agreement_sign_url}}') ||
+                                          automation.subjectTemplate.includes('{{agreement_sign_url}}');
+                if (needsAgreementUrl) {
+                    if (!this.agreementService) {
+                        await db.update(automationLogs).set({ status: 'failed', error: 'AgreementService not configured' })
+                            .where(eq(automationLogs.id, log.id));
+                        continue;
+                    }
+                    try {
+                        const ar = await this.agreementService.findOrCreate(inspection.tenantId, inspection.id);
+                        vars.agreement_sign_url = `${appBaseUrl}/sign-agreement/${ar.token}`;
+                    } catch (e) {
+                        const errMsg = e instanceof Error ? e.message : 'Failed to create agreement_request';
+                        await db.update(automationLogs).set({ status: 'failed', error: errMsg.slice(0, 500) })
+                            .where(eq(automationLogs.id, log.id));
+                        continue;
+                    }
+                }
 
                 const subject = interpolate(automation.subjectTemplate, vars);
                 const html    = interpolate(automation.bodyTemplate, vars);
@@ -195,5 +255,27 @@ export class AutomationService {
         return db.select().from(automationLogs)
             .where(and(eq(automationLogs.tenantId, tenantId), eq(automationLogs.inspectionId, inspectionId)))
             .orderBy(sql`${automationLogs.sendAt} desc`);
+    }
+
+    async listRecentLogs(tenantId: string, limit = 50) {
+        const db = this.getDrizzle();
+        return await db.select()
+            .from(automationLogs)
+            .where(eq(automationLogs.tenantId, tenantId))
+            .orderBy(desc(automationLogs.sendAt))
+            .limit(limit);
+    }
+
+    private titleFor(event: string, insp: typeof inspections.$inferSelect): string {
+        const addr = insp.propertyAddress || 'inspection';
+        switch (event) {
+            case 'inspection.created':   return `New inspection scheduled — ${addr}`;
+            case 'inspection.confirmed': return `Inspection confirmed — ${addr}`;
+            case 'inspection.cancelled': return `Inspection cancelled — ${addr}`;
+            case 'report.published':     return `Report published — ${addr}`;
+            case 'invoice.created':      return `Invoice created — ${addr}`;
+            case 'payment.received':     return `Payment received — ${addr}`;
+            default:                     return `${event} — ${addr}`;
+        }
     }
 }

@@ -48,6 +48,12 @@ export function MetricsPage({ appName, branding }: MetricsPageProps) {
                         <canvas id="revenue-chart" height="80" />
                     </div>
 
+                    {/* Inspection volume chart */}
+                    <div class="bg-white border border-slate-200 rounded-xl p-5 mb-6">
+                        <div class="text-sm font-bold text-slate-700 mb-4">Monthly Inspection Volume</div>
+                        <canvas id="volume-chart" height="80" />
+                    </div>
+
                     {/* Top Agents + Service Breakdown */}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="bg-white border border-slate-200 rounded-xl p-5">
@@ -68,15 +74,10 @@ export function MetricsPage({ appName, branding }: MetricsPageProps) {
 
                         <div class="bg-white border border-slate-200 rounded-xl p-5">
                             <div class="text-sm font-bold text-slate-700 mb-3">Service Breakdown</div>
-                            <div class="space-y-2">
-                                <template x-for="(svc, i) in (data ? data.serviceBreakdown.slice(0, 5) : [])" x-key="i">
-                                    <div class="flex items-center justify-between text-sm">
-                                        <span class="text-slate-700 font-medium" x-text="svc.serviceName" />
-                                        <span class="font-bold text-slate-900" x-text="svc.count + ' ×'" />
-                                    </div>
-                                </template>
-                                <div x-show="!data || !data.serviceBreakdown.length" class="text-xs text-slate-400">No service data yet</div>
+                            <div class="relative" style="height:240px">
+                                <canvas id="service-donut" />
                             </div>
+                            <div x-show="!data || !data.serviceBreakdown.length" class="text-xs text-slate-400 text-center mt-2">No service data yet</div>
                         </div>
                     </div>
                 </div>

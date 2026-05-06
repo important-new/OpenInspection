@@ -262,3 +262,57 @@ function copyIcsUrl() {
 loadConfig();
 loadProfile();
 loadIcsUrl();
+
+// ── Stripe Connect (Payments panel) ──
+function stripeConnectPanel() {
+    return {
+        accountId: null,
+        accountInput: '',
+        saving: false,
+        get connected() { return Boolean(this.accountId); },
+        async load() {
+            try {
+                const r = await authFetch('/api/admin/stripe-connect');
+                if (!r.ok) return;
+                const d = await r.json();
+                this.accountId = (d && d.data && d.data.accountId) || null;
+            } catch {}
+        },
+        async save() {
+            const id = (this.accountInput || '').trim();
+            if (!id) return;
+            this.saving = true;
+            try {
+                const r = await authFetch('/api/admin/stripe-connect', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ accountId: id }),
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    const msg = (err && err.error && err.error.message) || 'invalid account ID';
+                    showToast('Connect failed: ' + msg, true);
+                    return;
+                }
+                this.accountId = id;
+                this.accountInput = '';
+                showToast('Stripe account connected.', false);
+            } finally {
+                this.saving = false;
+            }
+        },
+        async disconnect() {
+            try {
+                const r = await authFetch('/api/admin/stripe-connect', { method: 'DELETE' });
+                if (r.ok) {
+                    this.accountId = null;
+                    showToast('Stripe account disconnected.', false);
+                } else {
+                    showToast('Disconnect failed.', true);
+                }
+            } catch {
+                showToast('Network error.', true);
+            }
+        },
+    };
+}

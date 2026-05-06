@@ -77,7 +77,7 @@ export class DataService {
      * Contacts schema uses a single `name` field and `agency` (not company).
      * Returns { imported, skipped, errors }.
      */
-    async importContactsCSV(tenantId: string, csvText: string): Promise<{
+    async importContactsCSV(tenantId: string, csvText: string, opts?: { dryRun?: boolean }): Promise<{
         imported: number; skipped: number; errors: string[];
     }> {
         const rows = parseCSV(csvText);
@@ -140,16 +140,18 @@ export class DataService {
                 }
                 if (!name) name = email;  // last resort
 
-                await db.insert(contacts).values({
-                    id:        crypto.randomUUID(),
-                    tenantId,
-                    type,
-                    name,
-                    email,
-                    phone:     phoneIdx  >= 0 ? row[phoneIdx]?.trim()  || null : null,
-                    agency:    agencyIdx >= 0 ? row[agencyIdx]?.trim() || null : null,
-                    createdAt: new Date(),
-                });
+                if (!opts?.dryRun) {
+                    await db.insert(contacts).values({
+                        id:        crypto.randomUUID(),
+                        tenantId,
+                        type,
+                        name,
+                        email,
+                        phone:     phoneIdx  >= 0 ? row[phoneIdx]?.trim()  || null : null,
+                        agency:    agencyIdx >= 0 ? row[agencyIdx]?.trim() || null : null,
+                        createdAt: new Date(),
+                    });
+                }
                 imported++;
             } catch (err) {
                 errors.push(`Row ${i + 1}: ${err instanceof Error ? err.message : 'Unknown error'}`);

@@ -41,6 +41,9 @@ export interface AppEnv {
     // Rate Limiting
     RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 
+    // PDF Generation (Cloudflare Browser Rendering — beta)
+    BROWSER?: Fetcher;
+
     // SaaS Portal Integration
     PORTAL_API_URL?: string;
     PORTAL_M2M_SECRET?: string;
@@ -61,6 +64,13 @@ import { InvoiceService } from '../services/invoice.service';
 import { ServiceService } from '../services/service.service';
 import { AutomationService } from '../services/automation.service';
 import { MarketplaceService } from '../services/marketplace.service';
+import { MessageService } from '../services/message.service';
+import { NotificationService } from '../services/notification.service';
+import { WidgetService } from '../services/widget.service';
+import { RecommendationService } from '../services/recommendation.service';
+import { EventService } from '../services/event.service';
+import { TotpService } from '../services/totp.service';
+import { TemplateSeedService } from '../services/template-seed.service';
 import { AuthVariables } from './auth';
 
 /**
@@ -84,6 +94,13 @@ export interface AppServices {
     service: ServiceService;
     automation: AutomationService;
     marketplace: MarketplaceService;
+    message: MessageService;
+    notification: NotificationService;
+    widget: WidgetService;
+    recommendation: RecommendationService;
+    event: EventService;
+    totp: TotpService;
+    templateSeed: TemplateSeedService;
 }
 
 /**

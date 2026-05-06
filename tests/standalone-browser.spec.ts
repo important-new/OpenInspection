@@ -327,4 +327,36 @@ test.describe.serial('Standalone Browser Tests', () => {
             }
         }
     });
+
+    test('UI-PDF: Public /report page exposes Download PDF button', async ({ page }) => {
+        if (!createdInspectionId) test.skip();
+        await page.goto(`${BASE_URL}/report/${createdInspectionId}`, { timeout: NAV_TIMEOUT });
+        const btn = page.locator('button[aria-label*="Download PDF"]');
+        await expect(btn).toBeVisible();
+    });
+
+    test('UI-WIDGET: /widget.js is served as JS and /book?embed=1 strips chrome', async ({ page }) => {
+        // 1. /widget.js loads
+        const widgetRes = await page.goto(`${BASE_URL}/widget.js`, { timeout: NAV_TIMEOUT });
+        expect(widgetRes?.status()).toBe(200);
+        expect(widgetRes?.headers()['content-type']).toContain('javascript');
+
+        // 2. /book?embed=1 loads with embed mode
+        await page.goto(`${BASE_URL}/book?embed=1&style=dark`, { timeout: NAV_TIMEOUT });
+        const wrapper = await page.locator('[data-widget-embed="1"]').first();
+        await expect(wrapper).toBeVisible();
+        const styleAttr = await wrapper.getAttribute('data-widget-style');
+        expect(styleAttr).toBe('dark');
+    });
+
+    test('UI-NOTIFY: /notifications page renders + dashboard sidebar carries bell badge', async ({ page }) => {
+        // 1. Dashboard sidebar contains the unread badge element
+        await gotoAuth(page, '/dashboard', adminToken);
+        await expect(page.locator('#notifyUnreadBadge')).toBeAttached();
+
+        // 2. /notifications page renders for an authenticated admin
+        await gotoAuth(page, '/notifications', adminToken);
+        await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
+        await expect(page.locator('button:has-text("Mark all read")')).toBeVisible();
+    });
 });

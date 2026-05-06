@@ -28,6 +28,7 @@ export const inspections = sqliteTable('inspections', {
     // Phase 0 parity additions
     confirmedAt:         text('confirmed_at'),
     cancelReason:        text('cancel_reason'),
+    cancelNotes:         text('cancel_notes'),  // Spec 3A
     paymentRequired:     integer('payment_required', { mode: 'boolean' }).notNull().default(false),
     agreementRequired:   integer('agreement_required', { mode: 'boolean' }).notNull().default(false),
     discountCodeId:      text('discount_code_id'),
@@ -45,6 +46,10 @@ export const inspections = sqliteTable('inspections', {
     county:              text('county'),
     sellingAgentId:      text('selling_agent_id'),
     disableAutomations:  integer('disable_automations', { mode: 'boolean' }).notNull().default(false),
+    messageToken:        text('message_token').unique('idx_inspections_msg_token'),
+    templateSnapshot:    text('template_snapshot', { mode: 'json' }),
+    templateSnapshotVersion: integer('template_snapshot_version').default(1),
+    reportThemeOverride: text('report_theme_override', { enum: ['modern', 'classic', 'minimal'] }),
 });
 
 export const agreements = sqliteTable('agreements', {
@@ -111,10 +116,12 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     clientEmail: text('client_email').notNull(),
     clientName: text('client_name'),
     token: text('token').notNull().unique(),
-    status: text('status', { enum: ['pending', 'viewed', 'signed'] }).notNull().default('pending'),
+    status: text('status', { enum: ['pending', 'sent', 'viewed', 'signed', 'declined', 'expired'] }).notNull().default('pending'),
     signatureBase64: text('signature_base64'),
     signedAt: integer('signed_at', { mode: 'timestamp' }),
     viewedAt: integer('viewed_at', { mode: 'timestamp' }),
+    sentAt: integer('sent_at', { mode: 'timestamp' }),
+    lastError: text('last_error'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
@@ -163,6 +170,8 @@ export const automations = sqliteTable('automations', {
         enum: [
             'inspection.created', 'inspection.confirmed', 'inspection.cancelled',
             'report.published', 'invoice.created', 'payment.received', 'agreement.signed',
+            'agreement.viewed', 'agreement.declined', 'agreement.expired',
+            'event.created', 'event.completed',
         ],
     }).notNull(),
     recipient: text('recipient', {
@@ -186,4 +195,38 @@ export const automationLogs = sqliteTable('automation_logs', {
     deliveredAt: text('delivered_at'),
     status: text('status', { enum: ['pending', 'sent', 'failed', 'skipped'] }).notNull().default('pending'),
     error: text('error'),
+    eventId: text('event_id'),
+});
+
+// Spec 4D — Inspection Events
+
+export const eventTypes = sqliteTable('event_types', {
+    id:                 text('id').primaryKey(),
+    tenantId:           text('tenant_id').notNull().references(() => tenants.id),
+    name:               text('name').notNull(),
+    slug:               text('slug').notNull(),
+    defaultDurationMin: integer('default_duration_min').notNull().default(30),
+    defaultPriceCents:  integer('default_price_cents').notNull().default(0),
+    color:              text('color').notNull().default('#6366f1'),
+    sortOrder:          integer('sort_order').notNull().default(0),
+    active:             integer('active', { mode: 'boolean' }).notNull().default(true),
+    createdAt:          integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const inspectionEvents = sqliteTable('inspection_events', {
+    id:                text('id').primaryKey(),
+    tenantId:          text('tenant_id').notNull().references(() => tenants.id),
+    inspectionId:      text('inspection_id').notNull().references(() => inspections.id, { onDelete: 'cascade' }),
+    eventTypeId:       text('event_type_id').notNull().references(() => eventTypes.id),
+    inspectorId:       text('inspector_id').references(() => users.id),
+    scheduledAt:       integer('scheduled_at', { mode: 'timestamp' }).notNull(),
+    durationMin:       integer('duration_min').notNull(),
+    priceCents:        integer('price_cents').notNull().default(0),
+    status:            text('status', { enum: ['scheduled', 'completed', 'results_received', 'cancelled'] }).notNull().default('scheduled'),
+    notes:             text('notes'),
+    completedAt:       integer('completed_at', { mode: 'timestamp' }),
+    resultsReceivedAt: integer('results_received_at', { mode: 'timestamp' }),
+    cancelledAt:       integer('cancelled_at', { mode: 'timestamp' }),
+    gcalEventId:       text('gcal_event_id'),
+    createdAt:         integer('created_at', { mode: 'timestamp' }).notNull(),
 });

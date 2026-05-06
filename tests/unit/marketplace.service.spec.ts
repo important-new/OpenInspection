@@ -1,0 +1,73 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { MarketplaceService } from '../../src/services/marketplace.service';
+import { createTestDb, setupSchema } from './db';
+import * as schema from '../../src/lib/db/schema';
+import { marketplaceTemplates } from '../../src/lib/db/schema/marketplace';
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+
+vi.mock('drizzle-orm/d1', () => ({ drizzle: vi.fn() }));
+import { drizzle as mockDrizzle } from 'drizzle-orm/d1';
+
+const TENANT = '00000000-0000-0000-0000-000000000001';
+
+describe('MarketplaceService.importTemplate (Spec 1 fix verification)', () => {
+    let testDb: BetterSQLite3Database<typeof schema>;
+    let svc: MarketplaceService;
+
+    beforeEach(async () => {
+        const setup = createTestDb();
+        testDb = setup.db;
+        await setupSchema(setup.sqlite);
+        await testDb.insert(schema.tenants).values([
+            { id: TENANT, name: 'T', subdomain: 't', status: 'active', deploymentMode: 'shared', tier: 'free', createdAt: new Date() },
+        ]);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mockDrizzle as any).mockReturnValue(testDb);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        svc = new MarketplaceService({} as any, TENANT);
+    });
+
+    it('imports a marketplace template with its sections intact (post-Spec1 fix)', async () => {
+        // Seed marketplace_templates with the CORRECT shape that seed-marketplace.js now produces:
+        // {sections: [...]} at the top level (not nested under a second .schema key).
+        const correctSchema = JSON.stringify({
+            sections: [
+                { id: 'sec1', title: 'Section 1', items: [{ id: 'i1', label: 'Item 1', type: 'rating' }] },
+                { id: 'sec2', title: 'Section 2', items: [{ id: 'i2', label: 'Item 2', type: 'rating' }] },
+            ],
+        });
+        const marketplaceId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        await testDb.insert(marketplaceTemplates).values({
+            id:            marketplaceId,
+            name:          'Standard Residential Inspection',
+            category:      'residential',
+            semver:        '1.0.0',
+            schema:        correctSchema,
+            authorId:      'system',
+            changelog:     'test',
+            downloadCount: 0,
+            createdAt:     now,
+            updatedAt:     now,
+        });
+
+        const localTemplateId = await svc.importTemplate(marketplaceId);
+
+        const localRow = await testDb
+            .select()
+            .from(schema.templates)
+            .where(eq(schema.templates.id, localTemplateId))
+            .get();
+
+        expect(localRow).toBeTruthy();
+        // schema column may come back as string or parsed object depending on drizzle mode
+        const parsed =
+            typeof localRow!.schema === 'string'
+                ? JSON.parse(localRow!.schema)
+                : localRow!.schema;
+        expect(parsed.sections).toBeDefined();
+        expect(parsed.sections.length).toBeGreaterThan(0);
+        expect(parsed.sections[0].items.length).toBeGreaterThan(0);
+    });
+});

@@ -38,6 +38,22 @@ automationsRoutes.openapi(createAutomationRoute, async (c) => {
     return c.json({ success: true, data: row }, 201);
 });
 
+// GET /api/automations/logs/recent — Spec 3C, tenant-wide activity feed
+// MUST be registered BEFORE /logs/{inspectionId} to avoid path-param shadowing
+const getRecentLogsRoute = createRoute({
+    method: 'get', path: '/logs/recent', tags: ['Automations'],
+    middleware: [requireRole(['owner', 'admin'])],
+    request: { query: z.object({ limit: z.coerce.number().int().min(1).max(200).optional() }) },
+    responses: { 200: { content: { 'application/json': { schema: AutomationLogListResponseSchema } }, description: 'Recent automation logs' } },
+});
+
+automationsRoutes.openapi(getRecentLogsRoute, async (c) => {
+    const tenantId = c.get('tenantId') as string;
+    const { limit } = c.req.valid('query');
+    const rows = await c.var.services.automation.listRecentLogs(tenantId, limit ?? 50);
+    return c.json({ success: true, data: rows });
+});
+
 // GET /api/automations/logs/:inspectionId — BEFORE /:id to avoid shadowing
 const getLogsRoute = createRoute({
     method: 'get', path: '/logs/{inspectionId}', tags: ['Automations'],

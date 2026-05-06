@@ -48,3 +48,6 @@ enabled = true
 [[routes]]
 pattern = "app.inspectorhub.io"
 custom_domain = true
+
+[triggers]
+crons = ["* * * * *", "0 2 * * *"]

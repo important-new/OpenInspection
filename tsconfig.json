@@ -20,6 +20,8 @@
         "forceConsistentCasingInFileNames": true,
         "types": ["@types/node", "@cloudflare/vitest-pool-workers"],
         "skipLibCheck": true,
+        "incremental": true,
+        "tsBuildInfoFile": "./.tsbuildinfo",
         "paths": {}
     },
     "include": ["src/**/*", "tests/**/*", "scripts/**/*", "playwright.config.ts", "playwright.config.integration.ts", "playwright.config.remote.ts", "worker-configuration.d.ts", "vitest.config.ts"],

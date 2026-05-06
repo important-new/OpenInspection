@@ -25,6 +25,8 @@ import {
     EraseDataResponseSchema,
     CommentSchema,
     CommentResponseSchema,
+    UpdateCommentSchema,
+    StripeConnectAccountSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { templates, agreements as agreementTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
@@ -748,7 +750,9 @@ const listCommentsRoute = createRoute({
     path: '/comments',
     tags: ['Comments'],
     summary: 'List comment library entries',
-    middleware: [requireRole(['owner', 'admin'])],
+    // Inspectors need read access so the inspection-edit picker (T7+1) can
+    // populate. Create/delete remain admin-only further below.
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         200: {
             content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ comments: z.array(CommentResponseSchema) }) }) } },
@@ -818,6 +822,188 @@ adminRoutes.openapi(deleteCommentRoute, async (c) => {
     return c.json({ success: true }, 200);
 });
 
+const updateCommentRoute = createRoute({
+    method: 'put',
+    path: '/comments/{id}',
+    tags: ['Comments'],
+    summary: 'Update a comment library entry',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: UpdateCommentSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ comment: CommentResponseSchema }) }) } },
+            description: 'Updated',
+        },
+        404: { description: 'Not found' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+adminRoutes.openapi(updateCommentRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { id } = c.req.valid('param');
+    const { text, category } = c.req.valid('json');
+    const db = drizzle(c.env.DB);
+    const existing = await db.select().from(comments)
+        .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId))).get();
+    if (!existing) throw Errors.NotFound('Comment not found');
+    await db.update(comments)
+        .set({ text, category: category ?? null })
+        .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId)));
+    const updated = { ...existing, text, category: category ?? null };
+    auditFromContext(c, 'comment.updated', 'comment', {
+        entityId: id,
+        metadata: { category: category ?? null, textPreview: text.slice(0, 80) },
+    });
+    return c.json({ success: true as const, data: { comment: { ...updated, createdAt: safeISODate(updated.createdAt) } } }, 200);
+});
+
+// --- Widget Origin Allowlist ---
+
+const getWidgetOriginsRoute = createRoute({
+    method: 'get',
+    path: '/widget/origins',
+    tags: ['Widget'],
+    summary: 'Get current widget allowed-origin list',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ origins: z.array(z.string()) }) }) } },
+            description: 'Success',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(getWidgetOriginsRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const origins = await c.var.services.widget.getAllowedOrigins(tenantId);
+    return c.json({ success: true as const, data: { origins } }, 200);
+});
+
+const setWidgetOriginsRoute = createRoute({
+    method: 'put',
+    path: '/widget/origins',
+    tags: ['Widget'],
+    summary: 'Replace widget allowed-origin list',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: { body: { content: { 'application/json': { schema: z.object({ origins: z.array(z.string().min(1)).max(50) }) } } } },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ origins: z.array(z.string()) }) }) } },
+            description: 'Saved',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(setWidgetOriginsRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { origins } = c.req.valid('json');
+    await c.var.services.widget.setAllowedOrigins(tenantId, origins);
+    return c.json({ success: true as const, data: { origins } }, 200);
+});
+
+// --- Stripe Connect (inspector-facing) ---
+
+const getStripeConnectRoute = createRoute({
+    method: 'get',
+    path: '/stripe-connect',
+    tags: ['Stripe'],
+    summary: 'Get the tenant Stripe Connect account ID',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ accountId: z.string().nullable() }) }) } },
+            description: 'Success',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(getStripeConnectRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { accountId } = await c.var.services.admin.getStripeConnect(tenantId);
+    return c.json({ success: true as const, data: { accountId } }, 200);
+});
+
+const setStripeConnectRoute = createRoute({
+    method: 'put',
+    path: '/stripe-connect',
+    tags: ['Stripe'],
+    summary: 'Set the tenant Stripe Connect account ID',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: { body: { content: { 'application/json': { schema: StripeConnectAccountSchema } } } },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ accountId: z.string() }) }) } },
+            description: 'Saved',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(setStripeConnectRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const { accountId } = c.req.valid('json');
+    await c.var.services.admin.setStripeConnect(tenantId, accountId);
+    auditFromContext(c, 'config.integration.update', 'tenant_config', { metadata: { stripeConnect: 'set' } });
+    return c.json({ success: true as const, data: { accountId } }, 200);
+});
+
+const deleteStripeConnectRoute = createRoute({
+    method: 'delete',
+    path: '/stripe-connect',
+    tags: ['Stripe'],
+    summary: 'Disconnect the tenant Stripe Connect account',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ accountId: z.null() }) }) } },
+            description: 'Cleared',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(deleteStripeConnectRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    await c.var.services.admin.setStripeConnect(tenantId, null);
+    auditFromContext(c, 'config.integration.update', 'tenant_config', { metadata: { stripeConnect: 'cleared' } });
+    return c.json({ success: true as const, data: { accountId: null } }, 200);
+});
+
+// --- Earnings Summary ---
+
+const getEarningsSummaryRoute = createRoute({
+    method: 'get',
+    path: '/earnings-summary',
+    tags: ['Stripe'],
+    summary: 'Get aggregated invoice earnings (paid/pending/count)',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(true),
+                        data: z.object({
+                            paid: z.number(),
+                            pending: z.number(),
+                            count: z.number(),
+                        }),
+                    }),
+                },
+            },
+            description: 'Success',
+        },
+    },
+    security: [{ bearerAuth: [] }],
+});
+adminRoutes.openapi(getEarningsSummaryRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const summary = await c.var.services.invoice.getEarningsSummary(tenantId);
+    return c.json({ success: true as const, data: summary }, 200);
+});
+
 // --- ICS Subscription Token ---
 
 const icsTokenRoute = createRoute({
@@ -872,6 +1058,48 @@ adminRoutes.openapi(icsTokenRoute, async (c) => {
 
     const baseUrl = getBaseUrl(c);
     return c.json({ success: true as const, data: { url: `${baseUrl}/api/ics/${token}` } }, 200);
+});
+
+/**
+ * POST /api/admin/backfill-default-templates — Spec 4F polish backfill.
+ * One-shot M2M endpoint: loops through every tenant and seeds the 7 default templates
+ * (idempotent — TemplateSeedService.bulkSeed skips existing names per tenant).
+ *
+ * Auth: PORTAL_M2M_SECRET via Authorization: Bearer.
+ * Use case: existing tenants that pre-date Spec 4F's auto-seed-on-tenant-init hook.
+ */
+adminRoutes.openapi({
+    method: 'post',
+    path: '/backfill-default-templates',
+    tags: ['Admin'],
+    summary: 'Backfill default 7 templates for every tenant (one-shot, idempotent)',
+    responses: {
+        200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'OK' },
+        401: { description: 'Unauthorized' },
+    },
+}, async (c) => {
+    const auth = c.req.header('authorization');
+    if (auth !== `Bearer ${c.env.PORTAL_M2M_SECRET}`) throw Errors.Unauthorized();
+
+    const { tenants } = await import('../lib/db/schema');
+    const { TemplateSeedService } = await import('../services/template-seed.service');
+    const db = drizzle(c.env.DB);
+    const allTenants = await db.select({ id: tenants.id, name: tenants.name }).from(tenants).all();
+    const svc = new TemplateSeedService(c.env.DB);
+
+    const results: { tenantId: string; name: string; seeded: number; skipped: number }[] = [];
+    for (const t of allTenants) {
+        try {
+            const r = await svc.bulkSeed(t.id as string);
+            results.push({ tenantId: t.id as string, name: (t.name as string) ?? '', ...r });
+        } catch (err) {
+            logger.error('Backfill failed for tenant', { tenantId: t.id }, err instanceof Error ? err : undefined);
+        }
+    }
+    const totalSeeded = results.reduce((sum, r) => sum + r.seeded, 0);
+    const totalSkipped = results.reduce((sum, r) => sum + r.skipped, 0);
+    logger.info('Backfill complete', { tenantCount: results.length, totalSeeded, totalSkipped });
+    return c.json({ success: true as const, data: { success: true } }, 200);
 });
 
 export default adminRoutes;

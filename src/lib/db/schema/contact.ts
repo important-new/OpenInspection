@@ -10,5 +10,6 @@ export const contacts = sqliteTable('contacts', {
     phone: text('phone'),
     agency: text('agency'),
     notes: text('notes'),
+    createdByUserId: text('created_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });

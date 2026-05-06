@@ -132,6 +132,19 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         if (!isValid) throw Errors.Forbidden('Security verification failed.');
     }
 
+    // B2: when the booking originates from an embedded widget, enforce
+    // per-tenant origin allowlist. Non-embed (direct /book visit) submissions
+    // are unaffected.
+    const isWidgetSubmit = c.req.query('embed') === '1';
+    const originHeader = c.req.header('origin');
+    if (isWidgetSubmit) {
+        const ok = await c.var.services.widget.isOriginAllowed(tenantId, originHeader ?? null);
+        if (!ok) {
+            await c.var.services.widget.recordEvent(tenantId, 'error', { origin: originHeader, reason: 'origin_not_allowed' });
+            throw Errors.Forbidden('Widget submissions from this origin are not allowed for this workspace.');
+        }
+    }
+
     const db = drizzle(c.env.DB);
     let inspectorId = body.inspectorId;
 
@@ -139,6 +152,15 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         const first = await db.select({ id: users.id }).from(users).where(eq(users.tenantId, tenantId)).limit(1).get();
         if (!first) throw Errors.BadRequest('No active inspectors found.');
         inspectorId = first.id;
+    }
+
+    // Spec 3C — enforce inspector availability + availability_overrides + existing-bookings collision check.
+    // Reuses BookingService.getAvailableSlots (returns [{time:'HH:MM', available:bool}, ...]).
+    const slots = await service.getAvailableSlots(tenantId, inspectorId, body.date);
+    const requestedTime = body.timeSlot === 'morning' ? '08:00' : '13:00';
+    const targetSlot = slots.find(s => s.time === requestedTime);
+    if (!targetSlot || !targetSlot.available) {
+        throw Errors.Conflict('That time slot is no longer available. Please pick another time.');
     }
 
     const inspectionId = crypto.randomUUID();
@@ -182,9 +204,27 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         ).catch(e => logger.error('Booking confirmation email failed', {}, e instanceof Error ? e : undefined));
     })());
 
-    return c.json({ 
-        success: true, 
-        data: { success: true, inspectionId } 
+    if (isWidgetSubmit) {
+        c.executionCtx.waitUntil(
+            c.var.services.widget.recordEvent(tenantId, 'success', { origin: originHeader, inspectionId })
+        );
+    }
+
+    // B3: in-app notification for the inspector workspace
+    c.executionCtx.waitUntil(
+        c.var.services.notification.createForAllAdmins(tenantId, {
+            type: 'booking.received',
+            title: `New booking — ${body.address ?? 'no address'}`,
+            body: body.clientName ? `From ${body.clientName}` : null,
+            entityType: 'inspection',
+            entityId: inspectionId,
+            metadata: { source: isWidgetSubmit ? 'widget' : 'public_form' },
+        })
+    );
+
+    return c.json({
+        success: true,
+        data: { success: true, inspectionId }
     }, 200);
 });
 
@@ -267,7 +307,86 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
     const { token } = c.req.valid('param');
     const { signatureBase64 } = c.req.valid('json');
     const svc = c.var.services.agreement;
-    await svc.signRequest(token, signatureBase64);
+    const signed = await svc.signRequest(token, signatureBase64);
+
+    // B3: in-app notification — fetch agreement name for richer title
+    c.executionCtx.waitUntil((async () => {
+        try {
+            const agreement = await svc.getAgreementByToken(token);
+            await c.var.services.notification.createForAllAdmins(signed.tenantId, {
+                type: 'agreement.signed',
+                title: `Agreement signed — ${agreement.agreement.name}`,
+                body: signed.clientName ? `By ${signed.clientName}` : null,
+                entityType: 'agreement',
+                entityId: signed.id,
+                metadata: {
+                    agreementId: signed.agreementId,
+                    inspectionId: signed.inspectionId ?? null,
+                    clientEmail: signed.clientEmail,
+                },
+            });
+        } catch (e) {
+            logger.error('agreement.signed notification failed', {}, e instanceof Error ? e : undefined);
+        }
+    })());
+
+    // Spec 2A — also fire automation event so per-tenant rules can react
+    if (signed.inspectionId) {
+        c.var.services.automation.trigger({
+            tenantId: signed.tenantId,
+            inspectionId: signed.inspectionId,
+            triggerEvent: 'agreement.signed',
+            companyName: c.env.APP_NAME || 'OpenInspection',
+            reportBaseUrl: c.env.APP_BASE_URL || '',
+        }).catch(() => {});
+    }
+
+    return c.json({ success: true as const }, 200);
+});
+
+/**
+ * POST /api/public/agreements/:token/decline — client declines the agreement
+ */
+const declineAgreementRoute = createRoute({
+    method: 'post',
+    path: '/agreements/:token/decline',
+    tags: ['Public'],
+    summary: 'Decline agreement (public, token-gated)',
+    request: {
+        params: z.object({ token: z.string().min(1) }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: z.object({ reason: z.string().max(500).optional() }),
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({ success: z.literal(true) }) } },
+            description: 'Declined',
+        },
+    },
+});
+
+bookingsRoutes.openapi(declineAgreementRoute, async (c) => {
+    const { token } = c.req.valid('param');
+    const { reason } = c.req.valid('json');
+    const svc = c.var.services.agreement;
+    const r = await svc.markDeclined(token, reason);
+
+    // Fire automation event so per-tenant rules can notify the inspector
+    if (r.inspectionId) {
+        c.var.services.automation.trigger({
+            tenantId: r.tenantId,
+            inspectionId: r.inspectionId,
+            triggerEvent: 'agreement.declined',
+            companyName: c.env.APP_NAME || 'OpenInspection',
+            reportBaseUrl: c.env.APP_BASE_URL || '',
+        }).catch(() => {});
+    }
+
     return c.json({ success: true as const }, 200);
 });
 

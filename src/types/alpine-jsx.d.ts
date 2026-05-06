@@ -36,6 +36,9 @@ declare global {
             'x-bind:style'?: string;
             'x-bind:x-ref'?: string;
             'x-on:click'?: string;
+            'x-on:click.self'?: string;
+            'x-on:click.stop'?: string;
+            'x-on:click.outside'?: string;
             'x-on:submit'?: string;
             'x-on:input'?: string;
             'x-on:input.debounce.500ms'?: string;

@@ -9,12 +9,33 @@ export class EmailService {
     constructor(private apiKey: string, private senderEmail: string, private appName: string) {}
 
     /**
-     * Sends a transactional email.
+     * Sends a transactional email. Optionally includes binary attachments
+     * (e.g. PDF reports). Resend's API expects each attachment as
+     * { filename, content } where `content` is base64.
      */
-    async sendEmail(to: string[], subject: string, html: string) {
+    async sendEmail(
+        to: string[],
+        subject: string,
+        html: string,
+        attachments?: Array<{ filename: string; content: ArrayBuffer }>,
+    ) {
         if (!this.apiKey || this.apiKey.includes('your_api_key')) {
             logger.warn(`[email] Skipping delivery (API Key missing) to: ${to.join(', ')}`);
             return;
+        }
+
+        const payload: Record<string, unknown> = {
+            from: this.senderEmail || `${this.appName} <noreply@example.com>`,
+            to,
+            subject,
+            html,
+        };
+
+        if (attachments && attachments.length > 0) {
+            payload.attachments = attachments.map(a => ({
+                filename: a.filename,
+                content: arrayBufferToBase64(a.content),
+            }));
         }
 
         try {
@@ -24,12 +45,7 @@ export class EmailService {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${this.apiKey}`
                 },
-                body: JSON.stringify({
-                    from: this.senderEmail || `${this.appName} <noreply@example.com>`,
-                    to,
-                    subject,
-                    html
-                })
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) {
@@ -88,6 +104,34 @@ export class EmailService {
     }
 
     /**
+     * Sends an inspection report email with the PDF attached.
+     * Falls back to caller responsibility if pdfBytes is null/empty —
+     * use sendReportReady for the no-attachment variant.
+     */
+    async sendInspectionReportPdf(
+        to: string,
+        address: string,
+        reportUrl: string,
+        pdfBytes: ArrayBuffer,
+    ) {
+        const safeAddress = address.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+        await this.sendEmail(
+            [to],
+            `Property Inspection Report: ${address}`,
+            `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                <h1 style="color: #4f46e5;">Your Inspection Report</h1>
+                <p>The inspection for <strong>${address}</strong> is complete. The full report is attached as a PDF and also available online.</p>
+                <div style="margin: 32px 0;">
+                    <a href="${reportUrl}" style="background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Interactive Report</a>
+                </div>
+                <p style="font-size: 14px; color: #666;">PDF attachment: <strong>${safeAddress}-report.pdf</strong></p>
+                <p style="font-size: 12px; color: #999;">Online link: ${reportUrl}</p>
+            </div>`,
+            [{ filename: `${safeAddress}-report.pdf`, content: pdfBytes }],
+        );
+    }
+
+    /**
      * Sends an agreement signing request email to a client.
      */
     async sendAgreementRequest(to: string, clientName: string | null, agreementName: string, signUrl: string) {
@@ -109,6 +153,60 @@ export class EmailService {
                 </p>
             </div>`
         );
+    }
+
+    /**
+     * Phase T (T22): Send a notification email to the other party when a new message arrives.
+     * Throttled per inspection per direction via TENANT_CACHE KV (5 min window).
+     * recipient: 'client' = email client; 'inspector' = email inspector
+     */
+    async sendMessageNotification(
+        recipient: 'client' | 'inspector',
+        inspectionId: string,
+        message: { body: string; fromName?: string | null },
+        deps: { db: D1Database; kv?: KVNamespace; baseUrl: string },
+    ): Promise<void> {
+        if (!this.apiKey) return;
+        const throttleKey = `msg_notify:${inspectionId}:${recipient}`;
+        if (deps.kv) {
+            const recent = await deps.kv.get(throttleKey);
+            if (recent) return;
+        }
+
+        const { drizzle } = await import('drizzle-orm/d1');
+        const { inspections, users } = await import('../lib/db/schema');
+        const { eq, and } = await import('drizzle-orm');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = drizzle(deps.db as any);
+        const [insp] = await db.select().from(inspections).where(eq(inspections.id, inspectionId)).limit(1);
+        if (!insp) return;
+
+        let to: string | null = null;
+        let viewUrl = '';
+        if (recipient === 'client') {
+            to = insp.clientEmail ?? null;
+            viewUrl = `${deps.baseUrl}/messages/${insp.messageToken ?? ''}`;
+        } else {
+            if (insp.inspectorId) {
+                const [u] = await db.select().from(users)
+                    .where(and(eq(users.id, insp.inspectorId), eq(users.tenantId, insp.tenantId)))
+                    .limit(1);
+                to = u?.email ?? null;
+            }
+            viewUrl = `${deps.baseUrl}/inspections/${insp.id}/edit`;
+        }
+        if (!to) return;
+
+        const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const fromName = (message.fromName ?? (recipient === 'client' ? 'your inspector' : (insp.clientName ?? 'your client'))).toString();
+        const snippet = message.body.length > 200 ? message.body.slice(0, 197) + '...' : message.body;
+        const html = `
+            <p>New message from <strong>${escape(fromName)}</strong> regarding <strong>${escape(insp.propertyAddress ?? '')}</strong>:</p>
+            <blockquote style="border-left:3px solid #ccc;padding-left:12px;color:#555">${escape(snippet)}</blockquote>
+            <p><a href="${viewUrl}">View conversation</a></p>
+        `;
+        await this.sendEmail([to], `New message — ${insp.propertyAddress ?? 'inspection'}`, html);
+        if (deps.kv) await deps.kv.put(throttleKey, '1', { expirationTtl: 300 });
     }
 
     /**
@@ -134,4 +232,14 @@ export class EmailService {
             </div>`
         );
     }
+}
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
 }

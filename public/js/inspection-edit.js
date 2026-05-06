@@ -1,6 +1,48 @@
 // public/js/inspection-edit.js
 // Requires auth.js to be loaded first (provides authFetch)
 
+// Older templates were saved before rating-level descriptions were a field.
+// Backfill on the client by matching id+label against known presets so the
+// onboarding cards (T6) and rating-button tooltips (T5) show usable copy
+// instead of an empty trailing dash.
+var FALLBACK_LEVEL_DESCRIPTIONS = {
+  S:   'Item is functioning as intended; no concerns observed.',
+  Sat: 'Item is functioning as intended; no concerns observed.',
+  Satisfactory: 'Item is functioning as intended; no concerns observed.',
+  M:   'Item is functional but shows wear; recommend periodic re-inspection.',
+  Mon: 'Item is functional but shows wear; recommend periodic re-inspection.',
+  Monitor: 'Item is functional but shows wear; recommend periodic re-inspection.',
+  D:   'Item is broken, deteriorated, or unsafe; recommend repair or replacement.',
+  Defect: 'Item is broken, deteriorated, or unsafe; recommend repair or replacement.',
+  Defective: 'Item is not functioning as intended; repair or replacement is recommended.',
+  Deficient: 'Item shows deficiencies that warrant repair, replacement, or further evaluation.',
+  NI:  'Item could not be inspected (inaccessible, unsafe, or excluded).',
+  'Not Inspected': 'Item could not be inspected (inaccessible, unsafe, or excluded).',
+  NP:  'Item is not present at this property.',
+  'Not Present': 'Item is not present at this property.',
+  I:   'Item was inspected and meets the Standards of Practice.',
+  Inspected: 'Item was inspected and meets the Standards of Practice.',
+  INR: 'Item is functioning but requires repair to remain in serviceable condition.',
+  F:   'Item visually inspected and observed to be in serviceable, functional condition.',
+  Functional: 'Item visually inspected and observed to be in serviceable, functional condition.',
+  LM:  'Item requires routine maintenance to preserve serviceability.',
+  Mar: 'Item is functioning but approaching end of useful life or showing notable wear.',
+  Marginal: 'Item is functioning but approaching end of useful life or showing notable wear.',
+  H:   'Item presents an immediate safety hazard and should be addressed without delay.',
+  Hazardous: 'Item presents an immediate safety hazard and should be addressed without delay.',
+};
+
+function backfillLevelDescriptions(levels) {
+  if (!Array.isArray(levels)) return [];
+  return levels.map(function(lvl) {
+    if (!lvl || lvl.description) return lvl;
+    var fb = FALLBACK_LEVEL_DESCRIPTIONS[lvl.id] ||
+             FALLBACK_LEVEL_DESCRIPTIONS[lvl.abbreviation] ||
+             FALLBACK_LEVEL_DESCRIPTIONS[lvl.label] || '';
+    return Object.assign({}, lvl, fb ? { description: fb } : {});
+  });
+}
+
 function inspectionEditor(inspectionId) {
   return {
     inspectionId: inspectionId,
@@ -15,6 +57,7 @@ function inspectionEditor(inspectionId) {
     showMenu: false,
     showPublishModal: false,
     publishing: false,
+    sendingPdf: false,
     isDesktop: window.innerWidth >= 1024,
     saveTimer: null,
     saveState: 'idle',
@@ -34,6 +77,16 @@ function inspectionEditor(inspectionId) {
     async init() {
       window.addEventListener('resize', () => {
         this.isDesktop = window.innerWidth >= 1024;
+      });
+      // Phase T (T15): when annotator finishes saving, patch the local photo entry
+      // so the thumbnail switches to the annotated key without a page reload.
+      window.addEventListener('photo:annotated', (e) => {
+        const { itemId, photoIndex, annotatedKey } = e.detail || {};
+        if (!itemId || annotatedKey == null) return;
+        const photos = this.results[itemId]?.photos;
+        if (photos && photos[photoIndex]) {
+          photos[photoIndex] = Object.assign({}, photos[photoIndex], { annotatedKey });
+        }
       });
       await this.loadData();
     },
@@ -62,8 +115,9 @@ function inspectionEditor(inspectionId) {
             }
             return s;
           });
-          this.ratingLevels = dataJson.data?.ratingLevels || [];
+          this.ratingLevels = backfillLevelDescriptions(dataJson.data?.ratingLevels || []);
           this._reportStats = dataJson.data?.stats || this._reportStats;
+          window.dispatchEvent(new CustomEvent('rating-levels-ready', { detail: this.ratingLevels }));
         }
 
         // Load existing results
@@ -86,6 +140,28 @@ function inspectionEditor(inspectionId) {
       } catch (e) {
         console.error('Failed to load inspection data:', e);
       }
+    },
+
+    async sendReportPdf() {
+        this.sendingPdf = true;
+        try {
+            const res = await authFetch(`/api/inspections/${this.inspectionId}/send-report-pdf`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            });
+            if (res.status === 401) { window.location.href = '/login'; return; }
+            const data = await res.json();
+            if (res.ok) {
+                if (typeof showToast === 'function') showToast('Report PDF sent to ' + (data?.data?.sentTo || 'client'));
+            } else {
+                modalAlert(data?.error?.message || 'Failed to send report PDF', 'Error');
+            }
+        } catch (e) {
+            modalAlert('Network error: ' + e.message, 'Error');
+        } finally {
+            this.sendingPdf = false;
+        }
     },
 
     get formattedDate() {
@@ -329,21 +405,30 @@ function inspectionEditor(inspectionId) {
       const origText = btn.textContent;
       btn.textContent = '...';
       btn.disabled = true;
+      const toast = (m, err) => { if (typeof showToast === 'function') showToast(m, err); };
       try {
         const res = await authFetch('/api/ai/suggest-comment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ itemName, sectionName }),
         });
-        if (!res.ok) return;
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = json?.error?.message || `AI Suggest failed (${res.status}).`;
+          toast(msg, true);
+          return;
+        }
         const suggestions = json.data || [];
-        if (!suggestions.length) return;
+        if (!suggestions.length) {
+          toast('AI returned no suggestions. Try again.', true);
+          return;
+        }
         this.aiSuggestions = suggestions;
         this.aiTargetField = targetField;
         this.showAiPopover = true;
       } catch (e) {
         console.error('[AI] suggestComment error', e);
+        toast('AI Suggest network error. Check connection.', true);
       } finally {
         btn.textContent = origText;
         btn.disabled = false;
