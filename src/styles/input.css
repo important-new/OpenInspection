@@ -1,3 +1,45 @@
+/* Spec 5F.1 — design system v3 tokens. Inlined here (rather than
+   @import'd from colors_and_type.css) because Tailwind 3 CLI does
+   not run postcss-import — @import statements would be passed
+   through to the browser as-is, which on a Worker static asset
+   path returns 500. The standalone file is kept for reference. */
+:root {
+    /* Brand */
+    --ih-primary:           #6366f1;
+    --ih-primary-600:       #4f46e5;
+    --ih-primary-700:       #4338ca;
+    --ih-primary-glow:      #6366f140;
+    --ih-primary-tint:      #6366f11a;
+    /* Slate */
+    --ih-slate-50:#f8fafc; --ih-slate-100:#f1f5f9; --ih-slate-200:#e2e8f0;
+    --ih-slate-300:#cbd5e1; --ih-slate-400:#94a3b8; --ih-slate-500:#64748b;
+    --ih-slate-600:#475569; --ih-slate-700:#334155; --ih-slate-800:#1e293b;
+    --ih-slate-900:#0f172a; --ih-slate-950:#020617;
+    --ih-fg-1: var(--ih-slate-900); --ih-fg-2: var(--ih-slate-600);
+    --ih-fg-3: var(--ih-slate-500); --ih-fg-4: var(--ih-slate-400);
+    --ih-fg-5: var(--ih-slate-300); --ih-fg-inverse: #fff;
+    --ih-bg-app:#f8fafc; --ih-bg-page:#fdfdfd; --ih-bg-card:#fff;
+    --ih-bg-muted:#f1f5f9; --ih-bg-inverse:#0f172a;
+    /* Status / rating */
+    --ih-status-ok:#10b981; --ih-status-ok-bg:#ecfdf5; --ih-status-ok-fg:#047857;
+    --ih-status-watch:#f59e0b; --ih-status-watch-bg:#fffbeb; --ih-status-watch-fg:#b45309;
+    --ih-status-bad:#ef4444; --ih-status-bad-bg:#fef2f2; --ih-status-bad-fg:#be123c;
+    /* v3 spacing (compact) */
+    --ih-space-card:12px; --ih-space-section:40px; --ih-space-page:24px;
+    --ih-pad-button-x:16px; --ih-pad-button-y:8px;
+    --ih-pad-input-x:12px; --ih-pad-input-y:8px;
+    /* v3 radius (compact) */
+    --ih-radius-card:8px; --ih-radius-modal:12px; --ih-radius-photo:6px;
+    --ih-radius-pill:4px; --ih-radius-button:6px;
+    /* v3 type (compact) */
+    --ih-text-hero:40px; --ih-text-section:22px; --ih-text-item:15px; --ih-text-body:13px;
+    --ih-weight-body:400; --ih-weight-bold:700; --ih-letter-spacing:-0.015em;
+    /* v3 shadow (slate, no indigo tint) */
+    --ih-shadow-card: 0 1px 3px rgba(15,23,42,0.08);
+    --ih-shadow-modal: 0 8px 32px rgba(15,23,42,0.12);
+    --ih-shadow-cta:   0 0 16px rgba(99,102,241,0.30);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -19,6 +61,35 @@ body {
 textarea {
     resize: none;
 }
+
+/* ============================================================
+   Spec 5F R1 Step 5 — Canonical .ih-pill (status pill / chip / badge)
+   Replaces 4 prior variants (rounded-full / rounded-2xl + various
+   sizes) with a single 24px-tall pill at radius 4px. Use this for
+   any status indicator: rating chips (Sat/Mon/Defect), payment
+   status, completion badges, etc. Color is set via inline style or
+   one of the .ih-pill--* modifiers below.
+   ============================================================ */
+.ih-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: var(--ih-radius-pill);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.ih-pill--sat     { background:#dcfce7; color:#15803d; }
+.ih-pill--monitor { background:#fef3c7; color:#b45309; }
+.ih-pill--defect  { background:#fee2e2; color:#b91c1c; }
+.ih-pill--ni      { background:#e2e8f0; color:#475569; }
+.ih-pill--np      { background:#f1f5f9; color:#64748b; }
+.ih-pill--gen     { background:#f1f5f9; color:#475569; }
 
 /* Phase T — voice input mic button active state */
 .mic-recording {
@@ -67,6 +138,28 @@ textarea {
         transform: none;
         box-shadow: none;
         cursor: not-allowed;
+    }
+
+    /* Spec 5F.6 — flat surface aliases for the 18 templates that use
+       glass-card / glass-panel. Per handoff README, drop atmospheric
+       blob + glass-morphism. Keeping the class names lets us flip
+       all 18 files at once via CSS rather than per-template churn. */
+    .glass-card,
+    .glass-panel {
+        background: var(--ih-bg-card, #ffffff);
+        border: 1px solid var(--ih-slate-200, #e2e8f0);
+        border-radius: var(--ih-radius-card, 8px);
+        box-shadow: var(--ih-shadow-card, 0 1px 3px rgba(15, 23, 42, 0.08));
+        backdrop-filter: none;
+    }
+
+    /* Spec 5F.7 — kill atmospheric indigo glow blobs. The .ih-atmosphere
+       class never had its own definition in input.css; it relied on
+       inline styles (huge blurred indigo radials) on body / page wrappers.
+       We override it here to no-op. */
+    .ih-atmosphere {
+        background: none !important;
+        filter: none !important;
     }
 
     /* Gradient text */
@@ -167,8 +260,29 @@ details[open] > summary > .details-chevron { transform: rotate(180deg); }
     }
 }
 
+/* Print-only block — visible only when @media print matches (PDF render). */
+.print-only { display: none; }
+
 @media print {
-    @page { margin: 15mm; size: A4 portrait; }
+    /* Spec 5A.4 — letter-size to match Spectora's default; if customers
+       want A4 we'll add a per-tenant toggle (not in scope yet). */
+    @page {
+        margin: 18mm 15mm 22mm 15mm;
+        size: Letter portrait;
+
+        @bottom-center {
+            content: "Page " counter(page) " of " counter(pages);
+            font-family: 'Inter', sans-serif;
+            font-size: 9pt;
+            color: #64748b;
+        }
+        @bottom-right {
+            content: string(report-id);
+            font-family: 'Inter', sans-serif;
+            font-size: 8pt;
+            color: #94a3b8;
+        }
+    }
 
     body {
         background: white !important;
@@ -180,17 +294,107 @@ details[open] > summary > .details-chevron { transform: rotate(180deg); }
     }
 
     .no-print { display: none !important; }
+    .print-only { display: block !important; }
 
     .max-w-5xl { max-width: none !important; margin: 0 !important; }
     .shadow-xl { box-shadow: none !important; }
     .bg-slate-900 { background-color: #0f172a !important; color: white !important; }
 
+    /* Spec 5A.4 — explicit page-break utilities used by report-card-stack
+       cover page + section dividers. */
     .page-break  { page-break-after: always;  break-after: page; }
+    .page-break-before { page-break-before: always; break-before: page; }
     .avoid-break { page-break-inside: avoid;  break-inside: avoid; }
+
+    /* Cover page — first page only, full Letter sheet centred content. */
+    .print-cover {
+        height: 95vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        page-break-after: always;
+        break-after: page;
+    }
+    .print-cover .cover-eyebrow {
+        font-size: 9pt; letter-spacing: 0.3em; color: #64748b;
+        text-transform: uppercase; margin-bottom: 2rem;
+    }
+    .print-cover .cover-address {
+        font-size: 28pt; font-weight: 800; color: #0f172a;
+        line-height: 1.15; margin-bottom: 1.5rem; max-width: 80%;
+    }
+    .print-cover .cover-meta {
+        font-size: 11pt; color: #475569; line-height: 1.8;
+    }
+    .print-cover .cover-meta strong { color: #0f172a; font-weight: 600; }
+
+    /* Each section starts on a new page in PDF output. */
+    .report-section { page-break-before: always; break-before: page; }
+    .report-section:first-of-type { page-break-before: auto; break-before: auto; }
 
     img { max-height: 250px; object-fit: contain; }
     .grid { display: flex !important; flex-wrap: wrap; gap: 1rem; }
     .grid > div { flex: 1 1 calc(50% - 1rem); }
+
+    /* Spec 5F.9 — Report PDF tabular re-layout. These rules ONLY fire in
+       the PDF render path; the screen view keeps the existing card-stack
+       layout. Goal: 30-page report -> ~18 pages, attachment 30MB -> 12MB. */
+    .report-pdf-section h2 {
+        font-size: 14pt !important;
+        font-weight: 700 !important;
+        margin: 14px 0 8px !important;
+        border-bottom: 2px solid #0f172a !important;
+        padding-bottom: 2px !important;
+    }
+    .report-pdf-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px !important;
+        space-y: 0 !important;
+    }
+    .report-pdf-item {
+        padding: 8px 10px !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 6px !important;
+        page-break-inside: avoid;
+        background: #fff !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+    }
+    .report-pdf-item h3 {
+        font-size: 11pt !important;
+        font-weight: 600 !important;
+        margin: 0 0 4px !important;
+    }
+    .report-pdf-item .item-notes {
+        font-size: 9pt !important;
+        line-height: 1.35 !important;
+        color: #334155 !important;
+        margin: 0 0 4px !important;
+    }
+    .report-pdf-item--defect {
+        grid-column: 1 / -1 !important;
+        border-color: #ef4444 !important;
+        background: #fef2f2 !important;
+    }
+    .report-pdf-photos {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 4px !important;
+        width: auto !important;
+    }
+    .report-pdf-photos > div {
+        aspect-ratio: 4 / 3 !important;
+        border: none !important;
+        border-radius: 4px !important;
+    }
+    .report-pdf-photos img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+    }
 }
 
 /* ============================================================
@@ -268,4 +472,23 @@ details[open] > summary > .details-chevron { transform: rotate(180deg); }
    manipulation` on interactive elements is belt-and-suspenders cheap. */
 button, a, [role="button"] {
     touch-action: manipulation;
+}
+
+/* Round 35 — sidebar nav links are full-page <a href> SSR loads (no SPA),
+   so each click triggers a full HTTP round-trip + browser repaint = visible
+   flicker. View Transitions API masks the swap with a 200ms cross-fade in
+   Chrome 126+ / Edge 126+ / Safari 18+. Other browsers (Firefox) silently
+   fall back to current behavior — net zero regression. */
+@view-transition {
+    navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 200ms;
+    animation-timing-function: ease-out;
+}
+/* Pin a stable background on the root so the cross-fade does not flash a
+   white intermediate between two pages with different bg colors. */
+html {
+    background-color: var(--ih-bg-app, #f8fafc);
 }

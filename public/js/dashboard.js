@@ -223,6 +223,29 @@ async function fetchPrerequisites() {
     } catch (e) {
         console.error('populateAgents failed:', e);
     }
+
+    // R7-NEW-1: calendar's dateClick navigates here with ?newInspection=1&date=...
+    // Auto-open the New Inspection modal + pre-fill the date input.
+    try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('newInspection') === '1') {
+            showCreateModal();
+            const d = params.get('date');
+            const dateInput = document.getElementById('inspectionDate');
+            if (dateInput && d) {
+                // Flatpickr accepts ISO strings; setting .value works because
+                // flatpickr-init.js binds on focusin and reads the current value.
+                dateInput.value = d.replace('T', ' ').slice(0, 16);
+            }
+            // Clean URL so refresh doesn't reopen.
+            const url = new URL(window.location.href);
+            url.searchParams.delete('newInspection');
+            url.searchParams.delete('date');
+            window.history.replaceState({}, '', url.toString());
+        }
+    } catch (e) {
+        console.error('newInspection deep-link failed:', e);
+    }
 }
 
 async function populateAgents() {
@@ -230,19 +253,116 @@ async function populateAgents() {
     if (!res.ok) return;
     const data = await res.json();
     const agents = data.data?.contacts || [];
-    const select = document.getElementById('agentId');
-    if (!select || agents.length === 0) return;
-    agents.forEach(a => {
-        const opt = document.createElement('option');
-        opt.value = a.id;
-        opt.innerText = a.name || a.email || a.id;
-        select.appendChild(opt);
+    // R7-09: same agent list populates Listing Agent + Buyer's Agent dropdowns.
+    const targets = [document.getElementById('agentId'), document.getElementById('buyerAgentId')];
+    if (agents.length === 0) return;
+    targets.forEach(select => {
+        if (!select) return;
+        agents.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.id;
+            opt.innerText = a.name || a.email || a.id;
+            select.appendChild(opt);
+        });
     });
 }
 
 // ─── Create modal helpers ──────────────────────────────────────────────────
 
+// Spec 5D — Address Autocomplete. Generates a fresh session UUID on each
+// modal open so Google bills the typing-session as ONE Autocomplete (~$0.017)
+// instead of one per keystroke. UUID is reset in showCreateModal/closeModal.
+let __placesSession = null;
+let __placesSearchTimer = null;
+
+function newPlacesSession() {
+    __placesSession = crypto.randomUUID();
+}
+
+async function searchPlaces(q) {
+    if (!__placesSession) newPlacesSession();
+    try {
+        const url = '/api/places/autocomplete?q=' + encodeURIComponent(q) + '&session=' + __placesSession;
+        const res = await authFetch(url);
+        if (!res.ok) return null; // graceful: hide dropdown on any failure
+        const j = await res.json();
+        return j?.data?.results || j?.results || [];
+    } catch { return null; }
+}
+
+async function selectPlace(placeId, displayText) {
+    if (!__placesSession) newPlacesSession();
+    const propAddr = document.getElementById('propAddress');
+    const dropdown = document.getElementById('propAddressDropdown');
+    if (propAddr) propAddr.value = displayText;
+    if (dropdown) dropdown.classList.add('hidden');
+    try {
+        const res = await authFetch('/api/places/details?placeId=' + encodeURIComponent(placeId) + '&session=' + __placesSession);
+        if (!res.ok) return;
+        const j = await res.json();
+        const d = j?.data || j;
+        if (!d || !d.placeId) return;
+        if (propAddr) propAddr.value = d.formatted || displayText;
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+        set('propPlaceId',  d.placeId);
+        set('propAddrStreet', d.street);
+        set('propAddrCity',   d.city);
+        set('propAddrState',  d.state);
+        set('propAddrZip',    d.zip);
+        set('propAddrCounty', d.county);
+        set('propLat', d.lat != null ? String(d.lat) : '');
+        set('propLng', d.lng != null ? String(d.lng) : '');
+        // After successful details fetch, end the billing session — next
+        // typing will start a fresh one.
+        newPlacesSession();
+    } catch { /* silent */ }
+}
+
+function renderPlacesDropdown(results) {
+    const dropdown = document.getElementById('propAddressDropdown');
+    if (!dropdown) return;
+    if (!results || results.length === 0) {
+        dropdown.classList.add('hidden');
+        dropdown.innerHTML = '';
+        return;
+    }
+    dropdown.innerHTML = results.slice(0, 6).map(r => `
+        <button type="button" data-place-id="${r.placeId}" data-place-text="${(r.description || '').replace(/"/g, '&quot;')}"
+                class="w-full text-left px-5 py-3 hover:bg-emerald-50 border-b border-slate-100 last:border-b-0 transition">
+          <div class="font-bold text-sm text-slate-900">${r.mainText || r.description}</div>
+          ${r.secondaryText ? `<div class="text-xs text-slate-500 mt-0.5">${r.secondaryText}</div>` : ''}
+        </button>
+    `).join('');
+    dropdown.classList.remove('hidden');
+    dropdown.querySelectorAll('button[data-place-id]').forEach(btn => {
+        btn.addEventListener('click', () => selectPlace(btn.dataset.placeId, btn.dataset.placeText));
+    });
+}
+
+document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (!t || !t.matches || !t.matches('#propAddress[data-places-autocomplete]')) return;
+    // Any manual edit invalidates previously-resolved geocoded fields.
+    ['propPlaceId','propAddrStreet','propAddrCity','propAddrState','propAddrZip','propAddrCounty','propLat','propLng']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    const q = t.value.trim();
+    if (q.length < 2) { renderPlacesDropdown([]); return; }
+    clearTimeout(__placesSearchTimer);
+    __placesSearchTimer = setTimeout(async () => {
+        const results = await searchPlaces(q);
+        if (results) renderPlacesDropdown(results);
+    }, 250);
+});
+
+document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('propAddressDropdown');
+    if (!dropdown) return;
+    if (e.target.closest('#propAddressDropdown') || e.target.closest('#propAddress')) return;
+    dropdown.classList.add('hidden');
+});
+
 function showCreateModal() {
+    newPlacesSession(); // fresh billing session per modal open
     document.getElementById('createModal')?.classList.remove('hidden');
 }
 
@@ -314,6 +434,16 @@ async function submitInspection() {
         inspectorId: document.getElementById('inspectorId')?.value || undefined,
         date: rawDate ? new Date(rawDate).toISOString() : undefined,
         referredByAgentId: document.getElementById('agentId')?.value || undefined,
+        sellingAgentId: document.getElementById('buyerAgentId')?.value || undefined,
+        // Spec 5D — geocoded address payload (only when autocomplete picked).
+        addressPlaceId: document.getElementById('propPlaceId')?.value || undefined,
+        addressStreet:  document.getElementById('propAddrStreet')?.value || undefined,
+        addressCity:    document.getElementById('propAddrCity')?.value || undefined,
+        addressState:   document.getElementById('propAddrState')?.value || undefined,
+        addressZip:     document.getElementById('propAddrZip')?.value || undefined,
+        addressCounty:  document.getElementById('propAddrCounty')?.value || undefined,
+        addressLat:     document.getElementById('propLat')?.value ? Number(document.getElementById('propLat').value) : undefined,
+        addressLng:     document.getElementById('propLng')?.value ? Number(document.getElementById('propLng').value) : undefined,
         serviceIds: selectedServiceIds.length > 0 ? [...selectedServiceIds] : undefined,
         price: selectedServiceIds.length > 0 ? calcTotal() : undefined,
         discountCodeId: discountResult?.valid ? discountResult.discountCodeId : undefined,
@@ -352,6 +482,11 @@ async function submitInspection() {
            document.getElementById('inspectionDate').value = '';
            document.getElementById('inspectorId').value = '';
            document.getElementById('agentId').value = '';
+           const buyerAg = document.getElementById('buyerAgentId');
+           if (buyerAg) buyerAg.value = '';
+           // Spec 5D — clear geocoded payload after successful create.
+           ['propPlaceId','propAddrStreet','propAddrCity','propAddrState','propAddrZip','propAddrCounty','propLat','propLng']
+               .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
            if (newId) {
                window.location.href = '/inspections/' + newId + '/edit';
@@ -449,6 +584,15 @@ function dashboardFactory() {
                 // Auto-expand needsAttention or today if they have items; collapse others if empty
                 if (this.buckets.needsAttention.length > 0) this.sections.needsAttention = true;
                 if (this.buckets.today.length > 0) this.sections.today = true;
+                // R7-05 fix: when all the "above the fold" buckets are empty
+                // but Later has items, auto-expand Later so the inspector
+                // doesn't see a dashboard that looks empty when it isn't.
+                const aboveFoldEmpty = this.buckets.needsAttention.length === 0
+                    && this.buckets.today.length === 0
+                    && this.buckets.thisWeek.length === 0;
+                if (aboveFoldEmpty && this.buckets.later.length > 0) {
+                    this.sections.later = true;
+                }
                 this.computeStats();
             } catch (e) {
                 if (typeof window.showToast === 'function') {

@@ -7,82 +7,133 @@ export const AgreementsPage = ({ branding }: { branding?: BrandingConfig | undef
     return (
         <MainLayout title={`${siteName} | Agreements`} branding={branding}>
             <div class="animate-slide-in flex flex-col" style="min-height: calc(100vh - 5rem);">
-                <div class="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
-                        <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest mb-4 ring-1 ring-indigo-100">
+                        <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold uppercase tracking-widest mb-4 ring-1 ring-indigo-100">
                             <span class="w-1.5 h-1.5 bg-indigo-600 rounded-full"></span>
                             Legal Compliance
                         </div>
-                        <h1 class="text-5xl font-black tracking-tightest text-slate-900 mb-4">Agreements</h1>
+                        <h1 class="text-3xl font-bold tracking-tight text-slate-900 mb-4">Agreements</h1>
                         <p class="text-lg text-slate-500 font-semibold max-w-2xl leading-relaxed">Manage liability waivers and professional service agreements for your clients.</p>
                     </div>
-                    <button type="button" onclick="showCreateModal()" class="premium-button flex items-center justify-center gap-2 px-8 py-4 rounded-2xl shadow-2xl shadow-indigo-100/20 bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all font-bold">
+                    <button type="button" onclick="showCreateModal()" class="premium-button flex items-center justify-center gap-2 px-4 py-1.5 text-sm rounded-md shadow-md/20 bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 transition-all font-bold">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                         New Agreement
                     </button>
                 </div>
 
-                {/* Agreements List */}
-                <div class="glass-panel rounded-[2.5rem] overflow-hidden shadow-2xl shadow-indigo-100/5 flex-1 flex flex-col">
-                    <div class="overflow-x-auto flex-1">
-                        <table class="min-w-full h-full">
-                            <thead>
-                                <tr class="bg-slate-50/50">
-                                    <th scope="col" class="py-6 pl-10 pr-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Agreement Name</th>
-                                    <th scope="col" class="px-6 py-6 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Version</th>
-                                    <th scope="col" class="px-6 py-6 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Effective Date</th>
-                                    <th scope="col" class="relative py-6 pl-3 pr-10"><span class="sr-only">Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody id="agreementsList" class="divide-y divide-slate-100">
-                                <tr id="loadingRow">
-                                    <td colspan={4} class="py-32 text-center">
-                                        <div class="flex flex-col items-center gap-4">
-                                            <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin shadow-xl shadow-indigo-100"></div>
-                                            <p class="text-sm font-bold text-slate-400 animate-pulse">Loading...</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                {/* Tabs: Templates / Signing Requests (Spec 5H P2) */}
+                <div x-data="{ tab: 'templates', requests: [], reqLoading: false, async loadRequests() { if (this.requests.length) return; this.reqLoading = true; try { const r = await authFetch('/api/admin/agreements/requests'); const j = await r.json(); this.requests = j.data?.requests || []; } finally { this.reqLoading = false; } } }" class="flex-1 flex flex-col">
+                    <div class="flex items-center gap-1 mb-4 border-b border-slate-200">
+                        <button x-on:click="tab = 'templates'" x-bind:class="tab === 'templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'"
+                            class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors">Templates</button>
+                        <button x-on:click="tab = 'requests'; loadRequests()" x-bind:class="tab === 'requests' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'"
+                            class="px-4 py-2 text-sm font-semibold border-b-2 transition-colors">Signing Requests</button>
                     </div>
-                 </div>
+
+                    {/* Templates list */}
+                    <div x-show="tab === 'templates'" class="glass-panel rounded-xl overflow-hidden shadow-md/5 flex-1 flex flex-col">
+                        <div class="overflow-x-auto flex-1">
+                            <table class="min-w-full h-full">
+                                <thead>
+                                    <tr class="bg-slate-50/50">
+                                        <th scope="col" class="py-6 pl-10 pr-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Agreement Name</th>
+                                        <th scope="col" class="px-6 py-6 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Version</th>
+                                        <th scope="col" class="px-6 py-6 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Effective Date</th>
+                                        <th scope="col" class="relative py-6 pl-3 pr-10"><span class="sr-only">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="agreementsList" class="divide-y divide-slate-100">
+                                    <tr id="loadingRow">
+                                        <td colspan={4} class="py-32 text-center">
+                                            <div class="flex flex-col items-center gap-4">
+                                                <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin shadow-md"></div>
+                                                <p class="text-sm font-bold text-slate-400 animate-pulse">Loading...</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Signing Requests list */}
+                    <div x-show="tab === 'requests'" x-cloak class="glass-panel rounded-xl overflow-hidden shadow-md/5 flex-1 flex flex-col">
+                        <div class="overflow-x-auto flex-1">
+                            <table class="min-w-full">
+                                <thead>
+                                    <tr class="bg-slate-50/50">
+                                        <th class="py-4 pl-6 pr-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Client</th>
+                                        <th class="px-4 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Agreement</th>
+                                        <th class="px-4 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</th>
+                                        <th class="px-4 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Sent</th>
+                                        <th class="px-4 py-4 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Signed</th>
+                                        <th class="px-4 py-4 pr-6"><span class="sr-only">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    <tr x-show="reqLoading"><td colspan={6} class="py-16 text-center text-sm text-slate-400 italic">Loading…</td></tr>
+                                    <tr x-show="!reqLoading && requests.length === 0"><td colspan={6} class="py-16 text-center text-sm text-slate-400 italic">No signing requests yet. Use a template's "Send" action.</td></tr>
+                                    <template x-for="r in requests" x-bind:key="r.id">
+                                        <tr class="hover:bg-slate-50/50">
+                                            <td class="py-3 pl-6 pr-3 text-sm">
+                                                <div class="font-semibold text-slate-900" x-text="r.clientName || '—'"></div>
+                                                <div class="text-[11px] text-slate-500" x-text="r.clientEmail"></div>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm text-slate-700" x-text="r.agreementName || '—'"></td>
+                                            <td class="px-4 py-3">
+                                                <span class="ih-pill"
+                                                    x-bind:style="r.status === 'signed' ? 'background:#dcfce7;color:#15803d' : (r.status === 'declined' ? 'background:#fee2e2;color:#b91c1c' : (r.status === 'viewed' ? 'background:#dbeafe;color:#1d4ed8' : 'background:#fef3c7;color:#b45309'))"
+                                                    x-text="r.status"></span>
+                                            </td>
+                                            <td class="px-4 py-3 text-[11px] font-mono text-slate-500" x-text="r.sentAt ? new Date(r.sentAt).toLocaleString() : '—'"></td>
+                                            <td class="px-4 py-3 text-[11px] font-mono text-slate-500" x-text="r.signedAt ? new Date(r.signedAt).toLocaleString() : '—'"></td>
+                                            <td class="px-4 py-3 pr-6 text-right">
+                                                <a x-bind:href="'/verify/' + r.id" target="_blank" class="text-xs font-semibold text-indigo-600 hover:underline">Verify ›</a>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
 
                 {/* Create Agreement Modal */}
-                <div id="createModal" class="fixed inset-0 z-[100] hidden overflow-y-auto px-4 py-12 sm:px-0">
+                <div id="createModal" class="fixed inset-0 z-[100] hidden overflow-y-auto px-4 py-6 sm:px-0">
                     <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onclick="closeModal()"></div>
                     <div class="flex min-h-full items-center justify-center">
-                        <div role="dialog" aria-modal="true" class="relative w-full max-w-2xl transform overflow-hidden rounded-[2.5rem] bg-white p-12 text-left shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] animate-slide-in">
+                        <div role="dialog" aria-modal="true" class="relative w-full max-w-2xl transform overflow-hidden rounded-xl bg-white p-6 text-left shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] animate-slide-in">
                             <div class="absolute top-8 right-8">
                                 <button onclick="closeModal()" aria-label="Close dialog" class="p-3 text-slate-400 hover:text-slate-900 rounded-2xl hover:bg-slate-50 transition-all active:scale-95">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
-                            <div class="mb-10">
-                                <h3 id="modalAgreementTitle" class="text-3xl font-black text-slate-900 mb-3 tracking-tightest leading-tight">Create Professional Agreement</h3>
+                            <div class="mb-6">
+                                <h3 id="modalAgreementTitle" class="text-xl font-bold text-slate-900 mb-3 tracking-tight leading-tight">Create Professional Agreement</h3>
                                 <p class="text-lg text-slate-400 font-medium">Draft a new service agreement or liability waiver.</p>
                             </div>
                             <input type="hidden" id="editAgreementId" />
-                            <div class="space-y-8">
+                            <div class="space-y-4">
                                 <div class="space-y-2">
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Agreement Name</label>
+                                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Agreement Name</label>
                                     <input type="text" id="agreementName" placeholder="e.g., Standard Home Inspection Version 2.0"
-                                        class="premium-input w-full px-6 py-4.5 rounded-2xl border-2 border-slate-100 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 outline-none transition-all font-semibold" />
+                                        class="w-full px-3 py-2 rounded-md border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all font-medium text-sm" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Legal Content (Rich Text)</label>
+                                    <label class="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Legal Content (Rich Text)</label>
                                     <link rel="stylesheet" href="/vendor/quill/quill.snow.css" />
                                     <div class="rounded-2xl border-2 border-slate-100 focus-within:border-indigo-600 focus-within:ring-4 focus-within:ring-indigo-50 transition-all overflow-hidden bg-white">
                                         <div id="agreementEditor" style="min-height: 280px; font-size: 15px;"></div>
                                     </div>
                                     <input type="hidden" id="agreementContent" />
-                                    <p class="text-[10px] text-slate-400 font-semibold ml-1 mt-1">Tip: variables like {'{{client_name}}'}, {'{{property_address}}'}, {'{{inspection_date}}'}, and {'{{inspector_name}}'} will be substituted on the sign page.</p>
+                                    <p class="text-[10px] text-slate-400 font-semibold ml-1 mt-1">Tip: variables like {'{{client_name}}'}, {'{{property_address}}'}, {'{{inspection_date}}'}, {'{{inspector_name}}'}, and {'{{inspector_license}}'} will be substituted on the sign page.</p>
                                 </div>
                                 <div class="pt-4 flex gap-6">
-                                    <button type="button" onclick="closeModal()" class="flex-1 py-4.5 rounded-2xl font-black text-slate-400 hover:text-slate-900 transition-all uppercase text-[10px] tracking-widest">
+                                    <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 rounded-md border border-slate-200 bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">
                                         Discard
                                     </button>
-                                    <button type="button" onclick="submitAgreement()" id="submitAgreementBtn" class="flex-[2] premium-button py-4.5 rounded-2xl bg-indigo-600 text-white font-bold shadow-2xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">
+                                    <button type="button" onclick="submitAgreement()" id="submitAgreementBtn" class="flex-[2] px-4 py-2 bg-indigo-600 text-white rounded-md font-bold text-sm hover:bg-indigo-700 active:scale-[.98] transition-all disabled:bg-slate-300 disabled:cursor-not-allowed">
                                         Publish Agreement
                                     </button>
                                 </div>
@@ -92,26 +143,26 @@ export const AgreementsPage = ({ branding }: { branding?: BrandingConfig | undef
                 </div>
 
                 {/* Send Agreement Modal */}
-                <div id="sendModal" class="fixed inset-0 z-[100] hidden overflow-y-auto px-4 py-12 sm:px-0">
+                <div id="sendModal" class="fixed inset-0 z-[100] hidden overflow-y-auto px-4 py-6 sm:px-0">
                     <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closeSendModal()"></div>
                     <div class="flex min-h-full items-center justify-center">
-                        <div class="relative w-full max-w-md bg-white rounded-[2.5rem] p-10 shadow-2xl">
-                            <h3 class="text-2xl font-black text-slate-900 mb-2">Send for Signature</h3>
+                        <div class="relative w-full max-w-md bg-white rounded-xl p-6 shadow-2xl">
+                            <h3 class="text-xl font-bold text-slate-900 mb-2">Send for Signature</h3>
                             <p class="text-sm text-slate-400 font-semibold mb-8">Client will receive an email with a link to review and sign.</p>
                             <input type="hidden" id="sendAgreementId" />
                             <div class="space-y-4">
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Client Email *</label>
-                                    <input type="email" id="sendClientEmail" placeholder="client@example.com" class="premium-input w-full px-5 py-4 rounded-2xl border-2 border-slate-50 focus:border-indigo-500 outline-none font-bold text-sm" />
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Client Email *</label>
+                                    <input type="email" id="sendClientEmail" placeholder="client@example.com" class="w-full px-3 py-2 rounded-md border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all font-medium text-sm" />
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Client Name</label>
-                                    <input type="text" id="sendClientName" placeholder="John Smith" class="premium-input w-full px-5 py-4 rounded-2xl border-2 border-slate-50 focus:border-indigo-500 outline-none font-bold text-sm" />
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Client Name</label>
+                                    <input type="text" id="sendClientName" placeholder="John Smith" class="w-full px-3 py-2 rounded-md border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all font-medium text-sm" />
                                 </div>
                             </div>
                             <div class="mt-8 flex gap-4">
-                                <button onclick="closeSendModal()" class="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition">Cancel</button>
-                                <button onclick="submitSend()" id="submitSendBtn" class="flex-[2] py-4 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest shadow-xl hover:bg-slate-900 transition">Send Request</button>
+                                <button onclick="closeSendModal()" class="flex-1 px-4 py-2 rounded-md border border-slate-200 bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">Cancel</button>
+                                <button onclick="submitSend()" id="submitSendBtn" class="flex-[2] px-4 py-2 bg-indigo-600 text-white rounded-md font-bold text-sm hover:bg-indigo-700 active:scale-[.98] transition-all disabled:bg-slate-300 disabled:cursor-not-allowed">Send Request</button>
                             </div>
                         </div>
                     </div>

@@ -7,14 +7,14 @@ export const NotificationsPage = ({ branding }: Props): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     return (
         <MainLayout title={`${siteName} | Notifications`} {...(branding ? { branding } : {})}>
-            <div class="space-y-8 animate-fade-in" x-data="notificationsApp()" x-init="load()">
+            <div class="space-y-4 animate-fade-in" x-data="notificationsApp()" x-init="load()">
                 <div class="flex items-end justify-between flex-wrap gap-4">
                     <div>
-                        <span class="px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-[0.2em]">Inbox</span>
-                        <h1 class="mt-3 text-5xl font-black tracking-tight text-slate-900 sm:text-6xl">Notifications</h1>
+                        <span class="px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-[0.2em]">Inbox</span>
+                        <h1 class="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Notifications</h1>
                         <p class="mt-2 text-lg text-slate-500 max-w-2xl font-semibold leading-relaxed">Activity from your workspace — bookings, reports, agreements, messages.</p>
                     </div>
-                    <button x-on:click="markAllRead()" class="px-6 py-3 rounded-2xl bg-slate-900 text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-black transition-all active:scale-95">Mark all read</button>
+                    <button x-on:click="markAllRead()" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 transition-all">Mark all read</button>
                 </div>
 
                 <div class="flex gap-2">
@@ -22,7 +22,7 @@ export const NotificationsPage = ({ branding }: Props): JSX.Element => {
                     <button x-on:click="setFilter('unread')" x-bind:class="filter==='unread' ? 'bg-indigo-600 text-white' : 'ring-2 ring-slate-200 text-slate-600'" class="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all">Unread</button>
                 </div>
 
-                <div class="glass-panel rounded-[2.5rem] shadow-xl shadow-slate-100/50 overflow-hidden">
+                <div class="glass-panel rounded-xl shadow-xl shadow-slate-100/50 overflow-hidden">
                     <template x-if="items.length === 0 && !loading">
                         <div class="py-24 text-center space-y-3">
                             <div class="text-slate-400 font-semibold">No notifications yet — events will appear here as they happen.</div>
@@ -47,12 +47,12 @@ export const NotificationsPage = ({ branding }: Props): JSX.Element => {
                         </div>
                     </template>
                     <template x-if="loading">
-                        <div class="py-12 text-center text-slate-400">Loading…</div>
+                        <div class="py-6 text-center text-slate-400">Loading…</div>
                     </template>
                 </div>
 
                 <div x-show="nextCursor" class="text-center">
-                    <button x-on:click="loadMore()" class="px-6 py-3 rounded-2xl ring-2 ring-slate-200 text-slate-600 text-xs font-bold uppercase tracking-[0.2em] hover:bg-slate-50 transition-all">Load more</button>
+                    <button x-on:click="loadMore()" class="px-3 py-2 rounded-2xl ring-2 ring-slate-200 text-slate-600 text-xs font-bold uppercase tracking-[0.2em] hover:bg-slate-50 transition-all">Load more</button>
                 </div>
             </div>
 

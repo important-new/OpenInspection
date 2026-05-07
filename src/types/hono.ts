@@ -10,6 +10,8 @@ export interface AppEnv {
     
     // Security & Auth
     JWT_SECRET: string;
+    /** Spec 5H — AES-GCM key for encrypting tenant Ed25519 private keys. Falls back to JWT_SECRET. */
+    KEY_ENCRYPTION_SECRET: string;
     TURNSTILE_SITE_KEY: string;
     TURNSTILE_SECRET_KEY: string;
     GOOGLE_CLIENT_ID: string;
@@ -44,9 +46,24 @@ export interface AppEnv {
     // PDF Generation (Cloudflare Browser Rendering — beta)
     BROWSER?: Fetcher;
 
+    // Report PDF storage (Spec 5A) — pre-rendered Summary + Full Report PDFs.
+    // Optional during local dev so the worker boots without the binding.
+    REPORTS?: R2Bucket;
+
+    // Spec 5H P1 — async sign-completion pipeline (signed.pdf + cert.pdf + audit append)
+    SIGN_COMPLETION_WORKFLOW?: Workflow;
+
+    // Spec 5H — Public verifier base URL embedded in Certificate of Completion
+    ESIGN_PUBLIC_VERIFY_BASE?: string;
+
     // SaaS Portal Integration
     PORTAL_API_URL?: string;
     PORTAL_M2M_SECRET?: string;
+
+    // Spec 5D — Address Autofill. Server-side proxy holds the API key so it
+    // never leaks to the client. Optional: when absent, dashboard.tsx falls
+    // back to a free-text address input (no autocomplete dropdown).
+    GOOGLE_PLACES_API_KEY?: string;
 }
 
 import { AdminService } from '../services/admin.service';
@@ -71,6 +88,9 @@ import { RecommendationService } from '../services/recommendation.service';
 import { EventService } from '../services/event.service';
 import { TotpService } from '../services/totp.service';
 import { TemplateSeedService } from '../services/template-seed.service';
+import { ReportPdfService } from '../services/report-pdf.service';
+import { SigningKeyService } from '../services/signing-key.service';
+import { AuditLogService } from '../services/audit-log.service';
 import { AuthVariables } from './auth';
 
 /**
@@ -101,6 +121,9 @@ export interface AppServices {
     event: EventService;
     totp: TotpService;
     templateSeed: TemplateSeedService;
+    reportPdf: ReportPdfService;
+    signingKey: SigningKeyService;
+    auditLog: AuditLogService;
 }
 
 /**

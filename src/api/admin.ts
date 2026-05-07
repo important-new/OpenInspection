@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, eq as eqDz, asc as ascDz, desc as descDz } from 'drizzle-orm';
+import * as schema from '../lib/db/schema';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { safeISODate } from '../lib/date';
@@ -29,7 +30,7 @@ import {
     StripeConnectAccountSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
-import { templates, agreements as agreementTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
+import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
 
 const adminRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -736,11 +737,218 @@ adminRoutes.openapi(sendAgreementRoute, async (c) => {
     });
     const signUrl = `${getBaseUrl(c)}/agreements/sign/${request.token}`;
 
+    // Spec 5H D-patch — fetch the agreement HTML at send-time to compute its
+    // content hash. This is the "what was the client agreed to" anchor for
+    // the audit chain — recomputable later to prove the DB version matches.
+    let agreementContentHash: string | null = null;
+    let agreementName: string | null = null;
+    try {
+        const agreement = await drizzle(c.env.DB, { schema })
+            .select({ name: schema.agreements.name, content: schema.agreements.content })
+            .from(schema.agreements)
+            .where(eq(schema.agreements.id, body.agreementId))
+            .get();
+        if (agreement) {
+            agreementName = agreement.name;
+            const bytes = new TextEncoder().encode(agreement.content || '');
+            const buf = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
+            const hex = Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+            agreementContentHash = `sha256:${hex}`;
+        }
+    } catch (e) {
+        logger.warn('audit.agreement.hash.failed', { agreementId: body.agreementId, error: (e as Error).message });
+    }
+
+    // Spec 5H P0.1 — append request.created to the audit chain
+    try {
+        await c.var.services.auditLog.append(tenantId, request.id, 'request.created', {
+            actorId: c.get('user')?.sub ?? null,
+            agreementContentHash,
+            agreementId: body.agreementId,
+            agreementName,
+            clientEmail: body.clientEmail,
+            clientName: body.clientName ?? null,
+            envelopeId: request.id,
+            inspectionId: body.inspectionId ?? null,
+            tenantId,
+            tsMs: Date.now(),
+        });
+    } catch (e) {
+        logger.warn('audit.append.created.failed', { requestId: request.id, error: (e as Error).message });
+    }
+
     await c.var.services.email.sendAgreementRequest(body.clientEmail, body.clientName ?? null, request.agreementName, signUrl)
         .catch(e => logger.error('Failed to send agreement email', {}, e instanceof Error ? e : undefined));
 
+    // Append request.sent only after email is dispatched (or attempted)
+    try {
+        await c.var.services.auditLog.append(tenantId, request.id, 'request.sent', {
+            envelopeId: request.id,
+            recipientEmail: body.clientEmail,
+            signUrl,
+            tsMs: Date.now(),
+        });
+    } catch (e) {
+        logger.warn('audit.append.sent.failed', { requestId: request.id, error: (e as Error).message });
+    }
+
     auditFromContext(c, 'agreement.send', 'agreement_request', { metadata: { agreementId: body.agreementId, clientEmail: body.clientEmail } });
     return c.json({ success: true as const, data: { token: request.token, signUrl } }, 200);
+});
+
+// --- Spec 5H — Signing Requests admin views ---
+
+const listSigningRequestsRoute = createRoute({
+    method: 'get',
+    path: '/agreements/requests',
+    tags: ['Admin'],
+    summary: 'List signing requests for tenant',
+    middleware: [requireRole(['owner', 'admin'])],
+    responses: {
+        200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ requests: z.array(z.unknown()) }) }) } }, description: 'OK' },
+    },
+});
+adminRoutes.openapi(listSigningRequestsRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const db = drizzle(c.env.DB);
+    const rows = await db
+        .select({
+            id: agreementRequestsTable.id,
+            agreementId: agreementRequestsTable.agreementId,
+            clientName: agreementRequestsTable.clientName,
+            clientEmail: agreementRequestsTable.clientEmail,
+            inspectionId: agreementRequestsTable.inspectionId,
+            status: agreementRequestsTable.status,
+            createdAt: agreementRequestsTable.createdAt,
+            sentAt: agreementRequestsTable.sentAt,
+            viewedAt: agreementRequestsTable.viewedAt,
+            signedAt: agreementRequestsTable.signedAt,
+            agreementName: agreementsTable.name,
+        })
+        .from(agreementRequestsTable)
+        .leftJoin(agreementsTable, eqDz(agreementRequestsTable.agreementId, agreementsTable.id))
+        .where(eqDz(agreementRequestsTable.tenantId, tenantId))
+        .orderBy(descDz(agreementRequestsTable.createdAt))
+        .limit(200);
+    return c.json({ success: true as const, data: { requests: rows } }, 200);
+});
+
+const getSigningRequestDetailRoute = createRoute({
+    method: 'get',
+    path: '/agreements/requests/{id}',
+    tags: ['Admin'],
+    summary: 'Get a signing request with full audit trail',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+        200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.unknown() }) } }, description: 'OK' },
+        404: { content: { 'application/json': { schema: z.object({ success: z.literal(false), error: z.unknown() }) } }, description: 'Not found' },
+    },
+});
+adminRoutes.openapi(getSigningRequestDetailRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const id = c.req.valid('param').id;
+    const db = drizzle(c.env.DB, { schema });
+    const reqRow = await db
+        .select()
+        .from(schema.agreementRequests)
+        .where(and(eqDz(schema.agreementRequests.id, id), eqDz(schema.agreementRequests.tenantId, tenantId)))
+        .get();
+    if (!reqRow) throw Errors.NotFound('Signing request not found');
+    const agreement = await db
+        .select()
+        .from(schema.agreements)
+        .where(eqDz(schema.agreements.id, reqRow.agreementId))
+        .get();
+    const auditRows = await db
+        .select()
+        .from(schema.esignAuditLogs)
+        .where(and(eqDz(schema.esignAuditLogs.tenantId, tenantId), eqDz(schema.esignAuditLogs.requestId, id)))
+        .orderBy(ascDz(schema.esignAuditLogs.createdAt))
+        .all();
+    const verify = await c.var.services.auditLog.verifyChain(tenantId, id);
+    return c.json({
+        success: true as const,
+        data: {
+            request: reqRow,
+            agreement: agreement ? { id: agreement.id, name: agreement.name } : null,
+            auditEvents: auditRows.map((r) => {
+                let payload: Record<string, unknown> = {};
+                try { payload = JSON.parse(r.payloadJson); } catch (_) { /* ignore */ }
+                return {
+                    id: r.id,
+                    event: r.event,
+                    createdAt: r.createdAt,
+                    payload,
+                    hash: r.hash,
+                    prevHash: r.prevHash,
+                    signature: r.signature,
+                    keyFingerprint: r.keyFingerprint,
+                };
+            }),
+            chainValid: verify.valid,
+            chainReason: verify.valid ? null : verify.reason,
+        },
+    }, 200);
+});
+
+const downloadAuditTrailRoute = createRoute({
+    method: 'get',
+    path: '/agreements/requests/{id}/audit-trail',
+    tags: ['Admin'],
+    summary: 'Download audit trail JSON for legal evidence',
+    middleware: [requireRole(['owner', 'admin'])],
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+        200: { content: { 'application/json': { schema: z.unknown() } }, description: 'Audit JSON download' },
+    },
+});
+adminRoutes.openapi(downloadAuditTrailRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const id = c.req.valid('param').id;
+    const db = drizzle(c.env.DB, { schema });
+    const reqRow = await db
+        .select()
+        .from(schema.agreementRequests)
+        .where(and(eqDz(schema.agreementRequests.id, id), eqDz(schema.agreementRequests.tenantId, tenantId)))
+        .get();
+    if (!reqRow) throw Errors.NotFound('Signing request not found');
+    const auditRows = await db
+        .select()
+        .from(schema.esignAuditLogs)
+        .where(and(eqDz(schema.esignAuditLogs.tenantId, tenantId), eqDz(schema.esignAuditLogs.requestId, id)))
+        .orderBy(ascDz(schema.esignAuditLogs.createdAt))
+        .all();
+    const pubKey = await c.var.services.signingKey.getPublicKey(tenantId);
+    const payload = {
+        envelopeId: id,
+        tenantId,
+        clientName: reqRow.clientName,
+        clientEmail: reqRow.clientEmail,
+        status: reqRow.status,
+        publicKeyPem: pubKey?.pem ?? null,
+        keyFingerprint: pubKey?.fingerprint ?? null,
+        algorithm: 'Ed25519',
+        events: auditRows.map((r) => ({
+            id: r.id,
+            event: r.event,
+            createdAt: r.createdAt,
+            payloadJson: r.payloadJson,
+            prevHash: r.prevHash,
+            hash: r.hash,
+            signature: r.signature,
+            keyFingerprint: r.keyFingerprint,
+        })),
+        exportedAt: new Date().toISOString(),
+    };
+    return new Response(JSON.stringify(payload, null, 2), {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Disposition': `attachment; filename="audit-trail-${id.slice(0, 8)}.json"`,
+        },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    }) as any;
 });
 
 // --- Comments Library ---

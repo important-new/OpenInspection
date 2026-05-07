@@ -14,6 +14,7 @@ interface AgreementSignProps {
         property_address?: string;
         inspection_date?: string;
         inspector_name?: string;
+        inspector_license?: string;
     } | undefined;
 }
 
@@ -28,7 +29,7 @@ function escapeHtml(s: string): string {
 
 /** Replace {{var}} placeholders with the provided values; missing vars become empty strings. */
 function substituteVars(template: string, vars: Record<string, string | undefined>): string {
-    return template.replace(/\{\{(client_name|property_address|inspection_date|inspector_name)\}\}/g,
+    return template.replace(/\{\{(client_name|property_address|inspection_date|inspector_name|inspector_license)\}\}/g,
         (_m, key) => escapeHtml(vars[key] ?? ''));
 }
 
@@ -53,25 +54,40 @@ export const AgreementSignPage = ({ token, agreementName, agreementContent, clie
         property_address: vars?.property_address ?? '',
         inspection_date: vars?.inspection_date ?? '',
         inspector_name: vars?.inspector_name ?? '',
+        inspector_license: vars?.inspector_license ?? '',
     });
 
     return (
         <BareLayout title={`Sign Agreement | ${siteName}`} branding={branding}>
-            <div class="min-h-screen bg-slate-50 py-12 px-4 font-sans">
+            {/* Spec 5H D-patch — print-mode CSS so window.print() produces a clean
+                PDF: hide page chrome, expand the document container, show the
+                signature image inline. */}
+            <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                    body { background: #fff !important; }
+                    .no-print, button, header > a { display: none !important; }
+                    .min-h-screen { min-height: 0 !important; padding: 0 !important; }
+                    .max-w-2xl { max-width: none !important; }
+                    .bg-white, .rounded-lg, .shadow-md { box-shadow: none !important; border: none !important; }
+                    .max-h-96 { max-height: none !important; overflow: visible !important; }
+                    @page { margin: 0.5in; }
+                }
+            `}} />
+            <div class="min-h-screen bg-slate-50 py-6 px-4 font-sans">
                 <div class="max-w-2xl mx-auto">
                     {/* Header */}
-                    <div class="flex items-center gap-3 mb-10">
+                    <div class="flex items-center gap-3 mb-6">
                         <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
                             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         </div>
                         <span class="text-xl font-black text-slate-900">{siteName}</span>
                     </div>
 
-                    <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 overflow-hidden">
+                    <div class="bg-white rounded-lg shadow-md overflow-hidden">
                         {/* Title bar */}
                         <div class="px-10 py-8 border-b border-slate-100">
-                            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 mb-2">Document for Signature</p>
-                            <h1 class="text-3xl font-black text-slate-900 tracking-tight">{agreementName}</h1>
+                            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-600 mb-2">Document for Signature</p>
+                            <h1 class="text-xl font-bold text-slate-900 tracking-tight">{agreementName}</h1>
                             {clientName && <p class="text-slate-500 font-semibold mt-1">Hi, {clientName}</p>}
                         </div>
 
@@ -92,7 +108,14 @@ export const AgreementSignPage = ({ token, agreementName, agreementContent, clie
                                     <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 </div>
                                 <h2 class="text-xl font-black text-slate-900 mb-2">Already Signed</h2>
-                                <p class="text-slate-500 font-semibold">This agreement has been signed. Thank you!</p>
+                                <p class="text-slate-500 font-semibold mb-6">This agreement has been signed. Thank you!</p>
+                                {/* Spec 5H D-patch — Download as PDF (browser print → save as PDF) */}
+                                <button onclick="window.print()"
+                                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 active:scale-95 transition-all shadow-md">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    Download Signed PDF
+                                </button>
+                                <p class="text-[11px] text-slate-400 italic mt-3">In the print dialog, choose "Save as PDF" as destination.</p>
                             </div>
                         ) : (
                             <>
@@ -102,15 +125,15 @@ export const AgreementSignPage = ({ token, agreementName, agreementContent, clie
                                         <canvas id="sigCanvas" width="580" height="180" class="w-full cursor-crosshair block"></canvas>
                                     </div>
                                     <div class="flex gap-3">
-                                        <button onclick="clearSig()" class="flex-1 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-slate-50 border border-slate-200 transition">Clear</button>
-                                        <button onclick="submitSignature()" id="submitSigBtn" class="flex-[2] py-3 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-200 hover:bg-slate-900 transition">Sign Agreement</button>
+                                        <button onclick="clearSig()" class="flex-1 px-4 py-2 rounded-md border border-slate-200 bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all">Clear</button>
+                                        <button onclick="submitSignature()" id="submitSigBtn" class="flex-[2] px-4 py-2 bg-indigo-600 text-white rounded-md font-bold text-sm hover:bg-indigo-700 active:scale-[.98] transition-all disabled:bg-slate-300 disabled:cursor-not-allowed">Sign Agreement</button>
                                     </div>
                                     <details class="mt-6">
                                         <summary class="cursor-pointer text-xs text-rose-600 hover:underline font-semibold">Decline this agreement</summary>
                                         <div class="mt-3 p-4 bg-rose-50 rounded-lg border border-rose-100">
-                                            <label class="block text-[10px] font-black text-rose-700 uppercase tracking-widest mb-2">Reason (optional)</label>
+                                            <label class="block text-[10px] font-bold text-rose-700 uppercase tracking-widest mb-2">Reason (optional)</label>
                                             <textarea id="declineReason" rows={3} class="w-full px-3 py-2 rounded-lg border border-rose-200 text-sm" placeholder="Let the inspector know why..."></textarea>
-                                            <button type="button" onclick="declineAgreement()" id="declineBtn" class="mt-3 px-5 py-2 rounded-xl bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition">Decline Agreement</button>
+                                            <button type="button" onclick="declineAgreement()" id="declineBtn" class="mt-3 px-5 py-2 rounded-xl bg-rose-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-rose-700 transition">Decline Agreement</button>
                                         </div>
                                     </details>
                                 </div>

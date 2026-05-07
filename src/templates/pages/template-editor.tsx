@@ -15,9 +15,9 @@ const EDITOR_CSS = `
 .icon-picker-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .icon-btn { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px; cursor: pointer; transition: all 0.15s; border: 2px solid transparent; }
 .icon-btn:hover { background: #eef4ff; border-color: #bcd2ff; }
-.icon-btn.active { background: #eef4ff; border-color: #4a72ff; }
+.icon-btn.active { background: #eef4ff; border-color: var(--ih-primary, #6366f1); }
 [x-cloak] { display: none !important; }
-.section-accent { border-left: 3px solid var(--section-color, #4a72ff); }
+.section-accent { border-left: 3px solid var(--section-color, var(--ih-primary, #6366f1)); }
 .rating-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 input:focus, textarea:focus, select:focus { outline: none; box-shadow: 0 0 0 3px rgba(74, 114, 255, 0.15); }
 `;
@@ -142,7 +142,7 @@ export const TemplateEditorPage = ({ templateId, branding }: { templateId: strin
                                                 </button>
                                                 <div x-show="showIconPicker" x-cloak {...{'@click.outside': 'showIconPicker = false'}}
                                                     x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                                                    class="absolute top-12 left-0 z-50 bg-white rounded-2xl shadow-2xl border border-surface-200 p-3 w-[280px]">
+                                                    class="absolute top-6 left-0 z-50 bg-white rounded-2xl shadow-2xl border border-surface-200 p-3 w-[280px]">
                                                     <div class="text-[10px] font-700 uppercase tracking-[0.1em] text-ink-400 mb-2 px-1">Section Icon</div>
                                                     <div class="icon-picker-grid">
                                                         <template x-for="ic in sectionIconKeys" x-bind:key="ic">
@@ -229,7 +229,7 @@ export const TemplateEditorPage = ({ templateId, branding }: { templateId: strin
                                         </div>
                                     </template>
 
-                                    <div x-show="!selectedSection.items.length" class="text-center py-20 animate-fade-in">
+                                    <div x-show="!selectedSection.items.length" class="text-center py-12 animate-fade-in">
                                         <div class="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mx-auto mb-4">
                                             <svg class="w-8 h-8 text-ink-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                                         </div>
@@ -255,7 +255,7 @@ export const TemplateEditorPage = ({ templateId, branding }: { templateId: strin
                         <template x-if="!selectedSection">
                             <div class="flex items-center justify-center h-full text-center animate-fade-in">
                                 <div>
-                                    <div class="w-24 h-24 rounded-3xl bg-surface-100 flex items-center justify-center mx-auto mb-6 rotate-3">
+                                    <div class="w-24 h-24 rounded-lg bg-surface-100 flex items-center justify-center mx-auto mb-6 rotate-3">
                                         <svg class="w-12 h-12 text-ink-300" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                     </div>
                                     <h3 class="text-xl font-display font-700 text-ink-700 mb-2">Select a Section</h3>
@@ -294,7 +294,7 @@ export const TemplateEditorPage = ({ templateId, branding }: { templateId: strin
                                         <label class="text-[10px] font-700 uppercase tracking-[0.1em] text-ink-400">Input Type</label>
                                         <select x-model="selectedItem.type" class="w-full px-3 py-2.5 text-sm font-500 rounded-xl border border-surface-200 bg-white focus:border-blueprint-500 transition-colors appearance-none"
                                             style="background-image: url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 24 24%22 stroke=%22%236b6560%22%3E%3Cpath stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 36px;">
-                                            <option value="rating">Rating (buttons)</option>
+                                            <option value="rich">Rich (rating + tabs)</option>
                                             <option value="boolean">Boolean (yes/no)</option>
                                             <option value="text">Text (single line)</option>
                                             <option value="textarea">Textarea (multi-line)</option>
@@ -432,7 +432,7 @@ export const TemplateEditorPage = ({ templateId, branding }: { templateId: strin
                     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
                     <div class="absolute inset-0 bg-ink-900/50 backdrop-blur-sm" {...{'@click': 'showRatingModal = false'}}></div>
-                    <div class="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl animate-scale-in max-h-[85vh] overflow-hidden flex flex-col">
+                    <div class="relative w-full max-w-xl bg-white rounded-lg shadow-2xl animate-scale-in max-h-[85vh] overflow-hidden flex flex-col">
                         <div class="px-8 pt-8 pb-4 border-b border-surface-100">
                             <h3 class="text-2xl font-display font-700 text-ink-900">Rating System</h3>
                             <p class="text-sm text-ink-400 mt-1">Configure the rating levels for this template</p>

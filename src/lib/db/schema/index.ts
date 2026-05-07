@@ -20,6 +20,10 @@ export {
 export { contacts } from './contact';
 export { recommendations } from './recommendation';
 export { invoices } from './invoice';
-export { marketplaceTemplates, tenantMarketplaceImports } from './marketplace';
+export { marketplaceTemplates, tenantMarketplaceImports, marketplaceLibraries, tenantLibraryImports } from './marketplace';
 export { customerMessages } from './message';
 export type { MessageAttachment } from './message';
+export { reportPdfs } from './report-pdf';
+export type { ReportPdf, NewReportPdf } from './report-pdf';
+export { signingKeys, esignAuditLogs } from './esign';
+export type { SigningKey, NewSigningKey, EsignAuditLog, NewEsignAuditLog } from './esign';

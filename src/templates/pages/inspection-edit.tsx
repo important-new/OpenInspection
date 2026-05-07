@@ -17,8 +17,9 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       <>
         <link rel="stylesheet" href="/fonts.css" />
         <style dangerouslySetInnerHTML={{ __html: `
-          body { font-family: 'DM Sans', system-ui, sans-serif; }
-          .font-heading { font-family: 'Bricolage Grotesque', system-ui, sans-serif; }
+          /* R41 (2026-05-07) — inspection editor migrated to v3 indigo/slate.
+             Inter is the page body font (inherited from main-layout); JetBrains
+             Mono used for item numbers + progress counters. */
           .font-mono { font-family: 'JetBrains Mono', monospace; }
           .hide-scrollbar::-webkit-scrollbar { display: none; }
           .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -31,12 +32,22 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       <div
         x-data={`inspectionEditor('${inspectionId}')`}
         class="min-h-screen"
-        style="background: #faf9f7; background-image: radial-gradient(circle, #d5d0c8 0.6px, transparent 0.6px); background-size: 20px 20px;"
+        style="background: #f8fafc; background-image: radial-gradient(circle, #cbd5e1 0.6px, transparent 0.6px); background-size: 20px 20px;"
       >
+        {/* Spec 5G M1.1 — Global hotkey photo input. P key triggers .click()
+            on this hidden input; uploadPhoto reads activeItemId. */}
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          class="hidden"
+          id="hotkey-photo-input"
+          x-on:change="if (activeItemId) { uploadPhoto(activeItemId, $event); $event.target.value = ''; }"
+        />
         {/* P2 — AI Suggest Comment popover (shared scope with inspectionEditor) */}
         <div x-cloak x-show="showAiPopover" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div {...{ 'x-on:click.stop': '$event' }}
-               class="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4"
+               class="w-full max-w-md bg-white rounded-lg shadow-2xl p-6 space-y-4"
                {...{ 'x-transition:enter': 'transition ease-out duration-150', 'x-transition:enter-start': 'opacity-0 scale-95', 'x-transition:enter-end': 'opacity-100 scale-100' }}>
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
@@ -62,24 +73,24 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
         {/* ===== Mobile View ===== */}
         <div x-show="!isDesktop" class="lg:hidden">
           {/* Sticky Header */}
-          <div class="sticky top-0 z-50" style="background: rgba(255,253,250,0.82); backdrop-filter: blur(16px) saturate(1.5); border-bottom: 1px solid rgba(232,228,221,0.5);">
+          <div class="sticky top-0 z-50" style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border-bottom: 1px solid rgba(226,232,240,0.6);">
             <div class="px-4 py-3 flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <a href="/dashboard" class="w-8 h-8 rounded-xl bg-white/60 flex items-center justify-center">
                   <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 </a>
                 <div>
-                  <h1 class="text-sm font-bold leading-tight" style="color: #1a1815" x-text="inspection.propertyAddress || 'Loading...'"></h1>
-                  <p class="text-[10px] font-mono" style="color: #b0aaa3" x-text="formattedDate"></p>
+                  <h1 class="text-sm font-bold leading-tight" style="color: #0f172a" x-text="inspection.propertyAddress || 'Loading...'"></h1>
+                  <p class="text-[10px] font-mono" style="color: #cbd5e1" x-text="formattedDate"></p>
                 </div>
               </div>
               <div class="flex items-center gap-2">
                 <span x-show="saveState === 'saving'" x-cloak class="text-[10px] font-semibold text-amber-500">Saving...</span>
                 <span x-show="saveState === 'saved'" x-cloak class="text-[10px] font-semibold text-emerald-500">Saved</span>
                 <span x-show="saveState === 'error'" x-cloak class="text-[10px] font-semibold text-red-500">Error</span>
-                <span class="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style="background: #eef4ff; color: #4a72ff" x-text="completionPercent + '%'"></span>
-                <button x-on:click="showMenu = !showMenu" class="w-8 h-8 rounded-xl bg-white/60 flex items-center justify-center">
-                  <svg class="w-4 h-4" style="color: #6b6560" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01" /></svg>
+                <span class="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style="background: #eef2ff; color: var(--ih-primary, #6366f1)" x-text="completionPercent + '%'"></span>
+                <button x-on:click="toggleCheatsheet()" class="w-8 h-8 rounded-xl bg-white/60 flex items-center justify-center" aria-label="Gesture help">
+                  <svg class="w-4 h-4" style="color: #64748b" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093M12 17h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </button>
               </div>
             </div>
@@ -91,7 +102,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   x-on:click="selectSection(idx)"
                   class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap"
                   x-bind:class="currentSectionIdx === idx ? 'text-white' : 'bg-white/60 text-gray-600'"
-                  x-bind:style="currentSectionIdx === idx ? 'background: #4a72ff' : ''"
+                  x-bind:style="currentSectionIdx === idx ? 'background: var(--ih-primary, #6366f1)' : ''"
                 >
                   <span x-show="getSectionIconSvg(sec.icon)" x-html="getSectionIconSvg(sec.icon, 'w-3.5 h-3.5')"></span>
                   <span x-show="!getSectionIconSvg(sec.icon)" class="text-[10px] font-bold" x-text="(sec.title || '').charAt(0)"></span>
@@ -104,18 +115,45 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
             </div>
           </div>
 
+          {/* Round 32 — one-time gesture hint surfaces R23 swipe nav.
+              Auto-dismisses on first successful swipe; tap × to dismiss
+              manually. Persisted via localStorage `oi:swipeHint`. */}
+          <div
+            x-show="!swipeHintDismissed && sections.length > 1"
+            x-cloak
+            {...{ 'x-transition.opacity': '' }}
+            class="mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium"
+            style="background: rgba(99,102,241,0.08); color: var(--ih-primary, #6366f1); border: 1px solid rgba(99,102,241,0.18)"
+          >
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7l-4 4m0 0l4 4m-4-4h16" />
+            </svg>
+            <span class="flex-1">Swipe left or right to switch sections</span>
+            <button x-on:click="dismissSwipeHint()" class="w-5 h-5 rounded-md flex items-center justify-center hover:bg-white/40" aria-label="Dismiss tip">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
           {/* Item Cards */}
           <div class="px-4 py-4 space-y-3 pb-24">
             <template x-for="item in currentSectionItems" x-bind:key="item.id">
               <div
-                class="rounded-2xl p-4 transition-all"
-                style="background: rgba(255,253,250,0.82); backdrop-filter: blur(16px) saturate(1.5); border: 1px solid rgba(255,255,255,0.7); border-left: 3px solid transparent;"
-                x-bind:style="'border-left-color:' + getRatingColor(getItemRating(item.id))"
+                x-bind:data-item-id="item.id"
+                class="rounded-2xl p-4 transition-all cursor-pointer"
+                style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border: 1px solid rgba(255,255,255,0.7); border-left: 3px solid transparent; touch-action: manipulation;"
+                x-bind:style="(activeItemId === item.id ? 'border-color: #6366f1; ' : '') + 'border-left-color: ' + getRatingColor(getItemRating(item.id))"
+                x-bind:class="activeItemId === item.id ? 'ring-2 ring-indigo-100' : ''"
+                x-on:click="setActiveItem(item.id)"
+                x-on:touchstart="onItemTouchStart(item.id, $event)"
+                x-on:touchmove="onItemTouchMove($event)"
+                x-on:touchend="onItemTouchEnd(item.id)"
               >
                 <div class="flex items-start justify-between mb-3">
                   <div>
-                    <h3 class="font-bold text-sm font-heading" style="color: #1a1815" x-text="item.label"></h3>
-                    <span class="text-[10px] font-mono" style="color: #b0aaa3" x-text="item.number"></span>
+                    <h3 class="font-bold text-sm" style="color: #0f172a" x-text="item.label"></h3>
+                    <span class="text-[10px] font-mono" style="color: #cbd5e1" x-text="item.number"></span>
                   </div>
                   <span class="w-3 h-3 rounded-full" x-bind:style="'background:' + getRatingColor(getItemRating(item.id))"></span>
                 </div>
@@ -123,22 +161,24 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 {/* Rating Buttons — `data-rating-row` is the anchor target the
                     onboarding overlay (T6 / step 0) highlights so the user
                     knows which buttons the tour is talking about. */}
+                {/* Spec 5G mobile field-flow (Round 12) — 44px+ tap target on
+                    mobile per Apple HIG; desktop keeps compact 28px height. */}
                 <div data-rating-row class="flex flex-wrap gap-1.5 mb-3">
                   <template x-for="level in ratingLevels" x-bind:key="level.id">
                     <button
                       x-on:click="setRating(item.id, level.id)"
                       x-bind:title="level.description ? level.label + ' — ' + level.description : level.label"
                       x-bind:aria-label="level.label"
-                      class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
+                      class="px-4 py-2.5 min-h-[44px] lg:min-h-0 lg:px-3 lg:py-1.5 text-sm lg:text-xs font-semibold rounded-lg border transition-all"
                       x-bind:class="getItemRating(item.id) === level.id ? 'text-white border-transparent' : 'text-gray-400 hover:text-gray-600'"
-                      x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e8e4dd'"
+                      x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e2e8f0'"
                       x-text="level.abbreviation"
                     ></button>
                   </template>
                 </div>
 
                 {/* Expand Toggle */}
-                <div class="flex items-center gap-3 text-xs" style="color: #908a83">
+                <div class="flex items-center gap-3 text-xs" style="color: #94a3b8">
                   <button x-on:click="toggleExpand(item.id)" class="flex items-center gap-1 hover:text-gray-700">
                     <svg class="w-3 h-3 transition-transform" x-bind:class="expanded[item.id] ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                     <span x-text="expanded[item.id] ? 'Collapse' : 'Expand'"></span>
@@ -148,7 +188,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 </div>
 
                 {/* Expanded Detail */}
-                <div x-show="expanded[item.id]" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(232,228,221,0.5)">
+                <div x-show="expanded[item.id]" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(226,232,240,0.6)">
                   <div class="relative">
                     <textarea
                       x-bind:id="'notes-mob-' + item.id"
@@ -156,23 +196,23 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                       x-on:input="debounceSave()"
                       placeholder="Add notes..."
                       class="w-full p-3 text-sm rounded-xl border resize-none"
-                      style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
+                      style="background: #f1f5f9; border-color: #e2e8f0; color: #0f172a"
                       rows={3}
                     ></textarea>
                     <button type="button"
                       x-bind:data-mic-target="'notes-mob-' + item.id"
                       x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
-                      class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-surface-200 flex items-center justify-center hover:bg-white"
+                      class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-white"
                       title="Dictate (Web Speech)"
                       aria-label="Dictate notes">
-                      <svg class="w-3.5 h-3.5 text-ink-500" fill="currentColor" viewBox="0 0 24 24">
+                      <svg class="w-3.5 h-3.5 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
                         <path d="M19 11h-1.7c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72z"/>
                       </svg>
                     </button>
                   </div>
                   <div class="mt-2 flex gap-2 flex-wrap">
-                    <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef4ff; color: #4a72ff">
+                    <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       Camera
                       <input type="file" accept="image/*" capture="environment" class="hidden" x-on:change="uploadPhoto(item.id, $event)" />
@@ -189,10 +229,114 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                       Suggest
                     </button>
                   </div>
+
+                  {/* Spec 5B mobile — Canned Comment Tabs (compact). */}
+                  <div x-show="item.tabs && (item.tabs.information || item.tabs.limitations || item.tabs.defects)" class="mt-4 rounded-xl border" style="border-color: #e2e8f0; background: rgba(255,255,255,0.6);">
+                    <div class="flex items-center gap-1 px-2 py-1.5 border-b overflow-x-auto" style="border-color: #e2e8f0;">
+                      <template x-for="tabName in ['information','limitations','defects']" x-bind:key="tabName">
+                        <button type="button"
+                          x-on:click="setActiveItemTab(tabName); activeItemId = item.id"
+                          x-bind:class="(activeItemTab === tabName && activeItemId === item.id) ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                          class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase capitalize">
+                          <span x-text="tabName"></span>
+                          <span class="text-[10px] font-mono opacity-80"
+                            x-text="tabBadgeCount(item.id, tabName) + '/' + tabBadgeTotal(item.id, tabName)"></span>
+                        </button>
+                      </template>
+                    </div>
+                    <div class="p-2 space-y-2">
+                      <template x-for="entry in getTabEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information'))" x-bind:key="entry.cannedId">
+                        <div class="rounded-lg border p-2"
+                          x-bind:class="entry.included ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'">
+                          <label class="flex items-start gap-2 cursor-pointer">
+                            <input type="checkbox"
+                              x-bind:checked="entry.included"
+                              x-on:change="toggleCannedComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId)"
+                              class="mt-1 rounded text-indigo-600" />
+                            <div class="flex-1 min-w-0">
+                              <span class="text-xs font-bold text-slate-900" x-text="entry.title"></span>
+                              <p x-show="!entry.included" class="text-[11px] italic text-slate-500 line-clamp-2 mt-0.5" x-text="entry.comment"></p>
+                              <textarea x-show="entry.included"
+                                x-bind:value="entry.effectiveComment"
+                                x-on:input="setCannedCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId, $event.target.value)"
+                                rows={2}
+                                class="mt-1 w-full px-2 py-1.5 text-[12px] rounded border bg-white resize-y"
+                                style="border-color: #e2e8f0"></textarea>
+                              {/* Spec 5B P2B — AI Rewrite (mobile). */}
+                              <div x-show="entry.included" class="mt-1 flex justify-end">
+                                <button type="button"
+                                  {...{ 'x-on:click.stop.prevent': 'rewriteCannedComment(item.id, (activeItemId === item.id ? activeItemTab : "information"), entry.cannedId, $event)' }}
+                                  class="text-[10px] font-bold text-amber-700 px-1.5 py-0.5 rounded hover:bg-amber-50">
+                                  ✨ Rewrite
+                                </button>
+                              </div>
+                            </div>
+                          </label>
+                        </div>
+                      </template>
+                      <p x-show="getTabEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information')).length === 0 && getCustomEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information')).length === 0"
+                         class="text-[11px] italic text-slate-400 text-center py-2">
+                        No canned comments in this tab.
+                      </p>
+                      {/* Spec 5B P2B — Custom comments (mobile). */}
+                      <template x-for="custom in getCustomEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information'))" x-bind:key="custom.id">
+                        <div class="rounded-lg border-2 border-dashed p-2 bg-amber-50/40" style="border-color: #fcd34d">
+                          <div class="flex items-start gap-1.5">
+                            <span class="mt-0.5 text-[8px] font-bold uppercase text-amber-700 bg-amber-100 px-1 py-0.5 rounded">Custom</span>
+                            <div class="flex-1 min-w-0 space-y-1">
+                              <input type="text"
+                                x-bind:value="custom.title"
+                                x-on:input="setCustomCommentTitle(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
+                                placeholder="Title"
+                                class="w-full px-1.5 py-0.5 text-[11px] font-bold rounded border bg-white"
+                                style="border-color: #e2e8f0" />
+                              <textarea
+                                x-bind:value="custom.comment"
+                                x-on:input="setCustomCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
+                                rows={2}
+                                class="w-full px-1.5 py-1 text-[11px] rounded border bg-white resize-y"
+                                style="border-color: #e2e8f0"
+                                placeholder="Comment..."></textarea>
+                              <template x-if="(activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
+                                <div class="grid grid-cols-2 gap-1.5">
+                                  <input type="text"
+                                    x-bind:value="custom.location || ''"
+                                    x-on:input="setCustomCommentLocation(item.id, custom.id, $event.target.value)"
+                                    placeholder="Location"
+                                    class="w-full px-1.5 py-0.5 text-[10px] rounded border bg-white"
+                                    style="border-color: #e2e8f0" />
+                                  <select
+                                    x-bind:value="custom.category || 'maintenance'"
+                                    x-on:change="setCustomCommentCategory(item.id, custom.id, $event.target.value)"
+                                    class="w-full px-1.5 py-0.5 text-[10px] rounded border bg-white"
+                                    style="border-color: #e2e8f0">
+                                    <option value="maintenance">Maintenance</option>
+                                    <option value="recommendation">Recommendation</option>
+                                    <option value="safety">Safety</option>
+                                  </select>
+                                </div>
+                              </template>
+                            </div>
+                            <button type="button"
+                              x-on:click="removeCustomComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id)"
+                              class="text-rose-500 px-1 text-xs font-bold"
+                              title="Delete">×</button>
+                          </div>
+                        </div>
+                      </template>
+                      <button type="button"
+                        x-on:click="addCustomComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'))"
+                        class="w-full mt-1 py-1 text-[10px] font-bold rounded-lg border-2 border-dashed text-slate-500 hover:bg-white/60"
+                        style="border-color: #e2e8f0">
+                        + Add custom comment
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
                   <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-3 gap-2">
                     <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
-                      <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e8e4dd;">
+                      <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e2e8f0;">
                         <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
                           class="w-full h-full object-cover" alt="Photo" />
                         <button type="button"
@@ -233,48 +377,90 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
           </section>
 
           {/* Bottom Bar */}
-          <div class="fixed bottom-0 left-0 right-0 z-40 px-4 py-3 flex gap-3" style="background: rgba(255,253,250,0.90); backdrop-filter: blur(16px); border-top: 1px solid rgba(232,228,221,0.5);">
-            <button x-on:click="previewReport()" class="flex-1 py-3 text-sm font-semibold rounded-xl border" style="border-color: #e8e4dd; color: #46423c">Preview</button>
+          {/* Spec 5G mobile field-flow (Round 12) — pad-bottom honors iOS
+              safe-area (home indicator) so Publish never sits under it. */}
+          <div class="fixed bottom-0 left-0 right-0 z-40 px-4 pt-3 flex gap-3" style="background: rgba(255,255,255,0.90); backdrop-filter: blur(16px); border-top: 1px solid rgba(226,232,240,0.6); padding-bottom: max(12px, env(safe-area-inset-bottom));">
+            <button x-on:click="previewReport()" class="flex-1 min-h-[44px] py-3 text-sm font-semibold rounded-xl border" style="border-color: #e2e8f0; color: #475569">Preview</button>
             <button
               x-on:click="showPublishModal = true"
               x-bind:disabled="completionPercent < 100"
-              class="flex-1 py-3 text-sm font-bold rounded-xl text-white disabled:opacity-40"
-              style="background: #4a72ff"
+              class="flex-1 min-h-[44px] py-3 text-sm font-bold rounded-xl text-white disabled:opacity-40"
+              style="background: #4f46e5"
             >Publish</button>
+          </div>
+
+          {/* Round 33 — Quick Rating Sheet (long-press fires this).
+              Bottom-sheet with large rating buttons. Tap a level → applies +
+              closes. Tap backdrop → close without change. */}
+          <div
+            x-show="showQuickRating"
+            x-cloak
+            class="fixed inset-0 z-[60] flex items-end"
+            {...{ 'x-on:click.self': 'closeQuickRating()' }}
+            style="background: rgba(0,0,0,0.4)"
+          >
+            <div class="w-full rounded-t-3xl p-5 pb-8" style="background: #ffffff; box-shadow: 0 -8px 32px rgba(0,0,0,0.15)">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-bold" style="color: #0f172a">Quick Rate</h3>
+                <button x-on:click="closeQuickRating()" class="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center" aria-label="Close">
+                  <svg class="w-4 h-4" style="color: #64748b" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <template x-for="level in ratingLevels" x-bind:key="level.id">
+                  <button
+                    x-on:click="setQuickRating(level.id)"
+                    class="px-4 py-4 rounded-xl text-sm font-semibold text-white border transition-all"
+                    x-bind:style="'background:' + level.color + '; border-color: transparent'"
+                  >
+                    <span x-text="level.label"></span>
+                  </button>
+                </template>
+                <button
+                  x-on:click="setQuickRating(null)"
+                  class="col-span-2 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 border"
+                  style="background: #f1f5f9; border-color: #e2e8f0"
+                >
+                  Clear rating
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* ===== Desktop View ===== */}
         <div x-show="isDesktop" class="hidden lg:flex min-h-screen">
-          {/* Left Sidebar */}
-          <aside class="w-[220px] sticky top-0 h-screen flex-shrink-0 flex flex-col border-r overflow-y-auto" style="background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-color: rgba(232,228,221,0.5);">
-            <div class="px-5 pt-6 pb-4 border-b" style="border-color: rgba(232,228,221,0.4)">
-              <a href="/dashboard" class="flex items-center gap-2 text-xs mb-3 hover:text-blue-600 transition-colors" style="color: #908a83">
+          {/* Left Sidebar — hidden in focus mode (⌘2) */}
+          <aside x-show="viewMode !== 'focus'" class="w-[220px] sticky top-0 h-screen flex-shrink-0 flex flex-col border-r overflow-y-auto" style="background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6);">
+            <div class="px-5 pt-6 pb-4 border-b" style="border-color: rgba(226,232,240,0.5)">
+              <a href="/dashboard" class="flex items-center gap-2 text-xs mb-3 hover:text-indigo-600 transition-colors" style="color: #94a3b8">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 Dashboard
               </a>
-              <h2 class="text-sm font-bold font-heading" style="color: #1a1815" x-text="inspection.propertyAddress || 'Loading...'"></h2>
-              <p class="text-[10px] font-mono mt-1" style="color: #b0aaa3" x-text="formattedDate"></p>
+              <h2 class="text-sm font-bold" style="color: #0f172a" x-text="inspection.propertyAddress || 'Loading...'"></h2>
+              <p class="text-[10px] font-mono mt-1" style="color: #cbd5e1" x-text="formattedDate"></p>
             </div>
-            <div class="px-5 py-3">
-              <div class="flex justify-between text-[10px] font-mono mb-1" style="color: #908a83">
-                <span>Progress</span>
+            {/* R7-20: surface what the progress bar measures so inspectors
+                stop wondering how it's computed. */}
+            <div class="px-5 py-3" title="Percent of inspection items that have a rating set (Sat / Mon / Defect / NI / NP).">
+              <div class="flex justify-between text-[10px] font-mono mb-1" style="color: #94a3b8">
+                <span>Progress · items rated</span>
                 <span x-text="completionPercent + '%'"></span>
               </div>
-              <div class="h-1.5 rounded-full" style="background: #e8e4dd">
-                <div class="h-full rounded-full transition-all duration-500" x-bind:style="'width:' + completionPercent + '%; background: #4a72ff'"></div>
+              <div class="h-1.5 rounded-full" style="background: #e2e8f0">
+                <div class="h-full rounded-full transition-all duration-500" x-bind:style="'width:' + completionPercent + '%; background: var(--ih-primary, #6366f1)'"></div>
               </div>
-              <div class="mt-2 text-[10px] font-mono" style="color: #908a83">
+              <div class="mt-2 text-[10px] font-mono" style="color: #94a3b8">
                 <span x-show="saveState === 'saving'" x-cloak class="text-amber-500">Saving...</span>
                 <span x-show="saveState === 'saved'" x-cloak class="text-emerald-500">All changes saved</span>
                 <span x-show="saveState === 'error'" x-cloak class="text-red-500">Save failed</span>
               </div>
             </div>
             {/* Report Access */}
-            <div class="px-4 py-3 border-t space-y-2" style="border-color: rgba(232,228,221,0.4)">
-              <div class="text-[10px] font-mono font-semibold uppercase tracking-wide mb-2" style="color: #908a83">Report Access</div>
+            <div class="px-4 py-3 border-t space-y-2" style="border-color: rgba(226,232,240,0.5)">
+              <div class="text-[10px] font-mono font-semibold uppercase tracking-wide mb-2" style="color: #94a3b8">Report Access</div>
               <label class="flex items-center justify-between cursor-pointer">
-                <span class="text-xs" style="color: #46423c">Require Payment</span>
+                <span class="text-xs" style="color: #475569">Require Payment</span>
                 <button
                   x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentRequired:!inspection.paymentRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.paymentRequired=!inspection.paymentRequired; })`}
                   x-bind:class="inspection.paymentRequired ? 'bg-indigo-500' : 'bg-slate-200'"
@@ -284,7 +470,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 </button>
               </label>
               <label class="flex items-center justify-between cursor-pointer">
-                <span class="text-xs" style="color: #46423c">Require Agreement</span>
+                <span class="text-xs" style="color: #475569">Require Agreement</span>
                 <button
                   x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({agreementRequired:!inspection.agreementRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.agreementRequired=!inspection.agreementRequired; })`}
                   x-bind:class="inspection.agreementRequired ? 'bg-indigo-500' : 'bg-slate-200'"
@@ -293,19 +479,57 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   <span x-bind:class="inspection.agreementRequired ? 'translate-x-3' : 'translate-x-0.5'" class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform" />
                 </button>
               </label>
-              <div class="mt-2">
-                <label class="block text-[10px] font-mono font-semibold uppercase tracking-wide mb-1" style="color: #908a83">Report Theme Override</label>
-                <select
-                  x-bind:value="inspection.reportThemeOverride || ''"
-                  x-on:change={`const v=$event.target.value||null;authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({reportThemeOverride:v})}).then(r=>r.json()).then(d=>{if(d.success)inspection.reportThemeOverride=v;});`}
-                  class="w-full px-2 py-1 text-xs border rounded bg-white"
-                  style="border-color: rgba(232,228,221,0.6); color: #46423c"
+              {/* Spec 5H P2 — Agreement Status badge: shows latest signing request state for this inspection */}
+              <div x-show="inspection.agreementRequired"
+                   x-data={`{ req: null, async load() { try { const r = await authFetch('/api/admin/agreements/requests'); const j = await r.json(); const all = j.data?.requests || []; this.req = all.find(x => x.inspectionId === '${inspectionId}') || null; } catch(_) {} } }`}
+                   x-init="load()"
+                   class="mt-2">
+                <template x-if="req">
+                  <a x-bind:href="'/verify/' + req.id" target="_blank" class="block rounded-lg border p-2 transition hover:shadow-sm"
+                     x-bind:style="req.status === 'signed' ? 'border-color:#a7f3d0; background:#ecfdf5' : (req.status === 'declined' ? 'border-color:#fecaca; background:#fef2f2' : (req.status === 'viewed' ? 'border-color:#bfdbfe; background:#eff6ff' : 'border-color:#fde68a; background:#fffbeb'))">
+                    <div class="flex items-center justify-between">
+                      <span class="text-[10px] font-bold uppercase tracking-wide"
+                            x-bind:style="req.status === 'signed' ? 'color:#15803d' : (req.status === 'declined' ? 'color:#b91c1c' : (req.status === 'viewed' ? 'color:#1d4ed8' : 'color:#b45309'))"
+                            x-text="req.status"></span>
+                      <span class="text-[9px] text-slate-400" x-text="req.signedAt ? new Date(req.signedAt).toLocaleDateString() : (req.sentAt ? 'sent ' + new Date(req.sentAt).toLocaleDateString() : '')"></span>
+                    </div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">Verify → opens public chain</div>
+                  </a>
+                </template>
+                <template x-if="!req">
+                  <p class="text-[10px] italic text-slate-400 px-1">No signing request sent yet</p>
+                </template>
+              </div>
+              {/* R7-19 fix: Theme Override is rare per-inspection use. Collapse
+                  by default; only expanded if a non-default theme is already set
+                  or the inspector clicks "Advanced". Keeps Spectora-style focus
+                  on common per-inspection actions (Require Payment / Agreement). */}
+              <div class="mt-2" x-data={`{ open: !!inspection.reportThemeOverride }`}>
+                <button
+                  type="button"
+                  x-on:click="open = !open"
+                  class="flex items-center gap-1 text-[10px] font-mono font-semibold uppercase tracking-wide hover:underline"
+                  style="color: #94a3b8"
+                  title="Override the default report theme for this inspection only"
                 >
-                  <option value="">Use tenant default</option>
-                  <option value="modern">Modern</option>
-                  <option value="classic">Classic</option>
-                  <option value="minimal">Minimal</option>
-                </select>
+                  <svg class="w-2.5 h-2.5 transition-transform" x-bind:class="open ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                  <span>Advanced</span>
+                  <span x-show="!open && inspection.reportThemeOverride" class="text-[9px] font-bold ml-1 px-1 rounded" style="background: #f1f5f9; color: #475569" x-text="inspection.reportThemeOverride"></span>
+                </button>
+                <div x-show="open" class="mt-2">
+                  <label class="block text-[10px] font-mono font-semibold uppercase tracking-wide mb-1" style="color: #94a3b8">Report Theme Override</label>
+                  <select
+                    x-bind:value="inspection.reportThemeOverride || ''"
+                    x-on:change={`const v=$event.target.value||null;authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({reportThemeOverride:v})}).then(r=>r.json()).then(d=>{if(d.success)inspection.reportThemeOverride=v;});`}
+                    class="w-full px-2 py-1 text-xs border rounded bg-white"
+                    style="border-color: rgba(226,232,240,0.6); color: #475569"
+                  >
+                    <option value="">Use tenant default</option>
+                    <option value="modern">Modern</option>
+                    <option value="classic">Classic</option>
+                    <option value="minimal">Minimal</option>
+                  </select>
+                </div>
               </div>
               <div class="mt-1">
                 <span x-show="inspection.paymentStatus === 'paid'" class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background: #dcfce7; color: #16a34a">Paid</span>
@@ -319,10 +543,10 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                   x-bind:disabled="copying"
                   x-text="copying ? 'Generating...' : 'Share with Agent'"
                   class="text-xs px-3 py-1.5 rounded-lg font-semibold w-full text-left"
-                  style="background: #f1ede8; color: #46423c"
+                  style="background: #f1f5f9; color: #475569"
                 />
                 <div x-show="agentUrl" class="flex items-center gap-1 mt-1">
-                  <input x-bind:value="agentUrl" readonly class="flex-1 text-[10px] border rounded px-2 py-1 bg-white" style="border-color: rgba(232,228,221,0.6)" />
+                  <input x-bind:value="agentUrl" readonly class="flex-1 text-[10px] border rounded px-2 py-1 bg-white" style="border-color: rgba(226,232,240,0.6)" />
                   <button x-on:click="navigator.clipboard.writeText(agentUrl)" class="text-[10px] px-2 py-1 rounded font-bold" style="background: #4f46e5; color: white">Copy</button>
                 </div>
                 <div x-show="agentErr" x-text="agentErr" class="text-[10px] mt-1" style="color: #dc2626" />
@@ -338,18 +562,20 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                     bedrooms: inspection.bedrooms || '',
                     bathrooms: inspection.bathrooms || '',
                     unit: inspection.unit || '',
-                    county: inspection.county || ''
+                    /* Spec 5D — auto-fill county from geocoded place
+                       when user hasn't manually overridden. */
+                    county: inspection.county || inspection.addressCounty || ''
                 }`}
                 class="px-4 py-3 border-t space-y-2"
-                style="border-color: rgba(232,228,221,0.4)"
+                style="border-color: rgba(226,232,240,0.5)"
             >
                 <div class="flex items-center justify-between">
-                    <div class="text-[10px] font-mono font-semibold uppercase tracking-wide" style="color: #908a83">Property Info</div>
-                    <button x-show="!editing" x-on:click="editing=true" class="text-[10px] text-blue-600 font-semibold">Edit</button>
+                    <div class="text-[10px] font-mono font-semibold uppercase tracking-wide" style="color: #94a3b8">Property Info</div>
+                    <button x-show="!editing" x-on:click="editing=true" class="text-[10px] text-indigo-600 font-semibold">Edit</button>
                     <div x-show="editing" class="flex gap-1">
                         <button
                             x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({yearBuilt:fields.yearBuilt?parseInt(fields.yearBuilt):null,sqft:fields.sqft?parseInt(fields.sqft):null,foundationType:fields.foundationType||null,bedrooms:fields.bedrooms?parseInt(fields.bedrooms):null,bathrooms:fields.bathrooms?parseFloat(fields.bathrooms):null,unit:fields.unit||null,county:fields.county||null})}).then(r=>r.json()).then(d=>{if(d.success){Object.assign(inspection,{yearBuilt:fields.yearBuilt?parseInt(fields.yearBuilt):null,sqft:fields.sqft?parseInt(fields.sqft):null,foundationType:fields.foundationType||null,bedrooms:fields.bedrooms?parseInt(fields.bedrooms):null,bathrooms:fields.bathrooms?parseFloat(fields.bathrooms):null,unit:fields.unit||null,county:fields.county||null});editing=false;}})`}
-                            class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-md font-semibold"
+                            class="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-md font-semibold"
                         >Save</button>
                         <button x-on:click="editing=false" class="text-[10px] text-slate-400">×</button>
                     </div>
@@ -365,14 +591,14 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                     ].map(({ key, label, type }) => (
                         <div key={key}>
                             <div class="text-[9px] font-mono uppercase text-slate-400">{label}</div>
-                            <div x-show="!editing" class="font-semibold" style="color: #1a1815" x-text={`fields.${key} || '—'`} />
+                            <div x-show="!editing" class="font-semibold" style="color: #0f172a" x-text={`fields.${key} || '—'`} />
                             <input x-show="editing" x-model={`fields.${key}`} type={type}
                                    class="w-full text-[11px] border border-slate-200 rounded px-1.5 py-0.5 bg-white" />
                         </div>
                     ))}
                     <div class="col-span-2">
                         <div class="text-[9px] font-mono uppercase text-slate-400">Foundation</div>
-                        <div x-show="!editing" class="font-semibold" style="color: #1a1815" x-text="fields.foundationType || '—'" />
+                        <div x-show="!editing" class="font-semibold" style="color: #0f172a" x-text="fields.foundationType || '—'" />
                         <select x-show="editing" x-model="fields.foundationType"
                                 class="w-full text-[11px] border border-slate-200 rounded px-1 py-0.5 bg-white">
                             <option value="">—</option>
@@ -389,10 +615,10 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 <button
                   x-on:click="selectSection(idx)"
                   class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all"
-                  x-bind:style="currentSectionIdx === idx ? 'background: #eef4ff; color: #4a72ff' : 'color: #6b6560'"
+                  x-bind:style="currentSectionIdx === idx ? 'background: #eef2ff; color: var(--ih-primary, #6366f1)' : 'color: #64748b'"
                 >
                   <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                    x-bind:style="currentSectionIdx === idx ? 'background: rgba(74,114,255,0.12)' : 'background: #f3f1ed'">
+                    x-bind:style="currentSectionIdx === idx ? 'background: rgba(99,102,241,0.12)' : 'background: #f1f5f9'">
                     <template x-if="getSectionIconSvg(sec.icon)">
                       <span x-html="getSectionIconSvg(sec.icon)"></span>
                     </template>
@@ -415,25 +641,32 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
           {/* Center Content */}
           <main class="flex-1 min-w-0">
             {/* Toolbar */}
-            <div class="sticky top-0 z-40 px-6 py-3 flex items-center justify-between" style="background: rgba(255,253,250,0.82); backdrop-filter: blur(16px) saturate(1.5); border-bottom: 1px solid rgba(232,228,221,0.5);">
+            <div class="sticky top-0 z-40 px-3 py-2 flex items-center justify-between" style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border-bottom: 1px solid rgba(226,232,240,0.6);">
               <div class="flex items-center gap-3">
-                <h2 class="text-2xl font-bold font-heading" style="color: #1a1815" x-text="currentSection?.title || ''"></h2>
-                <span class="text-xs font-mono px-2 py-1 rounded-lg" style="background: #f3f1ed; color: #908a83" x-text="'SECTION ' + (currentSectionIdx + 1) + '/' + sections.length"></span>
+                <h2 class="text-2xl font-bold" style="color: #0f172a" x-text="currentSection?.title || ''"></h2>
+                <span class="text-xs font-mono px-2 py-1 rounded-lg" style="background: #f1f5f9; color: #94a3b8" x-text="'SECTION ' + (currentSectionIdx + 1) + '/' + sections.length"></span>
+                {/* Spec 5G M1 — keyboard hints inline next to section title (Mockup 01) */}
+                <span class="hidden lg:flex items-center gap-1.5 text-[10px] text-slate-400 ml-2" title="Keyboard shortcuts (press ? for full HUD)">
+                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">↑↓</kbd> nav
+                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">1-3</kbd> rate
+                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">/</kbd> lib
+                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">⏎</kbd> next
+                </span>
                 <button
                   x-on:click="batchMode = !batchMode"
                   class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
-                  x-bind:style="batchMode ? 'background: #eef4ff; color: #4a72ff; border-color: #bcd2ff' : 'border-color: #e8e4dd; color: #6b6560'"
+                  x-bind:style="batchMode ? 'background: #eef2ff; color: var(--ih-primary, #6366f1); border-color: #c7d2fe' : 'border-color: #e2e8f0; color: #64748b'"
                 >Batch</button>
               </div>
               <div class="flex items-center gap-2">
-                <button x-on:click="previewReport()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl" style="color: #6b6560">
+                <button x-on:click="previewReport()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl" style="color: #64748b">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                   Preview
                 </button>
                 <button
                   x-on:click="showPublishModal = true"
                   class="flex items-center gap-2 px-5 py-2 text-sm font-bold rounded-xl text-white"
-                  style="background: #4a72ff"
+                  style="background: #4f46e5"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   Publish
@@ -442,23 +675,23 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
             </div>
 
             {/* Batch Mode Toolbar */}
-            <div x-show="batchMode" class="px-6 py-2 flex items-center gap-3 text-sm" style="background: #eef4ff; border-bottom: 1px solid #bcd2ff">
-              <span class="font-semibold" style="color: #4a72ff" x-text="'Selected ' + selectedBatchCount + '/' + currentSectionItems.length"></span>
-              <button x-on:click="batchSelectAll()" class="px-3 py-1 rounded-lg text-xs font-semibold" style="background: white; color: #4a72ff">Select All</button>
+            <div x-show="batchMode" class="px-6 py-2 flex items-center gap-3 text-sm" style="background: #eef2ff; border-bottom: 1px solid #c7d2fe">
+              <span class="font-semibold" style="color: var(--ih-primary, #6366f1)" x-text="'Selected ' + selectedBatchCount + '/' + currentSectionItems.length"></span>
+              <button x-on:click="batchSelectAll()" class="px-3 py-1 rounded-lg text-xs font-semibold" style="background: white; color: var(--ih-primary, #6366f1)">Select All</button>
               <template x-for="level in ratingLevels" x-bind:key="level.id">
-                <button x-on:click="batchSetRating(level.id)" class="px-3 py-1 rounded-lg text-xs font-semibold" style="background: white; color: #46423c" x-text="'Set ' + level.abbreviation"></button>
+                <button x-on:click="batchSetRating(level.id)" class="px-3 py-1 rounded-lg text-xs font-semibold" style="background: white; color: #475569" x-text="'Set ' + level.abbreviation"></button>
               </template>
-              <button x-on:click="batchMode = false; batchSelected = {}" class="ml-auto px-3 py-1 rounded-lg text-xs font-semibold" style="color: #6b6560">Exit</button>
+              <button x-on:click="batchMode = false; batchSelected = {}" class="ml-auto px-3 py-1 rounded-lg text-xs font-semibold" style="color: #64748b">Exit</button>
             </div>
 
             {/* Status Machine Bar */}
             <div
                 x-data="{ showCancelModal: false, cancelReason: 'client_cancelled', cancelNotes: '' }"
                 class="mx-6 mt-3 bg-white border rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
-                style="border-color: rgba(232,228,221,0.5)"
+                style="border-color: rgba(226,232,240,0.6)"
             >
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono uppercase" style="color: #908a83">Status</span>
+                    <span class="text-[10px] font-mono uppercase" style="color: #94a3b8">Status</span>
                     <span
                         x-text="(inspection.status||'').replace('_',' ').toUpperCase()"
                         x-bind:class={`{
@@ -475,23 +708,26 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                         x-show="inspection.status === 'scheduled' || inspection.status === 'draft'"
                         x-on:click={`authFetch('/api/inspections/${inspectionId}/confirm',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success)inspection.status='confirmed'})`}
                         class="text-[11px] bg-blue-600 text-white px-3 py-1 rounded-lg font-bold"
+                        title="Confirm this inspection — locks the schedule and sends client notification"
                     >Confirm</button>
                     <button
                         x-show="inspection.status !== 'cancelled' && inspection.status !== 'completed'"
                         x-on:click="showCancelModal=true"
                         class="text-[11px] border text-red-600 px-3 py-1 rounded-lg font-bold"
                         style="border-color: #fecaca; background: #fef2f2"
+                        title="Cancel this inspection — you'll be asked for a reason and refund handling"
                     >Cancel</button>
                     <button
                         x-show="inspection.status === 'cancelled'"
                         x-on:click={`authFetch('/api/inspections/${inspectionId}/uncancel',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success)inspection.status='scheduled'})`}
                         class="text-[11px] bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-bold"
+                        title="Restore this cancelled inspection back to scheduled state"
                     >Restore</button>
                 </div>
                 {/* Cancel Modal */}
                 <div x-show="showCancelModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" {...{'x-cloak': ''}}>
                     <div class="bg-white rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
-                        <h3 class="text-base font-bold mb-4" style="color: #1a1815">Cancel Inspection</h3>
+                        <h3 class="text-base font-bold mb-4" style="color: #0f172a">Cancel Inspection</h3>
                         <label class="block text-xs font-bold text-slate-600 mb-1">Reason</label>
                         <select x-model="cancelReason" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 bg-white">
                             <option value="client_cancelled">Client Cancelled</option>
@@ -593,21 +829,23 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
             <div class="p-6 grid grid-cols-2 xl:grid-cols-3 gap-4">
               <template x-for="item in currentSectionItems" x-bind:key="item.id">
                 <div
+                  x-bind:data-item-id="item.id"
                   class="rounded-2xl p-4 transition-all cursor-pointer group"
-                  style="background: rgba(255,253,250,0.82); backdrop-filter: blur(16px) saturate(1.5); border: 1px solid rgba(255,255,255,0.7);"
-                  x-bind:style="'border-top: 4px solid ' + getRatingColor(getItemRating(item.id))"
-                  x-on:click="batchMode ? toggleBatchSelect(item.id) : toggleExpand(item.id)"
+                  style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border: 1px solid rgba(255,255,255,0.7);"
+                  x-bind:style="(activeItemId === item.id ? 'border-color: #6366f1; ' : '') + 'border-top: 4px solid ' + getRatingColor(getItemRating(item.id))"
+                  x-bind:class="activeItemId === item.id ? 'ring-2 ring-indigo-100' : ''"
+                  x-on:click="batchMode ? toggleBatchSelect(item.id) : (setActiveItem(item.id), toggleExpand(item.id))"
                 >
                   <div x-show="batchMode" class="mb-2">
                     <input type="checkbox" x-bind:checked="batchSelected[item.id]" aria-label="Select item for batch rating" class="rounded" />
                   </div>
                   <div class="flex items-start justify-between mb-3">
                     <div>
-                      <h3 class="font-bold text-sm group-hover:text-blue-600 transition-colors font-heading" style="color: #1a1815" x-text="item.label"></h3>
-                      <span class="text-[10px] font-mono" style="color: #b0aaa3" x-text="item.number"></span>
+                      <h3 class="font-bold text-sm group-hover:text-indigo-600 transition-colors" style="color: #0f172a" x-text="item.label"></h3>
+                      <span class="text-[10px] font-mono" style="color: #cbd5e1" x-text="item.number"></span>
                     </div>
                     <span
-                      class="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase"
+                      class="ih-pill"
                       x-show="getItemRating(item.id)"
                       x-text="getRatingLabel(getItemRating(item.id))"
                       x-bind:style="'background:' + getRatingColor(getItemRating(item.id)) + '20; color:' + getRatingColor(getItemRating(item.id))"
@@ -622,18 +860,38 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                         x-bind:aria-label="level.label"
                         class="px-2.5 py-1 text-[10px] font-semibold rounded-lg border transition-all"
                         x-bind:class="getItemRating(item.id) === level.id ? 'text-white border-transparent' : 'text-gray-400 hover:text-gray-600'"
-                        x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e8e4dd'"
+                        x-bind:style="getItemRating(item.id) === level.id ? 'background:' + level.color + ';border-color:transparent' : 'border-color: #e2e8f0'"
                         x-text="level.abbreviation"
                       ></button>
                     </template>
                   </div>
-                  <div class="flex items-center gap-3 text-[10px] font-mono" style="color: #b0aaa3">
-                    <span x-text="getPhotoCount(item.id) + ' photos'"></span>
+                  {/* Round 39 — formerly the whole row had stopPropagation,
+                      so '0 photos / 0 notes' looked clickable but actually
+                      ate the click instead of expanding the card. Now only
+                      the camera <label> stops propagation (its hidden file
+                      <input> still opens the picker via native click); the
+                      rest of the row falls through to the parent's expand
+                      handler, and a chevron hints the card is expandable. */}
+                  <div class="flex items-center gap-3 text-[10px] font-mono" style="color: #cbd5e1">
+                    <label
+                      x-on:click="$event.stopPropagation()"
+                      class="flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition"
+                      title="Add photo to this item">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      <span x-text="getPhotoCount(item.id) + ' photos'"></span>
+                      <input type="file" accept="image/*" capture="environment" class="hidden" x-on:change="uploadPhoto(item.id, $event)" />
+                    </label>
                     <span x-text="getItemNotes(item.id) ? '1 note' : '0 notes'"></span>
+                    <svg class="w-3 h-3 ml-auto opacity-40 transition-transform"
+                         x-bind:class="expanded[item.id] ? 'rotate-180' : ''"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                         aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
 
                   {/* Expanded Detail (desktop) */}
-                  <div x-show="expanded[item.id] && !batchMode" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(232,228,221,0.5)" x-on:click="$event.stopPropagation()">
+                  <div x-show="expanded[item.id] && !batchMode" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(226,232,240,0.6)" x-on:click="$event.stopPropagation()">
                     <div class="relative">
                       <textarea
                         x-bind:id="'notes-dsk-' + item.id"
@@ -641,23 +899,23 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                         x-on:input="debounceSave()"
                         placeholder="Add notes..."
                         class="w-full p-3 text-sm rounded-xl border resize-none"
-                        style="background: #f3f1ed; border-color: #e8e4dd; color: #1a1815"
+                        style="background: #f1f5f9; border-color: #e2e8f0; color: #0f172a"
                         rows={3}
                       ></textarea>
                       <button type="button"
                         x-bind:data-mic-target="'notes-dsk-' + item.id"
                         x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
-                        class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-surface-200 flex items-center justify-center hover:bg-white"
+                        class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-white"
                         title="Dictate (Web Speech)"
                         aria-label="Dictate notes">
-                        <svg class="w-3.5 h-3.5 text-ink-500" fill="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-3.5 h-3.5 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
                           <path d="M19 11h-1.7c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72z"/>
                         </svg>
                       </button>
                     </div>
                     <div class="mt-2 flex gap-2 flex-wrap">
-                      <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef4ff; color: #4a72ff">
+                      <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         Camera
                         <input type="file" accept="image/*" class="hidden" x-on:change="uploadPhoto(item.id, $event)" />
@@ -674,10 +932,163 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                         Suggest
                       </button>
                     </div>
+
+                    {/* Spec 5B — Canned Comment Tabs (Information / Limitations / Defects).
+                        Only render for v2 'rich' items that ship template-side canned tabs. */}
+                    <div x-show="item.tabs && (item.tabs.information || item.tabs.limitations || item.tabs.defects)" class="mt-4 rounded-xl border" style="border-color: #e2e8f0; background: rgba(255,255,255,0.6);">
+                      <div class="flex items-center gap-1 px-2 py-1.5 border-b" style="border-color: #e2e8f0;">
+                        <template x-for="tabName in ['information','limitations','defects']" x-bind:key="tabName">
+                          <button type="button"
+                            x-on:click="setActiveItemTab(tabName); activeItemId = item.id"
+                            x-bind:class="(activeItemTab === tabName && activeItemId === item.id) ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide capitalize">
+                            <span x-text="tabName"></span>
+                            <span class="text-[10px] font-mono opacity-80"
+                              x-text="tabBadgeCount(item.id, tabName) + '/' + tabBadgeTotal(item.id, tabName)"></span>
+                          </button>
+                        </template>
+                      </div>
+                      <div class="p-3 space-y-2">
+                        <template x-for="entry in getTabEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information'))" x-bind:key="entry.cannedId">
+                          <div class="rounded-lg border p-2.5"
+                            x-bind:class="entry.included ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'">
+                            <div class="flex items-start gap-2">
+                              <input type="checkbox"
+                                x-bind:checked="entry.included"
+                                x-on:change="toggleCannedComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId)"
+                                class="mt-1 rounded text-indigo-600"
+                                aria-label="Include this comment" />
+                              <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                  <span class="text-xs font-bold text-slate-900" x-text="entry.title"></span>
+                                  {/* Defect-only category pill */}
+                                  <template x-if="(activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
+                                    <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded text-white"
+                                      x-bind:style="entry.category === 'safety' ? 'background:#dc2626' : (entry.category === 'recommendation' ? 'background:#f59e0b' : 'background:#0ea5e9')"
+                                      x-text="entry.category || ''"></span>
+                                  </template>
+                                </div>
+                                {/* Comment override input — full-width textarea when included */}
+                                <textarea
+                                  x-show="entry.included"
+                                  x-bind:value="entry.effectiveComment"
+                                  x-on:input="setCannedCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId, $event.target.value)"
+                                  rows={2}
+                                  class="mt-1.5 w-full px-2 py-1.5 text-[12px] rounded border bg-white resize-y"
+                                  style="border-color: #e2e8f0; color: #1e293b"
+                                  placeholder="Edit comment text..."></textarea>
+                                {/* Spec 5B P2B — AI Rewrite button (canned). */}
+                                <div x-show="entry.included" class="mt-1 flex items-center justify-end">
+                                  <button type="button"
+                                    x-on:click="rewriteCannedComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId, $event)"
+                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold text-amber-700 hover:bg-amber-50 transition"
+                                    title="Rewrite with AI">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                                    Rewrite
+                                  </button>
+                                </div>
+                                {/* Read-only preview when not included */}
+                                <p x-show="!entry.included" class="mt-1 text-[11px] italic text-slate-500 line-clamp-2" x-text="entry.comment"></p>
+                                {/* Defect-only location + category override */}
+                                <template x-if="entry.included && (activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
+                                  <div class="mt-2 grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Location</label>
+                                      <input type="text"
+                                        x-bind:value="entry.location"
+                                        x-on:input="setDefectLocation(item.id, entry.cannedId, $event.target.value)"
+                                        placeholder="Northwest corner"
+                                        class="w-full px-2 py-1 text-[11px] rounded border bg-white"
+                                        style="border-color: #e2e8f0" />
+                                    </div>
+                                    <div>
+                                      <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Category</label>
+                                      <select
+                                        x-bind:value="entry.category"
+                                        x-on:change="setDefectCategory(item.id, entry.cannedId, $event.target.value)"
+                                        class="w-full px-2 py-1 text-[11px] rounded border bg-white"
+                                        style="border-color: #e2e8f0">
+                                        <option value="maintenance">Maintenance</option>
+                                        <option value="recommendation">Recommendation</option>
+                                        <option value="safety">Safety</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                        <p x-show="getTabEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information')).length === 0 && getCustomEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information')).length === 0"
+                           class="text-[11px] italic text-slate-400 text-center py-2">
+                          No canned comments in this tab.
+                        </p>
+                        {/* Spec 5B P2B — Custom (per-inspection) comments. */}
+                        <template x-for="custom in getCustomEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information'))" x-bind:key="custom.id">
+                          <div class="rounded-lg border-2 border-dashed p-2.5 bg-amber-50/40"
+                            style="border-color: #fcd34d">
+                            <div class="flex items-start gap-2">
+                              <span class="mt-1 text-[9px] font-bold uppercase text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">Custom</span>
+                              <div class="flex-1 min-w-0 space-y-1.5">
+                                <input type="text"
+                                  x-bind:value="custom.title"
+                                  x-on:input="setCustomCommentTitle(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
+                                  placeholder="Title (e.g. Vegetation overgrowth)"
+                                  class="w-full px-2 py-1 text-xs font-bold rounded border bg-white"
+                                  style="border-color: #e2e8f0; color: #1e293b" />
+                                <textarea
+                                  x-bind:value="custom.comment"
+                                  x-on:input="setCustomCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
+                                  rows={2}
+                                  class="w-full px-2 py-1.5 text-[12px] rounded border bg-white resize-y"
+                                  style="border-color: #e2e8f0; color: #1e293b"
+                                  placeholder="Comment text..."></textarea>
+                                <template x-if="(activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
+                                  <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Location</label>
+                                      <input type="text"
+                                        x-bind:value="custom.location || ''"
+                                        x-on:input="setCustomCommentLocation(item.id, custom.id, $event.target.value)"
+                                        placeholder="Northwest corner"
+                                        class="w-full px-2 py-1 text-[11px] rounded border bg-white"
+                                        style="border-color: #e2e8f0" />
+                                    </div>
+                                    <div>
+                                      <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Category</label>
+                                      <select
+                                        x-bind:value="custom.category || 'maintenance'"
+                                        x-on:change="setCustomCommentCategory(item.id, custom.id, $event.target.value)"
+                                        class="w-full px-2 py-1 text-[11px] rounded border bg-white"
+                                        style="border-color: #e2e8f0">
+                                        <option value="maintenance">Maintenance</option>
+                                        <option value="recommendation">Recommendation</option>
+                                        <option value="safety">Safety</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                </template>
+                              </div>
+                              <button type="button"
+                                x-on:click="removeCustomComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id)"
+                                class="text-rose-500 hover:bg-rose-50 rounded p-1 text-xs font-bold"
+                                title="Delete custom comment">×</button>
+                            </div>
+                          </div>
+                        </template>
+                        <button type="button"
+                          x-on:click="addCustomComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'))"
+                          class="w-full mt-1 py-1.5 text-[11px] font-bold rounded-lg border-2 border-dashed text-slate-500 hover:text-slate-800 hover:bg-white/60 transition"
+                          style="border-color: #e2e8f0">
+                          + Add custom comment
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
                     <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-4 gap-2">
                       <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
-                        <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e8e4dd;">
+                        <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e2e8f0;">
                           <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
                             class="w-full h-full object-cover" alt="Photo" />
                           <button type="button"
@@ -693,62 +1104,146 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
               </template>
             </div>
           </main>
+
+          {/* Spec 5G M1 — Right pane: active item photos + quick comments.
+              Hidden in focus mode (⌘2) and on screens narrower than xl. */}
+          <aside x-show="viewMode !== 'focus' && activeItem" class="hidden lg:flex w-[280px] sticky top-0 h-screen flex-shrink-0 flex-col border-l overflow-hidden" style="background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6);">
+            <header class="px-4 py-3 border-b" style="border-color: rgba(226,232,240,0.5);">
+              <h3 class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Active Item</h3>
+              <p class="text-sm font-bold text-slate-900 mt-0.5 leading-tight" x-text="activeItem?.label || activeItem?.name || ''"></p>
+              <p class="text-[10px] font-mono text-slate-400 mt-0.5" x-text="activeItem?.number || ''"></p>
+            </header>
+
+            {/* Photos */}
+            <section class="px-4 py-3 border-b" style="border-color: rgba(226,232,240,0.5);">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Photos · <span x-text="(results[activeItemId]?.photos || []).length"></span></span>
+                <label class="text-[10px] text-indigo-500 hover:underline cursor-pointer">
+                  + Add
+                  <input type="file" accept="image/*" capture="environment" class="hidden" x-on:change="if (activeItemId) { uploadPhoto(activeItemId, $event); $event.target.value = ''; }" />
+                </label>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5" x-show="(results[activeItemId]?.photos || []).length > 0">
+                <template x-for="(photo, pi) in (results[activeItemId]?.photos || []).slice(0, 8)" x-bind:key="pi">
+                  <div class="aspect-[4/3] rounded overflow-hidden bg-slate-100 relative group">
+                    <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)" class="w-full h-full object-cover" alt="Photo" />
+                    <button
+                      x-on:click="window.dispatchEvent(new CustomEvent('annotate', { detail: { inspectionId, itemId: activeItemId, photoIndex: pi, imageUrl: '/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.key), existingNodesJson: photo.annotationsJson || null } }))"
+                      class="absolute bottom-0.5 right-0.5 px-1.5 py-0.5 rounded bg-white/90 text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Annotate"
+                    >✎</button>
+                  </div>
+                </template>
+              </div>
+              <p x-show="(results[activeItemId]?.photos || []).length === 0" class="text-[11px] italic text-slate-400 py-2">
+                No photos. Press <kbd class="px-1 bg-slate-100 border rounded font-mono">P</kbd> to add.
+              </p>
+            </section>
+
+            {/* Quick comments */}
+            <section class="px-4 py-3 flex-1 overflow-y-auto">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Quick Comments</span>
+                <button x-on:click="openCommentLibrary()" class="text-[10px] text-indigo-500 hover:underline">Browse all</button>
+              </div>
+              <div class="space-y-1">
+                <template x-for="(c, i) in quickCommentsForActive" x-bind:key="i">
+                  <button x-on:click="insertComment(c.text)" class="w-full text-left p-2 rounded text-[11px] text-slate-700 leading-snug border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+                    <div class="flex items-start gap-1.5">
+                      <span class="px-1 py-0.5 text-[8px] font-bold uppercase rounded text-white shrink-0 mt-0.5"
+                        x-bind:style="c.rating === 'satisfactory' ? 'background:#10b981' : (c.rating === 'monitor' ? 'background:#f59e0b' : (c.rating === 'defect' ? 'background:#ef4444' : 'background:#64748b'))"
+                        x-text="c.rating === 'all' ? 'GEN' : c.rating.slice(0, 3)"></span>
+                      <span x-text="c.text"></span>
+                    </div>
+                  </button>
+                </template>
+              </div>
+              <p class="text-[10px] text-slate-400 italic mt-3">
+                Press <kbd class="px-1 bg-slate-100 border rounded font-mono">/</kbd> for full library
+              </p>
+            </section>
+
+            {/* Keyboard hint footer */}
+            <footer class="px-4 py-2 border-t text-[10px] text-slate-400" style="border-color: rgba(226,232,240,0.5);">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <kbd class="px-1 bg-slate-100 border rounded font-mono">↑↓</kbd> nav
+                <kbd class="px-1 bg-slate-100 border rounded font-mono">1-3</kbd> rate
+                <kbd class="px-1 bg-slate-100 border rounded font-mono">/</kbd> lib
+                <kbd class="px-1 bg-slate-100 border rounded font-mono">?</kbd> all
+              </div>
+            </footer>
+          </aside>
         </div>
 
         {/* ===== Publish Modal ===== */}
         <div {...{'x-cloak': ''}} x-show="showPublishModal" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div class="w-full max-w-md rounded-3xl p-6 shadow-xl" style="background: rgba(255,253,250,0.95); backdrop-filter: blur(20px);" x-on:click="if ($event.target === $el) showPublishModal = false">
-            <h3 class="text-lg font-bold mb-4 font-heading" style="color: #1a1815">Publish Report</h3>
+          <div class="w-full max-w-md rounded-lg p-6 shadow-xl" style="background: rgba(255,255,255,0.95); backdrop-filter: blur(20px);" x-on:click="if ($event.target === $el) showPublishModal = false">
+            <h3 class="text-lg font-bold mb-4" style="color: #0f172a">Publish Report</h3>
             <div class="space-y-4">
-              <div class="p-3 rounded-xl" style="background: #f3f1ed">
-                <div class="text-xs font-mono" style="color: #908a83">Report Summary</div>
-                <div class="text-sm mt-1" style="color: #2d2a26" x-text="reportStats.total + ' items  |  ' + reportStats.defect + ' defects  |  ' + reportStats.monitor + ' monitors'"></div>
+              <div class="p-3 rounded-xl" style="background: #f1f5f9">
+                <div class="text-xs font-mono" style="color: #94a3b8">Report Summary</div>
+                <div class="text-sm mt-1" style="color: #1e293b" x-text="reportStats.total + ' items  |  ' + reportStats.defect + ' defects  |  ' + reportStats.monitor + ' monitors'"></div>
               </div>
               <div class="space-y-3">
                 <label class="flex items-center justify-between">
-                  <span class="text-sm" style="color: #46423c">Email client</span>
+                  <span class="text-sm" style="color: #475569">Email client</span>
                   <input type="checkbox" x-model="publishOptions.notifyClient" class="rounded" checked />
                 </label>
                 <label class="flex items-center justify-between">
-                  <span class="text-sm" style="color: #46423c">Email agent</span>
+                  <span class="text-sm" style="color: #475569">Email agent</span>
                   <input type="checkbox" x-model="publishOptions.notifyAgent" class="rounded" checked />
                 </label>
                 <label class="flex items-center justify-between">
-                  <span class="text-sm" style="color: #46423c">Require signature</span>
+                  <span class="text-sm" style="color: #475569">Require signature</span>
                   <input type="checkbox" x-model="publishOptions.requireSignature" class="rounded" />
                 </label>
                 <label class="flex items-center justify-between">
-                  <span class="text-sm" style="color: #46423c">Require payment</span>
+                  <span class="text-sm" style="color: #475569">Require payment</span>
                   <input type="checkbox" x-model="publishOptions.requirePayment" class="rounded" />
                 </label>
               </div>
               <div>
-                <div class="text-xs font-semibold mb-2" style="color: #908a83">THEME</div>
+                <div class="text-xs font-semibold mb-2" style="color: #94a3b8">THEME</div>
                 <div class="flex gap-2">
                   <template x-for="t in ['modern', 'classic', 'minimal']" x-bind:key="t">
                     <button
                       x-on:click="publishOptions.theme = t"
                       class="px-4 py-2 text-xs font-semibold rounded-lg border capitalize transition-all"
-                      x-bind:style="publishOptions.theme === t ? 'background: #4a72ff; color: white; border-color: transparent' : 'border-color: #e8e4dd; color: #6b6560'"
+                      x-bind:style="publishOptions.theme === t ? 'background: var(--ih-primary, #6366f1); color: white; border-color: transparent' : 'border-color: #e2e8f0; color: #64748b'"
                       x-text="t"
                     ></button>
                   </template>
                 </div>
               </div>
             </div>
+            {/* Round 38 — unified button row: 40px height, text-sm semibold,
+                normal case. Cancel = secondary (border); Send PDF = tertiary
+                (light tinted); Confirm = primary (indigo solid). All three
+                share the same h-10/rounded-xl/text-sm shape so the modal
+                reads as a single design language. */}
             <div class="flex gap-3 mt-6">
-              <button x-on:click="showPublishModal = false" class="flex-1 py-3 text-sm font-semibold rounded-xl border" style="border-color: #e8e4dd; color: #46423c">Cancel</button>
+              <button
+                x-on:click="showPublishModal = false"
+                class="flex-1 h-10 px-4 text-sm font-semibold rounded-xl border bg-white hover:bg-slate-50 transition-all"
+                style="border-color: #e2e8f0; color: #475569"
+              >
+                Cancel
+              </button>
               <button
                 type="button"
                 {...{ 'x-on:click': 'sendReportPdf()' }}
                 {...{ 'x-bind:disabled': 'sendingPdf' }}
-                class="px-5 py-3 rounded-xl bg-emerald-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                class="flex-1 h-10 px-4 rounded-xl text-sm font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition-all"
               >
-                <span x-show="!sendingPdf">📧 Send PDF to Client</span>
+                <span x-show="!sendingPdf">Send PDF</span>
                 <span x-show="sendingPdf">Sending…</span>
               </button>
-              <button x-on:click="publish()" class="flex-1 py-3 text-sm font-bold rounded-xl text-white" style="background: #4a72ff" x-bind:disabled="publishing">
-                <span x-text="publishing ? 'Publishing...' : 'Confirm Publish'"></span>
+              <button
+                x-on:click="publish()"
+                x-bind:disabled="publishing"
+                class="flex-1 h-10 px-4 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-all"
+              >
+                <span x-text="publishing ? 'Publishing…' : 'Confirm Publish'"></span>
               </button>
             </div>
           </div>
@@ -757,25 +1252,99 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
         {/* Onboarding overlay (T6) */}
         <div x-data="inspectionOnboarding()" {...{'x-on:rating-levels-ready.window': 'init($event.detail)'}}>
             <div x-show="active" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(15,23,42,0.78);backdrop-filter:blur(6px);">
-                <div class="rounded-3xl p-8 max-w-md w-full shadow-2xl" style="background:rgba(255,253,250,0.96);border:1px solid rgba(255,255,255,0.6);">
+                <div class="rounded-lg p-8 max-w-md w-full shadow-2xl" style="background:rgba(255,255,255,0.96);border:1px solid rgba(255,255,255,0.6);">
                     <div class="flex items-center gap-3 mb-4">
                         <span x-show="currentStep.abbr" class="px-3 py-1 rounded-lg text-white font-mono font-bold text-sm"
                               x-bind:style="'background:' + currentStep.color"
                               x-text="currentStep.abbr"></span>
-                        <h3 class="text-xl font-bold" style="color:#1a1815" x-text="currentStep.title"></h3>
+                        <h3 class="text-xl font-bold" style="color:#0f172a" x-text="currentStep.title"></h3>
                     </div>
-                    <p class="text-sm leading-relaxed mb-6" style="color:#46423c" x-text="currentStep.body"></p>
+                    <p class="text-sm leading-relaxed mb-6" style="color:#475569" x-text="currentStep.body"></p>
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-mono" style="color:#b0aaa3" x-text="(stepIdx + 1) + ' / ' + totalSteps"></span>
+                        <span class="text-xs font-mono" style="color:#cbd5e1" x-text="(stepIdx + 1) + ' / ' + totalSteps"></span>
                         <div class="flex gap-2">
-                            <button x-on:click="skip()" class="px-4 py-2 rounded-xl text-sm" style="color:#6b6560">Skip</button>
-                            <button x-on:click="next()" class="px-5 py-2 rounded-xl text-white text-sm font-semibold" style="background:#4a72ff">
+                            <button x-on:click="skip()" class="px-4 py-2 rounded-xl text-sm" style="color:#64748b">Skip</button>
+                            <button x-on:click="next()" class="px-5 py-2 rounded-xl text-white text-sm font-semibold" style="background:var(--ih-primary, #6366f1)">
                                 <span x-text="stepIdx + 1 === totalSteps ? 'Done' : 'Next'"></span>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
+
+        {/* Spec 5G M2 — Comment Library slide-out (right drawer) */}
+        <div x-cloak x-show="showCommentLibrary" class="fixed inset-0 z-[100]" {...{'x-transition.opacity': ''}}>
+          <div class="absolute inset-0 bg-slate-900/40" x-on:click="showCommentLibrary = false"></div>
+          <aside
+            class="absolute right-0 top-0 bottom-0 w-full bg-white shadow-2xl flex flex-col"
+            style="max-width: 480px;"
+            {...{
+              'x-transition:enter': 'transition ease-out duration-200 transform',
+              'x-transition:enter-start': 'translate-x-full',
+              'x-transition:enter-end': 'translate-x-0',
+              'x-transition:leave': 'transition ease-in duration-150 transform',
+              'x-transition:leave-start': 'translate-x-0',
+              'x-transition:leave-end': 'translate-x-full',
+            }}
+          >
+            <header class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 class="text-sm font-bold text-slate-900">Comment Library</h2>
+                <p class="text-[11px] text-slate-500 mt-0.5">
+                  Inserting into <span class="font-semibold" x-text="activeItem?.label || activeItem?.name || ''"></span>
+                </p>
+              </div>
+              <button x-on:click="showCommentLibrary = false" class="text-slate-400 hover:text-slate-700 text-xl leading-none" aria-label="Close">&times;</button>
+            </header>
+            <div class="px-5 pt-3 pb-2">
+              <div class="relative">
+                <input
+                  id="comment-library-search"
+                  type="text"
+                  x-model="commentLibrarySearch"
+                  x-on:input="commentLibrarySelectedIdx = 0"
+                  placeholder="Search 248 comments…"
+                  class="w-full px-3 py-2 pr-20 text-xs rounded-md border border-slate-200 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100"
+                />
+                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400" x-text="commentLibraryCount"></span>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1.5 italic">Use <kbd class="px-1 py-0.5 bg-slate-100 border rounded font-mono">↑↓</kbd> to navigate, <kbd class="px-1 py-0.5 bg-slate-100 border rounded font-mono">⏎</kbd> to insert</p>
+            </div>
+            <div class="px-5 pb-2 flex flex-wrap gap-1.5">
+              <template x-for="f in ['all','satisfactory','monitor','defect','my-snippets']" x-bind:key="f">
+                <button x-on:click="commentLibraryFilter = f; commentLibrarySelectedIdx = 0"
+                  x-bind:class="commentLibraryFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                  class="px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+                  x-text="f === 'my-snippets' ? 'My snippets' : f"></button>
+              </template>
+            </div>
+            <div class="flex-1 overflow-y-auto px-5 py-2 space-y-1.5 border-t border-slate-100">
+              <template x-for="(c, i) in commentLibraryItems" x-bind:key="i">
+                <button
+                  x-on:click="commentLibrarySelectedIdx = i; insertComment(c.text)"
+                  x-on:mouseenter="commentLibrarySelectedIdx = i"
+                  x-bind:class="commentLibrarySelectedIdx === i ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-100' : 'border-slate-200 hover:border-indigo-300'"
+                  class="w-full text-left p-2.5 rounded-md border transition-all"
+                >
+                  <div class="flex items-start gap-2">
+                    <span class="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded text-white shrink-0"
+                      x-bind:style="c.rating === 'satisfactory' ? 'background:#10b981' : (c.rating === 'monitor' ? 'background:#f59e0b' : (c.rating === 'defect' ? 'background:#ef4444' : 'background:#64748b'))"
+                      x-text="c.source === 'snippet' ? '★' : (c.rating === 'all' ? 'GEN' : c.rating.slice(0, 3))"></span>
+                    <span class="text-xs text-slate-700 leading-snug flex-1" x-text="c.text"></span>
+                    <span x-show="commentLibrarySelectedIdx === i" class="text-indigo-500 text-xs">⏎</span>
+                  </div>
+                </button>
+              </template>
+              <p x-show="commentLibraryItems.length === 0" class="text-xs text-slate-400 text-center py-8 italic">No comments match this filter.</p>
+            </div>
+            <footer class="px-5 py-2.5 border-t border-slate-100 text-[10px] text-slate-500 flex items-center justify-between gap-2 flex-wrap">
+              <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 bg-slate-100 border rounded font-mono">⏎</kbd> Insert</span>
+              <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 bg-slate-100 border rounded font-mono">⌘⏎</kbd> Insert+newline</span>
+              <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 bg-slate-100 border rounded font-mono">⌘D</kbd> Save snippet</span>
+              <span class="flex items-center gap-1"><kbd class="px-1.5 py-0.5 bg-slate-100 border rounded font-mono">Esc</kbd> Close</span>
+            </footer>
+          </aside>
         </div>
 
         {/* Photo Annotator Modal (T13) */}
@@ -820,12 +1389,12 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
         {/* Phase T (T23) — Inspector Messages panel (slide-in from right) */}
         <div x-data={`messagesInspector('${inspectionId}')`} x-init="init()">
             {/* Floating button */}
-            <button x-on:click="open = !open" class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-2xl text-white flex items-center justify-center" style="background:#4a72ff;">
+            <button x-on:click="open = !open" class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-2xl text-white flex items-center justify-center" style="background:var(--ih-primary, #6366f1);">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
                 <span x-show="messages.length > 0" class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center" x-text="messages.length"></span>
             </button>
             {/* Slide-in panel */}
-            <div x-show="open" x-cloak class="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col shadow-2xl" style="background:#faf9f7;">
+            <div x-show="open" x-cloak class="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col shadow-2xl" style="background:#f8fafc;">
                 <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
                     <h2 class="text-lg font-bold text-slate-900">Messages</h2>
                     <button x-on:click="open = false" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500">×</button>
@@ -836,7 +1405,7 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                 </div>
                 <div class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                     <template x-for="m in messages" x-bind:key="m.id">
-                        <div x-bind:class="m.fromRole === 'inspector' ? 'ml-12' : 'mr-12'" class="rounded-2xl p-3" x-bind:style="m.fromRole === 'inspector' ? 'background:#eef4ff;' : 'background:#f3f1ed;'">
+                        <div x-bind:class="m.fromRole === 'inspector' ? 'ml-12' : 'mr-12'" class="rounded-2xl p-3" x-bind:style="m.fromRole === 'inspector' ? 'background:#eef2ff;' : 'background:#f1f5f9;'">
                             <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
                                 <span x-text="(m.fromName || m.fromRole) + ' · ' + new Date(m.createdAt).toLocaleString()"></span>
                             </div>
@@ -868,12 +1437,63 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                         </label>
                         <button x-on:click="send()" x-bind:disabled="!composeBody || sending"
                             class="px-4 py-2 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
-                            style="background:#4a72ff;">
+                            style="background:var(--ih-primary, #6366f1);">
                             <span x-text="sending ? 'Sending...' : 'Send'"></span>
                         </button>
                     </div>
                 </div>
             </div>
+        </div>
+
+        {/* Round 33 — Cheatsheet HUD (mobile help button + desktop ? key).
+            Centered modal with two columns: gestures (mobile) + hotkeys
+            (desktop). Same modal shown on both platforms; user gets context
+            for the device they're on. */}
+        <div
+          x-show="showCheatsheet"
+          x-cloak
+          class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          {...{ 'x-on:click.self': 'showCheatsheet = false', 'x-on:keydown.escape.window': 'showCheatsheet = false' }}
+          style="background: rgba(0,0,0,0.5)"
+        >
+          <div class="w-full max-w-md rounded-2xl p-6 max-h-[85vh] overflow-y-auto" style="background: #ffffff; box-shadow: 0 16px 48px rgba(0,0,0,0.25)">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold" style="color: #0f172a">Gestures &amp; Shortcuts</h3>
+              <button x-on:click="showCheatsheet = false" class="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center" aria-label="Close">
+                <svg class="w-4 h-4" style="color: #64748b" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div x-show="!isDesktop">
+              <p class="text-xs uppercase tracking-wide font-semibold mb-3" style="color: #94a3b8">Mobile Gestures</p>
+              <ul class="space-y-3 text-sm" style="color: #0f172a">
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">Swipe ←/→</span><span>Switch to next / previous section</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">Long-press item</span><span>Open Quick Rating sheet</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">Double-tap item</span><span>Enter Focus mode</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">Tap section chip</span><span>Jump directly to that section</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">Tap rating button</span><span>Set Sat / Mon / Def / N/A inline</span></li>
+              </ul>
+            </div>
+
+            <div x-show="isDesktop">
+              <p class="text-xs uppercase tracking-wide font-semibold mb-3" style="color: #94a3b8">Keyboard Shortcuts</p>
+              <ul class="space-y-2 text-sm" style="color: #0f172a">
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">1 / 2 / 3</span><span>Set rating Satisfactory / Monitor / Defect</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">0</span><span>Clear rating · <span class="font-mono">N</span> = N/A</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">↑ / ↓</span><span>Move active item · Enter = next · Shift+Enter = prev</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">G + 0–9</span><span>Jump to section by index</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">/</span><span>Open Comment Library · <span class="font-mono">;</span> = My Snippets</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">P</span><span>Add photo to active item</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">⌘1 / ⌘2 / ⌘3</span><span>Split / Focus / Preview view mode</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">⌘K</span><span>Command palette (coming soon)</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">?</span><span>Toggle this cheatsheet · <span class="font-mono">Esc</span> = close</span></li>
+              </ul>
+            </div>
+
+            <div class="mt-5 pt-4 border-t text-xs" style="color: #94a3b8; border-color: #e2e8f0">
+              Tip: most shortcuts work even when not focused on an input. Press <span class="font-mono font-semibold">?</span> any time to reopen.
+            </div>
+          </div>
         </div>
       </div>
       <div id="commentPicker" class="hidden fixed z-[200] bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 w-72 max-h-64 overflow-y-auto"></div>
@@ -881,6 +1501,8 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       <script src="/js/modal-dialog.js"></script>
       <script src="/js/comments-library.js"></script>
       <script src="/js/toast.js"></script>
+      {/* Spec 5G M2 — load 248 canned comments before editor inits */}
+      <script src="/js/canned-comments.js"></script>
       <script src="/js/inspection-edit.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Phase T (T14) — Konva-based photo annotator. konva.min.js (~150KB) is

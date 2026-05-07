@@ -209,6 +209,17 @@ export class InspectionService {
             status,
             date,
             referredByAgentId: (data.referredByAgentId as string | null) || null,
+            sellingAgentId: (data.sellingAgentId as string | null) || null,
+            // Spec 5D — geocoded fields, all optional (legacy free-text addresses ok)
+            addressPlaceId:    (data.addressPlaceId as string | null) || null,
+            addressStreet:     (data.addressStreet as string | null) || null,
+            addressCity:       (data.addressCity as string | null) || null,
+            addressState:      (data.addressState as string | null) || null,
+            addressZip:        (data.addressZip as string | null) || null,
+            addressCounty:     (data.addressCounty as string | null) || null,
+            addressLat:        (data.addressLat as number | null) ?? null,
+            addressLng:        (data.addressLng as number | null) ?? null,
+            addressGeocodedAt: data.addressPlaceId ? Date.now() : null,
             createdAt
         };
 
@@ -418,11 +429,30 @@ export class InspectionService {
             .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
             .get();
 
-        interface SchemaItem { id: string; label: string; icon?: string }
-        interface SchemaSection { id: string; title: string; icon?: string; items: SchemaItem[] }
-        interface SchemaData { sections: SchemaSection[]; ratingSystem?: { levels: RatingLevel[] } }
-        interface PhotoEntry { key: string; annotatedKey?: string; annotationsJson?: string }
-        interface ResultEntry { rating?: string; notes?: string; photos?: PhotoEntry[]; recommendation?: string; estimateMin?: number; estimateMax?: number }
+        // Spec 5B — v2 schema is the authoritative shape. Items are 'rich'
+        // (rating + 3 tabs of canned comments) or 'text' (free-text notes).
+        interface CannedInfoComment { id: string; title: string; comment: string; default: boolean }
+        interface CannedDefect      { id: string; title: string; category: 'maintenance' | 'recommendation' | 'safety'; location: string; comment: string; photos: string[]; default: boolean }
+        interface ItemTabs          { information: CannedInfoComment[]; limitations: CannedInfoComment[]; defects: CannedDefect[] }
+        interface SchemaItem        { id: string; label: string; icon?: string; type?: string; ratingOptions?: string[]; tabs?: ItemTabs; number?: string }
+        interface SchemaSection     { id: string; title: string; icon?: string; items: SchemaItem[] }
+        interface SchemaData        { schemaVersion?: number; sections: SchemaSection[]; ratingSystem?: { levels: RatingLevel[] } }
+        interface PhotoEntry        { key: string; annotatedKey?: string; annotationsJson?: string }
+        interface DefectState       { cannedId: string; included: boolean; comment?: string | null; category?: 'maintenance' | 'recommendation' | 'safety'; location?: string | null; photos?: PhotoEntry[] }
+        interface CannedState       { cannedId: string; included: boolean; comment?: string | null }
+        interface ResultEntry {
+            rating?:         string;
+            notes?:          string;
+            photos?:         PhotoEntry[];
+            recommendation?: string;
+            estimateMin?:    number;
+            estimateMax?:    number;
+            tabs?: {
+                information?: CannedState[];
+                limitations?: CannedState[];
+                defects?:     DefectState[];
+            };
+        }
 
         const rawSchema = template?.schema
             ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema)
@@ -438,6 +468,28 @@ export class InspectionService {
             : {};
 
         const stats = computeReportStats(schemaData.sections, resultData, levels);
+
+        // Spec 5B helper — for a given item, resolve the effective set of
+        // included comments per tab. Honors per-inspection toggles + text
+        // overrides, falling back to the template's `default: true` flag.
+        function resolveTab<T extends CannedInfoComment | CannedDefect>(
+            templateEntries: T[] | undefined,
+            states: CannedState[] | DefectState[] | undefined,
+        ): Array<T & { included: boolean; effectiveComment: string }> {
+            if (!templateEntries) return [];
+            const stateMap = new Map<string, CannedState | DefectState>();
+            for (const s of states ?? []) stateMap.set(s.cannedId, s);
+            return templateEntries.map(e => {
+                const st = stateMap.get(e.id);
+                const included = st ? !!st.included : !!e.default;
+                const override = st && typeof st.comment === 'string' && st.comment.length > 0 ? st.comment : null;
+                return {
+                    ...e,
+                    included,
+                    effectiveComment: override ?? e.comment,
+                };
+            });
+        }
 
         const sections = schemaData.sections.map((sec: SchemaSection) => ({
             id: sec.id,
@@ -460,9 +512,44 @@ export class InspectionService {
                     };
                 });
 
+                // Spec 5B — resolve the three canned-comment tabs.
+                const information = resolveTab(item.tabs?.information, res.tabs?.information);
+                const limitations = resolveTab(item.tabs?.limitations, res.tabs?.limitations);
+                // For defects, also let inspector override category, location, and attach photos.
+                const defectStates = res.tabs?.defects ?? [];
+                const defectStateMap = new Map<string, DefectState>();
+                for (const s of defectStates) defectStateMap.set(s.cannedId, s);
+                const defects = (item.tabs?.defects ?? []).map(d => {
+                    const st = defectStateMap.get(d.id);
+                    const included = st ? !!st.included : !!d.default;
+                    const override = st && typeof st.comment === 'string' && st.comment.length > 0 ? st.comment : null;
+                    return {
+                        ...d,
+                        included,
+                        effectiveComment: override ?? d.comment,
+                        effectiveCategory: st?.category ?? d.category,
+                        effectiveLocation: (typeof st?.location === 'string' && st.location.length > 0) ? st.location : d.location,
+                        defectPhotos: (st?.photos ?? []).map(p => {
+                            const displayKey = p.annotatedKey || p.key;
+                            return {
+                                key: displayKey,
+                                originalKey: p.key,
+                                url: `/api/inspections/${inspectionId}/photos/${encodeURIComponent(displayKey)}`,
+                            };
+                        }),
+                    };
+                });
+
                 return {
                     id: item.id,
                     label: item.label || (item as unknown as Record<string, string>).name || 'Untitled',
+                    type:  item.type ?? 'rich',
+                    ratingOptions: item.ratingOptions ?? null,
+                    // Spec 5B — pass the raw template canned tabs through so
+                    // the editor can render checkbox toggles. Per-state
+                    // resolution happens client-side; the resolved view is
+                    // also exposed under `resolvedTabs` for report renderers.
+                    tabs: item.tabs ?? null,
                     rating: ratingId,
                     ratingColor: getRatingColor(ratingId, levels),
                     ratingLabel: level?.label ?? ratingId,
@@ -472,6 +559,13 @@ export class InspectionService {
                     recommendation: res.recommendation ?? null,
                     estimateMin: res.estimateMin ?? null,
                     estimateMax: res.estimateMax ?? null,
+                    // Spec 5B v2 resolved tab payload — report PDFs render
+                    // only entries where `included === true`.
+                    resolvedTabs: {
+                        information,
+                        limitations,
+                        defects,
+                    },
                 };
             }),
         }));
@@ -600,6 +694,128 @@ export class InspectionService {
     }
 
     /**
+     * Spec 5B P2B — Compute defect category counts for a single inspection.
+     *
+     * Walks the resolved v2 tabs (template canned defects + per-inspection
+     * custom defects) and returns counts of `included` defects bucketed by
+     * category. Used by the inspection list / dashboard cards. Returns
+     * zeros when the inspection has no template / no results.
+     */
+    async getDefectStats(inspectionId: string, tenantId: string): Promise<{ safety: number; recommendation: number; maintenance: number }> {
+        const stats = { safety: 0, recommendation: 0, maintenance: 0 };
+        try {
+            const report = await this.getReportData(inspectionId, tenantId);
+            for (const sec of report.sections) {
+                for (const item of sec.items) {
+                    const tab = item.resolvedTabs?.defects ?? [];
+                    for (const d of tab) {
+                        if (!d.included) continue;
+                        const cat = (d.effectiveCategory ?? 'maintenance') as keyof typeof stats;
+                        if (cat in stats) stats[cat]++;
+                    }
+                }
+            }
+            // Custom defects live on results[itemId].customComments.defects
+            // — getReportData doesn't surface them, so pull them straight
+            // from inspection_results.
+            const resultsRow = await this.getDrizzle().select().from(inspectionResults)
+                .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
+                .get();
+            if (resultsRow?.data) {
+                interface CustomDefect { included?: boolean; category?: 'safety' | 'recommendation' | 'maintenance' }
+                const data: Record<string, { customComments?: { defects?: CustomDefect[] } }> = typeof resultsRow.data === 'string'
+                    ? JSON.parse(resultsRow.data)
+                    : resultsRow.data as Record<string, { customComments?: { defects?: CustomDefect[] } }>;
+                for (const itemId of Object.keys(data)) {
+                    const customDefects = data[itemId]?.customComments?.defects ?? [];
+                    for (const d of customDefects) {
+                        if (d.included === false) continue;
+                        const cat = (d.category ?? 'maintenance');
+                        if (cat in stats) stats[cat as keyof typeof stats]++;
+                    }
+                }
+            }
+        } catch {
+            // Inspection lookup may fail (deleted between bucket load + stats
+            // call) — return zero counts rather than crashing the dashboard.
+        }
+        return stats;
+    }
+
+    /**
+     * Spec 5B P2B — Batch defect stats for many inspections at once.
+     *
+     * Single SQL fetch of all inspection_results rows for the given IDs,
+     * then in-memory aggregation. Avoids N+1 round trips when the
+     * dashboard renders 50+ cards. Returns a Map keyed by inspection id.
+     */
+    async getDefectStatsBatch(tenantId: string, inspectionIds: string[]): Promise<Map<string, { safety: number; recommendation: number; maintenance: number }>> {
+        const out = new Map<string, { safety: number; recommendation: number; maintenance: number }>();
+        if (inspectionIds.length === 0) return out;
+
+        const db = this.getDrizzle();
+        // Pull both result rows and template snapshots in parallel.
+        const insRows = await db.select({
+            id:               inspections.id,
+            templateSnapshot: inspections.templateSnapshot,
+        }).from(inspections)
+          .where(and(eq(inspections.tenantId, tenantId), inArray(inspections.id, inspectionIds)));
+        const resultRows = await db.select({
+            inspectionId: inspectionResults.inspectionId,
+            data:         inspectionResults.data,
+        }).from(inspectionResults)
+          .where(and(eq(inspectionResults.tenantId, tenantId), inArray(inspectionResults.inspectionId, inspectionIds)));
+
+        const tplById   = new Map<string, unknown>();
+        for (const r of insRows) tplById.set(r.id as string, r.templateSnapshot);
+        const dataById  = new Map<string, unknown>();
+        for (const r of resultRows) dataById.set(r.inspectionId as string, r.data);
+
+        interface CannedDefect { id: string; category: 'safety' | 'recommendation' | 'maintenance'; default: boolean }
+        interface DefectState  { cannedId: string; included?: boolean; category?: 'safety' | 'recommendation' | 'maintenance' }
+        interface CustomDefect { included?: boolean; category?: 'safety' | 'recommendation' | 'maintenance' }
+
+        for (const id of inspectionIds) {
+            const stats = { safety: 0, recommendation: 0, maintenance: 0 };
+            const rawTpl = tplById.get(id);
+            const tpl = rawTpl ? (typeof rawTpl === 'string' ? JSON.parse(rawTpl) : rawTpl) : null;
+            const rawData = dataById.get(id);
+            const data: Record<string, { tabs?: { defects?: DefectState[] }; customComments?: { defects?: CustomDefect[] } }> =
+                rawData ? (typeof rawData === 'string' ? JSON.parse(rawData) : rawData) : {};
+
+            // Walk template canned defects, applying state overrides.
+            if (tpl && Array.isArray((tpl as { sections?: unknown }).sections)) {
+                const sections = (tpl as { sections: Array<{ items?: Array<{ id: string; tabs?: { defects?: CannedDefect[] } }> }> }).sections;
+                for (const sec of sections) {
+                    for (const item of (sec.items ?? [])) {
+                        const canned = item.tabs?.defects ?? [];
+                        const stateMap = new Map<string, DefectState>();
+                        for (const s of (data[item.id]?.tabs?.defects ?? [])) stateMap.set(s.cannedId, s);
+                        for (const c of canned) {
+                            const st = stateMap.get(c.id);
+                            const included = st ? !!st.included : !!c.default;
+                            if (!included) continue;
+                            const cat = (st?.category ?? c.category ?? 'maintenance') as keyof typeof stats;
+                            if (cat in stats) stats[cat]++;
+                        }
+                    }
+                }
+            }
+            // Custom defects (per-inspection additions).
+            for (const itemId of Object.keys(data)) {
+                const customDefects = data[itemId]?.customComments?.defects ?? [];
+                for (const d of customDefects) {
+                    if (d.included === false) continue;
+                    const cat = (d.category ?? 'maintenance') as keyof typeof stats;
+                    if (cat in stats) stats[cat]++;
+                }
+            }
+            out.set(id, stats);
+        }
+        return out;
+    }
+
+    /**
      * Returns bucketed inspection lists for the dashboard view.
      * All filtering is done in-process from a single tenant query.
      * Note: uses the `date` column (TEXT "YYYY-MM-DD") for scheduling logic.
@@ -656,7 +872,27 @@ export class InspectionService {
             i.status === 'cancelled' && new Date(i.createdAt) >= minus30days
         ).slice(0, 20);
 
-        return { needsAttention, today, thisWeek, later, laterTotal, recentReports, cancelled };
+        // Spec 5B P2B — annotate every surfaced inspection with defect counts
+        // so the dashboard cards can render colored chips. Only fetch stats
+        // for the IDs that actually appear in the rendered buckets to keep
+        // the query small.
+        const allBucketIds = [
+            ...needsAttention, ...today, ...thisWeek, ...later, ...recentReports, ...cancelled,
+        ].map(i => i.id as string);
+        const uniqueIds = Array.from(new Set(allBucketIds));
+        const statsMap = await this.getDefectStatsBatch(tenantId, uniqueIds);
+        const decorate = <T extends { id: unknown }>(rows: T[]): Array<T & { defectStats: { safety: number; recommendation: number; maintenance: number } }> =>
+            rows.map(r => ({ ...r, defectStats: statsMap.get(r.id as string) ?? { safety: 0, recommendation: 0, maintenance: 0 } }));
+
+        return {
+            needsAttention: decorate(needsAttention),
+            today:          decorate(today),
+            thisWeek:       decorate(thisWeek),
+            later:          decorate(later),
+            laterTotal,
+            recentReports:  decorate(recentReports),
+            cancelled:      decorate(cancelled),
+        };
     }
 
     /**

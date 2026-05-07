@@ -23,6 +23,9 @@ import { RecommendationService } from '../../services/recommendation.service';
 import { EventService } from '../../services/event.service';
 import { TotpService } from '../../services/totp.service';
 import { TemplateSeedService } from '../../services/template-seed.service';
+import { ReportPdfService } from '../../services/report-pdf.service';
+import { SigningKeyService } from '../../services/signing-key.service';
+import { AuditLogService } from '../../services/audit-log.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -91,6 +94,18 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                 case 'agreement':
                     target.agreement = new AgreementService(c.env.DB);
                     break;
+                case 'signingKey':
+                    target.signingKey = new SigningKeyService(c.env.DB, c.env.KEY_ENCRYPTION_SECRET || c.env.JWT_SECRET);
+                    break;
+                case 'auditLog':
+                    {
+                        // auditLog depends on signingKey — pull via the proxy so it lazy-resolves the same way
+                        if (!target.signingKey) {
+                            target.signingKey = new SigningKeyService(c.env.DB, c.env.KEY_ENCRYPTION_SECRET || c.env.JWT_SECRET);
+                        }
+                        target.auditLog = new AuditLogService(c.env.DB, target.signingKey);
+                    }
+                    break;
                 case 'availability':
                     target.availability = new AvailabilityService(c.env.DB);
                     break;
@@ -132,6 +147,9 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     break;
                 case 'templateSeed':
                     target.templateSeed = new TemplateSeedService(c.env.DB);
+                    break;
+                case 'reportPdf':
+                    target.reportPdf = new ReportPdfService(c.env.DB, c.env.BROWSER, c.env.REPORTS);
                     break;
             }
             return target[prop];

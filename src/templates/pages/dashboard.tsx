@@ -7,20 +7,20 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
 
     return (
         <MainLayout title={`${siteName} | Dashboard`} branding={branding}>
-            <div class="space-y-12 animate-fade-in">
+            <div class="space-y-6 animate-fade-in">
 
                 {/* Header Section */}
-                <div class="flex flex-col md:flex-row md:items-end justify-between gap-8">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div class="space-y-4">
                         <div class="flex items-center gap-3">
-                            <span class="inline-flex items-center rounded-lg bg-indigo-600/10 px-3 py-1 text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ring-1 ring-inset ring-indigo-600/20">Dashboard</span>
+                            <span class="inline-flex items-center rounded-lg bg-indigo-600/10 px-3 py-1 text-[10px] font-bold text-indigo-600 uppercase tracking-[0.2em] ring-1 ring-inset ring-indigo-600/20">Dashboard</span>
                         </div>
-                        <h1 class="text-5xl font-black tracking-tight text-slate-900 sm:text-6xl text-gradient">Inspections</h1>
+                        <h1 class="text-3xl font-bold tracking-tight text-slate-900">Inspections</h1>
                         <p class="text-lg text-slate-500 max-w-2xl font-semibold leading-relaxed">Manage your inspections.</p>
                     </div>
 
                     <div class="flex items-center gap-4">
-                        <button type="button" onclick="showCreateModal()" class="premium-button group relative flex items-center justify-center gap-3 overflow-hidden px-10 py-5 rounded-[1.5rem] bg-indigo-600 text-white font-bold shadow-2xl shadow-indigo-100 hover:bg-slate-900 hover:shadow-indigo-200 active:scale-95 transition-all">
+                        <button type="button" onclick="showCreateModal()" class="premium-button group relative flex items-center justify-center gap-3 overflow-hidden px-4 py-1.5 text-sm rounded-md bg-indigo-600 text-white font-bold shadow-md hover:bg-slate-900 hover:shadow-indigo-200 active:scale-95 transition-all">
                             <svg class="w-5 h-5 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                             </svg>
@@ -29,24 +29,34 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </div>
                 </div>
 
-                {/* Statistics Grid */}
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {/* Statistics Grid — R7-04 fix: each card is now a button
+                    that opens the matching bucket section + scrolls into
+                    view. anchor maps to a section in the inspections list
+                    rendered below. */}
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Active Jobs', id: 'statActive', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', color: 'indigo' },
-                        { label: 'In Progress', id: 'statProgress', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'blue' },
-                        { label: 'Ready for Review', id: 'statReview', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'amber' },
-                        { label: 'Completed', id: 'statCompleted', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'emerald' }
+                        { label: 'Active Jobs',     id: 'statActive',    target: 'today',          icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', color: 'indigo' },
+                        { label: 'In Progress',     id: 'statProgress',  target: 'thisWeek',       icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'blue' },
+                        { label: 'Ready for Review',id: 'statReview',    target: 'needsAttention', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'amber' },
+                        { label: 'Completed',       id: 'statCompleted', target: 'recentReports', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'emerald' }
                     ].map((stat, i) => (
-                        <div key={stat.id} class="glass-card group p-8 rounded-[2.5rem] animate-fade-in" style={`animation-delay: ${0.1 + i * 0.05}s`}>
+                        <button
+                            key={stat.id}
+                            type="button"
+                            x-on:click={`sections['${stat.target}']=true; $nextTick(()=>{ const el=document.getElementById('bucket-${stat.target}'); if(el) el.scrollIntoView({behavior:'smooth', block:'start'}); })`}
+                            class="glass-card group p-4 rounded-lg animate-fade-in text-left hover:scale-[1.02] transition-transform cursor-pointer"
+                            style={`animation-delay: ${0.1 + i * 0.05}s`}
+                            title={`Jump to ${stat.label}`}
+                        >
                             <div class="flex items-center justify-between mb-6">
-                                <div class={`w-14 h-14 rounded-2xl bg-${stat.color}-600/10 text-${stat.color}-600 flex items-center justify-center group-hover:scale-110 group-hover:bg-${stat.color}-600 group-hover:text-white transition-all duration-300 shadow-sm`}>
+                                <div class={`w-12 h-12 rounded-lg bg-${stat.color}-600/10 text-${stat.color}-600 flex items-center justify-center group-hover:scale-110 group-hover:bg-${stat.color}-600 group-hover:text-white transition-all duration-300 shadow-sm`}>
                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={stat.icon}></path></svg>
                                 </div>
                                 <span class="sr-only">Live</span>
                             </div>
-                            <h3 class="text-4xl font-black text-slate-900 tracking-tightest mb-1" id={stat.id}>0</h3>
+                            <h3 class="text-2xl font-bold text-slate-900 tracking-tight mb-1" id={stat.id}>0</h3>
                             <p class="text-sm font-bold text-slate-500 uppercase tracking-tight">{stat.label}</p>
-                        </div>
+                        </button>
                     ))}
                 </div>
 
@@ -54,15 +64,15 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                 <div x-data="dashboardEarnings()" x-init="loadEarnings()" x-show="earnings.paid > 0 || earnings.pending > 0" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" style="display: none;">
                     <div>
                         <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Paid this period</div>
-                        <div class="mt-1 text-3xl font-black text-emerald-600" x-text="formatCurrency(earnings.paid)"></div>
+                        <div class="mt-1 text-xl font-bold text-emerald-600" x-text="formatCurrency(earnings.paid)"></div>
                     </div>
                     <div>
                         <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Pending</div>
-                        <div class="mt-1 text-3xl font-black text-amber-600" x-text="formatCurrency(earnings.pending)"></div>
+                        <div class="mt-1 text-xl font-bold text-amber-600" x-text="formatCurrency(earnings.pending)"></div>
                     </div>
                     <div>
                         <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Paid invoices</div>
-                        <div class="mt-1 text-3xl font-black text-slate-900" x-text="earnings.count"></div>
+                        <div class="mt-1 text-xl font-bold text-slate-900" x-text="earnings.count"></div>
                     </div>
                 </div>
 
@@ -76,7 +86,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </div>
 
                     {/* Loading spinner */}
-                    <div x-show="loading" class="flex items-center justify-center py-16">
+                    <div x-show="loading" class="flex items-center justify-center py-10">
                         <div class="relative w-12 h-12">
                             <div class="absolute inset-0 border-4 border-indigo-50 rounded-full"></div>
                             <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
@@ -84,7 +94,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </div>
 
                     {/* Section: Needs Attention */}
-                    <section x-show="!loading && buckets.needsAttention.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                    <section id="bucket-needsAttention" x-show="!loading && buckets.needsAttention.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl scroll-mt-20">
                         <button type="button" x-on:click="sections.needsAttention = !sections.needsAttention"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -100,6 +110,12 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
                                         <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
                                         <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                        {/* Spec 5B P2B — defect chips per inspection. Hidden when all zero. */}
+                                        <div class="mt-1 flex items-center gap-1.5" x-show="i.defectStats && (i.defectStats.safety + i.defectStats.recommendation + i.defectStats.maintenance) > 0">
+                                            <span x-show="i.defectStats?.safety > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700" x-text="'🔴 ' + i.defectStats.safety + ' safety'"></span>
+                                            <span x-show="i.defectStats?.recommendation > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700" x-text="'🟡 ' + i.defectStats.recommendation + ' rec'"></span>
+                                            <span x-show="i.defectStats?.maintenance > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-50 text-sky-700" x-text="'🔵 ' + i.defectStats.maintenance + ' maint'"></span>
+                                        </div>
                                     </a>
                                     <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
                                         <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
@@ -115,7 +131,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Today */}
-                    <section x-show="!loading && buckets.today.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                    <section id="bucket-today" x-show="!loading && buckets.today.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl scroll-mt-20">
                         <button type="button" x-on:click="sections.today = !sections.today"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -131,6 +147,12 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
                                         <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
                                         <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                        {/* Spec 5B P2B — defect chips per inspection. Hidden when all zero. */}
+                                        <div class="mt-1 flex items-center gap-1.5" x-show="i.defectStats && (i.defectStats.safety + i.defectStats.recommendation + i.defectStats.maintenance) > 0">
+                                            <span x-show="i.defectStats?.safety > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700" x-text="'🔴 ' + i.defectStats.safety + ' safety'"></span>
+                                            <span x-show="i.defectStats?.recommendation > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700" x-text="'🟡 ' + i.defectStats.recommendation + ' rec'"></span>
+                                            <span x-show="i.defectStats?.maintenance > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-50 text-sky-700" x-text="'🔵 ' + i.defectStats.maintenance + ' maint'"></span>
+                                        </div>
                                     </a>
                                     <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
                                         <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
@@ -169,7 +191,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: This Week */}
-                    <section x-show="!loading && buckets.thisWeek.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                    <section id="bucket-thisWeek" x-show="!loading && buckets.thisWeek.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl scroll-mt-20">
                         <button type="button" x-on:click="sections.thisWeek = !sections.thisWeek"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -185,6 +207,12 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
                                         <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
                                         <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                        {/* Spec 5B P2B — defect chips per inspection. Hidden when all zero. */}
+                                        <div class="mt-1 flex items-center gap-1.5" x-show="i.defectStats && (i.defectStats.safety + i.defectStats.recommendation + i.defectStats.maintenance) > 0">
+                                            <span x-show="i.defectStats?.safety > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700" x-text="'🔴 ' + i.defectStats.safety + ' safety'"></span>
+                                            <span x-show="i.defectStats?.recommendation > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700" x-text="'🟡 ' + i.defectStats.recommendation + ' rec'"></span>
+                                            <span x-show="i.defectStats?.maintenance > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-50 text-sky-700" x-text="'🔵 ' + i.defectStats.maintenance + ' maint'"></span>
+                                        </div>
                                     </a>
                                     <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
                                         <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
@@ -216,6 +244,12 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
                                         <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
                                         <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                        {/* Spec 5B P2B — defect chips per inspection. Hidden when all zero. */}
+                                        <div class="mt-1 flex items-center gap-1.5" x-show="i.defectStats && (i.defectStats.safety + i.defectStats.recommendation + i.defectStats.maintenance) > 0">
+                                            <span x-show="i.defectStats?.safety > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700" x-text="'🔴 ' + i.defectStats.safety + ' safety'"></span>
+                                            <span x-show="i.defectStats?.recommendation > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700" x-text="'🟡 ' + i.defectStats.recommendation + ' rec'"></span>
+                                            <span x-show="i.defectStats?.maintenance > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-50 text-sky-700" x-text="'🔵 ' + i.defectStats.maintenance + ' maint'"></span>
+                                        </div>
                                     </a>
                                     <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
                                         <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
@@ -236,7 +270,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Recent Reports */}
-                    <section x-show="!loading && buckets.recentReports.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl">
+                    <section id="bucket-recentReports" x-show="!loading && buckets.recentReports.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-2xl scroll-mt-20">
                         <button type="button" x-on:click="sections.recentReports = !sections.recentReports"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -252,6 +286,12 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
                                         <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
                                         <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                        {/* Spec 5B P2B — defect chips per inspection. Hidden when all zero. */}
+                                        <div class="mt-1 flex items-center gap-1.5" x-show="i.defectStats && (i.defectStats.safety + i.defectStats.recommendation + i.defectStats.maintenance) > 0">
+                                            <span x-show="i.defectStats?.safety > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700" x-text="'🔴 ' + i.defectStats.safety + ' safety'"></span>
+                                            <span x-show="i.defectStats?.recommendation > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700" x-text="'🟡 ' + i.defectStats.recommendation + ' rec'"></span>
+                                            <span x-show="i.defectStats?.maintenance > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-50 text-sky-700" x-text="'🔵 ' + i.defectStats.maintenance + ' maint'"></span>
+                                        </div>
                                     </a>
                                     <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
                                         <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
@@ -283,6 +323,12 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
                                         <p class="font-bold text-slate-900 truncate" x-text="i.propertyAddress || i.address || '(no address)'"></p>
                                         <p class="text-xs text-slate-500" x-text="(i.clientName || '—') + ' · ' + (i.date ? new Date(i.date).toLocaleString() : 'no date')"></p>
+                                        {/* Spec 5B P2B — defect chips per inspection. Hidden when all zero. */}
+                                        <div class="mt-1 flex items-center gap-1.5" x-show="i.defectStats && (i.defectStats.safety + i.defectStats.recommendation + i.defectStats.maintenance) > 0">
+                                            <span x-show="i.defectStats?.safety > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700" x-text="'🔴 ' + i.defectStats.safety + ' safety'"></span>
+                                            <span x-show="i.defectStats?.recommendation > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700" x-text="'🟡 ' + i.defectStats.recommendation + ' rec'"></span>
+                                            <span x-show="i.defectStats?.maintenance > 0" class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-sky-50 text-sky-700" x-text="'🔵 ' + i.defectStats.maintenance + ' maint'"></span>
+                                        </div>
                                     </a>
                                     <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
                                         <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
@@ -298,8 +344,8 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Empty state */}
-                    <div x-show="!loading && allBucketsEmpty" {...{ 'x-cloak': true }} class="text-center py-16 text-slate-400">
-                        <div class="w-20 h-20 rounded-3xl bg-indigo-50 flex items-center justify-center mx-auto mb-4">
+                    <div x-show="!loading && allBucketsEmpty" {...{ 'x-cloak': true }} class="text-center py-10 text-slate-400">
+                        <div class="w-20 h-20 rounded-lg bg-indigo-50 flex items-center justify-center mx-auto mb-4">
                             <svg class="w-10 h-10 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                         </div>
                         <p class="text-sm">No inspections yet. Create one above to get started.</p>
@@ -308,34 +354,48 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     <CancelModal />
                 </div>
 
-                {/* Create Inspection Modal */}
-                <div id="createModal" class="fixed inset-0 z-[100] hidden overflow-y-auto">
+                {/* Create Inspection Modal — R7-11 fix: add overflow-x-hidden so
+                    in-modal vertical scroll doesn't spill into page-level
+                    horizontal scroll on narrow viewports. */}
+                <div id="createModal" class="fixed inset-0 z-[100] hidden overflow-y-auto overflow-x-hidden">
                     <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xl transition-opacity animate-fade-in" onclick="closeModal()"></div>
                     <div class="flex min-h-full items-center justify-center p-6">
-                        <div role="dialog" aria-modal="true" class="relative w-full max-w-2xl transform overflow-hidden rounded-[3.5rem] bg-white p-12 text-left shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] animate-fade-in border border-white/40">
-                            <div class="absolute top-10 right-10">
+                        <div role="dialog" aria-modal="true" class="relative w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] animate-fade-in border border-white/40">
+                            <div class="absolute top-6 right-10">
                                 <button onclick="closeModal()" aria-label="Close dialog" class="group p-3 text-slate-300 hover:text-slate-900 rounded-2xl hover:bg-slate-50 transition-all">
                                     <svg class="w-6 h-6 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                                 </button>
                             </div>
 
-                            <div class="mb-10">
+                            <div class="mb-6">
                                 <div class="w-14 h-14 bg-emerald-600/10 rounded-2xl flex items-center justify-center text-emerald-600 mb-6">
                                     <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
                                 </div>
-                                <h3 class="text-3xl font-black text-slate-900 tracking-tightest mb-2 leading-none">New Inspection</h3>
+                                <h3 class="text-xl font-bold text-slate-900 tracking-tight mb-2 leading-none">New Inspection</h3>
                                 <p class="text-sm text-slate-500 font-semibold tracking-tight">Enter the details for this inspection.</p>
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                                <div class="space-y-2 md:col-span-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Property Address</label>
-                                    <input type="text" id="propAddress" placeholder="e.g., 742 Evergreen Terrace, Springfield"
-                                        class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
+                                <div class="space-y-2 md:col-span-2 relative">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Property Address</label>
+                                    <input type="text" id="propAddress" placeholder="Start typing — autocomplete via Google" autocomplete="off" data-places-autocomplete
+                                        class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
+                                    {/* Spec 5D — Google Places autocomplete dropdown.
+                                        Hidden until at least 2 chars typed. Falls back to
+                                        plain text input when GOOGLE_PLACES_API_KEY absent. */}
+                                    <div id="propAddressDropdown" class="hidden absolute left-0 right-0 top-full z-50 mt-1 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-72 overflow-y-auto"></div>
+                                    <input type="hidden" id="propPlaceId" />
+                                    <input type="hidden" id="propAddrStreet" />
+                                    <input type="hidden" id="propAddrCity" />
+                                    <input type="hidden" id="propAddrState" />
+                                    <input type="hidden" id="propAddrZip" />
+                                    <input type="hidden" id="propAddrCounty" />
+                                    <input type="hidden" id="propLat" />
+                                    <input type="hidden" id="propLng" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Template</label>
-                                    <select id="templateId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Template</label>
+                                    <select id="templateId" class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
                                         <option value="">Select a template...</option>
                                     </select>
                                     <p id="noTemplateHint" class="hidden text-xs text-amber-600 font-semibold mt-1 ml-1">
@@ -343,18 +403,22 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     </p>
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Inspection Date &amp; Time</label>
-                                    <input type="text" id="inspectionDate" data-flatpickr data-min-date="today" autocomplete="off" placeholder="YYYY-MM-DD HH:MM"
-                                        class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Inspection Date &amp; Time</label>
+                                    <input type="text" id="inspectionDate" data-flatpickr data-min-date="today" autocomplete="off" placeholder="Pick date and time"
+                                        class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div x-data="contactSelector" class="relative mb-3">
-                                    <label class="block text-xs font-bold text-slate-600 mb-1">Search or create contact</label>
+                                    {/* R7-08 fix: clarify that this autocompletes existing contacts
+                                        and auto-fills Name/Email/Phone below. Without this hint,
+                                        users wonder whether to type here OR fill the fields below. */}
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">Client</label>
+                                    <p class="text-[10px] text-slate-400 mb-2 leading-tight">Search a saved contact (auto-fills Name / Email / Phone), or skip to type a new one below.</p>
                                     <input
                                         type="text"
                                         x-model="searchText"
                                         x-on:input="onInput()"
                                         x-on:focus="showDropdown = searchText.length > 0"
-                                        placeholder="Type contact name to search..."
+                                        placeholder="Search saved contacts…"
                                         class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
                                         autocomplete="off"
                                     />
@@ -371,29 +435,38 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     </div>
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Client Name</label>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Client Name</label>
                                     <input type="text" id="clientName" placeholder="e.g., John Doe"
-                                        class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
+                                        class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Client Email</label>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Client Email</label>
                                     <input type="email" id="clientEmail" placeholder="e.g., john@example.com"
-                                        class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
+                                        class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Client Phone</label>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Client Phone</label>
                                     <input type="tel" id="clientPhone" placeholder="e.g., (555) 123-4567"
-                                        class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
+                                        class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm" />
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Assign Inspector</label>
-                                    <select id="inspectorId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Assign Inspector</label>
+                                    <select id="inspectorId" class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
                                         <option value="">Self-assignment</option>
                                     </select>
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Referring Agent</label>
-                                    <select id="agentId" class="premium-input w-full px-6 py-4 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Listing Agent</label>
+                                    <select id="agentId" class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
+                                        <option value="">None</option>
+                                    </select>
+                                </div>
+                                {/* R7-09: Buyer's Agent — separate field from Listing Agent so
+                                    inspectors can record both sides of the transaction. Maps to
+                                    inspections.sellingAgentId. Both selects share populateAgents(). */}
+                                <div class="space-y-2">
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Buyer's Agent</label>
+                                    <select id="buyerAgentId" class="premium-input w-full px-3 py-2 rounded-2xl border-2 border-slate-50 focus:border-emerald-600 outline-none transition-all font-bold text-sm bg-white">
                                         <option value="">None</option>
                                     </select>
                                 </div>
@@ -401,7 +474,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
 
                             {/* Services selection */}
                             <div id="servicesSection" style="display:none" class="mb-4">
-                                <div class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3">Services</div>
+                                <div class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-3">Services</div>
                                 <div id="servicesList" class="space-y-2 max-h-48 overflow-y-auto"></div>
                                 <div id="serviceTotalBar" style="display:none" class="mt-3">
                                     <div class="flex items-center gap-2 mb-2">
@@ -424,11 +497,20 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 </div>
                             </div>
 
-                            <div class="pt-4 flex gap-4">
-                                <button type="button" onclick="closeModal()" class="flex-1 py-4.5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-slate-50 transition-all">
+                            {/* Round 39 — match Publish Report modal canonical
+                                button row: h-10 / px-4 / rounded-xl / text-sm
+                                font-semibold / normal-case. Cancel = white +
+                                border (secondary), Create = indigo solid
+                                (primary). Removes legacy py-4.5 + text-[10px]
+                                tracking-[0.2em] + font-black. */}
+                            <div class="pt-4 flex gap-3">
+                                <button type="button" onclick="closeModal()"
+                                    class="flex-1 h-10 px-4 rounded-xl border bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all"
+                                    style="border-color: #e2e8f0">
                                     Cancel
                                 </button>
-                                <button type="button" onclick="submitInspection()" id="submitInsBtn" class="premium-button flex-[2] py-4.5 rounded-2xl bg-indigo-600 text-white font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl hover:bg-slate-900 transition-all active:scale-95">
+                                <button type="button" onclick="submitInspection()" id="submitInsBtn"
+                                    class="flex-[2] h-10 px-4 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95">
                                     Create Inspection
                                 </button>
                             </div>
