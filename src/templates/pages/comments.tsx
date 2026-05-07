@@ -1,4 +1,5 @@
 import { MainLayout } from '../layouts/main-layout';
+import { Modal, ModalFooter } from '../components/modal';
 import { BrandingConfig } from '../../types/auth';
 
 interface Props { branding?: BrandingConfig; }
@@ -14,11 +15,34 @@ export const CommentsPage = ({ branding }: Props): JSX.Element => (
                 <button x-on:click="openCreate()" class="px-4 py-2 rounded-md bg-indigo-600 text-white text-xs font-bold uppercase tracking-wide hover:bg-indigo-700">+ Add comment</button>
             </header>
 
+            {/*
+              Spec 2026-05-07 — rating-bucket tabs mirror the inspection-edit
+              Library drawer pills (rounded-full, indigo active state). The
+              `categoryFilter` dropdown stays as a secondary filter so a user
+              can combine "Defect" tab + "Plumbing" category.
+            */}
+            <div class="flex flex-wrap items-center gap-2">
+                <template x-for="b in bucketTabs" {...{ 'x-bind:key': 'b.value' }}>
+                    <button
+                        x-on:click="setBucket(b.value)"
+                        x-bind:class="bucket === b.value ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+                        class="px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide transition"
+                        x-text="b.label"
+                    ></button>
+                </template>
+            </div>
+
             <div class="flex gap-3 flex-wrap">
                 <select x-model="categoryFilter" x-on:change="reload()" class="px-3 py-2 rounded-lg border border-slate-200 text-sm">
                     <option value="">All categories</option>
                     <template x-for="cat in distinctCategories" {...{ 'x-bind:key': 'cat' }}>
                         <option x-bind:value="cat" x-text="cat"></option>
+                    </template>
+                </select>
+                <select x-model="sectionFilter" x-on:change="reload()" class="px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                    <option value="">All sections</option>
+                    <template x-for="s in distinctSections" {...{ 'x-bind:key': 's' }}>
+                        <option x-bind:value="s" x-text="s"></option>
                     </template>
                 </select>
             </div>
@@ -33,8 +57,19 @@ export const CommentsPage = ({ branding }: Props): JSX.Element => (
                     <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="text-xs text-slate-500" x-text="comment.category || '(no category)'"></span>
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    {/*
+                                      Pill uses the shared .ih-pill / ih-pill--sat / monitor / defect / gen
+                                      classes so /comments matches the
+                                      inspection-edit drawer + report PDF pill styling.
+                                    */}
+                                    <span
+                                        class="ih-pill"
+                                        x-bind:class="comment.ratingBucket === 'satisfactory' ? 'ih-pill--sat' : comment.ratingBucket === 'monitor' ? 'ih-pill--monitor' : comment.ratingBucket === 'defect' ? 'ih-pill--defect' : 'ih-pill--gen'"
+                                        x-text="comment.ratingBucket ? comment.ratingBucket : 'general'"
+                                    ></span>
+                                    <span x-show="comment.section" class="text-[10px] font-bold uppercase tracking-wide text-slate-500" x-text="comment.section"></span>
+                                    <span x-show="comment.category" class="text-[10px] text-slate-400" x-text="'· ' + comment.category"></span>
                                 </div>
                                 <p class="text-sm text-slate-700 line-clamp-3" x-text="comment.text"></p>
                             </div>
@@ -47,41 +82,75 @@ export const CommentsPage = ({ branding }: Props): JSX.Element => (
                 </template>
             </div>
 
-            {/* Create / Edit modal */}
-            <div x-show="modalOpen" x-cloak class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" {...{ 'x-on:click': 'if ($event.target === $el) modalOpen = false' }}>
-                <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
-                    <h2 class="text-lg font-bold text-slate-900 mb-4" x-text="editingId ? 'Edit comment' : 'New comment'"></h2>
-                    <div class="space-y-3">
+            {/* Create / Edit modal — wrapped in shared <Modal> component (R44).
+                When adding new fields, KEEP them inside this body slot — do
+                NOT recreate the modal markup. */}
+            <Modal
+                name="modalOpen"
+                titleExpr="editingId ? 'Edit comment' : 'New comment'"
+                size="lg"
+                footer={
+                    <ModalFooter
+                        onCancel="modalOpen = false"
+                        onConfirm="save()"
+                        confirmDisabled="saving"
+                        confirmTextExpr="saving ? 'Saving...' : 'Save'"
+                    />
+                }
+            >
+                <div class="space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Category</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Rating bucket</label>
+                            <select x-model="form.ratingBucket" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white">
+                                <option value="">Unspecified</option>
+                                <option value="satisfactory">Satisfactory</option>
+                                <option value="monitor">Monitor</option>
+                                <option value="defect">Defect</option>
+                            </select>
+                            <p class="text-[10px] text-slate-400 mt-1">Determines which tab it appears under in the Library drawer.</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Section</label>
                             <input
                                 type="text"
-                                list="commentCategoryOptions"
-                                x-model="form.category"
+                                list="commentSectionOptions"
+                                x-model="form.section"
                                 placeholder="e.g., Roof"
                                 autocomplete="off"
                                 class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
                             />
-                            <datalist id="commentCategoryOptions">
-                                <template x-for="cat in distinctCategories" {...{ 'x-bind:key': 'cat' }}>
-                                    <option x-bind:value="cat"></option>
+                            <datalist id="commentSectionOptions">
+                                <template x-for="s in distinctSections" {...{ 'x-bind:key': 's' }}>
+                                    <option x-bind:value="s"></option>
                                 </template>
                             </datalist>
-                            <p class="text-[10px] text-slate-400 mt-1">Pick from your existing categories or type a new one.</p>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Comment text</label>
-                            <textarea x-model="form.text" required rows={4} placeholder="e.g., Evidence of previous repair was observed." class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"></textarea>
+                            <p class="text-[10px] text-slate-400 mt-1">Pick from your existing sections or type a new one.</p>
                         </div>
                     </div>
-                    <div class="flex gap-3 justify-end mt-6">
-                        <button x-on:click="modalOpen = false" class="px-5 py-2 rounded-lg ring-2 ring-slate-300 text-slate-700 text-xs font-bold">Cancel</button>
-                        <button x-on:click="save()" {...{ 'x-bind:disabled': 'saving' }} class="px-5 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-black disabled:opacity-50">
-                            <span x-text="saving ? 'Saving...' : 'Save'"></span>
-                        </button>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Category</label>
+                        <input
+                            type="text"
+                            list="commentCategoryOptions"
+                            x-model="form.category"
+                            placeholder="e.g., Roof"
+                            autocomplete="off"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                        />
+                        <datalist id="commentCategoryOptions">
+                            <template x-for="cat in distinctCategories" {...{ 'x-bind:key': 'cat' }}>
+                                <option x-bind:value="cat"></option>
+                            </template>
+                        </datalist>
+                        <p class="text-[10px] text-slate-400 mt-1">Optional free-text label, kept for backward compat.</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Comment text</label>
+                        <textarea x-model="form.text" required rows={4} placeholder="e.g., Evidence of previous repair was observed." class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"></textarea>
                     </div>
                 </div>
-            </div>
+            </Modal>
         </div>
 
         <script src="/js/auth.js"></script>

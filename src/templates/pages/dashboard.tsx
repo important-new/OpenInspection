@@ -1,6 +1,7 @@
 import { MainLayout } from '../layouts/main-layout';
 import { BrandingConfig } from '../../types/auth';
 import { CancelModal } from '../components/cancel-modal';
+import { Modal } from '../components/modal';
 
 export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
@@ -33,12 +34,19 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     that opens the matching bucket section + scrolls into
                     view. anchor maps to a section in the inspections list
                     rendered below. */}
+                {/* R45 fix — labels, count semantics, and click targets now
+                    align. Each card's number, name, and the bucket it scrolls
+                    to all reference the same dataset. Was previously a 3-way
+                    mismatch (Active = today+thisWeek+later but click jumps to
+                    just `today`; Ready for Review = recentReports but click
+                    jumps to needsAttention; Completed double-counted recent
+                    reports as both 'review' and 'completed'). */}
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Active Jobs',     id: 'statActive',    target: 'today',          icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', color: 'indigo' },
-                        { label: 'In Progress',     id: 'statProgress',  target: 'thisWeek',       icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'blue' },
-                        { label: 'Ready for Review',id: 'statReview',    target: 'needsAttention', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'amber' },
-                        { label: 'Completed',       id: 'statCompleted', target: 'recentReports', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'emerald' }
+                        { label: 'Upcoming',        id: 'statUpcoming',   target: 'later',          icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'indigo' },
+                        { label: 'In Progress',     id: 'statInProgress', target: 'thisWeek',       icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', color: 'blue' },
+                        { label: 'Needs Attention', id: 'statNeedsAttn',  target: 'needsAttention', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', color: 'amber' },
+                        { label: 'Recent Reports',  id: 'statRecentRpt',  target: 'recentReports',  icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'emerald' }
                     ].map((stat, i) => (
                         <button
                             key={stat.id}
@@ -356,26 +364,36 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
 
                 {/* Create Inspection Modal — R7-11 fix: add overflow-x-hidden so
                     in-modal vertical scroll doesn't spill into page-level
-                    horizontal scroll on narrow viewports. */}
-                <div id="createModal" class="fixed inset-0 z-[100] hidden overflow-y-auto overflow-x-hidden">
-                    <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-xl transition-opacity animate-fade-in" onclick="closeModal()"></div>
-                    <div class="flex min-h-full items-center justify-center p-6">
-                        <div role="dialog" aria-modal="true" class="relative w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] animate-fade-in border border-white/40">
-                            <div class="absolute top-6 right-10">
-                                <button onclick="closeModal()" aria-label="Close dialog" class="group p-3 text-slate-300 hover:text-slate-900 rounded-2xl hover:bg-slate-50 transition-all">
-                                    <svg class="w-6 h-6 transition-transform group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                </button>
-                            </div>
-
-                            <div class="mb-6">
-                                <div class="w-14 h-14 bg-emerald-600/10 rounded-2xl flex items-center justify-center text-emerald-600 mb-6">
-                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
-                                </div>
-                                <h3 class="text-xl font-bold text-slate-900 tracking-tight mb-2 leading-none">New Inspection</h3>
-                                <p class="text-sm text-slate-500 font-semibold tracking-tight">Enter the details for this inspection.</p>
-                            </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    horizontal scroll on narrow viewports.
+                    R39 — canonical h-10 button row (asymmetric flex-1 / flex-[2]
+                    Create Inspection variant kept; footer inlined). */}
+                <Modal
+                    id="createModal"
+                    title="New Inspection"
+                    subtitle="Enter the details for this inspection."
+                    size="2xl"
+                    footer={
+                        <>
+                            <button
+                                type="button"
+                                onclick="closeModal()"
+                                class="flex-1 h-10 px-4 rounded-xl border bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all"
+                                style="border-color: #e2e8f0"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onclick="submitInspection()"
+                                id="submitInsBtn"
+                                class="flex-[2] h-10 px-4 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95"
+                            >
+                                Create Inspection
+                            </button>
+                        </>
+                    }
+                >
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-2">
                                 <div class="space-y-2 md:col-span-2 relative">
                                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] ml-1">Property Address</label>
                                     <input type="text" id="propAddress" placeholder="Start typing — autocomplete via Google" autocomplete="off" data-places-autocomplete
@@ -497,26 +515,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 </div>
                             </div>
 
-                            {/* Round 39 — match Publish Report modal canonical
-                                button row: h-10 / px-4 / rounded-xl / text-sm
-                                font-semibold / normal-case. Cancel = white +
-                                border (secondary), Create = indigo solid
-                                (primary). Removes legacy py-4.5 + text-[10px]
-                                tracking-[0.2em] + font-black. */}
-                            <div class="pt-4 flex gap-3">
-                                <button type="button" onclick="closeModal()"
-                                    class="flex-1 h-10 px-4 rounded-xl border bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all"
-                                    style="border-color: #e2e8f0">
-                                    Cancel
-                                </button>
-                                <button type="button" onclick="submitInspection()" id="submitInsBtn"
-                                    class="flex-[2] h-10 px-4 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-95">
-                                    Create Inspection
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                </Modal>
 
                 <script src="/js/modal-dialog.js"></script>
                 <script src="/js/auth.js"></script>
