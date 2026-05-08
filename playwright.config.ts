@@ -49,6 +49,28 @@ export default defineConfig({
             dependencies: ['api'],
         },
         {
+            // Sprint 2 Track 2 (S2-2) — multi-inspection per request smoke.
+            name: 'multi-inspection',
+            testMatch: 'multi-inspection-request.spec.ts',
+        },
+        {
+            // Sprint 2 Track 2 (S2-5) — inspection sub-routes router smoke.
+            name: 'subroutes',
+            testMatch: 'inspection-subroutes.spec.ts',
+        },
+        {
+            // Sprint 2 S2-1 — rating systems CRUD.
+            name: 'rating-system-crud',
+            testMatch: 'rating-system-crud.spec.ts',
+            dependencies: ['api'],
+        },
+        {
+            // Sprint 2 S2-4 — repair estimate range toggle + sanitizer.
+            name: 'estimate-range',
+            testMatch: 'estimate-range.spec.ts',
+            dependencies: ['api'],
+        },
+        {
             name: 'cloud',
             testMatch: 'cloud-e2e.spec.ts',
             use: {

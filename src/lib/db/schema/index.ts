@@ -1,5 +1,6 @@
 export * from './tenant';
 export {
+    ratingSystems,
     templates,
     inspections,
     inspectionResults,
@@ -16,11 +17,18 @@ export {
     automationLogs,
     eventTypes,
     inspectionEvents,
+    inspectionRequests,
 } from './inspection';
 export { contacts } from './contact';
 export { recommendations } from './recommendation';
 export { invoices } from './invoice';
-export { marketplaceTemplates, tenantMarketplaceImports, marketplaceLibraries, tenantLibraryImports } from './marketplace';
+export {
+    marketplaceTemplates,
+    tenantMarketplaceImports,
+    marketplaceLibraries,
+    tenantLibraryImports,
+    tenantMarketplaceImportHistory,
+} from './marketplace';
 export { customerMessages } from './message';
 export type { MessageAttachment } from './message';
 export { reportPdfs } from './report-pdf';

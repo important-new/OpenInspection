@@ -2,14 +2,34 @@
 import { BareLayout } from '../layouts/main-layout';
 import { Modal, ModalFooter } from '../components/modal';
 import type { BrandingConfig } from '../../types/auth';
+import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
 interface InspectionEditProps {
   inspectionId: string;
   branding?: BrandingConfig | undefined;
 }
 
+/**
+ * Sprint 2 S2-3 — Build the grouped <optgroup> payload for the per-defect
+ * "Contact contractor" dropdown. Done once at page render, not on every
+ * Alpine re-render. The result is serialized into a `<script>` tag below so
+ * the editor JS can iterate without an extra fetch.
+ */
+function buildRecoGroups(): Array<{ group: string; items: Array<{ id: string; label: string; icon?: string }> }> {
+    const groups = new Map<string, Array<{ id: string; label: string; icon?: string }>>();
+    for (const cat of RECOMMENDATION_CATEGORIES) {
+        const arr = groups.get(cat.group) ?? [];
+        const item: { id: string; label: string; icon?: string } = { id: cat.id, label: cat.label };
+        if (cat.icon) item.icon = cat.icon;
+        arr.push(item);
+        groups.set(cat.group, arr);
+    }
+    return Array.from(groups.entries()).map(([group, items]) => ({ group, items }));
+}
+
 export function InspectionEditPage({ inspectionId, branding }: InspectionEditProps) {
   const siteName = branding?.siteName || 'OpenInspection';
+  const recoGroups = buildRecoGroups();
 
   return BareLayout({
     title: `${siteName} | Edit Inspection`,
@@ -114,6 +134,29 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                     class="w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center"
                     x-text="sectionDefectCount(sec.id)"></span>
                 </button>
+              </template>
+            </div>
+          </div>
+
+          {/* Sprint 2 S2-2 — mobile request switcher banner. */}
+          <div
+            x-data={`requestSwitcher('${inspectionId}')`}
+            x-init="load()"
+            x-show="hasSiblings"
+            style="display:none"
+            class="mx-4 mt-3 flex flex-wrap items-center gap-1.5 px-3 py-2 bg-indigo-50 rounded-md border border-indigo-200"
+          >
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white ring-1 ring-inset ring-indigo-200 text-[10px] font-bold text-indigo-700">
+              Part <span x-text="partIndex"></span> of <span x-text="partTotal"></span>
+            </span>
+            <span class="text-[10px] text-slate-500" x-text="'request ' + requestIdShort"></span>
+            <div class="flex flex-wrap gap-1 mt-1 w-full">
+              <template x-for="s in siblings" {...{ 'x-bind:key': 's.id' }}>
+                <a
+                  x-bind:href="'/inspections/' + s.id + '/report'"
+                  x-bind:class="isCurrent(s.id) ? 'px-2 py-0.5 rounded bg-white border border-indigo-300 text-indigo-700 text-[10px] font-bold' : 'px-2 py-0.5 rounded text-slate-600 text-[10px] font-medium hover:bg-white'"
+                  x-text="s.templateName"
+                ></a>
               </template>
             </div>
           </div>
@@ -659,6 +702,35 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
 
           {/* Center Content */}
           <main class="flex-1 min-w-0">
+            {/* Sprint 2 S2-2 — request switcher banner.
+                Renders only when the inspection belongs to a multi-service
+                booking (request.inspections.length > 1). The banner shows
+                "Part X of Y in request ABC123" plus chip links to siblings.
+                Hidden during initial fetch and for single-service inspections. */}
+            <div
+              x-data={`requestSwitcher('${inspectionId}')`}
+              x-init="load()"
+              x-show="hasSiblings"
+              style="display:none"
+              class="mx-6 mt-3 flex flex-wrap items-center gap-2 px-3 py-2 bg-indigo-50 rounded-md border border-indigo-200"
+              role="region"
+              aria-label="Inspection request siblings"
+            >
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white ring-1 ring-inset ring-indigo-200 text-[11px] font-bold text-indigo-700">
+                Part <span x-text="partIndex"></span> of <span x-text="partTotal"></span>
+              </span>
+              <span class="text-[11px] text-slate-500">
+                in request <span class="font-mono font-semibold text-slate-700" x-text="requestIdShort"></span>
+              </span>
+              <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ml-2">Switch:</span>
+              <template x-for="s in siblings" {...{ 'x-bind:key': 's.id' }}>
+                <a
+                  x-bind:href="'/inspections/' + s.id + '/report'"
+                  x-bind:class="isCurrent(s.id) ? 'px-2.5 py-1 rounded-md bg-white border border-indigo-300 text-indigo-700 text-[11px] font-bold' : 'px-2.5 py-1 rounded-md text-slate-600 text-[11px] font-medium hover:bg-white hover:text-slate-900 transition-colors'"
+                  x-text="s.templateName"
+                ></a>
+              </template>
+            </div>
             {/* Toolbar */}
             <div class="sticky top-0 z-40 px-3 py-2 flex items-center justify-between" style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border-bottom: 1px solid rgba(226,232,240,0.6);">
               <div class="flex items-center gap-3">
@@ -1023,27 +1095,76 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
                                 <p x-show="!entry.included" class="mt-1 text-[11px] italic text-slate-500 line-clamp-2" x-text="entry.comment"></p>
                                 {/* Defect-only location + category override */}
                                 <template x-if="entry.included && (activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
-                                  <div class="mt-2 grid grid-cols-2 gap-2">
-                                    <div>
-                                      <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Location</label>
-                                      <input type="text"
-                                        x-bind:value="entry.location"
-                                        x-on:input="setDefectLocation(item.id, entry.cannedId, $event.target.value)"
-                                        placeholder="Northwest corner"
-                                        class="w-full px-2 py-1 text-[11px] rounded border bg-white"
-                                        style="border-color: #e2e8f0" />
+                                  <div class="mt-2 space-y-2">
+                                    <div class="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Location</label>
+                                        <input type="text"
+                                          x-bind:value="entry.location"
+                                          x-on:input="setDefectLocation(item.id, entry.cannedId, $event.target.value)"
+                                          placeholder="Northwest corner"
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white"
+                                          style="border-color: #e2e8f0" />
+                                      </div>
+                                      <div>
+                                        <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Category</label>
+                                        <select
+                                          x-bind:value="entry.category"
+                                          x-on:change="setDefectCategory(item.id, entry.cannedId, $event.target.value)"
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white"
+                                          style="border-color: #e2e8f0">
+                                          <option value="maintenance">Maintenance</option>
+                                          <option value="recommendation">Recommendation</option>
+                                          <option value="safety">Safety</option>
+                                        </select>
+                                      </div>
                                     </div>
+                                    {/* Sprint 2 S2-3 — contractor recommendation dropdown.
+                                        Inspector picks the trade so the published report
+                                        renders the canonical "Recommend a qualified
+                                        electrician..." phrase after the defect notes. */}
                                     <div>
-                                      <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Category</label>
+                                      <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Contact contractor</label>
                                       <select
-                                        x-bind:value="entry.category"
-                                        x-on:change="setDefectCategory(item.id, entry.cannedId, $event.target.value)"
+                                        x-bind:value="entry.recommendationId || ''"
+                                        x-on:change="setDefectRecommendation(item.id, entry.cannedId, $event.target.value)"
                                         class="w-full px-2 py-1 text-[11px] rounded border bg-white"
-                                        style="border-color: #e2e8f0">
-                                        <option value="maintenance">Maintenance</option>
-                                        <option value="recommendation">Recommendation</option>
-                                        <option value="safety">Safety</option>
+                                        style="border-color: #e2e8f0"
+                                        data-testid="defect-recommendation">
+                                        <option value="">No recommendation</option>
+                                        <template x-for="grp in window.__OI_RECO_GROUPS || []" x-bind:key="grp.group">
+                                          <optgroup x-bind:label="grp.group">
+                                            <template x-for="cat in grp.items" x-bind:key="cat.id">
+                                              <option x-bind:value="cat.id" x-text="(cat.icon ? cat.icon + ' ' : '') + cat.label"></option>
+                                            </template>
+                                          </optgroup>
+                                        </template>
                                       </select>
+                                    </div>
+                                    {/* Sprint 2 S2-4 — repair estimate range (USD).
+                                        Stored on the defect as estimateLow / estimateHigh
+                                        in dollars (converted to cents server-side). */}
+                                    <div class="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Estimate low ($)</label>
+                                        <input type="number" min="0" step="50"
+                                          x-bind:value="entry.estimateLow != null ? Math.round(entry.estimateLow / 100) : ''"
+                                          x-on:input="setDefectEstimate(item.id, entry.cannedId, 'low', $event.target.value)"
+                                          placeholder="500"
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white tabular-nums"
+                                          style="border-color: #e2e8f0"
+                                          data-testid="defect-estimate-low" />
+                                      </div>
+                                      <div>
+                                        <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Estimate high ($)</label>
+                                        <input type="number" min="0" step="50"
+                                          x-bind:value="entry.estimateHigh != null ? Math.round(entry.estimateHigh / 100) : ''"
+                                          x-on:input="setDefectEstimate(item.id, entry.cannedId, 'high', $event.target.value)"
+                                          placeholder="1500"
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white tabular-nums"
+                                          style="border-color: #e2e8f0"
+                                          data-testid="defect-estimate-high" />
+                                      </div>
                                     </div>
                                   </div>
                                 </template>
@@ -1641,8 +1762,19 @@ export function InspectionEditPage({ inspectionId, branding }: InspectionEditPro
       <script src="/js/toast.js"></script>
       {/* Spec 5G M2 — load 248 canned comments before editor inits */}
       <script src="/js/canned-comments.js"></script>
+      {/* Sprint 2 S2-3 — expose the contractor recommendation catalog as a
+          window global so the inspection-edit.js Alpine template can populate
+          the per-defect dropdown without an extra round-trip. JSON.stringify
+          escapes correctly for embedding inside <script>. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `window.__OI_RECO_GROUPS = ${JSON.stringify(recoGroups)};`,
+        }}
+      ></script>
       <script src="/js/inspection-edit.js"></script>
       <script src="/js/inspection-events.js"></script>
+      {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
+      <script src="/js/request-switcher.js"></script>
       {/* Phase T (T14) — Konva-based photo annotator. konva.min.js (~150KB) is
           lazy-loaded by photo-annotator.js on the first `annotate` event so it
           doesn't block first paint of the inspection edit page. */}

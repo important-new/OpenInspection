@@ -31,7 +31,7 @@ import { AgentDashboardPage } from './templates/pages/agent-dashboard';
 import { TemplatesPage } from './templates/pages/templates';
 import { TemplateEditorPage } from './templates/pages/template-editor';
 import { MarketplacePage } from './templates/pages/marketplace';
-import { RatingSystemsStubPage } from './templates/pages/rating-systems-stub';
+import { RatingSystemsPage } from './templates/pages/rating-systems';
 import { TeamPage } from './templates/pages/team';
 import { AgreementsPage } from './templates/pages/agreements';
 import { AgreementSignPage } from './templates/pages/agreement-sign';
@@ -46,6 +46,10 @@ import { InvoicesPage } from './templates/pages/invoices';
 import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
+import { InspectionPhotosPage } from './templates/pages/inspection/photos';
+import { InspectionSummaryPage } from './templates/pages/inspection/summary';
+import { InspectionSignaturesPage } from './templates/pages/inspection/signatures';
+import { InspectionSettingsPage } from './templates/pages/inspection/settings';
 import { SettingsAutomationsPage } from './templates/pages/settings-automations';
 import { SettingsWidgetPage } from './templates/pages/settings-widget';
 import { SettingsServicesPage } from './templates/pages/settings-services';
@@ -81,6 +85,7 @@ import servicesRoutes from './api/services';
 import automationsRoutes from './api/automations';
 import metricsRoutes from './api/metrics';
 import marketplaceRoutes from './api/marketplace';
+import templateMigrationRoutes from './api/template-migrations';
 import dataRoutes from './api/data';
 import icsRoutes from './api/ics';
 import userRoutes from './api/users';
@@ -89,7 +94,9 @@ import widgetRoutes from './api/widget';
 import notificationsRoutes from './api/notifications';
 import inspectionSyncRoutes from './api/inspection-sync';
 import recommendationsRoutes from './api/recommendations';
+import ratingSystemsRoutes from './api/rating-systems';
 import eventsRoutes from './api/events';
+import inspectionRequestsRoutes from './api/inspection-requests';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -320,6 +327,7 @@ app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 app.route('/api/inspections', inspectionSyncRoutes);
+app.route('/api/inspection-requests', inspectionRequestsRoutes);
 app.route('/api/ai', aiRoutes);
 app.route('/api/public', bookingsRoutes);
 app.route('/api/public/widget', widgetRoutes);
@@ -333,12 +341,16 @@ app.route('/api/calendar', calendarRoutes);
 app.route('/api/team', teamRoutes);
 app.route('/api/contacts', contactRoutes);
 app.route('/api/recommendations', recommendationsRoutes);
+app.route('/api/rating-systems', ratingSystemsRoutes);
 app.route('/api', eventsRoutes);
 app.route('/api/invoices', invoiceRoutes);
 app.route('/api/services', servicesRoutes);
 app.route('/api/automations', automationsRoutes);
 app.route('/api/metrics', metricsRoutes);
 app.route('/api/templates/marketplace', marketplaceRoutes);
+// Sprint 2 S2-6 — migrate inspections from one template to another.
+// Mounted at /api/templates so the path is /api/templates/:oldId/migrate-to/:newId.
+app.route('/api/templates', templateMigrationRoutes);
 app.route('/api/data', dataRoutes);
 app.route('/api/integration', integrationRoutes);
 app.route('/api/ics', icsRoutes);
@@ -899,6 +911,8 @@ app.get('/report/:id', async (c) => {
             ratingLevels: data.ratingLevels as import('./lib/report-utils').RatingLevel[],
             branding: c.get('branding'),
             summaryMode,
+            // Sprint 2 S2-4 — gate "Estimated cost: $X – $Y" badges per tenant.
+            showEstimates: data.showEstimates,
         }));
     } catch {
         return c.text('Report not found', 404);
@@ -924,9 +938,8 @@ app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
     return c.html(TemplateEditorPage({ templateId: id, branding: c.get('branding') }));
 });
 app.get('/marketplace', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MarketplacePage({ branding: c.get('branding') })));
-// Sprint 1 Sub-spec B Task 2 Step 5 — Library / Rating Systems stub (real
-// implementation lands in Sprint 2 — TREC, ITB, custom rating systems).
-app.get('/library/rating-systems', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(RatingSystemsStubPage({ branding: c.get('branding') })));
+// Sprint 2 S2-1 — Library / Rating Systems CRUD page replaces the Sprint 1 stub.
+app.get('/library/rating-systems', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(RatingSystemsPage({ branding: c.get('branding') })));
 // Settings hub (group cards)
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
 
@@ -937,6 +950,19 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin']), (c) => c.html(Se
 app.get('/settings/workspace', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/workspace/branding'));
 app.get('/settings/workspace/branding', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsWorkspacePage({ branding: c.get('branding'), subPage: 'branding' })));
 app.get('/settings/workspace/theme', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsWorkspacePage({ branding: c.get('branding'), subPage: 'theme' })));
+// Sprint 2 S2-4 — Reports sub-page hosts the "Show estimate ranges" toggle.
+// We resolve the persisted value via the BrandingService so the checkbox
+// reflects state on first paint without a flash.
+app.get('/settings/workspace/reports', htmlAuthGuard(['owner', 'admin']), async (c) => {
+    const tenantId = c.get('tenantId');
+    const cfg = await c.var.services.branding.getBranding(tenantId, {
+        siteName: c.env.APP_NAME || 'OpenInspection',
+        primaryColor: c.env.PRIMARY_COLOR || '#4f46e5',
+        supportEmail: c.env.SENDER_EMAIL || 'support@example.com',
+    });
+    const showEstimates = Boolean((cfg as { showEstimates?: boolean | number }).showEstimates);
+    return c.html(SettingsWorkspacePage({ branding: c.get('branding'), subPage: 'reports', showEstimates }));
+});
 app.get('/settings/workspace/telemetry', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsWorkspacePage({ branding: c.get('branding'), subPage: 'telemetry' })));
 
 // Catalog group
@@ -1014,11 +1040,119 @@ app.get('/inspections/:id/form', htmlAuthGuard(['owner', 'admin', 'inspector']),
     return c.html(FormRendererPage({ inspectionId: id, branding }));
 });
 
-// Inspection Edit Page - Inspector + Admin/Owner
+// Inspection sub-routes (Sprint 2 S2-5).
+//
+// `/edit` is preserved as a 302 redirect to `/report` for backward
+// compatibility with bookmarks and existing JS that still constructs the
+// legacy URL. The canonical surface is the 5-tab sub-route family:
+//   /inspections/:id/report     — primary editor (existing inspection-edit)
+//   /inspections/:id/photos     — read-only gallery
+//   /inspections/:id/summary    — read-only defects preview
+//   /inspections/:id/signatures — agreement envelopes + audit chain timeline
+//   /inspections/:id/settings   — schedule / inspector / template / gates
+//
+// All five share <InspectionShell> for sub-nav + breadcrumb. The Report tab
+// keeps the existing BareLayout-based editor untouched so the Alpine sticky
+// header and full-canvas drawing surface continue to work.
+async function loadInspectionShellData(c: Context<HonoConfig>, inspectionId: string) {
+    const tenantId = c.get('tenantId');
+    if (!tenantId) return null;
+    try {
+        const insp = await c.var.services.inspection.getInspection(inspectionId, tenantId);
+        const propertyAddress = insp.inspection.propertyAddress || 'Inspection';
+        const parent = await c.var.services.inspectionRequest.getByInspectionId(tenantId, inspectionId);
+        let siblings: Array<{ id: string; templateName: string; status: string }> | undefined;
+        let requestId: string | undefined;
+        if (parent && parent.inspections.length > 1) {
+            requestId = parent.id;
+            // Look up template names for siblings (best-effort — falls back to id).
+            const tplIds = Array.from(new Set(parent.inspections.map(i => i.templateId).filter((x): x is string => !!x)));
+            const tplNameById = new Map<string, string>();
+            if (tplIds.length > 0) {
+                const db = drizzle(c.env.DB);
+                const rows = await db.select({ id: schema.templates.id, name: schema.templates.name })
+                    .from(schema.templates)
+                    .where(and(eq(schema.templates.tenantId, tenantId), tplIds.length === 1
+                        ? eq(schema.templates.id, tplIds[0]!)
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        : (await import('drizzle-orm')).inArray(schema.templates.id, tplIds as any)))
+                    .all();
+                rows.forEach(r => tplNameById.set(r.id, r.name));
+            }
+            siblings = parent.inspections.map(i => ({
+                id: i.id,
+                templateName: (i.templateId && tplNameById.get(i.templateId)) || 'Inspection',
+                status: i.status,
+            }));
+        }
+        return { propertyAddress, requestId, siblings };
+    } catch {
+        return null;
+    }
+}
+
 app.get('/inspections/:id/edit', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const id = c.req.param('id');
     if (!id) return c.redirect('/dashboard');
+    return c.redirect(`/inspections/${id}/report`, 302);
+});
+
+app.get('/inspections/:id/report', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
+    const id = c.req.param('id');
+    if (!id) return c.redirect('/dashboard');
     return c.html(InspectionEditPage({ inspectionId: id, branding: c.get('branding') }));
+});
+
+app.get('/inspections/:id/photos', htmlAuthGuard(['owner', 'admin', 'inspector']), async (c) => {
+    const id = c.req.param('id');
+    if (!id) return c.redirect('/dashboard');
+    const shell = await loadInspectionShellData(c, id);
+    return c.html(InspectionPhotosPage({
+        inspectionId: id,
+        propertyAddress: shell?.propertyAddress ?? 'Inspection',
+        branding: c.get('branding'),
+        ...(shell?.requestId ? { requestId: shell.requestId } : {}),
+        ...(shell?.siblings  ? { siblings: shell.siblings  } : {}),
+    }));
+});
+
+app.get('/inspections/:id/summary', htmlAuthGuard(['owner', 'admin', 'inspector']), async (c) => {
+    const id = c.req.param('id');
+    if (!id) return c.redirect('/dashboard');
+    const shell = await loadInspectionShellData(c, id);
+    return c.html(InspectionSummaryPage({
+        inspectionId: id,
+        propertyAddress: shell?.propertyAddress ?? 'Inspection',
+        branding: c.get('branding'),
+        ...(shell?.requestId ? { requestId: shell.requestId } : {}),
+        ...(shell?.siblings  ? { siblings: shell.siblings  } : {}),
+    }));
+});
+
+app.get('/inspections/:id/signatures', htmlAuthGuard(['owner', 'admin', 'inspector']), async (c) => {
+    const id = c.req.param('id');
+    if (!id) return c.redirect('/dashboard');
+    const shell = await loadInspectionShellData(c, id);
+    return c.html(InspectionSignaturesPage({
+        inspectionId: id,
+        propertyAddress: shell?.propertyAddress ?? 'Inspection',
+        branding: c.get('branding'),
+        ...(shell?.requestId ? { requestId: shell.requestId } : {}),
+        ...(shell?.siblings  ? { siblings: shell.siblings  } : {}),
+    }));
+});
+
+app.get('/inspections/:id/settings', htmlAuthGuard(['owner', 'admin', 'inspector']), async (c) => {
+    const id = c.req.param('id');
+    if (!id) return c.redirect('/dashboard');
+    const shell = await loadInspectionShellData(c, id);
+    return c.html(InspectionSettingsPage({
+        inspectionId: id,
+        propertyAddress: shell?.propertyAddress ?? 'Inspection',
+        branding: c.get('branding'),
+        ...(shell?.requestId ? { requestId: shell.requestId } : {}),
+        ...(shell?.siblings  ? { siblings: shell.siblings  } : {}),
+    }));
 });
 
 app.get('/', (c) => c.redirect('/dashboard'));

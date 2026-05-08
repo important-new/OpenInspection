@@ -1,5 +1,23 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { tenants, users } from './tenant';
+
+// Sprint 2 S2-1 — tenant-scoped rating systems library. The level list
+// itself is stored as JSON because it is never queried independently and
+// the row count per system is tiny (≤ 10).
+export const ratingSystems = sqliteTable('rating_systems', {
+    id:          text('id').primaryKey(),
+    tenantId:    text('tenant_id').notNull().references(() => tenants.id),
+    name:        text('name').notNull(),
+    slug:        text('slug').notNull(),
+    description: text('description'),
+    levels:      text('levels', { mode: 'json' }).notNull(),
+    isDefault:   integer('is_default', { mode: 'boolean' }).notNull().default(false),
+    isSeed:      integer('is_seed',    { mode: 'boolean' }).notNull().default(false),
+    createdAt:   integer('created_at').notNull(),
+    updatedAt:   integer('updated_at').notNull(),
+}, (t) => ({
+    tenantSlugUnique: uniqueIndex('idx_rating_systems_tenant_slug').on(t.tenantId, t.slug),
+}));
 
 export const templates = sqliteTable('templates', {
     id: text('id').primaryKey(),
@@ -8,6 +26,8 @@ export const templates = sqliteTable('templates', {
     version: integer('version').notNull().default(1),
     schema: text('schema', { mode: 'json' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    // Sprint 2 S2-1 — selects the active rating system. Null = use tenant default.
+    ratingSystemId: text('rating_system_id'),
 });
 
 export const inspections = sqliteTable('inspections', {
@@ -62,6 +82,35 @@ export const inspections = sqliteTable('inspections', {
     templateSnapshot:    text('template_snapshot', { mode: 'json' }),
     templateSnapshotVersion: integer('template_snapshot_version').default(1),
     reportThemeOverride: text('report_theme_override', { enum: ['modern', 'classic', 'minimal'] }),
+    // Sprint 2 S2-2 — Multi-inspection per request. NULL on legacy rows pre-backfill;
+    // application requires a non-null value on all newly created inspections.
+    requestId:           text('request_id'),
+});
+
+// Sprint 2 S2-2 — A single customer booking can spawn multiple inspections
+// (e.g. Residential + Radon + Termite at the same address). All inspections
+// in a request share the schedule + property metadata.
+export const inspectionRequests = sqliteTable('inspection_requests', {
+    id:               text('id').primaryKey(),
+    tenantId:         text('tenant_id').notNull().references(() => tenants.id),
+    clientName:       text('client_name').notNull(),
+    clientEmail:      text('client_email'),
+    clientPhone:      text('client_phone'),
+    propertyAddress:  text('property_address').notNull(),
+    propertyCity:     text('property_city'),
+    propertyState:    text('property_state'),
+    propertyZip:      text('property_zip'),
+    scheduledAt:      text('scheduled_at').notNull(),
+    status:           text('status', {
+        enum: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'],
+    }).notNull().default('pending'),
+    notes:            text('notes'),
+    totalAmount:      integer('total_amount').notNull().default(0),
+    paymentStatus:    text('payment_status', {
+        enum: ['unpaid', 'partial', 'paid'],
+    }).notNull().default('unpaid'),
+    createdAt:        integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt:        integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
 export const agreements = sqliteTable('agreements', {
@@ -89,6 +138,11 @@ export const inspectionResults = sqliteTable('inspection_results', {
     inspectionId: text('inspection_id').notNull().references(() => inspections.id),
     data: text('data', { mode: 'json' }).notNull(),
     lastSyncedAt: integer('last_synced_at', { mode: 'timestamp' }).notNull(),
+    // Sprint 2 S2-1 — denormalized rating system reference and a frozen
+    // snapshot of the levels array at inspection creation. Editing the
+    // source rating system afterwards never mutates an existing inspection.
+    ratingSystemId:       text('rating_system_id'),
+    ratingSystemSnapshot: text('rating_system_snapshot', { mode: 'json' }),
 });
 
 export const availability = sqliteTable('availability', {
@@ -124,6 +178,11 @@ export const comments = sqliteTable('comments', {
     // Section label (Roof, Electrical, ...) — same shape as canned-comments.js
     // entries. Free-text so tenants can grow their own taxonomy.
     section: text('section'),
+    // Sprint 2 S2-7 — provenance for marketplace-imported comments.
+    // Set when MarketplaceService.importLibrary inserts rows; null for
+    // tenant-authored comments. Used by replace-mode update to delete only
+    // prior-import rows, never touching the tenant's own comments.
+    libraryId: text('library_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
