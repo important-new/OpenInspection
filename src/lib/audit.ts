@@ -19,6 +19,7 @@ export type AuditAction =
     | 'inspection.sync_conflict_resolved'
     | 'inspection.share_agent'
     | 'inspection.property_facts.update'
+    | 'inspection.media.attach'
     | 'persistence.granted'
     | 'persistence.denied'
     | 'template.create'
@@ -51,7 +52,8 @@ export type AuditAction =
     | 'comment.updated'
     | 'config.integration.update'
     | 'config.secrets.update'
-    | 'config.attention_thresholds.update';
+    | 'config.attention_thresholds.update'
+    | 'config.dashboard_columns.update';
 
 export interface AuditParams {
     db: D1Database;
