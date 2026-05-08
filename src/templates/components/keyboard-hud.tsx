@@ -30,11 +30,14 @@ const COLUMNS: ShortcutColumn[] = [
         ],
     },
     {
+        // Sprint 1 A-8: extended from 1-3 → 1-5 so all rating levels are reachable.
         title: 'Rating',
         rows: [
             { key: '1', label: 'Satisfactory' },
             { key: '2', label: 'Monitor' },
             { key: '3', label: 'Defect' },
+            { key: '4', label: 'Not Inspected' },
+            { key: '5', label: 'Not Present' },
             { key: '0', label: 'Clear rating' },
             { key: 'N', label: 'Mark Not Applicable' },
         ],
@@ -66,7 +69,7 @@ export function KeyboardHUD(): JSX.Element {
         <div
             x-data="{ open: false }"
             {...{
-                'x-on:keydown.window': "if (($event.key === '?' || ($event.shiftKey && $event.key === '/')) && !window.OIHotkeys?.isTyping?.()) { open = !open; $event.preventDefault(); }",
+                'x-on:keydown.window': "if (($event.key === '?' || ($event.shiftKey && $event.key === '/')) && !window.OIHotkeys?.isTyping?.() && !window.__oiLocalCheatsheet) { open = !open; $event.preventDefault(); }",
                 'x-on:keydown.escape.window': 'open = false',
                 'x-transition.opacity': '',
                 'x-cloak': '',

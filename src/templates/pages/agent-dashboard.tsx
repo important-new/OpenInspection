@@ -1,6 +1,9 @@
 import { BareLayout } from '../layouts/main-layout';
 import { AtmosphericBg } from '../components/atmospheric-bg';
+import { AgentDashboardHero } from '../components/agent-dashboard-hero';
+import { ReportStatusPill } from '../components/report-status-pill';
 import { BrandingConfig } from '../../types/auth';
+import { PageHeader } from '../components/page-header';
 
 export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
@@ -30,23 +33,37 @@ export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | u
                     </div>
                 </nav>
 
-                {/* Main Content */}
-                <main class="py-10 animate-slide-in relative z-10">
-                    <div class="mx-auto max-w-7xl px-6 lg:px-8">
-                        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-16">
-                            <div>
-                                <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4 ring-1 ring-indigo-100">
-                                    <span class="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-pulse"></span>
-                                    Agent Portal
-                                </div>
-                                <h1 class="text-3xl font-bold tracking-tight text-slate-900 mb-4">Referral Dashboard</h1>
-                                <p class="text-xl text-slate-400 font-medium max-w-2xl leading-relaxed">Track shared inspections and follow up on client reports in real-time.</p>
-                            </div>
-                            
-                            <div class="glass-panel p-6 rounded-lg min-w-[240px]">
-                                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Total Referrals</p>
-                                <h2 id="statTotal" class="text-2xl font-bold text-slate-900 tabular-nums">0</h2>
-                            </div>
+                {/* Main Content — combines Sub-spec B PageHeader with Sub-spec D
+                    hero strip + share-with-buyer + status pill via the
+                    `agentDashboardState` Alpine factory. */}
+                <main
+                    class="py-10 animate-slide-in relative z-10"
+                    x-data="agentDashboardState"
+                    x-init="init && init()"
+                >
+                    <div class="mx-auto max-w-7xl px-6 lg:px-8 space-y-6">
+                        {/* Sub-spec D Task 7 — Hero strip. Address + share-with-buyer
+                            CTA. Pulls live data from Alpine `hero` once the referral
+                            list loads (see public/js/agent-dashboard.js). */}
+                        <AgentDashboardHero alpine />
+
+                        {/* PageHeader (Sub-spec B B-2) sits below the hero. Status
+                            pill (Sub-spec D D-7) folded into the actions slot so it
+                            still surfaces lifecycle state next to the title. */}
+                        <div x-data="agentMeta" class="mb-10">
+                            <PageHeader
+                                eyebrow="AGENT VIEW"
+                                eyebrowColor="indigo"
+                                title="Referral Dashboard"
+                                meta={
+                                    <span x-text="`${total || 0} referral${total === 1 ? '' : 's'}${pending ? ' · ' + pending + ' pending' : ''}`"></span>
+                                }
+                                actions={
+                                    <span x-show="hero.status" class="align-middle">
+                                        <ReportStatusPill status="published" />
+                                    </span>
+                                }
+                            />
                         </div>
 
                         {/* Referral List */}
@@ -80,7 +97,7 @@ export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | u
                             orphan). Shows top 10 agents by referral count.
                             Renders even when this user has no referrals — useful
                             social context. */}
-                        <div class="mt-6 glass-panel rounded-2xl p-6">
+                        <div class="mt-6 glass-panel rounded-md p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-sm font-bold text-slate-900">Office Leaderboard</h3>
                                 <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Top 10 by referrals</span>

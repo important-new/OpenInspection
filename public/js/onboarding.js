@@ -6,6 +6,10 @@ function inspectionOnboarding() {
 
         async init(levels) {
             this.levels = Array.isArray(levels) ? levels : [];
+            // Local fast-path: if user dismissed previously the localStorage
+            // flag is set. Avoids re-showing the modal when the API write
+            // failed silently or the response is slow.
+            try { if (localStorage.getItem('oi.onboarding.inspectionEdit') === '1') return; } catch {}
             try {
                 const r = await authFetch('/api/users/me/onboarding');
                 if (r.status === 401) { window.location.href = '/login'; return; }
@@ -24,11 +28,11 @@ function inspectionOnboarding() {
         // visible rating-button group and removes it on advance/dismiss.
         _updateAnchorHighlight() {
             document.querySelectorAll('.onboarding-anchor').forEach(el =>
-                el.classList.remove('onboarding-anchor', 'animate-pulse', 'ring-4', 'ring-indigo-400', 'ring-offset-4', 'rounded-2xl'));
+                el.classList.remove('onboarding-anchor', 'animate-pulse', 'ring-4', 'ring-indigo-400', 'ring-offset-4', 'rounded-md'));
             if (this.active && this.stepIdx === 0) {
                 const target = document.querySelector('[data-rating-row]');
                 if (target) {
-                    target.classList.add('onboarding-anchor', 'animate-pulse', 'ring-4', 'ring-indigo-400', 'ring-offset-4', 'rounded-2xl');
+                    target.classList.add('onboarding-anchor', 'animate-pulse', 'ring-4', 'ring-indigo-400', 'ring-offset-4', 'rounded-md');
                     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }
@@ -64,6 +68,9 @@ function inspectionOnboarding() {
         async dismiss() {
             this.active = false;
             this._updateAnchorHighlight();
+            // Persist locally first so even if the API call fails, the modal
+            // does not re-show on next page load.
+            try { localStorage.setItem('oi.onboarding.inspectionEdit', '1'); } catch {}
             try {
                 const r = await authFetch('/api/users/me/onboarding', {
                     method: 'POST',

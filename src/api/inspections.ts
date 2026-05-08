@@ -26,7 +26,7 @@ import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/t
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { drizzle } from 'drizzle-orm/d1';
-import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users } from '../lib/db/schema';
+import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 
 const inspectionsRoutes = new OpenAPIHono<HonoConfig>();
@@ -141,6 +141,49 @@ inspectionsRoutes.openapi(listTemplatesRoute, async (c) => {
     const service = c.var.services.template;
     const templates = await service.listTemplates(c.get('tenantId'));
     return c.json({ success: true, data: { templates } }, 200);
+});
+
+/**
+ * GET /api/inspections/templates/duplicates
+ *
+ * Sprint 1 B-8 — returns marketplace import groups that have more than one
+ * local copy in this tenant. The Marketplace duplicate banner consumes this
+ * to suggest compare/use-new/keep-both actions on /templates.
+ */
+const listTemplateDuplicatesRoute = createRoute({
+    method: 'get',
+    path: '/templates/duplicates',
+    tags: ['Templates'],
+    summary: 'List duplicate marketplace imports',
+    description: 'Returns one entry per marketplace template ID that has more than one local copy.',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.boolean().openapi({ example: true }),
+                        data: z.array(z.object({
+                            marketplaceId: z.string(),
+                            copies: z.array(z.object({
+                                id:        z.string(),
+                                name:      z.string(),
+                                version:   z.string(),
+                                createdAt: z.string(),
+                            })),
+                        })),
+                    }),
+                },
+            },
+            description: 'Duplicate import groups',
+        },
+    },
+});
+
+inspectionsRoutes.openapi(listTemplateDuplicatesRoute, async (c) => {
+    const service = c.var.services.template;
+    const dups = await service.findDuplicates(c.get('tenantId'));
+    return c.json({ success: true, data: dups }, 200);
 });
 
 /**
@@ -756,6 +799,12 @@ inspectionsRoutes.openapi(cloneInspectionRoute, async (c) => {
 
 /**
  * Photo Upload
+ *
+ * Sprint 1 A-7: accepts optional `targetType` ('item' | 'defect') and
+ * `customId` so a photo can be bound to a specific custom defect row
+ * instead of the item as a whole. R2 upload + storage logic is unchanged;
+ * the response echoes the target so the client can attach the key to the
+ * right custom row.
  */
 const uploadPhotoRoute = createRoute({
     method: 'post',
@@ -770,6 +819,8 @@ const uploadPhotoRoute = createRoute({
                     schema: z.object({
                         file: z.unknown().openapi({ type: 'string', format: 'binary' }),
                         itemId: z.string(),
+                        targetType: z.enum(['item', 'defect']).optional(),
+                        customId: z.string().optional(),
                     }),
                 },
             },
@@ -780,7 +831,13 @@ const uploadPhotoRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: createApiResponseSchema(z.object({ key: z.string(), success: z.boolean() })),
+                    schema: createApiResponseSchema(z.object({
+                        key: z.string(),
+                        success: z.boolean(),
+                        targetType: z.enum(['item', 'defect']).optional(),
+                        itemId: z.string().optional(),
+                        customId: z.string().nullable().optional(),
+                    })),
                 },
             },
             description: 'Success',
@@ -793,12 +850,17 @@ inspectionsRoutes.openapi(uploadPhotoRoute, async (c) => {
     const formData = await c.req.parseBody();
     const file = formData['file'] as File;
     const itemId = formData['itemId'] as string;
-    
+    const targetTypeRaw = formData['targetType'];
+    const customIdRaw = formData['customId'];
+    const targetType = (targetTypeRaw === 'defect' ? 'defect' : 'item') as 'item' | 'defect';
+    const customId = typeof customIdRaw === 'string' && customIdRaw.length > 0 ? customIdRaw : null;
+
     if (!file || !itemId) throw Errors.BadRequest('File and Item ID are required');
+    if (targetType === 'defect' && !customId) throw Errors.BadRequest('customId is required when targetType=defect');
 
     const service = c.var.services.inspection;
     const key = await service.uploadPhoto(id, c.get('tenantId'), itemId, file);
-    return c.json({ success: true, data: { key, success: true } }, 200);
+    return c.json({ success: true, data: { key, success: true, targetType, itemId, customId } }, 200);
 });
 
 /**
@@ -1397,6 +1459,65 @@ inspectionsRoutes.openapi(createRoute({
     const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
     const baseUrl = getBaseUrl(c);
     return c.json({ success: true, data: { token, url: `${baseUrl}/report/${id}?view=agent&token=${token}` } });
+});
+
+// ── Sprint 1 Sub-spec D Task 3 (D-3) — POST /api/inspections/:id/share-agent ────
+// Generates a fresh 30-day agent view token and emails the link to the inspection's
+// referring agent. Returns 400 if no agent is linked or the agent has no email on
+// file. Used by the report viewer's Share dropdown ("Share with your agent").
+inspectionsRoutes.openapi(createRoute({
+    method: 'post', path: '/{id}/share-agent',
+    tags: ['Inspections'],
+    summary: 'Email the report share link to the linked agent',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: createApiResponseSchema(z.object({ sentTo: z.string() })) } },
+            description: 'Share link emailed to agent',
+        },
+    },
+}), async (c) => {
+    const tenantId = c.get('tenantId') as string;
+    const { id } = c.req.valid('param');
+    const db = drizzle(c.env.DB);
+
+    const inspectionRow = await db.select({
+        id: inspectionTable.id,
+        propertyAddress: inspectionTable.propertyAddress,
+        referredByAgentId: inspectionTable.referredByAgentId,
+    }).from(inspectionTable)
+        .where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)))
+        .get();
+    if (!inspectionRow) throw Errors.NotFound('Inspection not found');
+    if (!inspectionRow.referredByAgentId) {
+        throw Errors.BadRequest('No agent linked to this inspection');
+    }
+
+    const agentRow = await db.select({ email: contacts.email })
+        .from(contacts)
+        .where(and(eq(contacts.id, inspectionRow.referredByAgentId), eq(contacts.tenantId, tenantId)))
+        .get();
+    if (!agentRow || !agentRow.email) {
+        throw Errors.BadRequest('Agent has no email on file');
+    }
+
+    const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
+    const baseUrl = getBaseUrl(c);
+    const url = `${baseUrl}/report/${id}?view=agent&token=${token}`;
+
+    try {
+        await c.var.services.email.sendAgentShareLink(agentRow.email, inspectionRow.propertyAddress, url);
+    } catch (err) {
+        logger.error('[share-agent] email delivery failed', { inspectionId: id }, err instanceof Error ? err : undefined);
+        throw Errors.Internal('Failed to send share link');
+    }
+
+    auditFromContext(c, 'inspection.share_agent', 'inspection', {
+        entityId: id,
+        metadata: { agentEmail: agentRow.email },
+    });
+    return c.json({ success: true, data: { sentTo: agentRow.email } });
 });
 
 // ── Phase T (T12): Photo annotation save ────────────────────────────────────────
