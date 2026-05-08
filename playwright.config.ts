@@ -71,6 +71,16 @@ export default defineConfig({
             dependencies: ['api'],
         },
         {
+            // Sprint 2 regression — Track A fixes (A1-A4).
+            name: 'sprint2-regression',
+            testMatch: 'sprint2-regression.spec.ts',
+        },
+        {
+            // R7-06 — public booking page native date input.
+            name: 'booking-date-input',
+            testMatch: 'booking-date-input.spec.ts',
+        },
+        {
             name: 'cloud',
             testMatch: 'cloud-e2e.spec.ts',
             use: {
