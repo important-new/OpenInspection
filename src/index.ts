@@ -103,6 +103,8 @@ import eventsRoutes from './api/events';
 import inspectionRequestsRoutes from './api/inspection-requests';
 import repairRequestRoutes from './api/repair-requests';
 import tagsRoutes, { inspectionTagRoutes } from './api/tags';
+import publicSlugRoutes from './api/public-slug';
+import profileRoutes from './api/profile';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -342,6 +344,12 @@ app.route('/api/inspection-requests', inspectionRequestsRoutes);
 app.route('/api/ai', aiRoutes);
 app.route('/api/public', bookingsRoutes);
 app.route('/api/public/widget', widgetRoutes);
+// Booking #7 Sprint A — slug availability check; lives under /api/public so
+// the slug input on /settings/profile (and any future un-authed pages) can
+// hit it without a JWT.
+app.route('/api/public', publicSlugRoutes);
+// Booking #7 Sprint A — authenticated profile endpoints (slug write).
+app.route('/api/profile', profileRoutes);
 // Sprint 3 Track B (S3-2) — Customer-driven Repair Request export.
 // Public, token-gated like /report/:id; the email endpoint validates the
 // per-tenant enable_customer_repair_export flag + payment + agreement gates
