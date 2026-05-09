@@ -1817,7 +1817,7 @@ app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage
 app.get('/settings/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/team', 301));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
-app.get('/contacts', htmlAuthGuard(['owner', 'admin']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
+app.get('/contacts', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
 app.get('/recommendations', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(RecommendationsPage(b ? { branding: b } : {}));

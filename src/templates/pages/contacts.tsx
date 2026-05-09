@@ -40,7 +40,43 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                     />
                 </div>
 
-                <div class="glass-panel rounded-xl overflow-hidden shadow-md">
+                {/* Agent Accounts A2 — tab strip splits "Contacts" (the legacy
+                    address book) from "Agents" (partner-link management). The
+                    Agents tab fetches /api/agents and renders status-badged
+                    rows with Revoke / Re-invite per row. */}
+                <div role="tablist" aria-label="Contacts and partner agents" class="flex gap-2 border-b border-slate-200">
+                    <button
+                        type="button"
+                        role="tab"
+                        id="contactsTabClientsBtn"
+                        data-testid="contacts-tab-clients"
+                        data-tab="clients"
+                        aria-selected="true"
+                        aria-controls="contactsClientsPanel"
+                        class="px-4 py-2 text-[13px] font-bold text-slate-700 border-b-2 border-indigo-600"
+                    >
+                        Contacts
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        id="contactsTabAgentsBtn"
+                        data-testid="contacts-tab-agents"
+                        data-tab="agents"
+                        aria-selected="false"
+                        aria-controls="contactsAgentsPanel"
+                        class="px-4 py-2 text-[13px] font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700"
+                    >
+                        Agents
+                    </button>
+                </div>
+
+                <div
+                    id="contactsClientsPanel"
+                    role="tabpanel"
+                    aria-labelledby="contactsTabClientsBtn"
+                    class="glass-panel rounded-xl overflow-hidden shadow-md"
+                >
                     <table class="w-full text-left">
                         <thead class="bg-slate-50/40">
                             <tr>
@@ -55,6 +91,29 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         </thead>
                         <tbody id="contactsBody">
                             <tr><td colspan={7} class="px-10 py-8 text-center text-slate-400 font-semibold">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div
+                    id="contactsAgentsPanel"
+                    data-testid="contacts-agents-panel"
+                    role="tabpanel"
+                    aria-labelledby="contactsTabAgentsBtn"
+                    hidden
+                    class="glass-panel rounded-xl overflow-hidden shadow-md"
+                >
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50/40">
+                            <tr>
+                                <th class="py-6 px-10 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Agent</th>
+                                <th class="py-6 px-8 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Status</th>
+                                <th class="py-6 px-8 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Linked</th>
+                                <th class="relative py-6 pl-3 pr-10 text-right"><span class="sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="agentLinksBody">
+                            <tr><td colspan={4} class="px-10 py-8 text-center text-slate-400 font-semibold">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -184,6 +243,7 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                 <script src="/js/modal-dialog.js"></script>
                 <script src="/js/auth.js"></script>
                 <script src="/js/contacts.js"></script>
+                <script src="/js/contacts-agents-tab.js"></script>
                 <script type="module" src="/js/csv-import-modal.js"></script>
             </div>
         </MainLayout>
