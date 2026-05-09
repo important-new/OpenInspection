@@ -76,6 +76,27 @@
         { label: 'Sign out',        hint: 'action', run: () => { document.getElementById('logoutBtn')?.click(); } },
     ];
 
+    // Sprint B-1 — booking-link action is dynamically appended when the
+    // palette root carries data-current-user-slug + data-booking-host
+    // (set server-side from main-layout.tsx).
+    function bookingActions() {
+        const root = document.querySelector('[x-data="commandPalette"]');
+        const slug = root?.getAttribute('data-current-user-slug');
+        const host = root?.getAttribute('data-booking-host');
+        if (!slug || !host) return [];
+        const url = 'https://' + host + '/book/' + slug;
+        return [{
+            label: 'Copy my booking link',
+            hint: 'share',
+            run: () => {
+                if (!navigator.clipboard) return;
+                navigator.clipboard.writeText(url).then(() => {
+                    if (typeof window.showToast === 'function') window.showToast('Copied ' + url);
+                }).catch(() => { /* swallow */ });
+            },
+        }];
+    }
+
     // ───────── Fuzzy ranking ─────────
     // Subsequence match with bonus for prefix and word-boundary hits.
     function score(label, query) {
@@ -202,8 +223,10 @@
                     if (ranked.length) out.push({ label, items: ranked });
                 };
 
+                const actionsForCollection = [...ACTIONS, ...bookingActions()];
+
                 if (isActions) {
-                    collect('Actions', ACTIONS, (a) => ({
+                    collect('Actions', actionsForCollection, (a) => ({
                         kind: 'action',
                         label: a.label,
                         hint: a.hint,
@@ -260,7 +283,7 @@
                         run: () => { window.location.href = p.href; },
                     }));
 
-                    collect('Actions', ACTIONS, (a) => ({
+                    collect('Actions', actionsForCollection, (a) => ({
                         kind: 'action',
                         label: a.label,
                         hint: a.hint,

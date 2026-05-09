@@ -9,6 +9,7 @@ import { users } from './lib/db/schema';
 import * as schema from './lib/db/schema';
 
 import { brandingMiddleware } from './lib/middleware/branding';
+import { inspectorPaletteMiddleware } from './lib/middleware/inspector-palette';
 import { tenantRouter } from './lib/middleware/tenant-router';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
@@ -327,6 +328,12 @@ app.use('*', async (c, next) => {
 
     return next();
 });
+
+// Sprint B-1 — after auth + branding, hydrate the booking-palette context
+// (slug + booking host) into branding so MainLayout's <CommandPalette/> can
+// render the "Copy my booking link" action without each page having to plumb
+// the slug through manually.
+app.use('*', inspectorPaletteMiddleware);
 
 // API Routes
 app.use('/api/*', requireActiveSubscription);
