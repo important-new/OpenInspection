@@ -5,7 +5,7 @@ import { deleteCookie, getCookie } from 'hono/cookie';
 import { verify } from 'hono/jwt';
 import { classifyJwtPayload } from './lib/auth/jwt-claims';
 import { drizzle } from 'drizzle-orm/d1';
-import { and, eq, asc, desc } from 'drizzle-orm';
+import { and, eq, asc, desc, sql } from 'drizzle-orm';
 import { users } from './lib/db/schema';
 import * as schema from './lib/db/schema';
 
@@ -246,7 +246,9 @@ app.use('*', async (c, next) => {
 
         if (!storedCode) {
             const db = drizzle(c.env.DB);
-            const user = await db.select().from(users).limit(1).get();
+            // Only count tenant-scoped users (admin/inspector). Global agents
+            // (tenant_id IS NULL, A1) are unrelated to first-time setup state.
+            const user = await db.select().from(users).where(sql`${users.tenantId} IS NOT NULL`).limit(1).get();
             if (!user) {
                 // Use CSPRNG with rejection sampling so the one-hour bootstrap code is unbiased
                 // and unpredictable. CodeQL js/biased-cryptographic-random — modulo on
@@ -264,7 +266,7 @@ app.use('*', async (c, next) => {
         } else if (c.env.SETUP_CODE) {
              // Just log that we are using the user-defined code
              const db = drizzle(c.env.DB);
-             const user = await db.select().from(users).limit(1).get();
+             const user = await db.select().from(users).where(sql`${users.tenantId} IS NOT NULL`).limit(1).get();
              if (!user) {
                  logger.info('System initialization required. Using user-defined SETUP_CODE.');
              }
@@ -473,7 +475,11 @@ const htmlAuthGuard = (allowedRoles?: string[]) => {
         if (!userRole) return c.redirect('/login');
 
         if (allowedRoles && !allowedRoles.includes(userRole)) {
-            return c.redirect('/dashboard?error=unauthorized_role');
+            // Agent JWTs carry no tenant, so the inspector dashboard would render
+            // an empty shell. Send them to the agent dashboard instead, otherwise
+            // bounce inspector-class users to /dashboard.
+            const fallback = userRole === 'agent' ? '/agent-dashboard' : '/dashboard?error=unauthorized_role';
+            return c.redirect(fallback);
         }
 
         return await next();
@@ -509,12 +515,15 @@ app.get('/ui', htmlAuthGuard(['owner', 'admin']), (c) => {
 
 // View Handlers
 app.get('/login', async (c) => {
-    // If user is already authenticated, redirect to dashboard
+    // If user is already authenticated, redirect to the right dashboard.
+    // Agent JWTs (role='agent') belong on /agent-dashboard, not the inspector
+    // dashboard which would render an empty shell because agents have no tenant.
     const token = getCookie(c, '__Host-inspector_token');
     if (token && c.env.JWT_SECRET) {
         try {
-            await verify(token, c.env.JWT_SECRET, 'HS256');
-            return c.redirect('/dashboard');
+            const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
+            const role = (payload as Record<string, unknown>)['custom:userRole'] || (payload as Record<string, unknown>).role;
+            return c.redirect(role === 'agent' ? '/agent-dashboard' : '/dashboard');
         } catch {
             // Invalid/expired token — show login page
         }
@@ -1597,7 +1606,7 @@ app.get('/messages/:token', (c) => {
 });
 
 // Pages with Auth
-app.get('/dashboard', htmlAuthGuard(), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
+app.get('/dashboard', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
 app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));

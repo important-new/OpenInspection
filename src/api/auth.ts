@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { users } from '../lib/db/schema';
 import { sign, verify } from 'hono/jwt';
 import { setCookie, deleteCookie } from 'hono/cookie';
@@ -320,10 +320,12 @@ const setupRoute = createRoute({
 });
 
 coreAuthRoutes.openapi(setupRoute, async (c) => {
-    // 1. Safety Check: Only allow if no users exist
+    // 1. Safety Check: Only allow if no tenant-scoped users exist.
+    // Agent Accounts A1 — global agents (tenant_id IS NULL) are unrelated to
+    // first-time tenant initialization, so they must not block setup.
     const db = drizzle(c.env.DB);
-    const existingUser = await db.select().from(users).limit(1).get();
-    if (existingUser) {
+    const existingTenantUser = await db.select().from(users).where(sql`${users.tenantId} IS NOT NULL`).limit(1).get();
+    if (existingTenantUser) {
         return c.json({ success: false, message: 'System already initialized' }, 409);
     }
 

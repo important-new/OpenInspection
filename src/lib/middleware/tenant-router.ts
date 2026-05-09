@@ -95,7 +95,16 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     }
 
     if (!c.get('tenantId') || !c.get('requestedSubdomain')) {
-        const isSetupPath = path === '/setup' || path === '/login' || path === '/api/auth/setup' || path === '/api/auth/login' || path === '/status' || path.startsWith('/api/integration');
+        const isSetupPath = path === '/setup' || path === '/login' || path === '/api/auth/setup' || path === '/api/auth/login' || path === '/status' || path.startsWith('/api/integration')
+            // Agent Accounts A1 — global agent endpoints intentionally have no tenant
+            // context. They bootstrap or live without a tenants row in standalone mode.
+            || path === '/api/agent-signup' || path === '/api/agents/accept'
+            // Agent Accounts A3 — concierge magic-link confirmation (client-facing,
+            // no JWT — token in URL is the secret).
+            || path === '/api/concierge/confirm'
+            // Public booking + report read paths (already routed elsewhere but kept
+            // here for safety when standalone DB has no tenants row yet).
+            || path.startsWith('/api/public/');
         if (!isSetupPath && path.startsWith('/api')) {
             logger.info('[TenantRouter] Tenant resolution failed', {
                 path,
