@@ -1,12 +1,43 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { isNull } from 'drizzle-orm';
 import { agentInvites, agentTenantLinks, tenants, users } from '../lib/db/schema/tenant';
 import { contacts } from '../lib/db/schema/contact';
+import { inspections } from '../lib/db/schema/inspection';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { hashPassword } from '../lib/password';
 import type { EmailService } from './email.service';
+
+export interface AgentReferralRow {
+    id: string;
+    tenantId: string;
+    tenantName: string;
+    propertyAddress: string;
+    clientName: string | null;
+    date: string;
+    status: string;
+    paymentStatus: string;
+    inspectorName: string | null;
+}
+
+export interface AgentInspectorRow {
+    tenantId: string;
+    tenantName: string;
+    tenantSubdomain: string;
+    contactId: string | null;
+    inspectorName: string | null;
+    inspectorPhotoUrl: string | null;
+    inspectorSlug: string | null;
+}
+
+export interface AgentProfilePatch {
+    slug?: string;
+    notifyOnReferral?: boolean;
+    notifyOnReport?: boolean;
+    notifyOnPaid?: boolean;
+    name?: string;
+}
 
 export interface ResolvedInvite {
     token: string;
@@ -364,5 +395,189 @@ export class AgentService {
         }
         logger.info('agent.autolink', { userId, email: normalized, count: created });
         return created;
+    }
+
+    /**
+     * A2 — Cross-tenant referral list. Joins inspections through
+     * `agent_tenant_links` (active only) so the agent only sees inspections in
+     * tenants they currently have access to. Restricts to inspections that
+     * either:
+     *   1. Carry a `referredByAgentId` matching this agent's contact id in
+     *      that tenant (canonical link, populated by inspection create), OR
+     *   2. Carry a `referredByAgentId` whose contact email matches the agent
+     *      user's email (legacy contacts pre-A1 promotion).
+     *
+     * The compound predicate keeps the query single-roundtrip while remaining
+     * resilient to tenants that haven't backfilled `inspectorContactId` on
+     * the link row.
+     */
+    async listReferrals(
+        agentUserId: string,
+        opts: { limit: number },
+    ): Promise<AgentReferralRow[]> {
+        const db = this.getDrizzle();
+        const refRows = await db
+            .select({
+                id:              inspections.id,
+                tenantId:        inspections.tenantId,
+                tenantName:      tenants.name,
+                propertyAddress: inspections.propertyAddress,
+                clientName:      inspections.clientName,
+                date:            inspections.date,
+                status:          inspections.status,
+                paymentStatus:   inspections.paymentStatus,
+                referredById:    inspections.referredByAgentId,
+                contactEmail:    contacts.email,
+                inspectorName:   users.name,
+                linkContactId:   agentTenantLinks.inspectorContactId,
+            })
+            .from(inspections)
+            .innerJoin(
+                agentTenantLinks,
+                and(
+                    eq(agentTenantLinks.tenantId, inspections.tenantId),
+                    eq(agentTenantLinks.agentUserId, agentUserId),
+                    eq(agentTenantLinks.status, 'active'),
+                ),
+            )
+            .innerJoin(tenants, eq(tenants.id, inspections.tenantId))
+            .leftJoin(
+                contacts,
+                and(
+                    eq(contacts.id, inspections.referredByAgentId),
+                    eq(contacts.tenantId, inspections.tenantId),
+                ),
+            )
+            .leftJoin(users, eq(users.id, inspections.inspectorId))
+            .orderBy(desc(inspections.date))
+            .all();
+
+        // Resolve agent's email once for the legacy fallback predicate.
+        const agent = await db
+            .select({ email: users.email })
+            .from(users)
+            .where(eq(users.id, agentUserId))
+            .get();
+        const agentEmail = agent?.email ?? null;
+
+        // Filter rows in JS — SQLite's join planner doesn't compose the OR
+        // predicate (link.contactId == inspection.referredByAgentId OR
+        // contact.email == agentEmail) cleanly when contacts is a left-join.
+        // Doing the filter post-fetch is fine: the inner join on links already
+        // narrows to ≤ N tenants × inspections, and N is small in practice.
+        const filtered = refRows.filter((r) => {
+            if (r.referredById && r.linkContactId && r.referredById === r.linkContactId) return true;
+            if (agentEmail && r.contactEmail && r.contactEmail.toLowerCase() === agentEmail.toLowerCase()) return true;
+            return false;
+        });
+
+        return filtered.slice(0, Math.max(0, opts.limit)).map((r) => ({
+            id:              r.id,
+            tenantId:        r.tenantId,
+            tenantName:      r.tenantName,
+            propertyAddress: r.propertyAddress,
+            clientName:      r.clientName ?? null,
+            date:            r.date,
+            status:          r.status,
+            paymentStatus:   r.paymentStatus,
+            inspectorName:   r.inspectorName ?? null,
+        }));
+    }
+
+    /**
+     * A2 — Inspector directory for an agent. One row per active link with the
+     * inviting inspector's display fields (name, photo, slug) joined through
+     * `agentTenantLinks.invitedByUserId`. When the link came from auto-link
+     * (no inviter), inspector fields fall back to NULL.
+     */
+    async listInspectors(agentUserId: string): Promise<AgentInspectorRow[]> {
+        const db = this.getDrizzle();
+        const rows = await db
+            .select({
+                tenantId:          agentTenantLinks.tenantId,
+                tenantName:        tenants.name,
+                tenantSubdomain:   tenants.subdomain,
+                contactId:         agentTenantLinks.inspectorContactId,
+                inspectorName:     users.name,
+                inspectorPhotoUrl: users.photoUrl,
+                inspectorSlug:     users.slug,
+            })
+            .from(agentTenantLinks)
+            .innerJoin(tenants, eq(tenants.id, agentTenantLinks.tenantId))
+            .leftJoin(users, eq(users.id, agentTenantLinks.invitedByUserId))
+            .where(
+                and(
+                    eq(agentTenantLinks.agentUserId, agentUserId),
+                    eq(agentTenantLinks.status, 'active'),
+                ),
+            )
+            .all();
+        return rows.map((r) => ({
+            tenantId:          r.tenantId,
+            tenantName:        r.tenantName,
+            tenantSubdomain:   r.tenantSubdomain,
+            contactId:         r.contactId ?? null,
+            inspectorName:     r.inspectorName ?? null,
+            inspectorPhotoUrl: r.inspectorPhotoUrl ?? null,
+            inspectorSlug:     r.inspectorSlug ?? null,
+        }));
+    }
+
+    /**
+     * A2 — Inspector-side revoke of a partner link. Tenant-scoped: callers
+     * must pass the tenantId they're acting from (from the JWT) so a stolen
+     * linkId can't be revoked from a different tenant.
+     */
+    async revokeLink(linkId: string, tenantId: string): Promise<void> {
+        const db = this.getDrizzle();
+        const row = await db
+            .select({ id: agentTenantLinks.id })
+            .from(agentTenantLinks)
+            .where(and(eq(agentTenantLinks.id, linkId), eq(agentTenantLinks.tenantId, tenantId)))
+            .get();
+        if (!row) throw Errors.NotFound('Link not found');
+        await db
+            .update(agentTenantLinks)
+            .set({ status: 'revoked', revokedAt: new Date() })
+            .where(and(eq(agentTenantLinks.id, linkId), eq(agentTenantLinks.tenantId, tenantId)));
+        logger.info('agent.link.revoked', { linkId, tenantId });
+    }
+
+    /**
+     * A2 — Persist agent profile patches (slug + 3 notification toggles + name).
+     * Slug uniqueness is enforced across global agent users only — agent slugs
+     * live in a separate namespace from per-tenant inspector slugs because
+     * agent users have `tenantId IS NULL`.
+     */
+    async updateProfile(userId: string, patch: AgentProfilePatch): Promise<void> {
+        const db = this.getDrizzle();
+        if (patch.slug !== undefined) {
+            const candidate = patch.slug.trim().toLowerCase();
+            if (!candidate) throw Errors.BadRequest('Slug must not be empty');
+            const taken = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(
+                    and(
+                        eq(users.slug, candidate),
+                        isNull(users.tenantId),
+                        eq(users.role, 'agent'),
+                        ne(users.id, userId),
+                    ),
+                )
+                .get();
+            if (taken) throw Errors.Conflict('Slug already taken');
+        }
+
+        const set: Record<string, unknown> = {};
+        if (patch.slug !== undefined) set.slug = patch.slug.trim().toLowerCase();
+        if (patch.notifyOnReferral !== undefined) set.notifyOnReferral = patch.notifyOnReferral;
+        if (patch.notifyOnReport !== undefined) set.notifyOnReport = patch.notifyOnReport;
+        if (patch.notifyOnPaid !== undefined) set.notifyOnPaid = patch.notifyOnPaid;
+        if (patch.name !== undefined) set.name = patch.name;
+        if (Object.keys(set).length === 0) return;
+
+        await db.update(users).set(set).where(eq(users.id, userId));
+        logger.info('agent.profile.updated', { userId, fields: Object.keys(set) });
     }
 }
