@@ -6,6 +6,56 @@ export interface AgentDashboardProps {
     agent: { name?: string | null; email?: string | null };
     referrals: AgentReferralRow[];
     unreadReports: number;
+    /**
+     * Frontend-design polish #1 — 7-day rolling count of new referrals
+     * for the 'Active referrals' stat card. Index 0 = oldest, last
+     * index = today. Empty array hides the sparkline.
+     */
+    sparklineCreated?: number[];
+}
+
+/**
+ * Inline SVG sparkline for the stat-card lifecycle line.
+ * Renders nothing when the data is empty or all-zero (avoids a flat
+ * baseline that reads as broken). 88×24 with 2px stroke is the
+ * visual equivalent of a single line of body text — small enough to
+ * sit inside the card chrome, big enough to read at a glance.
+ */
+function Sparkline({ data, color }: { data: number[]; color: string }): JSX.Element | null {
+    if (!data || data.length < 2) return null;
+    const max = Math.max(...data, 1);
+    if (data.every((v) => v === 0)) return null;
+    const W = 88;
+    const H = 24;
+    const stepX = W / (data.length - 1);
+    const points = data.map((v, i) => {
+        const x = i * stepX;
+        const y = H - (v / max) * (H - 4) - 2;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const last = data[data.length - 1] ?? 0;
+    const lastX = (data.length - 1) * stepX;
+    const lastY = H - (last / max) * (H - 4) - 2;
+    return (
+        <svg
+            class="stat-sparkline"
+            width={W}
+            height={H}
+            viewBox={`0 0 ${W} ${H}`}
+            aria-hidden="true"
+            role="presentation"
+        >
+            <polyline
+                fill="none"
+                stroke={color}
+                stroke-width="2"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+                points={points.join(' ')}
+            />
+            <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="2.5" fill={color} />
+        </svg>
+    );
 }
 
 interface LifecycleSteps {
@@ -63,6 +113,7 @@ export const AgentDashboardPage = ({
     agent,
     referrals,
     unreadReports,
+    sparklineCreated,
 }: AgentDashboardProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     const primaryColor = branding?.primaryColor || '#4f46e5';
@@ -179,6 +230,19 @@ export const AgentDashboardPage = ({
                     }
                     .stat-card.has-attention .stat-value { color: var(--primary); }
                     .stat-help { font-size: 0.8125rem; color: var(--ink-soft); }
+                    /* Frontend-design polish #1 — inline sparkline on the
+                       'Active referrals' card. The flex row keeps the big
+                       Fraunces number anchor-left and the trend line tucked
+                       to the right with breathing room. */
+                    .stat-row {
+                        display: flex; align-items: flex-end;
+                        justify-content: space-between;
+                        gap: 0.75rem;
+                    }
+                    .stat-sparkline {
+                        opacity: 0.95;
+                        margin-bottom: 0.25rem;
+                    }
                     .tenant-section {
                         background: var(--surface-card);
                         border: 1px solid var(--line);
@@ -351,8 +415,16 @@ export const AgentDashboardPage = ({
                     <section class="stats" aria-label="Dashboard stats">
                         <article class="stat-card" data-testid="agent-stat-active-referrals">
                             <span class="stat-eyebrow">Active referrals</span>
-                            <span class="stat-value">{totalReferrals}</span>
-                            <span class="stat-help">Across {tenantSections.length} {tenantSections.length === 1 ? 'team' : 'teams'}</span>
+                            <div class="stat-row">
+                                <span class="stat-value">{totalReferrals}</span>
+                                <Sparkline data={sparklineCreated ?? []} color={primaryColor} />
+                            </div>
+                            <span class="stat-help">
+                                Across {tenantSections.length} {tenantSections.length === 1 ? 'team' : 'teams'}
+                                {sparklineCreated && sparklineCreated.some((v) => v > 0)
+                                    ? ` · last 7 days`
+                                    : null}
+                            </span>
                         </article>
                         <article
                             class={`stat-card${unreadReports > 0 ? ' has-attention' : ''}`}

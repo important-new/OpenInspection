@@ -542,6 +542,50 @@ export class AgentService {
     }
 
     /**
+     * A2 — 7-day sparkline data for the 'Active referrals' stat card.
+     * Returns an array of `days` integers (default 7). Index 0 is the
+     * oldest day (today − days + 1), last index is today.
+     *
+     * Bucketed in JS because D1 doesn't expose a portable date-bucket
+     * function over the `created_at` timestamp column. The fetch is
+     * bounded by the agent's active links × inspections per tenant —
+     * comfortably small for the dashboard view.
+     */
+    async referralsByDay(agentUserId: string, days = 7): Promise<{ created: number[] }> {
+        const db = this.getDrizzle();
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        const startMs = today.getTime() - (days - 1) * 86400000;
+
+        const rows = await db
+            .select({
+                createdAt:    inspections.createdAt,
+                referredById: inspections.referredByAgentId,
+                linkContactId: agentTenantLinks.inspectorContactId,
+            })
+            .from(inspections)
+            .innerJoin(
+                agentTenantLinks,
+                and(
+                    eq(agentTenantLinks.tenantId, inspections.tenantId),
+                    eq(agentTenantLinks.agentUserId, agentUserId),
+                    eq(agentTenantLinks.status, 'active'),
+                ),
+            )
+            .all();
+
+        const created = new Array<number>(days).fill(0);
+        for (const r of rows) {
+            if (r.referredById && r.linkContactId && r.referredById === r.linkContactId) {
+                const cMs = r.createdAt instanceof Date ? r.createdAt.getTime() : Number(r.createdAt) || 0;
+                const day = Math.floor((cMs - startMs) / 86400000);
+                if (day >= 0 && day < days) created[day]!++;
+            }
+        }
+        return { created };
+    }
+
+    /**
      * A2 — Inspector-side revoke of a partner link. Tenant-scoped: callers
      * must pass the tenantId they're acting from (from the JWT) so a stolen
      * linkId can't be revoked from a different tenant.

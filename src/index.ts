@@ -1649,11 +1649,15 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     // last-read timestamp, so the count surfaces every published report; future
     // sprints can add a per-row read marker.
     const unreadReports = referrals.filter((r) => (r.status || '').toLowerCase() === 'delivered').length;
+    // 7-day sparkline for the 'Active referrals' card. Skipped on empty
+    // tenant lists — the empty-state checklist replaces stat cards there.
+    const sparkline = await c.var.services.agent.referralsByDay(user.sub, 7).catch(() => ({ created: [] as number[] }));
     return c.html(AgentDashboardPage({
         ...(branding ? { branding } : {}),
         agent: { name: agentName, email: agentEmail },
         referrals,
         unreadReports,
+        sparklineCreated: sparkline.created,
     }));
 });
 // Agent Accounts A2 — /agent-inspectors directory of linked inspector cards
