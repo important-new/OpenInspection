@@ -125,7 +125,7 @@ export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector, 
                                             name="clientName"
                                             required
                                             placeholder="Jane Doe"
-                                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none text-[14px] font-medium transition-colors"
+                                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.14)] focus:ring-0 outline-none text-[14px] font-medium transition-colors"
                                         />
                                     </label>
                                     <label class="block">
@@ -135,7 +135,7 @@ export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector, 
                                             name="clientEmail"
                                             required
                                             placeholder="jane@example.com"
-                                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none text-[14px] font-medium transition-colors"
+                                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.14)] focus:ring-0 outline-none text-[14px] font-medium transition-colors"
                                         />
                                     </label>
                                 </div>
@@ -211,7 +211,7 @@ export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector, 
                                         placeholder="YYYY-MM-DD"
                                         autocomplete="off"
                                         required
-                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none text-[14px] font-medium tabular-nums transition-colors"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.14)] focus:ring-0 outline-none text-[14px] font-medium tabular-nums transition-colors"
                                         aria-describedby="date-hint date-error"
                                     />
                                     <p id="date-hint" class="mt-1 text-[11px] text-slate-400">Pick a date that is not in the past.</p>
@@ -261,7 +261,7 @@ export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector, 
                                             type="time"
                                             name="customTime"
                                             x-model="customTime"
-                                            class="h-9 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none text-[13px] font-medium tabular-nums"
+                                            class="h-9 px-3 rounded-md border border-slate-200 bg-white focus:border-indigo-500 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.14)] focus:ring-0 outline-none text-[13px] font-medium tabular-nums"
                                         />
                                         <span class="text-[11px] text-slate-400">on selected date</span>
                                     </div>
