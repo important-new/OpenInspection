@@ -45,16 +45,12 @@ export const ReportGatePage: FC<ReportGateProps> = ({
     propertyAddress, inspectorName, inspectorEmail, inspectorPhone, inspectorLicense,
     scheduledDate, amountCents, currency,
 }) => {
-    const titleMap = {
-        payment:   'Pending payment',
-        agreement: 'Pending agreement signature',
-    };
-    const messageMap = {
-        payment:   "Your inspection report is ready, but the invoice has not been paid yet. Please complete payment to view the report — your inspector's contact details are listed below.",
-        agreement: "Your inspection report is ready, but the inspection agreement has not been signed yet. Please sign the agreement to view the report.",
-    };
-    const title = titleMap[reason];
-    const message = messageMap[reason];
+    const title = reason === 'payment'
+        ? 'Pending payment'
+        : 'Pending agreement signature';
+    const message = reason === 'payment'
+        ? "Your inspection report is ready, but the invoice has not been paid yet. Please complete payment to view the report — your inspector's contact details are listed below."
+        : 'Your inspection report is ready, but the inspection agreement has not been signed yet. Please sign the agreement to view the report.';
 
     const formattedDate = scheduledDate ? (() => {
         try {
@@ -320,7 +316,7 @@ export const ReportGatePage: FC<ReportGateProps> = ({
 
                     <a class="cta" href={actionUrl}>{ctaLabel}</a>
 
-                    {reason === 'payment' && (
+                    {reason === 'payment' ? (
                         <div class="trust" aria-label="Payments are secured by Stripe">
                             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
                                 <rect x="3" y="7" width="10" height="6" rx="1" />
@@ -328,8 +324,7 @@ export const ReportGatePage: FC<ReportGateProps> = ({
                             </svg>
                             Secured by Stripe · {companyName}
                         </div>
-                    )}
-                    {reason !== 'payment' && (
+                    ) : (
                         <div class="trust">{companyName}</div>
                     )}
                 </div>
