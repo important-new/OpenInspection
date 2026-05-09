@@ -4,13 +4,13 @@
 --  per project policy — see feedback_pre_launch_no_compat.md. Production-safe path would
 --  require a multi-step migration: add nullable col -> copy data -> drop old.)
 --
--- IMPORTANT: This rebuild intentionally omits photo_url / bio / service_areas. Sprint C
--- (booking-sprint-c-integrations) is shipping migration 0054 in parallel that adds those
--- three columns. This branch was cut BEFORE that migration. Post-merge, Sprint C's 0054
--- will add the columns onto this rebuilt table.
+-- POST-REBASE NOTE: Sprint C's migration 0054 ships BEFORE this in the merge order
+-- (already on main as of commit 838870f). 0054 adds photo_url / bio / service_areas
+-- to users; this rebuild now includes those three columns so the migration is
+-- idempotent against the post-C schema and does not drop Sprint C's data.
 --
 -- Column list mirrors the canonical users schema after migrations 0001 + 0004 + 0010 +
--- 0019 + 0020 + 0030 + 0052 (i.e. everything except the Sprint C inspector-profile cols).
+-- 0019 + 0020 + 0030 + 0052 + 0054.
 
 CREATE TABLE users_new (
     id                    TEXT    PRIMARY KEY,
@@ -32,20 +32,25 @@ CREATE TABLE users_new (
     totp_enabled          INTEGER NOT NULL DEFAULT 0,
     totp_recovery_codes   TEXT,
     totp_verified_at      INTEGER,
-    slug                  TEXT
+    slug                  TEXT,
+    photo_url             TEXT,
+    bio                   TEXT,
+    service_areas         TEXT
 );
 
 INSERT INTO users_new (
     id, tenant_id, email, password_hash, role, created_at,
     google_refresh_token, google_calendar_id, name, phone, license_number,
     google_access_token, google_token_expiry, locale, onboarding_state,
-    totp_secret, totp_enabled, totp_recovery_codes, totp_verified_at, slug
+    totp_secret, totp_enabled, totp_recovery_codes, totp_verified_at, slug,
+    photo_url, bio, service_areas
 )
 SELECT
     id, tenant_id, email, password_hash, role, created_at,
     google_refresh_token, google_calendar_id, name, phone, license_number,
     google_access_token, google_token_expiry, locale, onboarding_state,
-    totp_secret, totp_enabled, totp_recovery_codes, totp_verified_at, slug
+    totp_secret, totp_enabled, totp_recovery_codes, totp_verified_at, slug,
+    photo_url, bio, service_areas
 FROM users;
 
 DROP TABLE users;
