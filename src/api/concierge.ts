@@ -71,12 +71,12 @@ conciergeRoutes.openapi(confirmRoute, async (c) => {
                     inspectionId: view.inspection.id,
                     error: err instanceof Error ? err.message : String(err),
                 });
-                redirect = `/r/${view.inspection.id}`;
+                redirect = `/report/${view.inspection.id}`;
             }
         } else {
             // Optimistically redirect to the report viewer; the gate will lock
             // it down if the inspection is still pending.
-            redirect = `/r/${view.inspection.id}`;
+            redirect = `/report/${view.inspection.id}`;
         }
     }
 
