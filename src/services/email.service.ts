@@ -451,6 +451,84 @@ export class EmailService {
             attachments,
         );
     }
+
+    /**
+     * Agent Accounts A2 — notify a partner agent that a new inspection has
+     * been booked under their referral. Gated on `agent.notifyOnReferral`;
+     * when the flag is false the call is a silent no-op (logged).
+     */
+    async sendNewReferral(
+        agent: { id: string; email: string; name: string | null; notifyOnReferral: boolean },
+        params: { propertyAddress: string; clientName: string | null; dashboardUrl: string },
+    ): Promise<void> {
+        if (!agent.notifyOnReferral) {
+            logger.debug('email.sendNewReferral.skipped', { agentId: agent.id, reason: 'preference_off' });
+            return;
+        }
+        const subject = `New referral booked: ${params.propertyAddress}`;
+        const greet = agent.name ? `Hi ${agent.name},` : 'Hi,';
+        const client = params.clientName ? ` for <strong>${params.clientName}</strong>` : '';
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+            <h1 style="color: #4f46e5;">New referral booked</h1>
+            <p>${greet}</p>
+            <p>An inspection at <strong>${params.propertyAddress}</strong>${client} has been booked under your referral. We'll let you know again when the report is ready.</p>
+            <div style="margin: 32px 0;">
+              <a href="${params.dashboardUrl}" style="background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Open dashboard</a>
+            </div>
+        </div>`;
+        await this.sendEmail([agent.email], subject, body);
+    }
+
+    /**
+     * Agent Accounts A2 — agent-recipient variant of sendReportReady. Gated
+     * on `agent.notifyOnReport`. Distinct from the inspector-issued
+     * `sendReportReady` (client recipient) so the gating logic stays scoped
+     * to the agent path.
+     */
+    async sendAgentReportReady(
+        agent: { id: string; email: string; name: string | null; notifyOnReport: boolean },
+        params: { propertyAddress: string; reportUrl: string },
+    ): Promise<void> {
+        if (!agent.notifyOnReport) {
+            logger.debug('email.sendAgentReportReady.skipped', { agentId: agent.id, reason: 'preference_off' });
+            return;
+        }
+        const subject = `Report ready: ${params.propertyAddress}`;
+        const greet = agent.name ? `Hi ${agent.name},` : 'Hi,';
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+            <h1 style="color: #4f46e5;">Report ready to read</h1>
+            <p>${greet}</p>
+            <p>The inspection report for <strong>${params.propertyAddress}</strong> has been published. You can read it at the link below.</p>
+            <div style="margin: 32px 0;">
+              <a href="${params.reportUrl}" style="background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View report</a>
+            </div>
+        </div>`;
+        await this.sendEmail([agent.email], subject, body);
+    }
+
+    /**
+     * Agent Accounts A2 — notify a partner agent that an invoice on one of
+     * their referrals has been paid. Gated on `agent.notifyOnPaid` (off by
+     * default — high-noise signal that most agents won't want).
+     */
+    async sendInvoicePaid(
+        agent: { id: string; email: string; name: string | null; notifyOnPaid: boolean },
+        params: { propertyAddress: string; amountCents: number },
+    ): Promise<void> {
+        if (!agent.notifyOnPaid) {
+            logger.debug('email.sendInvoicePaid.skipped', { agentId: agent.id, reason: 'preference_off' });
+            return;
+        }
+        const dollars = (params.amountCents / 100).toFixed(2);
+        const subject = `Invoice paid: ${params.propertyAddress}`;
+        const greet = agent.name ? `Hi ${agent.name},` : 'Hi,';
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+            <h1 style="color: #15803d;">Invoice paid</h1>
+            <p>${greet}</p>
+            <p>The invoice for the inspection at <strong>${params.propertyAddress}</strong> has been paid in full ($${dollars}).</p>
+        </div>`;
+        await this.sendEmail([agent.email], subject, body);
+    }
 }
 
 function arrayBufferToBase64(buf: ArrayBuffer): string {
