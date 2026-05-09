@@ -1,128 +1,224 @@
-import { BareLayout } from '../layouts/main-layout';
-import { AtmosphericBg } from '../components/atmospheric-bg';
-import { AgentDashboardHero } from '../components/agent-dashboard-hero';
-import { ReportStatusPill } from '../components/report-status-pill';
-import { BrandingConfig } from '../../types/auth';
-import { PageHeader } from '../components/page-header';
+import type { BrandingConfig } from '../../types/auth';
 
-export const AgentDashboardPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
+export interface AgentDashboardProps {
+    branding?: BrandingConfig | undefined;
+    agentName?: string | undefined;
+}
+
+/**
+ * Agent Accounts A1 — placeholder /agent-dashboard.
+ *
+ * A1 ships the foundations: account model, invite + accept, signup, JWT split.
+ * The real cross-tenant dashboard arrives in A2 (referrals list, inspector
+ * directory, settings). For now we render a friendly preview card so the
+ * post-accept and post-signup redirects don't land on a 404.
+ *
+ * Frontend-design: surface / ink / blueprint Sprint 1 tokens. Fraunces serif
+ * headline for editorial weight, DM Sans for body, generous whitespace.
+ */
+export const AgentDashboardPage = ({ branding, agentName }: AgentDashboardProps = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
-    const logoUrl = branding?.logoUrl;
+    const primaryColor = branding?.primaryColor || '#4f46e5';
+    const greetingName = agentName?.trim() || 'partner';
 
     return (
-        <BareLayout title={`${siteName} | Agent Portal`} branding={branding}>
-            <div class="min-h-screen bg-slate-50 text-slate-900 overflow-x-hidden relative">
-                <AtmosphericBg />
-
-                {/* Floating Navigation */}
-                <nav class="sticky top-6 mx-auto max-w-7xl px-6 z-50">
-                    <div class="glass-panel flex h-20 items-center justify-between px-8 rounded-lg shadow-md/20">
-                        <div class="flex items-center gap-4">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 flex items-center justify-center flex-shrink-0">
-                                    <img src={logoUrl || '/logo.svg'} alt={siteName} class="w-full h-full object-contain" />
-                                </div>
-                                <span class="text-xl font-bold tracking-tight text-slate-900">{siteName}</span>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-6">
-                            <a href="/dashboard" class="text-sm font-bold text-slate-500 hover:text-indigo-600 transition-all">Inspector Portal</a>
-                            <div class="h-6 w-px bg-slate-200"></div>
-                            <button id="logoutBtn" class="premium-button text-[10px] uppercase font-bold tracking-widest px-6 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-black">Sign out</button>
-                        </div>
+        <html lang="en">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>{`Agent dashboard preview | ${siteName}`}</title>
+                <link rel="stylesheet" href="/fonts.css" />
+                <style dangerouslySetInnerHTML={{ __html: `
+                    :root {
+                        --primary: ${primaryColor};
+                        --primary-soft: ${primaryColor}14;
+                        --ink: #1c1917;
+                        --ink-soft: #57534e;
+                        --ink-faint: #a8a29e;
+                        --line: #e7e5e4;
+                        --surface: #fafaf9;
+                    }
+                    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                    body {
+                        font-family: 'DM Sans', system-ui, sans-serif;
+                        background: var(--surface);
+                        color: var(--ink);
+                        min-height: 100vh;
+                        -webkit-font-smoothing: antialiased;
+                    }
+                    .topbar {
+                        max-width: 1080px;
+                        margin: 0 auto;
+                        padding: 1.75rem 1.5rem;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                    }
+                    .brand-row { display: flex; align-items: center; gap: 0.75rem; }
+                    .brand-row img { width: 32px; height: 32px; object-fit: contain; }
+                    .brand-name {
+                        font-family: 'Fraunces', serif;
+                        font-weight: 700;
+                        font-size: 1.125rem;
+                        letter-spacing: -0.02em;
+                    }
+                    .signout-btn {
+                        background: transparent;
+                        border: 1.5px solid var(--line);
+                        color: var(--ink);
+                        padding: 0.5rem 1rem;
+                        font-family: inherit;
+                        font-size: 0.8125rem;
+                        font-weight: 600;
+                        border-radius: 10px;
+                        cursor: pointer;
+                        transition: border-color 0.15s;
+                    }
+                    .signout-btn:hover { border-color: var(--ink-faint); }
+                    .shell {
+                        max-width: 720px;
+                        margin: 0 auto;
+                        padding: 2rem 1.5rem 4rem;
+                    }
+                    .badge {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 0.375rem;
+                        padding: 0.375rem 0.875rem;
+                        background: var(--primary-soft);
+                        color: var(--primary);
+                        border-radius: 999px;
+                        font-size: 0.75rem;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.06em;
+                        margin-bottom: 1rem;
+                    }
+                    .editorial-h1 {
+                        font-family: 'Fraunces', serif;
+                        font-weight: 700;
+                        font-size: 2.5rem;
+                        line-height: 1.1;
+                        letter-spacing: -0.025em;
+                        margin-bottom: 0.875rem;
+                    }
+                    .editorial-h1 em {
+                        font-style: italic;
+                        color: var(--primary);
+                    }
+                    .lede {
+                        font-size: 1.0625rem;
+                        line-height: 1.55;
+                        color: var(--ink-soft);
+                        margin-bottom: 2.25rem;
+                    }
+                    .preview-card {
+                        background: #ffffff;
+                        border: 1px solid var(--line);
+                        border-radius: 18px;
+                        padding: 2rem;
+                        margin-bottom: 1.5rem;
+                    }
+                    .preview-h3 {
+                        font-size: 1rem;
+                        font-weight: 700;
+                        margin-bottom: 0.75rem;
+                    }
+                    .preview-list { list-style: none; }
+                    .preview-item {
+                        display: flex;
+                        gap: 0.75rem;
+                        align-items: flex-start;
+                        padding: 0.5rem 0;
+                        font-size: 0.9375rem;
+                        line-height: 1.5;
+                        color: var(--ink-soft);
+                    }
+                    .preview-bullet {
+                        flex-shrink: 0;
+                        margin-top: 0.375rem;
+                        width: 6px;
+                        height: 6px;
+                        border-radius: 50%;
+                        background: var(--primary);
+                    }
+                    .preview-foot {
+                        font-size: 0.875rem;
+                        color: var(--ink-faint);
+                        text-align: center;
+                        line-height: 1.55;
+                    }
+                ` }} />
+            </head>
+            <body>
+                <header class="topbar">
+                    <div class="brand-row">
+                        {branding?.logoUrl ? <img src={branding.logoUrl} alt={siteName} /> : null}
+                        <span class="brand-name">{siteName}</span>
                     </div>
-                </nav>
+                    <button id="signoutBtn" class="signout-btn" type="button">Sign out</button>
+                </header>
 
-                {/* Main Content — combines Sub-spec B PageHeader with Sub-spec D
-                    hero strip + share-with-buyer + status pill via the
-                    `agentDashboardState` Alpine factory. */}
-                <main
-                    class="py-10 animate-slide-in relative z-10"
-                    x-data="agentDashboardState"
-                    x-init="init && init()"
-                >
-                    <div class="mx-auto max-w-7xl px-6 lg:px-8 space-y-6">
-                        {/* Sub-spec D Task 7 — Hero strip. Address + share-with-buyer
-                            CTA. Pulls live data from Alpine `hero` once the referral
-                            list loads (see public/js/agent-dashboard.js). */}
-                        <AgentDashboardHero alpine />
+                <main class="shell">
+                    <span class="badge">Preview · A1 foundations</span>
+                    <h1 class="editorial-h1">
+                        Welcome, <em>{greetingName}</em>.
+                    </h1>
+                    <p class="lede">
+                        Your agent account is set up. The cross-tenant referral dashboard ships
+                        next sprint — for now, here's a preview of what's coming.
+                    </p>
 
-                        {/* PageHeader (Sub-spec B B-2) sits below the hero. Status
-                            pill (Sub-spec D D-7) folded into the actions slot so it
-                            still surfaces lifecycle state next to the title. */}
-                        <div x-data="agentMeta" class="mb-10">
-                            <PageHeader
-                                eyebrow="AGENT VIEW"
-                                eyebrowColor="indigo"
-                                title="Referral Dashboard"
-                                meta={
-                                    <span x-text="`${total || 0} referral${total === 1 ? '' : 's'}${pending ? ' · ' + pending + ' pending' : ''}`"></span>
-                                }
-                                actions={
-                                    <span x-show="hero.status" class="align-middle">
-                                        <ReportStatusPill status="published" />
-                                    </span>
-                                }
-                            />
-                        </div>
-
-                        {/* Referral List */}
-                        <div class="glass-panel rounded-xl overflow-hidden shadow-md/10">
-                            <div class="overflow-x-auto">
-                                <table class="min-w-full">
-                                    <thead>
-                                        <tr class="bg-slate-50/50">
-                                            <th class="py-6 pl-10 pr-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Property Address</th>
-                                            <th class="px-6 py-6 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Client Info</th>
-                                            <th class="px-6 py-6 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Status</th>
-                                            <th class="px-6 py-6 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Created</th>
-                                            <th class="px-6 py-6 text-right text-[10px] font-bold uppercase tracking-widest text-slate-400 pr-10">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="reportsList" class="divide-y divide-slate-100">
-                                        <tr id="loadingRow">
-                                            <td colspan={5} class="py-32 text-center">
-                                                <div class="flex flex-col items-center gap-4">
-                                                    <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin shadow-md"></div>
-                                                    <p class="text-sm font-bold text-slate-400 animate-pulse">Loading...</p>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* Spec 5G — Leaderboard card (closes Round 27 audit
-                            orphan). Shows top 10 agents by referral count.
-                            Renders even when this user has no referrals — useful
-                            social context. */}
-                        <div class="mt-6 glass-panel rounded-md p-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-sm font-bold text-slate-900">Office Leaderboard</h3>
-                                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Top 10 by referrals</span>
-                            </div>
-                            <table class="min-w-full">
-                                <tbody id="leaderboardList">
-                                    <tr><td colspan={4} class="py-12 text-center text-xs text-slate-400 italic">Loading leaderboard…</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Empty State Template (handled by JS) */}
-                        <div id="emptyState" class="hidden py-40 text-center">
-                            <div class="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-8 border border-slate-100 shadow-inner">
-                                <svg class="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                            </div>
-                            <h3 class="text-xl font-bold text-slate-900 mb-2">No Referrals Found</h3>
-                            <p class="text-slate-400 font-medium">Inspections referred by you will appear here once they are scheduled.</p>
-                        </div>
+                    <div class="preview-card">
+                        <h3 class="preview-h3">Coming in the next release</h3>
+                        <ul class="preview-list">
+                            <li class="preview-item">
+                                <span class="preview-bullet"></span>
+                                <span>
+                                    <strong>Cross-tenant referrals.</strong> Every inspection your
+                                    inspectors completed for clients you referred — across every
+                                    inspector you partner with — in one list.
+                                </span>
+                            </li>
+                            <li class="preview-item">
+                                <span class="preview-bullet"></span>
+                                <span>
+                                    <strong>Inspector directory.</strong> See every inspector you're
+                                    linked to, copy their booking link, subscribe to their availability.
+                                </span>
+                            </li>
+                            <li class="preview-item">
+                                <span class="preview-bullet"></span>
+                                <span>
+                                    <strong>Settings + slug.</strong> Pick your own URL slug for sharing
+                                    referral links, manage notification preferences.
+                                </span>
+                            </li>
+                        </ul>
                     </div>
+
+                    <p class="preview-foot">
+                        Questions? Reach out to your inspector — they'll see all your activity in
+                        their referral feed once A2 ships.
+                    </p>
                 </main>
 
-                <script src="/js/auth.js"></script>
-                <script src="/js/agent-dashboard.js"></script>
-            </div>
-        </BareLayout>
+                <script dangerouslySetInnerHTML={{ __html: `
+                    (function () {
+                        const btn = document.getElementById('signoutBtn');
+                        if (!btn) return;
+                        btn.addEventListener('click', async function () {
+                            try {
+                                await fetch('/api/auth/logout', {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                });
+                            } catch (e) { /* fall through to redirect */ }
+                            window.location.href = '/login';
+                        });
+                    })();
+                ` }} />
+            </body>
+        </html>
     );
 };

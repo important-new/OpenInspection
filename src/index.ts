@@ -1533,7 +1533,31 @@ app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));
 });
-app.get('/agent-dashboard', htmlAuthGuard(['agent']), (c) => c.html(AgentDashboardPage({ branding: c.get('branding') })));
+app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
+    const branding = c.get('branding');
+    const user = c.get('user');
+    let agentName: string | undefined;
+    // Best-effort lookup of the agent's display name. Agents have tenant_id NULL,
+    // so the standard scoped service can't find them — query directly.
+    if (user?.sub) {
+        try {
+            const { drizzle } = await import('drizzle-orm/d1');
+            const { users: usersTable } = await import('./lib/db/schema/tenant');
+            const { eq } = await import('drizzle-orm');
+            const db = drizzle(c.env.DB);
+            const row = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, user.sub)).get();
+            if (row?.name) agentName = row.name;
+        } catch (err) {
+            logger.warn('agent.dashboard.name.lookup.failed', {
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+    return c.html(AgentDashboardPage({
+        ...(branding ? { branding } : {}),
+        ...(agentName ? { agentName } : {}),
+    }));
+});
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
 app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
     const id = c.req.param('id') as string;
