@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 import { tenants, users } from './tenant';
 
 // Sprint 2 S2-1 — tenant-scoped rating systems library. The level list
@@ -92,6 +92,11 @@ export const inspections = sqliteTable('inspections', {
     // Sprint 2 S2-2 — Multi-inspection per request. NULL on legacy rows pre-backfill;
     // application requires a non-null value on all newly created inspections.
     requestId:           text('request_id'),
+    // Agent Accounts A3 — concierge booking state machine.
+    //   NULL                 = not a concierge booking (or already settled into status='confirmed' / 'cancelled')
+    //   'awaiting_inspector' = agent submitted; inspector must approve (Spectora reviewer mode)
+    //   'awaiting_client'    = magic-link sent to client; waiting on confirmation (HomeGauge auto mode or post-inspector-approve)
+    conciergeStatus:     text('concierge_status'),
 });
 
 // Sprint 2 S2-2 — A single customer booking can spawn multiple inspections
@@ -344,6 +349,22 @@ export const eventTypes = sqliteTable('event_types', {
     active:             integer('active', { mode: 'boolean' }).notNull().default(true),
     createdAt:          integer('created_at', { mode: 'timestamp' }).notNull(),
 });
+
+// Agent Accounts A3 — Concierge magic-link tokens. Single-use, 7-day TTL.
+// `confirmed_at` flips to a timestamp when the client redeems the link; the
+// row is retained for audit (we don't delete tokens). The expiry index lets
+// future cleanup jobs scan stale rows efficiently without a full table scan.
+export const conciergeConfirmTokens = sqliteTable('concierge_confirm_tokens', {
+    token:         text('token').primaryKey(),
+    inspectionId:  text('inspection_id').notNull().references(() => inspections.id),
+    tenantId:      text('tenant_id').notNull(),
+    clientEmail:   text('client_email').notNull(),
+    expiresAt:     integer('expires_at', { mode: 'timestamp' }).notNull(),
+    confirmedAt:   integer('confirmed_at', { mode: 'timestamp' }),
+    createdAt:     integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (t) => [
+    index('idx_concierge_tokens_expiry').on(t.expiresAt),
+]);
 
 export const inspectionEvents = sqliteTable('inspection_events', {
     id:                text('id').primaryKey(),
