@@ -9,12 +9,20 @@ function calendarMeta() {
     return {
         weekCount:  0,
         draftCount: 0,
+        // BUG #23 — track inspections beyond the current week so the
+        // subtitle does not read "No inspections scheduled this week" while
+        // the month grid below clearly shows future events. With this we
+        // can append "see grid for upcoming" when the current week is empty
+        // but the next 28 days are not.
+        beyondWeekCount: 0,
         nextOpen:   '',
         get metaText() {
             const parts = [];
             const confirmed = this.weekCount - this.draftCount;
             if (this.weekCount === 0) {
-                parts.push('No inspections scheduled this week');
+                parts.push(this.beyondWeekCount > 0
+                    ? 'No inspections this week — see grid for upcoming'
+                    : 'No inspections scheduled this week');
             } else if (this.draftCount > 0 && confirmed === 0) {
                 parts.push(this.draftCount + ' draft' + (this.draftCount === 1 ? '' : 's') + ' this week');
             } else if (this.draftCount > 0) {
@@ -29,13 +37,19 @@ function calendarMeta() {
             try {
                 const now = new Date();
                 const start = now.toISOString().slice(0, 10);
-                const end = new Date(now.getTime() + 7 * 86400 * 1000).toISOString().slice(0, 10);
-                const r = await authFetch('/api/inspections?dateFrom=' + start + '&dateTo=' + end + '&limit=200');
+                const weekEnd = new Date(now.getTime() + 7 * 86400 * 1000).toISOString().slice(0, 10);
+                // Pull a 28-day window so we can also tell whether the month
+                // grid has anything to show. Cap at 200 to avoid pathological
+                // payloads on very busy tenants.
+                const monthEnd = new Date(now.getTime() + 28 * 86400 * 1000).toISOString().slice(0, 10);
+                const r = await authFetch('/api/inspections?dateFrom=' + start + '&dateTo=' + monthEnd + '&limit=200');
                 if (!r.ok) return;
                 const j = await r.json();
                 const list = j.data || [];
-                this.weekCount  = list.length;
-                this.draftCount = list.filter(function(i) { return i && i.status === 'draft'; }).length;
+                const inWeek = list.filter(function(i) { return i && typeof i.date === 'string' && i.date <= weekEnd; });
+                this.weekCount  = inWeek.length;
+                this.draftCount = inWeek.filter(function(i) { return i && i.status === 'draft'; }).length;
+                this.beyondWeekCount = list.length - inWeek.length;
             } catch {}
         },
     };
