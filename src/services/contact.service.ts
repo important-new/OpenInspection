@@ -20,10 +20,17 @@ export class ContactService {
         const rows = await db.select().from(contacts).where(and(...conditions)).limit(opts.limit).offset(opts.offset).all();
 
         const withCounts = await Promise.all(rows.map(async (c) => {
-            if (c.type !== 'agent') return { ...c, inspectionCount: 0 };
-            const res = await db.select({ count: sql<number>`count(*)` }).from(inspections)
-                .where(and(eq(inspections.tenantId, tenantId), eq(inspections.referredByAgentId, c.id))).get();
-            return { ...c, inspectionCount: res?.count ?? 0 };
+            if (c.type === 'agent') {
+                const res = await db.select({ count: sql<number>`count(*)` }).from(inspections)
+                    .where(and(eq(inspections.tenantId, tenantId), eq(inspections.referredByAgentId, c.id))).get();
+                return { ...c, inspectionCount: res?.count ?? 0 };
+            }
+            if (c.type === 'client' && c.email) {
+                const res = await db.select({ count: sql<number>`count(*)` }).from(inspections)
+                    .where(and(eq(inspections.tenantId, tenantId), eq(inspections.clientEmail, c.email))).get();
+                return { ...c, inspectionCount: res?.count ?? 0 };
+            }
+            return { ...c, inspectionCount: 0 };
         }));
 
         return withCounts.map(c => ({ ...c, createdAt: safeISODate(c.createdAt) }));
