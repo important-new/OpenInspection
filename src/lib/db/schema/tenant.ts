@@ -15,7 +15,10 @@ export const tenants = sqliteTable('tenants', {
 
 export const users = sqliteTable('users', {
     id: text('id').primaryKey(),
-    tenantId: text('tenant_id').notNull().references(() => tenants.id),
+    // Agent Accounts A1 — nullable: NULL only when role='agent' (global account
+    // accessing multiple tenants via agent_tenant_links). Inspector / owner /
+    // admin accounts still always carry a tenant_id.
+    tenantId: text('tenant_id').references(() => tenants.id),
     email: text('email').unique().notNull(),
     passwordHash: text('password_hash').notNull(),
     name: text('name'),
