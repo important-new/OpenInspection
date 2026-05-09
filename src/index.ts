@@ -1318,7 +1318,33 @@ app.get('/library/tags', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => 
 app.get('/settings', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsPage({ branding: c.get('branding') })));
 
 // Profile group (single sub-page; group page IS the sub-page)
-app.get('/settings/profile', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsProfilePage({ branding: c.get('branding') })));
+// Booking #7 Sprint A — inspectors can also visit /settings/profile to set
+// their booking slug, so the role guard now includes 'inspector'. We also
+// resolve the current slug + tenant subdomain server-side so the slug card
+// can render without a flash of "no slug" state.
+app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), async (c) => {
+    const branding = c.get('branding');
+    const tenantId = c.get('tenantId');
+    const userId = c.get('user')?.sub;
+    const db = drizzle(c.env.DB);
+    const [userRow, tenantRow] = await Promise.all([
+        userId
+            ? db.select({ slug: schema.users.slug }).from(schema.users)
+                .where(and(eq(schema.users.id, userId), eq(schema.users.tenantId, tenantId)))
+                .get()
+            : Promise.resolve(null),
+        tenantId
+            ? db.select({ subdomain: schema.tenants.subdomain }).from(schema.tenants)
+                .where(eq(schema.tenants.id, tenantId))
+                .get()
+            : Promise.resolve(null),
+    ]);
+    return c.html(SettingsProfilePage({
+        ...(branding ? { branding } : {}),
+        currentSlug: userRow?.slug ?? null,
+        tenantSubdomain: tenantRow?.subdomain ?? '',
+    }));
+});
 
 // Workspace group
 app.get('/settings/workspace', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/workspace/branding'));
