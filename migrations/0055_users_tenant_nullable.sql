@@ -12,6 +12,11 @@
 -- Column list mirrors the canonical users schema after migrations 0001 + 0004 + 0010 +
 -- 0019 + 0020 + 0030 + 0052 + 0054.
 
+-- D1 enforces foreign keys by default; defer them within the migration transaction so
+-- DROP TABLE users (referenced by inspections, contacts, agreements, etc.) succeeds and
+-- FK validity is re-checked at COMMIT against the rebuilt table (same row IDs preserved).
+PRAGMA defer_foreign_keys = TRUE;
+
 CREATE TABLE users_new (
     id                    TEXT    PRIMARY KEY,
     tenant_id             TEXT,                                  -- NULLABLE: NULL only when role='agent'
