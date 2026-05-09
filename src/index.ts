@@ -3,6 +3,7 @@ import { Context } from 'hono';
 import { serveStatic } from 'hono/cloudflare-workers';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { verify } from 'hono/jwt';
+import { classifyJwtPayload } from './lib/auth/jwt-claims';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq, asc, desc } from 'drizzle-orm';
 import { users } from './lib/db/schema';
@@ -282,8 +283,7 @@ app.use('*', async (c, next) => {
         }
 
         const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
-        const tenantId = (payload['custom:tenantId'] ?? payload['tenantId']) as string | undefined;
-        const userRole = (payload['custom:userRole'] ?? payload['role']) as string | undefined;
+        const classification = classifyJwtPayload(payload);
         const userId = payload.sub as string | undefined;
         const tokenIat = payload.iat as number | undefined;
 
@@ -298,16 +298,36 @@ app.use('*', async (c, next) => {
             }
         }
 
-        if (tenantId) c.set('tenantId', tenantId);
-        if (userRole) c.set('userRole', userRole as UserRole);
-
-        // Populate the per-request user context. Email is intentionally not carried in the JWT
-        // anymore — routes that need it (e.g. /me) look it up from the DB.
-        if (userRole) {
+        // Agent Accounts A1 — JWTs minted for global agent accounts intentionally
+        // carry no `tenantId` claim. Set `agentUserId` instead so per-route
+        // handlers can resolve a tenant via resolveAgentTenant() and confirm the
+        // active link before any tenant-scoped query runs.
+        if (classification?.kind === 'agent') {
+            c.set('userRole', 'agent' as UserRole);
+            c.set('agentUserId', classification.userId);
             c.set('user', {
-                sub: payload.sub as string,
-                role: userRole as UserRole,
-                tenantId: tenantId as string
+                sub: classification.userId,
+                role: 'agent',
+                // tenantId intentionally undefined — per-route resolution required.
+            });
+        } else if (classification?.kind === 'tenant') {
+            c.set('tenantId', classification.tenantId);
+            c.set('userRole', classification.role);
+            // Populate the per-request user context. Email is intentionally not carried in the JWT
+            // anymore — routes that need it (e.g. /me) look it up from the DB.
+            c.set('user', {
+                sub: classification.userId,
+                role: classification.role,
+                tenantId: classification.tenantId,
+            });
+        } else if (classification?.kind === 'unscoped') {
+            // Inspector-class role without a tenantId claim — historically this branch
+            // was tolerated. Preserve behavior for backwards-safety on existing tokens.
+            c.set('userRole', classification.role);
+            c.set('user', {
+                sub: classification.userId,
+                role: classification.role,
+                tenantId: '' as string,
             });
         }
 
