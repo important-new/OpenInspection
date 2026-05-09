@@ -96,6 +96,46 @@ export class EmailService {
     }
 
     /**
+     * Agent Accounts A1 — sends the partner-agent invite email. Personal hero
+     * (inspector + tenant), single CTA, expiry note. Recipient lands on
+     * /agent-invite/accept?token=… to set a password.
+     */
+    async sendAgentInvite(
+        to: string,
+        params: { token: string; inspectorName: string; tenantName: string; acceptUrl: string },
+    ) {
+        const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const inspector = escape(params.inspectorName);
+        const tenant = escape(params.tenantName);
+        const url = params.acceptUrl;
+        await this.sendEmail(
+            [to],
+            `${params.inspectorName} invited you to be a partner agent`,
+            `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#0f172a;">
+                <h1 style="font-size:22px;font-weight:700;margin-bottom:8px;">You're invited</h1>
+                <p style="font-size:15px;line-height:1.5;color:#334155;">
+                    <strong>${inspector}</strong> at <strong>${tenant}</strong>
+                    has invited you to be a partner agent on ${this.appName}.
+                </p>
+                <p style="font-size:14px;line-height:1.5;color:#334155;">
+                    Accept the invitation to see every inspection your inspectors complete
+                    for clients you refer. It's free and takes a minute.
+                </p>
+                <div style="margin:28px 0;">
+                    <a href="${url}" style="background:#4f46e5;color:#fff;padding:12px 22px;
+                       text-decoration:none;border-radius:8px;font-weight:600;display:inline-block;">
+                        Accept Invitation
+                    </a>
+                </div>
+                <p style="font-size:12px;color:#64748b;">
+                    This link expires in 7 days. If the button doesn't work, copy and paste:
+                    <br>${url}
+                </p>
+            </div>`,
+        );
+    }
+
+    /**
      * Sends a workspace invitation email.
      */
     async sendInvitation(to: string, inviteLink: string) {

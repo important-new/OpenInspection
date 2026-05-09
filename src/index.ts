@@ -85,6 +85,7 @@ import aiRoutes from './api/ai';
 import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
 import agentRoutes from './api/agent';
+import agentsRoutes from './api/agents';
 import placesRoutes from './api/places';
 import availabilityRoutes from './api/availability';
 import calendarRoutes from './api/calendar';
@@ -407,6 +408,8 @@ app.route('/api/profile', profileRoutes);
 app.route('/api/public', repairRequestRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/agent', agentRoutes);
+// Agent Accounts A1 — invite + accept endpoints
+app.route('/api/agents', agentsRoutes);
 app.route('/api/places', placesRoutes);
 app.route('/api/availability', availabilityRoutes);
 // Mount /api/calendar/events BEFORE /api/calendar so the more-specific path takes precedence.

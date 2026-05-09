@@ -35,6 +35,7 @@ import { TagService } from '../../services/tag.service';
 import { PropertyLookupService } from '../../services/property-lookup.service';
 import { UserService } from '../../services/user.service';
 import { IcsService } from '../../services/ics.service';
+import { AgentService } from '../../services/agent.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -201,6 +202,25 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         // generic 'openinspection' tag in local dev.
                         const host = c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'openinspection';
                         target.ics = new IcsService(c.env.DB, host);
+                    }
+                    break;
+                case 'agent':
+                    {
+                        // Agent Accounts A1 — agent service depends on EmailService
+                        // (through the same lazy proxy) and the public app base URL
+                        // for accept-link minting.
+                        if (!target.email) {
+                            target.email = new EmailService(
+                                c.env.RESEND_API_KEY || dbSecrets.resendApiKey || '',
+                                c.env.SENDER_EMAIL || dbSecrets.senderEmail || '',
+                                c.env.APP_NAME || 'OpenInspection',
+                            );
+                        }
+                        target.agent = new AgentService(
+                            c.env.DB,
+                            target.email,
+                            c.env.APP_BASE_URL || '',
+                        );
                     }
                     break;
             }
