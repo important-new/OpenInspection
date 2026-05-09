@@ -2,12 +2,16 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { tenants, users, templates } from '../db/schema';
 import { IntegrationProvider, TenantUpdateParams } from '../integration';
+import { logger } from '../logger';
 
 // Default Comment Library entries seeded into every new tenant. The same set
 // is also seeded into existing tenants by migration 0022_seed_default_comments.
 // Each row is idempotent on (tenant_id, text) — seeded only when missing.
 async function seedDefaultComments(db: D1Database, tenantId: string): Promise<void> {
     try {
+        // Idempotent NOT EXISTS clause keeps this safe to re-run.
+        // `created_at` is `mode: 'timestamp'` (seconds since epoch) in the
+        // Drizzle schema; unixepoch('now') matches that contract directly.
         await db.prepare(`
             INSERT INTO comments (id, tenant_id, text, category, created_at)
             SELECT lower(hex(randomblob(16))), ?, x.text, x.category, unixepoch('now')
@@ -23,8 +27,14 @@ async function seedDefaultComments(db: D1Database, tenantId: string): Promise<vo
             ) AS x
             WHERE NOT EXISTS (SELECT 1 FROM comments c WHERE c.tenant_id = ? AND c.text = x.text)
         `).bind(tenantId, tenantId).run();
-    } catch {
-        // non-fatal: tenant creation must not fail because of seed data
+    } catch (err) {
+        // non-fatal: tenant creation must not fail because of seed data,
+        // but the silent swallow used to hide real schema/permissions
+        // problems — emit a warning so future failures are visible.
+        logger.warn('seedDefaultComments.failed', {
+            tenantId,
+            error: err instanceof Error ? err.message : String(err),
+        });
     }
 }
 
