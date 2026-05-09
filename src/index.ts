@@ -898,13 +898,30 @@ app.get('/report/:id', async (c) => {
     } catch { /* unauthenticated public view */ }
     const isInspectorOrAdmin = role === 'owner' || role === 'admin' || role === 'inspector';
 
+    // BUG #21 — agent-view token bypass. `InspectionService.generateAgentViewToken`
+    // emits a share URL of the form `/report/<id>?view=agent&token=<t>`. The
+    // token KV-resolves to the inspection + tenant pair, so an authenticated
+    // agent (or anyone with the link) can read the report without tripping
+    // payment / agreement gates. Without this branch the agent's email link
+    // would 4xx for any gated inspection, which defeats the whole feature.
+    const agentToken = c.req.query('view') === 'agent' ? c.req.query('token') : null;
+    let isAgentTokenView = false;
+    if (agentToken) {
+        const resolved = await c.var.services.inspection.resolveAgentViewToken(agentToken);
+        if (resolved && resolved.inspectionId === id && resolved.tenantId === tenantId) {
+            isAgentTokenView = true;
+        } else {
+            return c.html('<html><body><p style="font-family:sans-serif;padding:2rem">Invalid or expired agent view link.</p></body></html>', 403);
+        }
+    }
+
     try {
         const service = c.var.services.inspection;
 
         // Sprint 1 C-7 — gate logic for public viewers only. We need the
         // inspection row's flags before pulling the (potentially expensive)
         // full report data. Loading just the row is cheap.
-        if (!isInspectorOrAdmin) {
+        if (!isInspectorOrAdmin && !isAgentTokenView) {
             const db = drizzle(c.env.DB);
             const insp = await db.select({
                 id:                schema.inspections.id,
