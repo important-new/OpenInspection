@@ -36,6 +36,7 @@ import { PropertyLookupService } from '../../services/property-lookup.service';
 import { UserService } from '../../services/user.service';
 import { IcsService } from '../../services/ics.service';
 import { AgentService } from '../../services/agent.service';
+import { ConciergeService } from '../../services/concierge.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -217,6 +218,25 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                             );
                         }
                         target.agent = new AgentService(
+                            c.env.DB,
+                            target.email,
+                            c.env.APP_BASE_URL || '',
+                        );
+                    }
+                    break;
+                case 'concierge':
+                    {
+                        // Agent Accounts A3 — concierge state-machine service.
+                        // Depends on EmailService (for client/inspector/agent
+                        // notifications) + APP_BASE_URL for the magic-link target.
+                        if (!target.email) {
+                            target.email = new EmailService(
+                                c.env.RESEND_API_KEY || dbSecrets.resendApiKey || '',
+                                c.env.SENDER_EMAIL || dbSecrets.senderEmail || '',
+                                c.env.APP_NAME || 'OpenInspection',
+                            );
+                        }
+                        target.concierge = new ConciergeService(
                             c.env.DB,
                             target.email,
                             c.env.APP_BASE_URL || '',

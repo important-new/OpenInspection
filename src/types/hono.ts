@@ -113,6 +113,7 @@ import { PropertyLookupService } from '../services/property-lookup.service';
 import { UserService } from '../services/user.service';
 import { IcsService } from '../services/ics.service';
 import { AgentService } from '../services/agent.service';
+import { ConciergeService } from '../services/concierge.service';
 import { AuthVariables } from './auth';
 
 /**
@@ -157,6 +158,8 @@ export interface AppServices {
     ics: IcsService;
     // Agent Accounts A1
     agent: AgentService;
+    // Agent Accounts A3
+    concierge: ConciergeService;
 }
 
 /**
