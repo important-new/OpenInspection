@@ -1536,26 +1536,34 @@ app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     const branding = c.get('branding');
     const user = c.get('user');
-    let agentName: string | undefined;
-    // Best-effort lookup of the agent's display name. Agents have tenant_id NULL,
-    // so the standard scoped service can't find them — query directly.
-    if (user?.sub) {
-        try {
-            const { drizzle } = await import('drizzle-orm/d1');
-            const { users: usersTable } = await import('./lib/db/schema/tenant');
-            const { eq } = await import('drizzle-orm');
-            const db = drizzle(c.env.DB);
-            const row = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, user.sub)).get();
-            if (row?.name) agentName = row.name;
-        } catch (err) {
-            logger.warn('agent.dashboard.name.lookup.failed', {
-                error: err instanceof Error ? err.message : String(err),
-            });
-        }
+    if (!user?.sub) return c.redirect('/login');
+    // Resolve display name + email directly. Agents have tenant_id NULL so
+    // tenant-scoped services don't apply.
+    let agentName: string | null = null;
+    let agentEmail: string | null = null;
+    try {
+        const db = drizzle(c.env.DB);
+        const row = await db.select({
+            name: schema.users.name,
+            email: schema.users.email,
+        }).from(schema.users).where(eq(schema.users.id, user.sub)).get();
+        agentName = row?.name ?? null;
+        agentEmail = row?.email ?? null;
+    } catch (err) {
+        logger.warn('agent.dashboard.identity.lookup.failed', {
+            error: err instanceof Error ? err.message : String(err),
+        });
     }
+    const referrals = await c.var.services.agent.listReferrals(user.sub, { limit: 100 });
+    // "Reports ready to read" = delivered referrals. Sprint A2 ships without a
+    // last-read timestamp, so the count surfaces every published report; future
+    // sprints can add a per-row read marker.
+    const unreadReports = referrals.filter((r) => (r.status || '').toLowerCase() === 'delivered').length;
     return c.html(AgentDashboardPage({
         ...(branding ? { branding } : {}),
-        ...(agentName ? { agentName } : {}),
+        agent: { name: agentName, email: agentEmail },
+        referrals,
+        unreadReports,
     }));
 });
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
