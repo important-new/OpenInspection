@@ -1,9 +1,16 @@
 import { SettingsLayout } from '../components/settings-layout';
 import { BrandingConfig } from '../../types/auth';
 
-interface Props { branding?: BrandingConfig; }
+interface Props {
+    branding?: BrandingConfig;
+    /** Sprint C-4 — current user's slug used for the per-inspector iframe
+     *  snippet generator. Null when no slug saved yet. */
+    currentUserSlug?: string | null;
+    /** Sprint C-4 — bookingHost ("acme.inspectorhub.io") for the snippet src URL. */
+    bookingHost?: string;
+}
 
-export const SettingsWidgetPage = ({ branding }: Props) => (
+export const SettingsWidgetPage = ({ branding, currentUserSlug, bookingHost }: Props) => (
     <SettingsLayout
         branding={branding}
         title="Settings | Embed Booking Widget"
@@ -51,9 +58,52 @@ export const SettingsWidgetPage = ({ branding }: Props) => (
                 <iframe id="widgetPreview" class="w-full min-h-[700px] rounded-md border border-surface-200" loading="lazy"></iframe>
             </section>
 
+            {/* Sprint C-4 — per-inspector iframe snippet for /embed/book/<slug>.
+                Defaults to width:100% (host page caps as it sees fit) per the
+                frontend-design directive. Compact variant collapses to a single
+                CTA expandable on click. */}
+            {currentUserSlug && bookingHost && (
+                <section
+                    data-testid="settings-widget-personal-snippet"
+                    data-slug={currentUserSlug}
+                    data-host={bookingHost}
+                    class="bg-white border border-surface-200 rounded-lg p-6 space-y-4"
+                >
+                    <div>
+                        <h2 class="text-sm font-bold text-ink-900 uppercase tracking-[0.2em]">5 · Personal iframe snippet</h2>
+                        <p class="text-xs text-ink-500 mt-1">A direct iframe to your <code class="font-mono">/embed/book/{currentUserSlug}</code> page. Pastes anywhere, no JS bundle required.</p>
+                    </div>
+
+                    <label class="flex items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            id="personalSnippetCompact"
+                            data-testid="settings-widget-compact-toggle"
+                            class="rounded border-surface-300"
+                        />
+                        <span>Compact variant (single CTA, expands on click)</span>
+                    </label>
+
+                    <pre
+                        id="personalSnippet"
+                        data-testid="settings-widget-personal-snippet-code"
+                        class="bg-ink-900 text-emerald-300 p-4 rounded-md overflow-x-auto text-xs font-mono whitespace-pre-wrap break-all"
+                    ></pre>
+                    <div class="flex justify-end">
+                        <button
+                            type="button"
+                            id="copyPersonalSnippetBtn"
+                            data-testid="settings-widget-copy-snippet"
+                            class="px-4 py-2 bg-blueprint-500 text-white rounded-md font-bold text-sm hover:bg-blueprint-700 active:scale-[.98] transition-all"
+                        >Copy snippet</button>
+                    </div>
+                </section>
+            )}
+
             <script src="/js/auth.js"></script>
             <script src="/js/toast.js"></script>
             <script src="/js/settings-widget.js"></script>
+            <script src="/js/settings-widget-personal.js"></script>
         </div>
     </SettingsLayout>
 );

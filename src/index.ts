@@ -74,6 +74,7 @@ import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
 import { InspectorNotFoundPage } from './templates/pages/inspector-not-found';
+import { BookingEmbedPage } from './templates/pages/booking-embed';
 
 
 import coreAuthRoutes from './api/auth';
@@ -515,6 +516,31 @@ app.get('/inspector/:slug', async (c) => {
     }));
     const host = (c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')) || c.req.header('host') || '';
     return c.html(InspectorProfilePage({ profile, services: catalog, host }));
+});
+
+// Booking #7 Sprint C-4 — iframe-friendly booking widget at /embed/book/<slug>.
+// Renders a chrome-less booking form. The security-headers middleware drops
+// X-Frame-Options + sets `frame-ancestors *` for any path under /embed/, so
+// the iframe loads on any host page. The actual booking submit at
+// POST /api/public/book still enforces the per-tenant origin allowlist
+// configured in Settings → Embed Widget.
+app.get('/embed/book/:slug', async (c) => {
+    const slug = c.req.param('slug');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    if (!tenantId) return c.text('Not found', 404);
+    const inspector = await c.var.services.user.findBySlug(tenantId, slug);
+    if (!inspector) return c.text('Not found', 404);
+    const branding = c.get('branding');
+    const styleParam = c.req.query('style');
+    const variant: 'full' | 'compact' = styleParam === 'compact' ? 'compact' : 'full';
+    return c.html(BookingEmbedPage({
+        slug,
+        inspectorId: inspector.id,
+        inspectorName: inspector.name ?? inspector.email ?? 'Inspector',
+        tenantSubdomain: branding?.bookingHost?.split('.')[0] ?? '',
+        siteKey: c.env.TURNSTILE_SITE_KEY ?? '',
+        style: variant,
+    }));
 });
 
 // Booking #7 Sprint C-2 — busy-only iCal feed. Subscribers (partner agents,
@@ -1558,7 +1584,14 @@ app.get('/settings/catalog/event-types', htmlAuthGuard(['owner', 'admin']), (c) 
 });
 app.get('/settings/catalog/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
     const b = c.get('branding');
-    return c.html(SettingsWidgetPage(b ? { branding: b } : {}));
+    // Sprint C-4 — pass slug + bookingHost so the personal-snippet generator
+    // can render. Both come from the inspectorPaletteMiddleware that already
+    // populates branding for the ⌘K palette.
+    return c.html(SettingsWidgetPage({
+        ...(b ? { branding: b } : {}),
+        currentUserSlug: b?.currentUserSlug ?? null,
+        bookingHost: b?.bookingHost ?? '',
+    }));
 });
 
 // Communication group
