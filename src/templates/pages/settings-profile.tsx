@@ -86,6 +86,7 @@ export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain }: 
                         name="slug"
                         data-testid="settings-slug-input"
                         value={slug ?? ''}
+                        data-current-slug={slug ?? ''}
                         placeholder="your-public-username"
                         autocomplete="off"
                         class="block w-full rounded-md border border-surface-200 px-3 py-2 text-sm focus:border-blueprint-500 focus:ring-2 focus:ring-blueprint-200 outline-none transition-colors"
@@ -126,6 +127,41 @@ export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain }: 
                         class="px-4 py-2 bg-blueprint-500 text-white rounded-md font-bold text-sm hover:bg-blueprint-700 active:scale-[.98] transition-all disabled:bg-surface-200 disabled:cursor-not-allowed"
                     >Save Slug</button>
                 </div>
+
+                {/* Booking #7 Sprint A — confirmation modal for changing an
+                    already-set slug. Opens via JS only when the user has a
+                    saved slug and is changing it (not on first set). */}
+                <dialog
+                    id="profileSlugConfirm"
+                    data-testid="settings-slug-confirm-modal"
+                    class="rounded-lg p-0 backdrop:bg-ink-900/40 max-w-md w-full"
+                >
+                    <div class="p-6 space-y-3">
+                        <h4 class="text-base font-bold text-ink-900">Change your booking slug?</h4>
+                        <p class="text-sm text-ink-700">
+                            Any link to your old slug — for example a card you handed a client or a text message to a lead — will stop working. The new link will be the only way customers can book with you.
+                        </p>
+                        <p
+                            id="profileSlugConfirmDiff"
+                            data-testid="settings-slug-confirm-diff"
+                            class="text-xs font-mono text-ink-500"
+                        ></p>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button
+                                type="button"
+                                id="profileSlugConfirmCancel"
+                                data-testid="settings-slug-confirm-cancel"
+                                class="px-3 py-2 text-sm rounded-md border border-surface-200 hover:bg-surface-50"
+                            >Keep current slug</button>
+                            <button
+                                type="button"
+                                id="profileSlugConfirmYes"
+                                data-testid="settings-slug-confirm-yes"
+                                class="px-3 py-2 text-sm rounded-md bg-rose-600 text-white font-bold hover:bg-rose-700"
+                            >Yes, change it</button>
+                        </div>
+                    </div>
+                </dialog>
             </section>
 
             <script src="/js/auth.js"></script>

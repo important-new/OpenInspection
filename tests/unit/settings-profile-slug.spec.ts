@@ -40,4 +40,29 @@ describe('SettingsProfilePage — slug card', () => {
         );
         expect(html).toMatch(/\/js\/settings-profile-slug\.js/);
     });
+
+    it('renders confirmation modal scaffolding for slug-change warnings', () => {
+        const html = renderToString(
+            SettingsProfilePage({ branding: undefined, currentSlug: 'john', tenantSubdomain: 'acme' }),
+        );
+        expect(html).toMatch(/data-testid="settings-slug-confirm-modal"/);
+        expect(html).toMatch(/data-testid="settings-slug-confirm-yes"/);
+        expect(html).toMatch(/data-testid="settings-slug-confirm-cancel"/);
+        expect(html).toMatch(/Yes, change it/);
+        expect(html).toMatch(/Keep current slug/);
+    });
+
+    it('exposes the saved slug via data-current-slug for the change-warning JS', () => {
+        const html = renderToString(
+            SettingsProfilePage({ branding: undefined, currentSlug: 'john', tenantSubdomain: 'acme' }),
+        );
+        expect(html).toMatch(/data-current-slug="john"/);
+    });
+
+    it('emits an empty data-current-slug when the user has no slug yet', () => {
+        const html = renderToString(
+            SettingsProfilePage({ branding: undefined, currentSlug: null, tenantSubdomain: 'acme' }),
+        );
+        expect(html).toMatch(/data-current-slug=""/);
+    });
 });

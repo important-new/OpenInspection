@@ -71,14 +71,7 @@
         debounceId = setTimeout(function () { checkAvailability(value); }, DEBOUNCE_MS);
     }
 
-    async function onSave() {
-        const input = $('profileSlug');
-        if (!input) return;
-        const value = (input.value || '').trim();
-        if (!SLUG_RE.test(value) || value.length < 3 || value.length > 32) {
-            setStatus('Invalid format. Use 3-32 lowercase letters/numbers/hyphens.', 'error');
-            return;
-        }
+    async function persistSlug(value) {
         const btn = $('saveProfileSlugBtn');
         if (btn) btn.disabled = true;
         try {
@@ -103,6 +96,63 @@
         } finally {
             if (btn) btn.disabled = false;
         }
+    }
+
+    function openConfirmModal(currentSlug, nextSlug, onConfirm) {
+        const modal = $('profileSlugConfirm');
+        const diff = $('profileSlugConfirmDiff');
+        if (diff) diff.textContent = currentSlug + '  →  ' + nextSlug;
+        if (!modal || typeof modal.showModal !== 'function') {
+            // Fallback for environments without <dialog> support: skip the
+            // modal and go straight to save. Better to lose the warning than
+            // to brick the form.
+            onConfirm();
+            return;
+        }
+        const yes = $('profileSlugConfirmYes');
+        const cancel = $('profileSlugConfirmCancel');
+        function cleanup() {
+            if (yes) yes.removeEventListener('click', onYes);
+            if (cancel) cancel.removeEventListener('click', onCancel);
+        }
+        function onYes() {
+            cleanup();
+            modal.close();
+            onConfirm();
+        }
+        function onCancel() {
+            cleanup();
+            modal.close();
+        }
+        if (yes) yes.addEventListener('click', onYes);
+        if (cancel) cancel.addEventListener('click', onCancel);
+        modal.showModal();
+    }
+
+    async function onSave() {
+        const input = $('profileSlug');
+        if (!input) return;
+        const value = (input.value || '').trim();
+        if (!SLUG_RE.test(value) || value.length < 3 || value.length > 32) {
+            setStatus('Invalid format. Use 3-32 lowercase letters/numbers/hyphens.', 'error');
+            return;
+        }
+        // The current saved slug is rendered into a data attribute on first
+        // render; an empty string means the inspector has no slug yet, so a
+        // first-time set is silent. A *change* of a real previously-saved slug
+        // requires an explicit confirmation since the inspector may have
+        // already shared the old link with leads out of band.
+        const currentSlug = (input.getAttribute('data-current-slug') || '').trim();
+        if (currentSlug && currentSlug !== value) {
+            openConfirmModal(currentSlug, value, function () { persistSlug(value); });
+            return;
+        }
+        if (currentSlug === value) {
+            // No-op save; nothing to persist.
+            setStatus('Already saved', 'ok');
+            return;
+        }
+        await persistSlug(value);
     }
 
     function onCopy() {
