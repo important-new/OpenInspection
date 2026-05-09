@@ -16,6 +16,18 @@ interface Props {
      * this from the tenants table on the request path.
      */
     tenantSubdomain?: string;
+    /**
+     * Sprint B-4b — signed-in user's identity card (name + contact + license)
+     * passed to the "My email signature" preview card. The card is omitted
+     * when this is missing OR when currentSlug is null (signature has no
+     * rebooking link without a slug).
+     */
+    currentUser?: {
+        name?: string | null;
+        email?: string | null;
+        phone?: string | null;
+        licenseNumber?: string | null;
+    } | null;
 }
 
 /**
@@ -25,12 +37,16 @@ interface Props {
  * `/api/public/check/slug` for live availability and posts to
  * `/api/profile/slug` to save.
  */
-export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain }: Props): JSX.Element => {
+export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, currentUser }: Props): JSX.Element => {
     const slug = currentSlug ?? null;
     const subdomain = tenantSubdomain ?? '';
     const bookingLink = slug && subdomain
         ? `${subdomain}.inspectorhub.io/book/${slug}`
         : null;
+    // Sprint B-4b — signature card data. Only renders when the user has a
+    // slug (no rebooking link to point at otherwise).
+    const sigHost = subdomain ? `${subdomain}.inspectorhub.io` : '';
+    const showSignatureCard = !!slug && !!sigHost;
     return (
         <SettingsLayout
             branding={branding}
@@ -164,9 +180,63 @@ export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain }: 
                 </dialog>
             </section>
 
+            {/* Sprint B-4b — My email signature card. Renders only when the
+                user has a slug (otherwise the rebooking-link line is empty
+                and the card has nothing inspector-specific to preview). */}
+            {showSignatureCard && (
+                <section
+                    data-testid="settings-signature-card"
+                    class="bg-white rounded-lg border border-surface-200 p-6 space-y-4 mt-6"
+                    data-sig-name={currentUser?.name ?? ''}
+                    data-sig-email={currentUser?.email ?? ''}
+                    data-sig-phone={currentUser?.phone ?? ''}
+                    data-sig-license={currentUser?.licenseNumber ?? ''}
+                    data-sig-slug={slug ?? ''}
+                    data-sig-host={sigHost}
+                >
+                    <header class="space-y-1">
+                        <h3 class="text-[11px] font-bold text-ink-500 uppercase tracking-[0.2em]">My email signature</h3>
+                        <p class="text-xs text-ink-500">
+                            Paste this into Outlook, Gmail, or Apple Mail signature settings so customers can rebook with you from any email you send.
+                        </p>
+                    </header>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-500">HTML</p>
+                            <pre
+                                data-testid="settings-signature-html-preview"
+                                id="profileSignatureHtmlPreview"
+                                class="text-xs bg-surface-50 rounded-md p-3 max-h-40 overflow-auto whitespace-pre-wrap break-all"
+                            ><code></code></pre>
+                            <button
+                                type="button"
+                                id="profileSignatureCopyHtml"
+                                data-testid="settings-signature-copy-html"
+                                class="text-xs font-semibold text-blueprint-600 hover:underline"
+                            >Copy HTML</button>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-500">Plain text</p>
+                            <pre
+                                data-testid="settings-signature-text-preview"
+                                id="profileSignatureTextPreview"
+                                class="text-xs bg-surface-50 rounded-md p-3 max-h-40 overflow-auto whitespace-pre"
+                            ><code></code></pre>
+                            <button
+                                type="button"
+                                id="profileSignatureCopyText"
+                                data-testid="settings-signature-copy-text"
+                                class="text-xs font-semibold text-blueprint-600 hover:underline"
+                            >Copy text</button>
+                        </div>
+                    </div>
+                </section>
+            )}
+
             <script src="/js/auth.js"></script>
             <script src="/js/settings.js"></script>
             <script src="/js/settings-profile-slug.js"></script>
+            <script src="/js/settings-profile-signature.js"></script>
         </SettingsLayout>
     );
 };

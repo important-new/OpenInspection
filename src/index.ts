@@ -1376,8 +1376,17 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
     const userId = c.get('user')?.sub;
     const db = drizzle(c.env.DB);
     const [userRow, tenantRow] = await Promise.all([
+        // Sprint B-4b — fetch the full identity card so the "My email signature"
+        // preview can render. Slug stays the only field the slug card needs;
+        // the rest powers the signature card client-side.
         userId
-            ? db.select({ slug: schema.users.slug }).from(schema.users)
+            ? db.select({
+                slug:          schema.users.slug,
+                name:          schema.users.name,
+                email:         schema.users.email,
+                phone:         schema.users.phone,
+                licenseNumber: schema.users.licenseNumber,
+            }).from(schema.users)
                 .where(and(eq(schema.users.id, userId), eq(schema.users.tenantId, tenantId)))
                 .get()
             : Promise.resolve(null),
@@ -1391,6 +1400,12 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
         ...(branding ? { branding } : {}),
         currentSlug: userRow?.slug ?? null,
         tenantSubdomain: tenantRow?.subdomain ?? '',
+        currentUser: userRow ? {
+            name:          userRow.name,
+            email:         userRow.email,
+            phone:         userRow.phone,
+            licenseNumber: userRow.licenseNumber,
+        } : null,
     }));
 });
 
