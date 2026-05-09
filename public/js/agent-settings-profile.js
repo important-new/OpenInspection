@@ -86,9 +86,10 @@
                 });
                 var data = await res.json();
                 if (res.ok && data && data.success) {
-                    setStatus(status, 'Saved.', 'ok');
+                    setStatus(status, 'Saved — your referral link is ready.', 'ok');
                     // Reload so the booking-link preview re-renders with the new slug.
-                    setTimeout(function () { window.location.reload(); }, 600);
+                    // 1500ms keeps the success line on screen long enough to read.
+                    setTimeout(function () { window.location.reload(); }, 1500);
                 } else {
                     setStatus(status, (data && data.error && data.error.message) || 'Could not save.', 'error');
                 }

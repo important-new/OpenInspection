@@ -81,6 +81,8 @@ body { background: #fafaf7; font-family: 'Inter', -apple-system, BlinkMacSystemF
 
 export const InspectorProfilePage = ({ profile, services, host }: Props): JSX.Element => {
     const { name, bio, photoUrl, licenseNumber, email, phone, slug, serviceAreas } = profile;
+    // Defensive fallback only — setup wizard requires a name for new accounts.
+    // Legacy accounts without one fall back to a polite literal, never email.
     const displayName = name ?? 'Inspector';
     const cityList = serviceAreas.slice(0, 2).map(a => a.city).join(', ');
     const initials = displayName.split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();

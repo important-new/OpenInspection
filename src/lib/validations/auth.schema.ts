@@ -101,6 +101,11 @@ export const SetupSchema = z.object({
     companyName: z.string().min(2, 'Company name is required').openapi({
         example: 'Acme Inspections'
     }),
+    // Display name for the first inspector. REQUIRED so /book/<slug> and
+    // /inspector/<slug> never need to fall back to email or company name.
+    adminName: z.string().min(2, 'Your name is required').max(120).openapi({
+        example: 'Mike Reynolds'
+    }),
     email: z.string().email('Invalid email address').openapi({
         example: 'admin@example.com'
     }),

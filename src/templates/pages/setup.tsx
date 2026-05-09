@@ -33,6 +33,16 @@ export const SetupPage = ({ branding }: { branding?: BrandingConfig | undefined 
                             </div>
 
                             <div>
+                                <label for="adminName" class="block text-sm font-bold text-slate-900 tracking-tight ml-1 mb-3 uppercase">Your Name</label>
+                                <div class="relative group">
+                                    <div class="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-md blur opacity-0 group-focus-within:opacity-20 transition-opacity"></div>
+                                    <input id="adminName" name="adminName" type="text" autocomplete="name" required placeholder="Mike Reynolds"
+                                        class="relative block w-full px-3 py-2 rounded-md border border-slate-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all font-medium text-sm placeholder:text-slate-400" />
+                                </div>
+                                <p class="mt-2 ml-1 text-[11px] text-slate-500 font-medium leading-relaxed">Shown on your public booking link, signed agreements, and invoices.</p>
+                            </div>
+
+                            <div>
                                 <label for="email" class="block text-sm font-bold text-slate-900 tracking-tight ml-1 mb-3 uppercase">Admin Email</label>
                                 <div class="relative group">
                                     <div class="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-md blur opacity-0 group-focus-within:opacity-20 transition-opacity"></div>

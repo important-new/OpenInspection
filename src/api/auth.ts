@@ -350,7 +350,8 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
         subdomain,
         status: 'active',
         adminEmail: body.email,
-        adminPasswordHash: passwordHash
+        adminPasswordHash: passwordHash,
+        adminName: body.adminName,
     });
 
     // Cleanup code

@@ -41,7 +41,7 @@ export class StandaloneProvider implements IntegrationProvider {
 
     async handleTenantUpdate(params: TenantUpdateParams): Promise<void> {
         const db = this.getDrizzle();
-        const { id, subdomain, status, tier, name, deploymentMode, maxUsers, adminEmail, adminPasswordHash } = params;
+        const { id, subdomain, status, tier, name, deploymentMode, maxUsers, adminEmail, adminPasswordHash, adminName } = params;
 
         let tenantId = id || crypto.randomUUID();
         const existingTenant = await db.select().from(tenants).where(eq(tenants.subdomain, subdomain)).get();
@@ -81,6 +81,9 @@ export class StandaloneProvider implements IntegrationProvider {
                     email: adminEmail,
                     passwordHash: adminPasswordHash,
                     role: 'owner',
+                    // adminName is required by the setup form so this is never
+                    // empty for first-time admin users.
+                    ...(adminName ? { name: adminName } : {}),
                     createdAt: now,
                 });
 

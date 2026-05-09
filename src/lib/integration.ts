@@ -12,6 +12,9 @@ export interface TenantUpdateParams {
     maxUsers?: number;
     adminEmail?: string;
     adminPasswordHash?: string;
+    // Inspector display name. Captured at setup so /book/<slug> and
+    // /inspector/<slug> never have to fall back to leaking email.
+    adminName?: string;
 }
 
 export interface IntegrationProvider {

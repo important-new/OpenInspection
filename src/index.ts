@@ -698,10 +698,14 @@ app.get('/embed/book/:slug', async (c) => {
     const branding = c.get('branding');
     const styleParam = c.req.query('style');
     const variant: 'full' | 'compact' = styleParam === 'compact' ? 'compact' : 'full';
+    // Display name fallback never leaks email. Setup wizard requires the
+    // inspector's name; if a legacy account is missing one, surface the
+    // tenant brand instead so the customer never sees a raw inbox address.
+    const displayName = inspector.name || branding?.siteName || 'Your inspector';
     return c.html(BookingEmbedPage({
         slug,
         inspectorId: inspector.id,
-        inspectorName: inspector.name ?? inspector.email ?? 'Inspector',
+        inspectorName: displayName,
         tenantSubdomain: branding?.bookingHost?.split('.')[0] ?? '',
         siteKey: c.env.TURNSTILE_SITE_KEY ?? '',
         style: variant,
@@ -743,12 +747,15 @@ app.get('/book/:slug', async (c) => {
     const embed = embedRaw === '1';
     const style: 'light' | 'dark' | 'branded' =
         styleRaw === 'dark' || styleRaw === 'branded' ? styleRaw as 'dark' | 'branded' : 'light';
+    // Same no-email-leak rule as /embed/book — fall back to tenant brand,
+    // then a polite literal, before ever exposing the admin inbox.
+    const displayName = inspector.name || branding?.siteName || 'Your inspector';
     return c.html(PublicBookingPage({
         siteKey: c.env.TURNSTILE_SITE_KEY,
         ...(branding ? { branding } : {}),
         embed,
         style,
-        inspector: { id: inspector.id, name: inspector.name ?? inspector.email },
+        inspector: { id: inspector.id, name: displayName },
     }));
 });
 

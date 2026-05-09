@@ -350,7 +350,10 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
             : body.timeSlot === 'morning' || body.timeSlot === 'afternoon' ? 4
             : 3;
         const endMs = startMs + durationHours * 60 * 60 * 1000;
-        const inspectorName = inspector?.name || inspector?.email || (c.env.APP_NAME || 'Your inspector');
+        // Booking-confirmation greeting falls back to the brand, never the
+        // inspector's inbox — keeps the email looking professional even if a
+        // legacy account is missing a display name.
+        const inspectorName = inspector?.name || c.env.APP_NAME || 'Your inspector';
         const inspectorEmail = inspector?.email || c.env.SENDER_EMAIL || `noreply@${c.env.APP_NAME?.toLowerCase().replace(/\s/g, '') || 'inspector'}.com`;
 
         // Sprint B-4a — append inspector signature so customers can rebook
