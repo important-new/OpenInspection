@@ -30,6 +30,7 @@ import { SettingsPage } from './templates/pages/settings';
 import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
+import { AgentInspectorsPage } from './templates/pages/agent-inspectors';
 import { AgentInviteAcceptPage } from './templates/pages/agent-invite-accept';
 import { AgentInviteExpiredPage } from './templates/pages/agent-invite-expired';
 import { AgentSignupPage } from './templates/pages/agent-signup';
@@ -1564,6 +1565,42 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
         agent: { name: agentName, email: agentEmail },
         referrals,
         unreadReports,
+    }));
+});
+// Agent Accounts A2 — /agent-inspectors directory of linked inspector cards
+// with copy-able booking links. host suffix is derived from APP_BASE_URL when
+// set so the rendered link stays stable across environments; falls back to the
+// production root when missing so the locally-booted preview doesn't render
+// "/book/<slug>" URLs that 404 on a different host.
+app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
+    const branding = c.get('branding');
+    const user = c.get('user');
+    if (!user?.sub) return c.redirect('/login');
+    let agentSlug: string | null = null;
+    let agentName: string | null = null;
+    try {
+        const db = drizzle(c.env.DB);
+        const row = await db.select({ slug: schema.users.slug, name: schema.users.name })
+            .from(schema.users)
+            .where(eq(schema.users.id, user.sub))
+            .get();
+        agentSlug = row?.slug ?? null;
+        agentName = row?.name ?? null;
+    } catch (err) {
+        logger.warn('agent.inspectors.identity.lookup.failed', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+    const inspectors = await c.var.services.agent.listInspectors(user.sub);
+    // Derive a host suffix (e.g. "inspectorhub.io") from APP_BASE_URL. Strip
+    // protocol + leading subdomain so we can splice tenantSubdomain in front.
+    const rawBase = (c.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    const hostSuffix = rawBase.split('.').slice(rawBase.split('.').length > 2 ? 1 : 0).join('.') || 'inspectorhub.io';
+    return c.html(AgentInspectorsPage({
+        ...(branding ? { branding } : {}),
+        agent: { name: agentName, slug: agentSlug },
+        inspectors,
+        hostSuffix,
     }));
 });
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
