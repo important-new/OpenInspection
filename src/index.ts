@@ -119,6 +119,9 @@ import repairRequestRoutes from './api/repair-requests';
 import tagsRoutes, { inspectionTagRoutes } from './api/tags';
 import publicSlugRoutes from './api/public-slug';
 import profileRoutes from './api/profile';
+import conciergeRoutes from './api/concierge';
+import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
+import { ConciergeConfirmExpiredPage } from './templates/pages/concierge-confirm-expired';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -227,9 +230,12 @@ app.use('*', async (c, next) => {
     // Agent Accounts A1 — both /agent-invite/* (HTML) and /api/agents/accept +
     // /agent-signup + /api/agent-signup are unauthenticated entry points.
     const isAgentPublic = path.startsWith('/agent-invite/') || path === '/api/agents/accept' || path === '/agent-signup' || path === '/api/agent-signup';
+    // Agent Accounts A3 — concierge magic-link entry points (client-facing,
+    // no JWT). The token in the URL is the secret.
+    const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
 
-    if (isAuthPublic || isPublic || isAgentPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
@@ -421,6 +427,8 @@ app.route('/api/agent', agentRoutes);
 app.route('/api/agents', agentsRoutes);
 // Agent Accounts A1 — self-serve signup
 app.route('/api/agent-signup', agentSignupRoutes);
+// Agent Accounts A3 — concierge magic-link confirmation (public, no JWT)
+app.route('/api/concierge', conciergeRoutes);
 app.route('/api/places', placesRoutes);
 app.route('/api/availability', availabilityRoutes);
 // Mount /api/calendar/events BEFORE /api/calendar so the more-specific path takes precedence.
@@ -561,6 +569,63 @@ app.get('/agent-invite/accept', async (c) => {
         inspector: { name: invite.inspector.name },
         tenantName: invite.tenantName,
         inviteEmail: invite.email,
+        ...(branding ? { branding } : {}),
+    }));
+});
+
+// Agent Accounts A3 — concierge magic-link client landing. Renders the
+// inspector + property + date summary card with an inline agreement preview
+// (when agreementRequired). Confirm CTA POSTs to /api/concierge/confirm.
+//
+// Lifecycle:
+//   missing/unknown token  -> friendly recovery page (HTTP 410)
+//   expired token          -> friendly expired page    (HTTP 410)
+//   already-confirmed      -> redirect to /r/<inspection-id>  (HTTP 302)
+//   live token             -> render confirm page              (HTTP 200)
+app.get('/confirm/:token', async (c) => {
+    const token = c.req.param('token');
+    const branding = c.get('branding');
+    if (!token) {
+        return c.html(ConciergeConfirmExpiredPage({ reason: 'no-token', ...(branding ? { branding } : {}) }), 410);
+    }
+    const view = await c.var.services.concierge.resolveToken(token);
+    if (!view) {
+        return c.html(ConciergeConfirmExpiredPage({ reason: 'unknown', ...(branding ? { branding } : {}) }), 410);
+    }
+    if (view.expired) {
+        return c.html(ConciergeConfirmExpiredPage({ reason: 'expired', ...(branding ? { branding } : {}) }), 410);
+    }
+    if (view.alreadyConfirmed) {
+        return c.redirect(`/r/${view.inspection.id}`);
+    }
+
+    // Resolve a short snippet of the tenant's primary agreement template so
+    // the page can preview what the client will be e-signing. Failures fall
+    // back to a generic "you'll review and sign" notice on the page.
+    let snippet: string | undefined;
+    if (view.inspection.agreementRequired) {
+        try {
+            const agreements = await c.var.services.agreement.listAgreements(view.inspection.tenantId);
+            const first = agreements[0];
+            if (first?.content) {
+                const stripped = String(first.content).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                snippet = stripped.slice(0, 280) + (stripped.length > 280 ? '...' : '');
+            }
+        } catch {
+            // Fall through — page will render the generic note.
+        }
+    }
+
+    return c.html(ConciergeConfirmPage({
+        token,
+        inspector: view.inspector ?? { name: null, photoUrl: null, email: null },
+        inspection: {
+            propertyAddress:   view.inspection.propertyAddress,
+            date:              view.inspection.date,
+            clientName:        view.inspection.clientName,
+            agreementRequired: view.inspection.agreementRequired,
+        },
+        ...(snippet ? { agreementSnippet: snippet } : {}),
         ...(branding ? { branding } : {}),
     }));
 });
