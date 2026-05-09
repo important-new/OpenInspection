@@ -49,7 +49,11 @@ const createContactRoute = createRoute({
 contactRoutes.openapi(createContactRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const data = c.req.valid('json');
-    const contact = await c.var.services.contact.createContact(tenantId, data);
+    const user = c.get('user');
+    const contact = await c.var.services.contact.createContact(tenantId, {
+        ...data,
+        createdByUserId: user?.sub ?? null,
+    });
     return c.json({ success: true as const, data: { contact } }, 201);
 });
 

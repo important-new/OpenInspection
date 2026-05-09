@@ -36,13 +36,17 @@ export class ContactService {
         return withCounts.map(c => ({ ...c, createdAt: safeISODate(c.createdAt) }));
     }
 
-    async createContact(tenantId: string, data: { type: 'agent' | 'client'; name: string; email?: string | null | undefined; phone?: string | null | undefined; agency?: string | null | undefined; notes?: string | null | undefined }) {
+    async createContact(tenantId: string, data: { type: 'agent' | 'client'; name: string; email?: string | null | undefined; phone?: string | null | undefined; agency?: string | null | undefined; notes?: string | null | undefined; createdByUserId?: string | null | undefined }) {
         const db = this.getDrizzle();
         const normalized = {
             email: data.email ?? null,
             phone: data.phone ?? null,
             agency: data.agency ?? null,
             notes: data.notes ?? null,
+            // A1 auto-link uses this to populate agent_tenant_links.invited_by_user_id
+            // when the agent later signs up with the same email — keeps the
+            // /agent-inspectors card pointing at the actual inviting inspector.
+            createdByUserId: data.createdByUserId ?? null,
         };
         const row = { id: crypto.randomUUID(), tenantId, createdAt: new Date(), type: data.type, name: data.name, ...normalized };
         await db.insert(contacts).values(row);

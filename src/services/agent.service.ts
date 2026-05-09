@@ -371,7 +371,11 @@ export class AgentService {
         const db = this.getDrizzle();
         const normalized = normalizeEmail(email);
         const matches = await db
-            .select({ id: contacts.id, tenantId: contacts.tenantId })
+            .select({
+                id: contacts.id,
+                tenantId: contacts.tenantId,
+                createdByUserId: contacts.createdByUserId,
+            })
             .from(contacts)
             .where(and(eq(contacts.email, normalized), eq(contacts.type, 'agent')))
             .all();
@@ -379,13 +383,27 @@ export class AgentService {
         let created = 0;
         for (const row of matches) {
             try {
+                // Use contact.createdByUserId as the inviting inspector when present
+                // so /agent-inspectors can render the inspector's name + slug. When
+                // the contact predates this column or was imported in bulk, fall
+                // back to the tenant owner so the auto-linked card still shows a
+                // real person instead of a generic tenant-only stub.
+                let invitedByUserId: string | null = row.createdByUserId ?? null;
+                if (!invitedByUserId) {
+                    const owner = await db
+                        .select({ id: users.id })
+                        .from(users)
+                        .where(and(eq(users.tenantId, row.tenantId), eq(users.role, 'owner')))
+                        .get();
+                    invitedByUserId = owner?.id ?? null;
+                }
                 await db.insert(agentTenantLinks).values({
                     id: crypto.randomUUID(),
                     agentUserId: userId,
                     tenantId: row.tenantId,
                     inspectorContactId: row.id,
                     status: 'active',
-                    invitedByUserId: null,
+                    invitedByUserId,
                     createdAt: new Date(),
                 });
                 created++;

@@ -1676,8 +1676,12 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         });
     }
     const inspectors = await c.var.services.agent.listInspectors(user.sub);
-    // Derive a host suffix (e.g. "inspectorhub.io") from APP_BASE_URL. Strip
-    // protocol + leading subdomain so we can splice tenantSubdomain in front.
+    // Standalone single-tenant deployments don't have per-tenant subdomains —
+    // every booking link lives at `<currentHost>/book/<slug>`. Saas keeps the
+    // subdomain.hostSuffix split. Detect via APP_MODE so the agent's card
+    // shows a working URL in both topologies.
+    const isStandalone = (c.env.APP_MODE as string) !== 'saas';
+    const requestHost = c.req.header('host') || 'localhost';
     const rawBase = (c.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     const hostSuffix = rawBase.split('.').slice(rawBase.split('.').length > 2 ? 1 : 0).join('.') || 'inspectorhub.io';
     return c.html(AgentInspectorsPage({
@@ -1685,6 +1689,10 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         agent: { name: agentName, slug: agentSlug },
         inspectors,
         hostSuffix,
+        // When set, the page uses this exact host for booking links instead of
+        // splicing tenantSubdomain.hostSuffix. Standalone deployments share the
+        // single deploy host across every row.
+        ...(isStandalone ? { fixedHost: requestHost } : {}),
     }));
 });
 // Agent Accounts A3 — Book on Behalf form. Lives under /agent-inspectors so the

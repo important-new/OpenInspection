@@ -7,6 +7,12 @@ export interface AgentInspectorsProps {
     inspectors: AgentInspectorRow[];
     /** Host suffix appended to tenant subdomain — e.g. "inspectorhub.io". */
     hostSuffix: string;
+    /**
+     * When set, the page uses this exact host for every booking link instead
+     * of splicing `tenantSubdomain.hostSuffix`. Standalone single-tenant
+     * deployments use the request host directly.
+     */
+    fixedHost?: string;
 }
 
 function initials(name: string | null | undefined): string {
@@ -17,8 +23,9 @@ function initials(name: string | null | undefined): string {
     return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
 }
 
-function bookingUrl(subdomain: string, slug: string, hostSuffix: string, ref: string | null): string {
-    const base = `https://${subdomain}.${hostSuffix}/book/${slug}`;
+function bookingUrl(subdomain: string, slug: string, hostSuffix: string, ref: string | null, fixedHost?: string): string {
+    const host = fixedHost || `${subdomain}.${hostSuffix}`;
+    const base = `https://${host}/book/${slug}`;
     return ref ? `${base}?ref=${encodeURIComponent(ref)}` : base;
 }
 
@@ -39,6 +46,7 @@ export const AgentInspectorsPage = ({
     agent,
     inspectors,
     hostSuffix,
+    fixedHost,
 }: AgentInspectorsProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     const primaryColor = branding?.primaryColor || '#4f46e5';
@@ -287,7 +295,7 @@ export const AgentInspectorsPage = ({
                                     );
                                 }
 
-                                const url = bookingUrl(subdomain, slug, hostSuffix, refSlug);
+                                const url = bookingUrl(subdomain, slug, hostSuffix, refSlug, fixedHost);
                                 return (
                                     <article class="card" data-testid={`inspector-card-${slug}`}>
                                         <div class="card-header">
