@@ -263,17 +263,60 @@ export const AgentDashboardPage = ({
                     }
                     .empty-card {
                         background: var(--surface-card);
-                        border: 1px dashed var(--line);
+                        border: 1px solid var(--line);
                         border-radius: 16px;
-                        padding: 3rem 2rem;
-                        text-align: center;
+                        padding: 2.5rem 2rem;
                         color: var(--ink-soft);
+                        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
                     }
                     .empty-card h3 {
-                        font-family: 'Fraunces', serif; font-weight: 700;
-                        font-size: 1.25rem; color: var(--ink);
-                        margin-bottom: 0.5rem;
+                        font-family: 'Fraunces', serif; font-weight: 600;
+                        font-size: 1.5rem; color: var(--ink);
+                        margin: 0 0 0.5rem;
+                        letter-spacing: -0.01em;
                     }
+                    .empty-card .empty-lede {
+                        margin: 0 0 2rem;
+                        font-size: 0.9375rem;
+                        max-width: 38em;
+                    }
+                    .empty-checklist {
+                        list-style: none;
+                        padding: 0; margin: 0;
+                        display: grid; gap: 1rem;
+                    }
+                    .empty-checklist li {
+                        display: grid;
+                        grid-template-columns: 28px 1fr;
+                        gap: 0.875rem;
+                        padding: 1rem 1.25rem;
+                        background: var(--surface);
+                        border: 1px solid var(--line);
+                        border-radius: 12px;
+                    }
+                    .empty-step-num {
+                        width: 28px; height: 28px;
+                        display: flex; align-items: center; justify-content: center;
+                        background: var(--primary); color: #fff;
+                        border-radius: 999px;
+                        font-family: 'Fraunces', serif; font-weight: 700;
+                        font-size: 0.875rem;
+                    }
+                    .empty-step-title {
+                        font-weight: 600; color: var(--ink);
+                        font-size: 0.9375rem;
+                        margin: 0 0 0.25rem;
+                    }
+                    .empty-step-body {
+                        font-size: 0.8125rem;
+                        color: var(--ink-soft);
+                        margin: 0;
+                    }
+                    .empty-step-body a {
+                        color: var(--primary); font-weight: 600;
+                        text-decoration: none;
+                    }
+                    .empty-step-body a:hover { text-decoration: underline; }
                     @media (max-width: 700px) {
                         .referral-row {
                             grid-template-columns: 1fr;
@@ -325,12 +368,49 @@ export const AgentDashboardPage = ({
 
                     {tenantSections.length === 0 ? (
                         <div class="empty-card" data-testid="agent-dashboard-empty">
-                            <h3>No referrals yet</h3>
-                            <p>
-                                Inspections you refer will land here within minutes. Visit
-                                {' '}<a href="/agent-inspectors" style="color: var(--primary); font-weight: 600;">your inspectors</a>{' '}
-                                to copy a booking link to share with clients.
+                            <h3>Three steps to your first referral</h3>
+                            <p class="empty-lede">
+                                Inspectors invite agents into their workspace from
+                                their contacts list. Once you're linked, every
+                                inspection you refer lands here within minutes.
                             </p>
+                            <ol class="empty-checklist">
+                                <li>
+                                    <span class="empty-step-num">1</span>
+                                    <div>
+                                        <p class="empty-step-title">Pick your referral slug</p>
+                                        <p class="empty-step-body">
+                                            <a href="/agent-settings/profile">Choose a slug</a> like
+                                            {' '}<code>jane</code> so inspectors can credit
+                                            your bookings via <code>?ref=jane</code> on their
+                                            booking links.
+                                        </p>
+                                    </div>
+                                </li>
+                                <li>
+                                    <span class="empty-step-num">2</span>
+                                    <div>
+                                        <p class="empty-step-title">Confirm inspectors have your email</p>
+                                        <p class="empty-step-body">
+                                            Tell the inspectors you partner with that you
+                                            signed up. The next inspection they tag you on
+                                            will auto-link your account when the email
+                                            matches their contact list.
+                                        </p>
+                                    </div>
+                                </li>
+                                <li>
+                                    <span class="empty-step-num">3</span>
+                                    <div>
+                                        <p class="empty-step-title">Watch the next booking land here</p>
+                                        <p class="empty-step-body">
+                                            Each inspection your inspectors refer through
+                                            you will appear in this dashboard with a one-click
+                                            link to the report — no extra step.
+                                        </p>
+                                    </div>
+                                </li>
+                            </ol>
                         </div>
                     ) : (
                         tenantSections.map((section) => (
