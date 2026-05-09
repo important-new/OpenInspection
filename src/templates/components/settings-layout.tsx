@@ -65,6 +65,8 @@ export const SETTINGS_GROUPS: readonly GroupConfig[] = [
             { slug: 'services', label: 'Services & Pricing', href: '/settings/catalog/services', description: 'Standard fees, discounts' },
             { slug: 'event-types', label: 'Event Types', href: '/settings/catalog/event-types', description: 'Radon, sewer scope, follow-ups' },
             { slug: 'widget', label: 'Embed Widget', href: '/settings/catalog/widget', description: 'Booking snippet for your site' },
+            // Agent Accounts A3 — concierge review-mode toggle.
+            { slug: 'booking', label: 'Booking', href: '/settings/catalog/booking', description: 'Concierge review mode for agent bookings' },
         ],
     },
     {

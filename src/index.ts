@@ -123,6 +123,7 @@ import conciergeRoutes from './api/concierge';
 import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
 import { ConciergeConfirmExpiredPage } from './templates/pages/concierge-confirm-expired';
 import { ConciergeBookPage } from './templates/pages/concierge-book';
+import { SettingsCatalogBookingPage } from './templates/pages/settings-catalog-booking';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -1929,6 +1930,30 @@ app.get('/settings/catalog/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
         ...(b ? { branding: b } : {}),
         currentUserSlug: b?.currentUserSlug ?? null,
         bookingHost: b?.bookingHost ?? '',
+    }));
+});
+// Agent Accounts A3 — concierge toggle.
+app.get('/settings/catalog/booking', htmlAuthGuard(['owner', 'admin']), async (c) => {
+    const b = c.get('branding');
+    const tenantId = c.get('tenantId');
+    let conciergeReviewRequired = false;
+    if (tenantId) {
+        try {
+            const db = drizzle(c.env.DB);
+            const row = await db.select({ flag: schema.tenantConfigs.conciergeReviewRequired })
+                .from(schema.tenantConfigs)
+                .where(eq(schema.tenantConfigs.tenantId, tenantId))
+                .get();
+            conciergeReviewRequired = !!row?.flag;
+        } catch (err) {
+            logger.warn('settings.booking.config.failed', {
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+    return c.html(SettingsCatalogBookingPage({
+        ...(b ? { branding: b } : {}),
+        tenantConfig: { conciergeReviewRequired },
     }));
 });
 

@@ -56,6 +56,7 @@ export type AuditAction =
     | 'config.secrets.update'
     | 'config.attention_thresholds.update'
     | 'config.dashboard_columns.update'
+    | 'config.tenant_config.patch'
     | 'tag.created'
     | 'tag.updated'
     | 'tag.deleted'
