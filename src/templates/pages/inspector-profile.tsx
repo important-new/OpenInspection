@@ -40,7 +40,6 @@ const fmtDuration = (min: number | null): string => {
 // Workers runtime exposes btoa globally; fall back to Buffer for Node test envs.
 const toBase64 = (s: string): string => {
     if (typeof btoa === 'function') return btoa(s);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return Buffer.from(s, 'utf8').toString('base64');
 };
 
