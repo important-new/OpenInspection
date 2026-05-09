@@ -5,10 +5,13 @@ import { requireRole } from '../lib/middleware/rbac';
 import { inspections } from '../lib/db/schema/inspection';
 import { contacts } from '../lib/db/schema/contact';
 import { HonoConfig } from '../types/hono';
-import { 
-    AgentReportsQuerySchema, 
-    AgentReportsResponseSchema, 
-    LeaderboardResponseSchema 
+import { Errors } from '../lib/errors';
+import {
+    AgentReportsQuerySchema,
+    AgentReportsResponseSchema,
+    LeaderboardResponseSchema,
+    AgentProfilePatchSchema,
+    AgentProfilePatchResponseSchema,
 } from '../lib/validations/agent.schema';
 
 const agentRoutes = new OpenAPIHono<HonoConfig>();
@@ -123,6 +126,50 @@ agentRoutes.openapi(getLeaderboardRoute, async (c) => {
         success: true,
         data: { leaderboard }
     }, 200);
+});
+
+/**
+ * Agent Accounts A2 — POST /api/agent/profile
+ * Persists slug + notification preferences for the signed-in agent. Agents are
+ * global users (tenant_id IS NULL), so the route does NOT require a tenantId.
+ * RBAC narrows to role='agent' only.
+ */
+const updateProfileRoute = createRoute({
+    method: 'post',
+    path: '/profile',
+    tags: ['Agents'],
+    summary: 'Update agent profile (slug + notification prefs)',
+    request: {
+        body: { content: { 'application/json': { schema: AgentProfilePatchSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: AgentProfilePatchResponseSchema } },
+            description: 'Profile updated',
+        },
+        400: { description: 'Invalid input' },
+        401: { description: 'Unauthorized' },
+        403: { description: 'Forbidden — agent role required' },
+        409: { description: 'Slug already taken' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+agentRoutes.openapi(updateProfileRoute, async (c) => {
+    await requireRole(['agent'])(c, async () => {});
+    const user = c.get('user');
+    if (!user?.sub) throw Errors.Unauthorized();
+
+    const body = c.req.valid('json');
+    const patch: Parameters<typeof c.var.services.agent.updateProfile>[1] = {};
+    if (body.slug !== undefined)             patch.slug             = body.slug;
+    if (body.name !== undefined)             patch.name             = body.name;
+    if (body.notifyOnReferral !== undefined) patch.notifyOnReferral = body.notifyOnReferral;
+    if (body.notifyOnReport !== undefined)   patch.notifyOnReport   = body.notifyOnReport;
+    if (body.notifyOnPaid !== undefined)     patch.notifyOnPaid     = body.notifyOnPaid;
+
+    await c.var.services.agent.updateProfile(user.sub, patch);
+    return c.json({ success: true as const, data: { ok: true as const } }, 200);
 });
 
 export default agentRoutes;

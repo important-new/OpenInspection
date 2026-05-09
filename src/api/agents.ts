@@ -1,9 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { sign } from 'hono/jwt';
 import { setCookie } from 'hono/cookie';
+import { drizzle } from 'drizzle-orm/d1';
+import { desc, eq } from 'drizzle-orm';
 import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { requireRole } from '../lib/middleware/rbac';
+import { agentTenantLinks, users } from '../lib/db/schema/tenant';
 
 /**
  * Agent Accounts A1 — invite + accept endpoints. The (existing) /api/agent
@@ -151,6 +154,126 @@ agentsRoutes.openapi(acceptRoute, async (c) => {
         success: true as const,
         data: { redirect: '/agent-dashboard', userId: result.userId },
     }, 200);
+});
+
+// --- A2: GET /api/agents/links — inspector-side partner-link listing ---
+
+const LinkRowSchema = z
+    .object({
+        id:          z.string(),
+        agentUserId: z.string(),
+        agentName:   z.string().nullable(),
+        agentEmail:  z.string().nullable(),
+        status:      z.enum(['pending', 'active', 'revoked']),
+        createdAt:   z.number().nullable(),
+        revokedAt:   z.number().nullable(),
+    })
+    .openapi('AgentLinkRow');
+
+const ListLinksResponseSchema = z
+    .object({
+        success: z.literal(true),
+        data: z.object({ links: z.array(LinkRowSchema) }),
+    })
+    .openapi('ListAgentLinksResponse');
+
+const listLinksRoute = createRoute({
+    method: 'get',
+    path: '/links',
+    tags: ['Agents'],
+    summary: 'List partner-agent links for the current tenant',
+    description:
+        'Inspector-side. Returns one row per agent_tenant_links record for the ' +
+        'current tenant (active + pending + revoked). Used by /contacts Agents tab.',
+    responses: {
+        200: {
+            content: { 'application/json': { schema: ListLinksResponseSchema } },
+            description: 'Links',
+        },
+        401: { description: 'Unauthorized' },
+        403: { description: 'Forbidden' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+agentsRoutes.openapi(listLinksRoute, async (c) => {
+    await requireRole(['owner', 'admin', 'inspector'])(c, async () => {});
+    const tenantId = c.get('tenantId');
+    if (!tenantId) throw Errors.Unauthorized();
+    const db = drizzle(c.env.DB);
+    const rows = await db
+        .select({
+            id:          agentTenantLinks.id,
+            agentUserId: agentTenantLinks.agentUserId,
+            agentName:   users.name,
+            agentEmail:  users.email,
+            status:      agentTenantLinks.status,
+            createdAt:   agentTenantLinks.createdAt,
+            revokedAt:   agentTenantLinks.revokedAt,
+        })
+        .from(agentTenantLinks)
+        .leftJoin(users, eq(users.id, agentTenantLinks.agentUserId))
+        .where(eq(agentTenantLinks.tenantId, tenantId))
+        .orderBy(desc(agentTenantLinks.createdAt))
+        .all();
+    const links = rows.map((r) => {
+        const created = r.createdAt instanceof Date ? r.createdAt.getTime() : (r.createdAt ? Number(r.createdAt) : null);
+        const revoked = r.revokedAt instanceof Date ? r.revokedAt.getTime() : (r.revokedAt ? Number(r.revokedAt) : null);
+        return {
+            id:          r.id,
+            agentUserId: r.agentUserId,
+            agentName:   r.agentName ?? null,
+            agentEmail:  r.agentEmail ?? null,
+            status:      (r.status as 'pending' | 'active' | 'revoked'),
+            createdAt:   created,
+            revokedAt:   revoked,
+        };
+    });
+    return c.json({ success: true as const, data: { links } }, 200);
+});
+
+// --- A2: POST /api/agents/<linkId>/revoke ---
+
+const RevokeParamsSchema = z.object({
+    linkId: z.string().min(1),
+}).openapi('AgentLinkRevokeParams');
+
+const RevokeResponseSchema = z
+    .object({
+        success: z.literal(true),
+        data: z.object({ ok: z.literal(true) }),
+    })
+    .openapi('AgentLinkRevokeResponse');
+
+const revokeRoute = createRoute({
+    method: 'post',
+    path: '/{linkId}/revoke',
+    tags: ['Agents'],
+    summary: 'Revoke a partner-agent link',
+    description:
+        'Inspector-side. Flips agent_tenant_links.status to "revoked" and ' +
+        'records revoked_at. Tenant-scoped: callers can only revoke links ' +
+        'in their own tenant.',
+    request: { params: RevokeParamsSchema },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: RevokeResponseSchema } },
+            description: 'Link revoked',
+        },
+        401: { description: 'Unauthorized' },
+        403: { description: 'Forbidden' },
+        404: { description: 'Link not found' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+agentsRoutes.openapi(revokeRoute, async (c) => {
+    await requireRole(['owner', 'admin', 'inspector'])(c, async () => {});
+    const tenantId = c.get('tenantId');
+    if (!tenantId) throw Errors.Unauthorized();
+    const { linkId } = c.req.valid('param');
+    await c.var.services.agent.revokeLink(linkId, tenantId);
+    return c.json({ success: true as const, data: { ok: true as const } }, 200);
 });
 
 export default agentsRoutes;

@@ -37,3 +37,19 @@ export const LeaderboardResponseSchema = createApiResponseSchema(
         leaderboard: z.array(LeaderboardEntrySchema),
     })
 ).openapi('LeaderboardResponse');
+
+// Agent Accounts A2 — POST /api/agent/profile body. All fields optional;
+// caller sends only the field(s) they want to update.
+export const AgentProfilePatchSchema = z.object({
+    slug:             z.string().min(3).max(32).regex(/^[a-z0-9][a-z0-9-]+[a-z0-9]$/).optional(),
+    name:             z.string().min(1).max(120).optional(),
+    notifyOnReferral: z.boolean().optional(),
+    notifyOnReport:   z.boolean().optional(),
+    notifyOnPaid:     z.boolean().optional(),
+}).openapi('AgentProfilePatch');
+
+export const AgentProfilePatchResponseSchema = createApiResponseSchema(
+    z.object({
+        ok: z.literal(true),
+    }),
+).openapi('AgentProfilePatchResponse');

@@ -48,6 +48,14 @@ export const users = sqliteTable('users', {
     totpEnabled:       integer('totp_enabled', { mode: 'boolean' }).notNull().default(false),
     totpRecoveryCodes: text('totp_recovery_codes'),
     totpVerifiedAt:    integer('totp_verified_at', { mode: 'timestamp' }),
+    // Agent Accounts A2 — per-user notification preferences. Default ON for
+    // referral + report (high signal); default OFF for paid (high noise — the
+    // inspector forwards the receipt manually if the agent wants visibility).
+    // Read by EmailService.sendNewReferral / sendReportReady / sendInvoicePaid
+    // before delivery; written from /agent-settings/profile (agent-side toggles).
+    notifyOnReferral: integer('notify_on_referral', { mode: 'boolean' }).notNull().default(true),
+    notifyOnReport:   integer('notify_on_report',   { mode: 'boolean' }).notNull().default(true),
+    notifyOnPaid:     integer('notify_on_paid',     { mode: 'boolean' }).notNull().default(false),
 });
 
 // Booking #7 Sprint A — reserved/banned slug list. Seeded via migration 0052
