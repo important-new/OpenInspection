@@ -836,6 +836,24 @@ function dashboardFactory() {
                         recentReports: json.data.recentReports || [],
                         cancelled: json.data.cancelled || [],
                     };
+                    // Agent Accounts A3 — UPCOMING substate. Per directive
+                    // (frontend-design rev 2026-05-09) we surface the count of
+                    // concierge bookings awaiting inspector review as a
+                    // sub-line under the existing UPCOMING number rather than
+                    // adding a 5th stat card. Element exists in dashboard.tsx
+                    // with id='statUpcomingConciergeSub' and starts hidden.
+                    var pending = (json.data && typeof json.data.conciergePending === 'number')
+                        ? json.data.conciergePending : 0;
+                    var subEl = document.getElementById('statUpcomingConciergeSub');
+                    if (subEl) {
+                        if (pending > 0) {
+                            subEl.textContent = pending + ' awaiting your review';
+                            subEl.style.display = 'block';
+                        } else {
+                            subEl.textContent = '';
+                            subEl.style.display = 'none';
+                        }
+                    }
                 }
                 if (eventsRes && eventsRes.ok) {
                     const ej = await eventsRes.json().catch(() => ({ data: [] }));

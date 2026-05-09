@@ -351,6 +351,10 @@ export const DashboardResponseSchema = z.object({
         needsAttention: DefectAggregateBucketSchema,
         recentReports:  DefectAggregateBucketSchema,
     }).optional(),
+    // Agent Accounts A3 — concierge pending count for the UPCOMING substate.
+    // Counts inspections where concierge_status = 'awaiting_inspector'. Optional
+    // so older clients/cached responses still validate.
+    conciergePending: z.number().optional(),
 }).openapi('DashboardResponse');
 
 /**

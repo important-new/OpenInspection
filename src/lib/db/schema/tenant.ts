@@ -123,6 +123,11 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     // (see src/lib/dashboard-columns.ts for the registry). NULL means
     // "use the registry default-on set".
     dashboardColumnPrefs: text('dashboard_column_prefs', { mode: 'json' }).$type<string[]>(),
+    // Agent Accounts A3 — concierge booking review mode toggle.
+    // Default 0 (false) = HomeGauge-style auto-confirm: agent submits ->
+    // magic-link goes to client immediately. 1 (true) = Spectora reviewer
+    // mode: inspector must approve the draft before the client gets the link.
+    conciergeReviewRequired: integer('concierge_review_required', { mode: 'boolean' }).notNull().default(false),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 

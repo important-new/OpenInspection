@@ -21,6 +21,7 @@ export {
     inspectionMediaPool,
     tags,
     inspectionItemTagLinks,
+    conciergeConfirmTokens,
 } from './inspection';
 export { contacts } from './contact';
 export { recommendations } from './recommendation';

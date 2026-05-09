@@ -119,6 +119,11 @@ import repairRequestRoutes from './api/repair-requests';
 import tagsRoutes, { inspectionTagRoutes } from './api/tags';
 import publicSlugRoutes from './api/public-slug';
 import profileRoutes from './api/profile';
+import conciergeRoutes from './api/concierge';
+import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
+import { ConciergeConfirmExpiredPage } from './templates/pages/concierge-confirm-expired';
+import { ConciergeBookPage } from './templates/pages/concierge-book';
+import { SettingsCatalogBookingPage } from './templates/pages/settings-catalog-booking';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -227,9 +232,12 @@ app.use('*', async (c, next) => {
     // Agent Accounts A1 — both /agent-invite/* (HTML) and /api/agents/accept +
     // /agent-signup + /api/agent-signup are unauthenticated entry points.
     const isAgentPublic = path.startsWith('/agent-invite/') || path === '/api/agents/accept' || path === '/agent-signup' || path === '/api/agent-signup';
+    // Agent Accounts A3 — concierge magic-link entry points (client-facing,
+    // no JWT). The token in the URL is the secret.
+    const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
 
-    if (isAuthPublic || isPublic || isAgentPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
@@ -421,6 +429,8 @@ app.route('/api/agent', agentRoutes);
 app.route('/api/agents', agentsRoutes);
 // Agent Accounts A1 — self-serve signup
 app.route('/api/agent-signup', agentSignupRoutes);
+// Agent Accounts A3 — concierge magic-link confirmation (public, no JWT)
+app.route('/api/concierge', conciergeRoutes);
 app.route('/api/places', placesRoutes);
 app.route('/api/availability', availabilityRoutes);
 // Mount /api/calendar/events BEFORE /api/calendar so the more-specific path takes precedence.
@@ -561,6 +571,63 @@ app.get('/agent-invite/accept', async (c) => {
         inspector: { name: invite.inspector.name },
         tenantName: invite.tenantName,
         inviteEmail: invite.email,
+        ...(branding ? { branding } : {}),
+    }));
+});
+
+// Agent Accounts A3 — concierge magic-link client landing. Renders the
+// inspector + property + date summary card with an inline agreement preview
+// (when agreementRequired). Confirm CTA POSTs to /api/concierge/confirm.
+//
+// Lifecycle:
+//   missing/unknown token  -> friendly recovery page (HTTP 410)
+//   expired token          -> friendly expired page    (HTTP 410)
+//   already-confirmed      -> redirect to /r/<inspection-id>  (HTTP 302)
+//   live token             -> render confirm page              (HTTP 200)
+app.get('/confirm/:token', async (c) => {
+    const token = c.req.param('token');
+    const branding = c.get('branding');
+    if (!token) {
+        return c.html(ConciergeConfirmExpiredPage({ reason: 'no-token', ...(branding ? { branding } : {}) }), 410);
+    }
+    const view = await c.var.services.concierge.resolveToken(token);
+    if (!view) {
+        return c.html(ConciergeConfirmExpiredPage({ reason: 'unknown', ...(branding ? { branding } : {}) }), 410);
+    }
+    if (view.expired) {
+        return c.html(ConciergeConfirmExpiredPage({ reason: 'expired', ...(branding ? { branding } : {}) }), 410);
+    }
+    if (view.alreadyConfirmed) {
+        return c.redirect(`/r/${view.inspection.id}`);
+    }
+
+    // Resolve a short snippet of the tenant's primary agreement template so
+    // the page can preview what the client will be e-signing. Failures fall
+    // back to a generic "you'll review and sign" notice on the page.
+    let snippet: string | undefined;
+    if (view.inspection.agreementRequired) {
+        try {
+            const agreements = await c.var.services.agreement.listAgreements(view.inspection.tenantId);
+            const first = agreements[0];
+            if (first?.content) {
+                const stripped = String(first.content).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                snippet = stripped.slice(0, 280) + (stripped.length > 280 ? '...' : '');
+            }
+        } catch {
+            // Fall through — page will render the generic note.
+        }
+    }
+
+    return c.html(ConciergeConfirmPage({
+        token,
+        inspector: view.inspector ?? { name: null, photoUrl: null, email: null },
+        inspection: {
+            propertyAddress:   view.inspection.propertyAddress,
+            date:              view.inspection.date,
+            clientName:        view.inspection.clientName,
+            agreementRequired: view.inspection.agreementRequired,
+        },
+        ...(snippet ? { agreementSnippet: snippet } : {}),
         ...(branding ? { branding } : {}),
     }));
 });
@@ -1604,6 +1671,91 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         hostSuffix,
     }));
 });
+// Agent Accounts A3 — Book on Behalf form. Lives under /agent-inspectors so the
+// agent's mental model stays "I'm acting as a partner of <inspector>". The
+// inspector slug in the URL identifies which tenant + inspector contact this
+// concierge booking is for.
+app.get('/agent-inspectors/:slug/concierge', htmlAuthGuard(['agent']), async (c) => {
+    const slug = c.req.param('slug');
+    if (!slug) return c.redirect('/agent-inspectors');
+    const branding = c.get('branding');
+    const user = c.get('user');
+    if (!user?.sub) return c.redirect('/login');
+
+    // Resolve the agent + their linked inspectors (tenant-scoped). Find the
+    // inspector card whose slug matches the URL. This guarantees the agent
+    // can only concierge-book against tenants they're actively linked to.
+    let agentName: string | null = null;
+    try {
+        const db = drizzle(c.env.DB);
+        const me = await db.select({ name: schema.users.name })
+            .from(schema.users)
+            .where(eq(schema.users.id, user.sub))
+            .get();
+        agentName = me?.name ?? null;
+    } catch (err) {
+        logger.warn('concierge.book.identity.failed', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+
+    const inspectors = await c.var.services.agent.listInspectors(user.sub);
+    const match = inspectors.find((row) => row.inspectorSlug === slug);
+    if (!match) {
+        // Slug doesn't map to an active link — bounce back to the directory
+        // so the agent doesn't get a dead end.
+        return c.redirect('/agent-inspectors');
+    }
+
+    // Resolve the inspector's contact id in this tenant. The agent's link
+    // carries `inspectorContactId` (the agent's own contact row); the form
+    // needs the *inspector's* contact row, which we look up via email match.
+    let inspectorContactId: string | null = null;
+    try {
+        const db = drizzle(c.env.DB);
+        // The inspector is the user with this slug in the matched tenant.
+        const inspector = await db.select({ email: schema.users.email })
+            .from(schema.users)
+            .where(and(
+                eq(schema.users.tenantId, match.tenantId),
+                eq(schema.users.slug, slug),
+            ))
+            .get();
+        if (inspector?.email) {
+            const c0 = await db.select({ id: schema.contacts.id })
+                .from(schema.contacts)
+                .where(and(
+                    eq(schema.contacts.tenantId, match.tenantId),
+                    eq(schema.contacts.email, inspector.email),
+                ))
+                .get();
+            inspectorContactId = c0?.id ?? null;
+        }
+    } catch (err) {
+        logger.warn('concierge.book.contact.failed', {
+            error: err instanceof Error ? err.message : String(err),
+            slug,
+        });
+    }
+    if (!inspectorContactId) {
+        // Inspector's contact row is missing — render an empty-state page or
+        // redirect. We bounce back so the agent isn't stuck on a broken form.
+        return c.redirect('/agent-inspectors');
+    }
+
+    return c.html(ConciergeBookPage({
+        inspector: {
+            name: match.inspectorName,
+            slug: match.inspectorSlug,
+            contactId: inspectorContactId,
+        },
+        agent: { name: agentName },
+        tenantId: match.tenantId,
+        tenantName: match.tenantName,
+        ...(branding ? { branding } : {}),
+    }));
+});
+
 // Agent Accounts A2 — /agent-settings/profile slug + 3 notification toggles.
 app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
     const branding = c.get('branding');
@@ -1778,6 +1930,30 @@ app.get('/settings/catalog/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
         ...(b ? { branding: b } : {}),
         currentUserSlug: b?.currentUserSlug ?? null,
         bookingHost: b?.bookingHost ?? '',
+    }));
+});
+// Agent Accounts A3 — concierge toggle.
+app.get('/settings/catalog/booking', htmlAuthGuard(['owner', 'admin']), async (c) => {
+    const b = c.get('branding');
+    const tenantId = c.get('tenantId');
+    let conciergeReviewRequired = false;
+    if (tenantId) {
+        try {
+            const db = drizzle(c.env.DB);
+            const row = await db.select({ flag: schema.tenantConfigs.conciergeReviewRequired })
+                .from(schema.tenantConfigs)
+                .where(eq(schema.tenantConfigs.tenantId, tenantId))
+                .get();
+            conciergeReviewRequired = !!row?.flag;
+        } catch (err) {
+            logger.warn('settings.booking.config.failed', {
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+    return c.html(SettingsCatalogBookingPage({
+        ...(b ? { branding: b } : {}),
+        tenantConfig: { conciergeReviewRequired },
     }));
 });
 

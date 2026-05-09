@@ -1553,4 +1553,52 @@ adminRoutes.openapi(updateDashboardColumnsRoute, async (c) => {
     return c.json({ success: true as const, data: { columns } }, 200);
 });
 
+// -----------------------------------------------------------------------------
+// Agent Accounts A3 — concierge review-mode toggle (PATCH /api/admin/tenant-config)
+// -----------------------------------------------------------------------------
+// Generic patch endpoint scoped to a small allowlist of tenant_configs columns
+// the settings UI surfaces directly. Currently only `conciergeReviewRequired`.
+// Adding more keys here in the future stays a one-line allowlist change.
+const TenantConfigPatchSchema = z.object({
+    conciergeReviewRequired: z.boolean().optional(),
+}).openapi('TenantConfigPatch');
+
+const TenantConfigPatchResponseSchema = z.object({
+    success: z.boolean(),
+    data: z.object({ ok: z.literal(true) }),
+}).openapi('TenantConfigPatchResponse');
+
+const tenantConfigPatchRoute = createRoute({
+    method: 'patch',
+    path: '/tenant-config',
+    tags: ['Admin'],
+    summary: 'Patch a small allowlist of tenant_configs columns',
+    middleware: [requireRole(['owner', 'admin'])] as const,
+    request: { body: { content: { 'application/json': { schema: TenantConfigPatchSchema } } } },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: TenantConfigPatchResponseSchema } },
+            description: 'Updated',
+        },
+    },
+});
+
+adminRoutes.openapi(tenantConfigPatchRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const body = c.req.valid('json');
+
+    const update: Partial<typeof tenantConfigs.$inferInsert> = {};
+    if (body.conciergeReviewRequired !== undefined) {
+        update.conciergeReviewRequired = body.conciergeReviewRequired;
+    }
+    if (Object.keys(update).length === 0) {
+        return c.json({ success: true as const, data: { ok: true as const } }, 200);
+    }
+    await c.var.services.branding.updateBranding(tenantId, update);
+    auditFromContext(c, 'config.tenant_config.patch', 'tenant_config', {
+        metadata: update,
+    });
+    return c.json({ success: true as const, data: { ok: true as const } }, 200);
+});
+
 export default adminRoutes;

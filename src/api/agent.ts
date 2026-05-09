@@ -12,6 +12,8 @@ import {
     LeaderboardResponseSchema,
     AgentProfilePatchSchema,
     AgentProfilePatchResponseSchema,
+    ConciergeBookSchema,
+    ConciergeBookResponseSchema,
 } from '../lib/validations/agent.schema';
 
 const agentRoutes = new OpenAPIHono<HonoConfig>();
@@ -170,6 +172,56 @@ agentRoutes.openapi(updateProfileRoute, async (c) => {
 
     await c.var.services.agent.updateProfile(user.sub, patch);
     return c.json({ success: true as const, data: { ok: true as const } }, 200);
+});
+
+/**
+ * Agent Accounts A3 — POST /api/agent/concierge-book
+ * Agent submits a booking on behalf of a client. The route never trusts the
+ * agent_user_id from the body — it uses `c.get('agentUserId')` set by the
+ * global JWT middleware so a stolen tenantId can't bypass the agent ↔ tenant
+ * link check.
+ */
+const conciergeBookRoute = createRoute({
+    method: 'post',
+    path: '/concierge-book',
+    tags: ['Agents'],
+    summary: 'Agent submits a concierge booking on behalf of a client',
+    request: {
+        body: { content: { 'application/json': { schema: ConciergeBookSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: ConciergeBookResponseSchema } },
+            description: 'Booking created — state machine entered',
+        },
+        400: { description: 'Invalid input' },
+        401: { description: 'Unauthorized' },
+        403: { description: 'Forbidden — agent not linked to tenant' },
+        404: { description: 'Inspector contact not found' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+agentRoutes.openapi(conciergeBookRoute, async (c) => {
+    await requireRole(['agent'])(c, async () => {});
+    const agentUserId = c.get('agentUserId');
+    if (!agentUserId) throw Errors.Unauthorized('Agent identity missing from token');
+
+    const body = c.req.valid('json');
+    const result = await c.var.services.concierge.createBooking({
+        tenantId: body.tenantId,
+        agentUserId,
+        inspectorContactId: body.inspectorContactId,
+        date: body.date,
+        timeSlot: body.timeSlot,
+        propertyAddress: body.propertyAddress,
+        clientName: body.clientName,
+        clientEmail: body.clientEmail,
+        ...(body.clientPhone ? { clientPhone: body.clientPhone } : {}),
+        agreementRequired: body.agreementRequired,
+        paymentRequired: body.paymentRequired,
+    });
+    return c.json({ success: true as const, data: result }, 200);
 });
 
 export default agentRoutes;

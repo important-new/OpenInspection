@@ -53,3 +53,28 @@ export const AgentProfilePatchResponseSchema = createApiResponseSchema(
         ok: z.literal(true),
     }),
 ).openapi('AgentProfilePatchResponse');
+
+// Agent Accounts A3 — POST /api/agent/concierge-book body. Agent submits a
+// booking on behalf of a client. Server resolves the agent ↔ tenant link,
+// creates a draft inspection, and either mints a magic-link token to email
+// the client (default mode) or notifies the inspector for review (per-tenant
+// reviewer mode).
+export const ConciergeBookSchema = z.object({
+    tenantId:           z.string().uuid(),
+    inspectorContactId: z.string().min(1),
+    date:               z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Date must be ISO YYYY-MM-DD'),
+    timeSlot:           z.string().min(1).max(20),
+    propertyAddress:    z.string().min(3).max(500),
+    clientName:         z.string().min(1).max(200),
+    clientEmail:        z.string().email(),
+    clientPhone:        z.string().max(40).optional(),
+    agreementRequired:  z.boolean().default(true),
+    paymentRequired:    z.boolean().default(false),
+}).openapi('ConciergeBook');
+
+export const ConciergeBookResponseSchema = createApiResponseSchema(
+    z.object({
+        inspectionId: z.string().uuid(),
+        status:       z.enum(['awaiting_inspector', 'awaiting_client']),
+    }),
+).openapi('ConciergeBookResponse');
