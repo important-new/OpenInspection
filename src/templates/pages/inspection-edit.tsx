@@ -379,7 +379,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       Library
                     </button>
                     <button type="button"
-                      x-on:click="suggestComment(item.label, section.title, document.getElementById('notes-mob-' + item.id), $event)"
+                      x-on:click="suggestComment(item.label, currentSection?.title || '', document.getElementById('notes-mob-' + item.id), $event)"
                       class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
                       style="background: #fef3c7; color: #b45309">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
@@ -1219,7 +1219,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                         Library
                       </button>
                       <button type="button"
-                        x-on:click="suggestComment(item.label, section.title, document.getElementById('notes-dsk-' + item.id), $event)"
+                        x-on:click="suggestComment(item.label, currentSection?.title || '', document.getElementById('notes-dsk-' + item.id), $event)"
                         class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
                         style="background: #fef3c7; color: #b45309">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>

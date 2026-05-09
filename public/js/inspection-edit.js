@@ -143,7 +143,17 @@ function inspectionEditor(inspectionId) {
       // Tell global KeyboardHUD (keyboard-hud.tsx) not to fire on ? — this
       // page has its own richer cheatsheet covering both desktop hotkeys and
       // mobile gestures. Without this flag both HUDs would open at once.
+      //
+      // BUG #27 — the flag also has to be CLEARED when the inspector
+      // navigates away. The app does full-page nav (no SPA), so pagehide /
+      // beforeunload reliably runs once before the next page mounts. Without
+      // the cleanup the global HUD on /dashboard, /calendar, etc. stayed
+      // permanently dead for the rest of the session — `?` looked unbound on
+      // every page after the first editor visit.
       window.__oiLocalCheatsheet = true;
+      const clearLocalCheatsheet = () => { window.__oiLocalCheatsheet = false; };
+      window.addEventListener('pagehide', clearLocalCheatsheet, { once: true });
+      window.addEventListener('beforeunload', clearLocalCheatsheet, { once: true });
 
       // Slash-trigger inline popover sync — hide ACTIVE ITEM right pane while
       // the picker is open so the same canned comments are not rendered twice.
