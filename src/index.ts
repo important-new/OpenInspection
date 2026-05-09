@@ -1437,6 +1437,10 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
                 email:         schema.users.email,
                 phone:         schema.users.phone,
                 licenseNumber: schema.users.licenseNumber,
+                // Sprint C-1 — public profile fields used by the new editor.
+                bio:           schema.users.bio,
+                photoUrl:      schema.users.photoUrl,
+                serviceAreas:  schema.users.serviceAreas,
             }).from(schema.users)
                 .where(and(eq(schema.users.id, userId), eq(schema.users.tenantId, tenantId)))
                 .get()
@@ -1447,6 +1451,19 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
                 .get()
             : Promise.resolve(null),
     ]);
+    // Sprint C-1 — parse persisted serviceAreas JSON for the editor. Defensive
+    // try/catch keeps a malformed blob from breaking the whole settings page.
+    let parsedAreas: Array<{ city: string; state: string; zip: string }> = [];
+    if (userRow?.serviceAreas) {
+        try {
+            const parsed = JSON.parse(userRow.serviceAreas);
+            if (Array.isArray(parsed)) {
+                parsedAreas = parsed.filter((a) =>
+                    a && typeof a === 'object' && typeof a.city === 'string' && typeof a.state === 'string' && typeof a.zip === 'string',
+                );
+            }
+        } catch { /* malformed blob — render empty list */ }
+    }
     return c.html(SettingsProfilePage({
         ...(branding ? { branding } : {}),
         currentSlug: userRow?.slug ?? null,
@@ -1456,6 +1473,11 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
             email:         userRow.email,
             phone:         userRow.phone,
             licenseNumber: userRow.licenseNumber,
+        } : null,
+        currentProfile: userRow ? {
+            bio:          userRow.bio,
+            photoUrl:     userRow.photoUrl,
+            serviceAreas: parsedAreas,
         } : null,
     }));
 });
