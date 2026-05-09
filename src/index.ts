@@ -4,7 +4,7 @@ import { serveStatic } from 'hono/cloudflare-workers';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { verify } from 'hono/jwt';
 import { drizzle } from 'drizzle-orm/d1';
-import { and, eq, asc } from 'drizzle-orm';
+import { and, eq, asc, desc } from 'drizzle-orm';
 import { users } from './lib/db/schema';
 import * as schema from './lib/db/schema';
 
@@ -941,13 +941,28 @@ app.get('/report/:id', async (c) => {
             const primaryColor = branding?.primaryColor || c.env.PRIMARY_COLOR || '#6366f1';
             const baseUrl = (c.env.APP_BASE_URL || '').replace(/\/$/, '') || (c.req.header('host') ? `https://${c.req.header('host')}` : '');
 
+            // BUG #22 — gate copy promised "your inspector's contact details
+            // are listed below" but the meta card had only name + property +
+            // date. Pull email / phone / license here so the page honors the
+            // promise. Same lookup also feeds the agreement branch below.
             let inspectorName: string | null = null;
+            let inspectorEmail: string | null = null;
+            let inspectorPhone: string | null = null;
+            let inspectorLicense: string | null = null;
             if (insp.inspectorId) {
-                const inspectorRow = await db.select({ name: users.name })
+                const inspectorRow = await db.select({
+                    name:          users.name,
+                    email:         users.email,
+                    phone:         users.phone,
+                    licenseNumber: users.licenseNumber,
+                })
                     .from(users)
                     .where(and(eq(users.id, insp.inspectorId), eq(users.tenantId, tenantId as string)))
                     .get();
-                inspectorName = inspectorRow?.name ?? null;
+                inspectorName    = inspectorRow?.name ?? null;
+                inspectorEmail   = inspectorRow?.email ?? null;
+                inspectorPhone   = inspectorRow?.phone ?? null;
+                inspectorLicense = inspectorRow?.licenseNumber ?? null;
             }
 
             // iter-1 production bug #3 — the gate previously used
@@ -960,16 +975,37 @@ app.get('/report/:id', async (c) => {
             // — exactly what the live deploy traversal exposed. Treat any
             // truthy value as "gate enabled" so both surfaces agree.
             if (insp.paymentRequired && insp.paymentStatus !== 'paid') {
+                // Pull the unpaid invoice amount so the CTA can carry the
+                // dollar figure ("Pay $475 now") and the meta card can show
+                // the amount due — both are higher-conversion than a generic
+                // "View invoice & pay" link.
+                const invoiceRow = await db.select({
+                    amountCents: schema.invoices.amountCents,
+                })
+                    .from(schema.invoices)
+                    .where(and(
+                        eq(schema.invoices.inspectionId, id),
+                        eq(schema.invoices.tenantId, tenantId as string),
+                    ))
+                    .orderBy(desc(schema.invoices.createdAt))
+                    .limit(1)
+                    .get();
+
                 const { ReportGatePage } = await import('./templates/pages/report-gate');
                 return c.html(ReportGatePage({
-                    reason:          'payment',
+                    reason:           'payment',
                     companyName,
                     primaryColor,
-                    actionUrl:       `${baseUrl}/r/${id}/invoice`,
-                    actionLabel:     'View invoice & pay',
-                    propertyAddress: insp.propertyAddress ?? null,
+                    actionUrl:        `${baseUrl}/r/${id}/invoice`,
+                    actionLabel:      'View invoice & pay',
+                    propertyAddress:  insp.propertyAddress ?? null,
                     inspectorName,
-                    scheduledDate:   insp.date ?? null,
+                    inspectorEmail,
+                    inspectorPhone,
+                    inspectorLicense,
+                    scheduledDate:    insp.date ?? null,
+                    amountCents:      invoiceRow?.amountCents ?? null,
+                    currency:         'USD',
                 }) as string);
             }
 
@@ -985,14 +1021,17 @@ app.get('/report/:id', async (c) => {
                 if (signed.length === 0) {
                     const { ReportGatePage } = await import('./templates/pages/report-gate');
                     return c.html(ReportGatePage({
-                        reason:          'agreement',
+                        reason:           'agreement',
                         companyName,
                         primaryColor,
-                        actionUrl:       `${baseUrl}/sign/${id}`,
-                        actionLabel:     'Sign agreement',
-                        propertyAddress: insp.propertyAddress ?? null,
+                        actionUrl:        `${baseUrl}/sign/${id}`,
+                        actionLabel:      'Sign agreement',
+                        propertyAddress:  insp.propertyAddress ?? null,
                         inspectorName,
-                        scheduledDate:   insp.date ?? null,
+                        inspectorEmail,
+                        inspectorPhone,
+                        inspectorLicense,
+                        scheduledDate:    insp.date ?? null,
                     }) as string);
                 }
             }
