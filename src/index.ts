@@ -69,6 +69,8 @@ import { SettingsCommunicationPage } from './templates/pages/settings-communicat
 import { SettingsAccountPage } from './templates/pages/settings-account';
 import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { NotFoundPage } from './templates/pages/not-found';
+import { BookingNotFoundPage } from './templates/pages/booking-not-found';
+import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 
 
 import coreAuthRoutes from './api/auth';
@@ -192,7 +194,7 @@ const STATIC_ASSET_EXT = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|tt
 app.use('*', async (c, next) => {
     const path = c.req.path;
     const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup' || path === '/api/auth/login/2fa';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
 
     if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
@@ -456,8 +458,30 @@ app.get('/setup', (c) => {
 });
 
 
+// Booking #7 Sprint A — slug-less /book is now a soft landing, not a working
+// booking form. The first-inspector-wins fallback was deceptive: customers
+// who hit /book without a personal link could accidentally book a random
+// inspector on the team. Per-inspector booking now lives at /book/<slug>.
 app.get('/book', (c) => {
     const branding = c.get('branding');
+    return c.html(BookingNoSlugLandingPage({ ...(branding ? { branding } : {}) }));
+});
+
+// Booking #7 Sprint A — per-inspector public booking link. Resolves the slug
+// inside the resolved tenant; renders 404 with a friendly soft-landing page
+// when no match is found.
+app.get('/book/:slug', async (c) => {
+    const slug = c.req.param('slug');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    const branding = c.get('branding');
+    if (!tenantId) {
+        return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
+    }
+    const inspector = await c.var.services.userService.findBySlug(tenantId, slug);
+    if (!inspector) {
+        return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
+    }
+
     const embedRaw = c.req.query('embed');
     const styleRaw = c.req.query('style') || 'light';
     const embed = embedRaw === '1';
@@ -468,6 +492,7 @@ app.get('/book', (c) => {
         ...(branding ? { branding } : {}),
         embed,
         style,
+        inspector: { id: inspector.id, name: inspector.name ?? inspector.email },
     }));
 });
 

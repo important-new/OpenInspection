@@ -7,6 +7,15 @@ interface PublicBookingPageProps {
     branding?: BrandingConfig | undefined;
     embed?: boolean;
     style?: 'light' | 'dark' | 'branded';
+    /**
+     * Booking #7 Sprint A — when the page is reached via `/book/<slug>`,
+     * the route handler resolves the slug to a real user and passes the
+     * inspector identity here so the form can:
+     *   1. show "Booking with [Name]" above the property section
+     *   2. submit a hidden `inspectorId` so the legacy first-inspector-wins
+     *      fallback in `bookings.ts` can be removed.
+     */
+    inspector?: { id: string; name: string };
 }
 
 /**
@@ -30,7 +39,7 @@ interface PublicBookingPageProps {
  * primary CTA, no atmospheric blob, no glass-panel new uses, no
  * font-black anywhere.
  */
-export const PublicBookingPage = ({ siteKey, branding, embed, style }: PublicBookingPageProps): JSX.Element => {
+export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector }: PublicBookingPageProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     const isEmbed = embed === true;
     const widgetStyle = style || 'light';
@@ -67,7 +76,21 @@ export const PublicBookingPage = ({ siteKey, branding, embed, style }: PublicBoo
                             <p class="text-[14px] text-slate-500 leading-relaxed">Tell us about the property and pick a time that works.</p>
                         </div>
 
+                        {inspector && (
+                            <div class="rounded-md bg-surface-50 border border-surface-200 px-4 py-3 mb-6">
+                                <p class="text-xs uppercase tracking-wider text-ink-500">Booking with</p>
+                                <p class="text-sm font-semibold text-ink-900">{inspector.name}</p>
+                            </div>
+                        )}
+
                         <form id="bookingForm" class="space-y-10" {...{ 'x-on:submit.prevent': 'submitBooking($event)' }}>
+                            {/* Booking #7 Sprint A — inspectorId is now mandatory.
+                                Bound from the slug-resolved inspector so the
+                                first-inspector-wins fallback in bookings.ts
+                                can be removed. */}
+                            {inspector && (
+                                <input type="hidden" name="inspectorId" value={inspector.id} />
+                            )}
                             {/* ── Property ─────────────────────────────────── */}
                             <section class="space-y-5">
                                 <div class="space-y-1">
