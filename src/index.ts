@@ -32,6 +32,7 @@ import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
 import { AgentInviteAcceptPage } from './templates/pages/agent-invite-accept';
 import { AgentInviteExpiredPage } from './templates/pages/agent-invite-expired';
+import { AgentSignupPage } from './templates/pages/agent-signup';
 import { TemplatesPage } from './templates/pages/templates';
 import { TemplateEditorPage } from './templates/pages/template-editor';
 import { MarketplacePage } from './templates/pages/marketplace';
@@ -88,6 +89,7 @@ import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
 import agentRoutes from './api/agent';
 import agentsRoutes from './api/agents';
+import agentSignupRoutes from './api/agent-signup';
 import placesRoutes from './api/places';
 import availabilityRoutes from './api/availability';
 import calendarRoutes from './api/calendar';
@@ -415,6 +417,8 @@ app.route('/api/admin', adminRoutes);
 app.route('/api/agent', agentRoutes);
 // Agent Accounts A1 — invite + accept endpoints
 app.route('/api/agents', agentsRoutes);
+// Agent Accounts A1 — self-serve signup
+app.route('/api/agent-signup', agentSignupRoutes);
 app.route('/api/places', placesRoutes);
 app.route('/api/availability', availabilityRoutes);
 // Mount /api/calendar/events BEFORE /api/calendar so the more-specific path takes precedence.
@@ -555,6 +559,15 @@ app.get('/agent-invite/accept', async (c) => {
         inspector: { name: invite.inspector.name },
         tenantName: invite.tenantName,
         inviteEmail: invite.email,
+        ...(branding ? { branding } : {}),
+    }));
+});
+
+// Agent Accounts A1 — self-serve agent signup landing.
+app.get('/agent-signup', (c) => {
+    const branding = c.get('branding');
+    return c.html(AgentSignupPage({
+        ...(c.env.TURNSTILE_SITE_KEY ? { siteKey: c.env.TURNSTILE_SITE_KEY } : {}),
         ...(branding ? { branding } : {}),
     }));
 });
