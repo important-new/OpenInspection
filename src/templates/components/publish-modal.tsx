@@ -94,17 +94,17 @@ export const PublishModal = (): JSX.Element => (
             <div x-show="!loadingRecipients && recipients.length > 0" style="display:none" class="space-y-4">
                 {/* Report summary card (same as before) */}
                 <div class="p-3 rounded-xl" style="background: #f1f5f9">
-                    <div class="text-xs font-mono" style="color: #94a3b8">Report Summary</div>
+                    <div class="text-xs font-mono" style="color: #475569">Report Summary</div>
                     <div
-                        class="text-sm mt-1"
-                        style="color: #1e293b"
+                        class="text-sm mt-1 font-semibold"
+                        style="color: #0f172a"
                         x-text="reportStats.total + ' items  |  ' + reportStats.defect + ' defects  |  ' + reportStats.monitor + ' monitors'"
                     ></div>
                 </div>
 
                 {/* Send a copy of … radio */}
                 <div class="space-y-2">
-                    <div class="text-[10px] font-bold uppercase tracking-[0.2em]" style="color: #94a3b8">
+                    <div class="text-[10px] font-bold uppercase tracking-[0.2em]" style="color: #475569">
                         Send a copy of
                     </div>
                     <div class="flex gap-2" data-test="publish-payload-radio">
@@ -135,13 +135,13 @@ export const PublishModal = (): JSX.Element => (
 
                 {/* Recipients list */}
                 <div class="space-y-2" data-test="publish-recipient-list">
-                    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 text-[10px] font-bold uppercase tracking-[0.2em]" style="color: #94a3b8">
+                    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 text-[10px] font-bold uppercase tracking-[0.2em]" style="color: #475569">
                         <span>Recipient</span>
                         <span class="w-12 text-center">Email</span>
                         <span class="w-12 text-center">Text</span>
                     </div>
                     <template x-for="(r, idx) in recipients" {...{ 'x-bind:key': '(r.contactId || "client") + idx' }}>
-                        <div class="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 rounded-xl border" style="border-color: rgba(226,232,240,0.7); background: rgba(248,250,252,0.5)">
+                        <div class="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 rounded-xl border" style="border-color: #e2e8f0; background: #f8fafc">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-semibold truncate" style="color: #0f172a" x-text="r.name"></span>
