@@ -89,7 +89,19 @@ const dashboardRoute = createRoute({
 inspectionsRoutes.openapi(dashboardRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const buckets  = await c.var.services.inspection.getDashboardBuckets(tenantId);
-    return c.json({ success: true, data: buckets });
+    // Agent Accounts A3 — count concierge bookings awaiting this inspector's
+    // approval so the dashboard's UPCOMING card can render the substate line.
+    let conciergePending = 0;
+    try {
+        const result = await c.var.services.concierge.listAwaitingInspector(tenantId);
+        conciergePending = result.count;
+    } catch (err) {
+        logger.warn('inspections.dashboard.concierge.failed', {
+            tenantId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+    return c.json({ success: true, data: { ...buckets, conciergePending } });
 });
 
 /**
@@ -1985,6 +1997,37 @@ inspectionsRoutes.openapi(saveAnnotationRoute, async (c) => {
         id, tenantId, itemId, photoIndex, bytes, nodesJson,
     );
     return c.json({ success: true, data: result }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Agent Accounts A3 — POST /api/inspections/:id/concierge/approve
+// -----------------------------------------------------------------------------
+// Inspector flips an awaiting_inspector concierge booking to awaiting_client.
+// Service mints the magic-link + sends the client confirm email. Tenant scope
+// is enforced via JWT-derived tenantId — never trust the URL for tenant.
+const approveConciergeRoute = createRoute({
+    method: 'post',
+    path:   '/{id}/concierge/approve',
+    tags:   ['Inspections'],
+    summary: 'Approve a concierge booking awaiting inspector review',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: SuccessResponseSchema } },
+            description: 'Approved',
+        },
+        404: { description: 'Inspection not found in this tenant' },
+        409: { description: 'Inspection is not in awaiting_inspector state' },
+    },
+});
+inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    await c.var.services.concierge.approveByInspector(id, tenantId);
+    return c.json({ success: true as const, data: { success: true as const } }, 200);
 });
 
 export default inspectionsRoutes;

@@ -91,6 +91,22 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                             </div>
                             <h3 class="text-2xl font-bold text-slate-900 tracking-tight tabular-nums mb-1" id={stat.id}>0</h3>
                             <p class="text-[12px] font-bold text-slate-500 uppercase tracking-[0.15em]">{stat.label}</p>
+                            {/* Agent Accounts A3 — UPCOMING substate. Per
+                                directive we do NOT add a 5th stat card; the
+                                concierge-pending count renders as a 12px slate
+                                line under the UPCOMING number when the dashboard
+                                JS finds at least one inspection with
+                                concierge_status='awaiting_inspector'. The element
+                                is always present in the DOM (hidden by default)
+                                so dashboard.js can populate without re-rendering. */}
+                            {stat.id === 'statUpcoming' ? (
+                                <p
+                                    id="statUpcomingConciergeSub"
+                                    class="mt-1 text-[12px] text-slate-500"
+                                    data-testid="upcoming-concierge-substate"
+                                    style="display: none;"
+                                ></p>
+                            ) : null}
                             {/* Portfolio defect chips — only when bucket has at least one defect.
                                 ih-pill canonical class lives in input.css. */}
                             <div class="mt-3 flex items-center gap-1 flex-wrap" x-show={`agg('${stat.target}').safety + agg('${stat.target}').recommendation + agg('${stat.target}').maintenance > 0`}>
