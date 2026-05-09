@@ -75,6 +75,12 @@ function inspectionEditor(inspectionId) {
     publishing: false,
     sendingPdf: false,
     isDesktop: window.innerWidth >= 1024,
+    // Sprint 3 S3-4 — drawer state for the 1024-1279 tablet zone. The
+    // persistent right ACTIVE ITEM pane only renders at xl (≥1280); on a
+    // tablet the inspector taps the "Inspector" button in the toolbar to
+    // slide this drawer in. Defaults closed; auto-closes when the viewport
+    // grows past xl (no need for the drawer + persistent pane to coexist).
+    tabletInspectorOpen: false,
     saveTimer: null,
     saveState: 'idle',
     // Round 32 — one-time mobile gesture-discovery hint for R23 swipe nav
@@ -88,6 +94,18 @@ function inspectionEditor(inspectionId) {
     quickRatingItemId: null, // when long-press fires, target item id
     showQuickRating: false,  // bottom-sheet visibility
     showCheatsheet: false,   // ? HUD visibility (mobile menu button + desktop ?)
+    // Sprint 3 S3-3 — T-key tag picker state. `tagsLibrary` holds all tenant
+    // tags (lazy-loaded once via loadTagsIfNeeded). `tagsByItem` is a map
+    // of itemId → Tag[] hydrated by the bulk /api/inspections/:id/tags
+    // endpoint when the editor mounts. The picker popover toggles via
+    // `tagPickerOpen`; `tagPickerItemId` is the active target.
+    tagsLibrary: [],
+    tagsLibraryLoaded: false,
+    tagsByItem: {},
+    tagPickerOpen: false,
+    tagPickerItemId: null,
+    tagPickerQuery: '',
+    tagSavingId: null, // tag id currently being toggled (loading indicator)
     slashPickerOpen: false,  // slash-trigger inline popover state — used to
                              // hide the right ACTIVE ITEM pane while open
                              // (avoids duplicate canned-comment list).
@@ -135,6 +153,13 @@ function inspectionEditor(inspectionId) {
 
       window.addEventListener('resize', () => {
         this.isDesktop = window.innerWidth >= 1024;
+        // Sprint 3 S3-4 — auto-close the tablet drawer when the viewport
+        // grows past xl (≥1280). At that width the persistent right pane
+        // takes over; keeping the drawer open would double-render its
+        // content over top of the persistent pane.
+        if (window.innerWidth >= 1280 && this.tabletInspectorOpen) {
+          this.tabletInspectorOpen = false;
+        }
       });
 
       // Spec 5G M1.1 mobile — horizontal swipe between sections (analog of
@@ -313,10 +338,16 @@ function inspectionEditor(inspectionId) {
           this.openCommentLibrary('my-snippets');
           return;
         }
-        // T = tag (stub — no tag schema yet)
+        // T = open tag picker for the active item (Sprint 3 S3-3).
+        // The picker is an Alpine popover registered alongside this editor;
+        // we drive it via the shared `tagPicker*` state on this same scope.
         if (e.key === 't' || e.key === 'T') {
           e.preventDefault();
-          if (typeof showToast === 'function') showToast('Tags coming soon');
+          if (!this.activeItemId) {
+            if (typeof showToast === 'function') showToast('Select an item first to add a tag');
+            return;
+          }
+          this.openTagPicker(this.activeItemId);
           return;
         }
         // Navigation: ArrowUp / ArrowDown move active item up/down,
@@ -485,6 +516,18 @@ function inspectionEditor(inspectionId) {
             }
           }
         }
+
+        // Sprint 3 S3-3 — hydrate tag chips alongside results so each item
+        // card renders with its existing labels. Best-effort: a 4xx response
+        // (rare — happens on unauthenticated edge cases) leaves the chips
+        // empty, and the T-key picker re-fetches when first opened.
+        try {
+          var tagsRes = await authFetch('/api/inspections/' + this.inspectionId + '/tags');
+          if (tagsRes.ok) {
+            var tJson = await tagsRes.json();
+            this.tagsByItem = (tJson && tJson.data) || {};
+          }
+        } catch (_) { /* swallow — picker will retry on open */ }
       } catch (e) {
         console.error('Failed to load inspection data:', e);
       }
@@ -1350,7 +1393,143 @@ function inspectionEditor(inspectionId) {
       if (typeof showToast === 'function') showToast('Section: ' + (sec.title || sec.name || ('#' + idx)));
     },
 
-    // Sprint 1 A-9: Fuzzy section picker. Opens via G then S leader-keys.
+    // ─── Sprint 3 S3-3 — Tag picker ────────────────────────────────
+    async loadTagsIfNeeded() {
+      if (this.tagsLibraryLoaded) return;
+      try {
+        const [libRes, mapRes] = await Promise.all([
+          authFetch('/api/tags'),
+          authFetch('/api/inspections/' + encodeURIComponent(this.inspectionId) + '/tags'),
+        ]);
+        if (libRes.ok) {
+          const j = await libRes.json();
+          this.tagsLibrary = (j && j.data) || [];
+        }
+        if (mapRes.ok) {
+          const j = await mapRes.json();
+          this.tagsByItem = (j && j.data) || {};
+        }
+        this.tagsLibraryLoaded = true;
+      } catch (e) {
+        console.error('Failed to load tags', e);
+      }
+    },
+
+    openTagPicker(itemId) {
+      this.tagPickerItemId = itemId;
+      this.tagPickerQuery = '';
+      this.tagPickerOpen = true;
+      this.loadTagsIfNeeded();
+      const self = this;
+      setTimeout(function () {
+        const input = document.getElementById('tag-picker-input');
+        if (input) input.focus();
+      }, 50);
+    },
+
+    closeTagPicker() {
+      this.tagPickerOpen = false;
+      this.tagPickerItemId = null;
+      this.tagPickerQuery = '';
+    },
+
+    /** Tags currently linked to a single item (defensive copy via spread). */
+    getItemTags(itemId) {
+      if (!itemId) return [];
+      return (this.tagsByItem && this.tagsByItem[itemId]) || [];
+    },
+
+    /** True when `tag` is linked to the active picker item. */
+    isTagLinked(tag) {
+      if (!this.tagPickerItemId || !tag) return false;
+      const links = this.getItemTags(this.tagPickerItemId);
+      return links.some(function (t) { return t.id === tag.id; });
+    },
+
+    /** Filter tag library by the picker query (case-insensitive substring). */
+    get filteredTagsForPicker() {
+      const q = (this.tagPickerQuery || '').toLowerCase().trim();
+      const src = this.tagsLibrary || [];
+      if (!q) return src;
+      return src.filter(function (t) {
+        return (t.name || '').toLowerCase().indexOf(q) !== -1;
+      });
+    },
+
+    async toggleTag(tag) {
+      if (!this.tagPickerItemId || !tag || this.tagSavingId) return;
+      this.tagSavingId = tag.id;
+      const itemId = this.tagPickerItemId;
+      const inspectionId = this.inspectionId;
+      const linked = this.isTagLinked(tag);
+      try {
+        let res;
+        if (linked) {
+          res = await authFetch(
+            '/api/inspections/' + encodeURIComponent(inspectionId)
+            + '/items/' + encodeURIComponent(itemId)
+            + '/tags/' + encodeURIComponent(tag.id),
+            { method: 'DELETE' }
+          );
+        } else {
+          res = await authFetch(
+            '/api/inspections/' + encodeURIComponent(inspectionId)
+            + '/items/' + encodeURIComponent(itemId)
+            + '/tags',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tagId: tag.id }),
+            }
+          );
+        }
+        if (!res.ok) {
+          if (typeof showToast === 'function') showToast('Tag update failed', true);
+          return;
+        }
+        // Optimistic local update — keep tagsByItem in sync.
+        const current = this.getItemTags(itemId).slice();
+        if (linked) {
+          this.tagsByItem[itemId] = current.filter(function (t) { return t.id !== tag.id; });
+        } else {
+          this.tagsByItem[itemId] = current.concat([tag]).sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        }
+      } catch (e) {
+        if (typeof showToast === 'function') showToast('Network error', true);
+      } finally {
+        this.tagSavingId = null;
+      }
+    },
+
+    /** Inline removal of a chip on an item card. */
+    async removeItemTag(itemId, tagId) {
+      if (!itemId || !tagId) return;
+      try {
+        const res = await authFetch(
+          '/api/inspections/' + encodeURIComponent(this.inspectionId)
+          + '/items/' + encodeURIComponent(itemId)
+          + '/tags/' + encodeURIComponent(tagId),
+          { method: 'DELETE' }
+        );
+        if (!res.ok) {
+          if (typeof showToast === 'function') showToast('Failed to remove tag', true);
+          return;
+        }
+        const current = (this.tagsByItem[itemId] || []).slice();
+        this.tagsByItem[itemId] = current.filter(function (t) { return t.id !== tagId; });
+      } catch (e) {
+        if (typeof showToast === 'function') showToast('Network error', true);
+      }
+    },
+
+    onTagPickerKeydown(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.closeTagPicker();
+      }
+    },
+
+    /** Sprint 1 A-9: Fuzzy section picker. Opens via G then S leader-keys. */
     openSectionPicker() {
       this.sectionPickerOpen = true;
       this.sectionPickerQuery = '';
@@ -1765,11 +1944,21 @@ function inspectionEditor(inspectionId) {
     async uploadPhoto(itemId, event) {
       var file = event.target.files && event.target.files[0];
       if (!file) return;
+      await this._uploadBlobAsPhoto(itemId, file);
+    },
+
+    // S3-6 — shared upload path used by both <input type=file> and the
+    // burst camera modal. Accepts a Blob (or File) and resolves once the
+    // POST completes. On success, appends `{ key }` to results[itemId]
+    // .photos and triggers the debounced save. Errors are swallowed and
+    // logged — the surrounding caller surfaces a toast.
+    async _uploadBlobAsPhoto(itemId, blob) {
+      if (!blob || !itemId) return;
       var formData = new FormData();
-      // Server endpoint is POST /api/inspections/:id/upload with form field
-      // 'file' + 'itemId' (see src/api/inspections.ts:760). Earlier client
-      // versions used /photos + 'photo' which 404'd silently.
-      formData.append('file', file);
+      // Server endpoint is POST /api/inspections/:id/upload with form
+      // field 'file' + 'itemId' (see src/api/inspections.ts:760).
+      var fileName = (blob && blob.name) || ('photo-' + Date.now() + '.jpg');
+      formData.append('file', blob, fileName);
       formData.append('itemId', itemId);
       try {
         var res = await authFetch('/api/inspections/' + this.inspectionId + '/upload', {
@@ -1778,12 +1967,31 @@ function inspectionEditor(inspectionId) {
         });
         if (res.ok) {
           var json = await res.json();
+          if (!this.results[itemId]) this.results[itemId] = {};
           if (!this.results[itemId].photos) this.results[itemId].photos = [];
           this.results[itemId].photos.push({ key: json.data.key });
           this.debounceSave();
+        } else {
+          if (typeof showToast === 'function') showToast('Photo upload failed.', true);
         }
       } catch (e) {
         console.error('Photo upload failed:', e);
+        if (typeof showToast === 'function') showToast('Photo upload network error.', true);
+      }
+    },
+
+    // S3-6 — open the burst-camera modal for this item. Dispatches a
+    // window event the burstCamera factory listens for. If camera APIs
+    // are missing or denied, the modal itself falls back to the native
+    // <input capture> picker.
+    openBurstCamera(itemId) {
+      try {
+        window.dispatchEvent(new CustomEvent('burst-camera:open', { detail: { itemId: itemId } }));
+      } catch (e) {
+        // Older browsers without CustomEvent constructor — fall back to
+        // the file picker directly.
+        var input = document.getElementById('hotkey-photo-input');
+        if (input) input.click();
       }
     },
 

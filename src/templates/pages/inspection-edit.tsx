@@ -2,6 +2,7 @@
 import { BareLayout } from '../layouts/main-layout';
 import { Modal, ModalFooter } from '../components/modal';
 import { PublishModal } from '../components/publish-modal';
+import { BurstCamera } from '../components/burst-camera';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -289,6 +290,36 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   </template>
                 </div>
 
+                {/* Sprint 3 S3-3 — Tag chips. Internal labels only (never on
+                    customer report). Click a chip to remove the link. */}
+                <div
+                  x-show="getItemTags(item.id).length > 0"
+                  style="display:none"
+                  class="flex items-center gap-1.5 flex-wrap mb-3"
+                  data-testid="item-tag-chips"
+                >
+                  <template x-for="t in getItemTags(item.id)" x-bind:key="t.id">
+                    <button
+                      type="button"
+                      {...{ 'x-on:click.stop': 'removeItemTag(item.id, t.id)' }}
+                      x-bind:title="'Remove tag: ' + t.name"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-inset hover:opacity-80 transition"
+                      x-bind:class="
+                        t.color === 'amber'   ? 'bg-amber-100 text-amber-700 ring-amber-200'   :
+                        t.color === 'rose'    ? 'bg-rose-100 text-rose-700 ring-rose-200'      :
+                        t.color === 'indigo'  ? 'bg-indigo-100 text-indigo-700 ring-indigo-200':
+                        t.color === 'emerald' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200':
+                        t.color === 'sky'     ? 'bg-sky-100 text-sky-700 ring-sky-200'         :
+                        t.color === 'fuchsia' ? 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200':
+                        t.color === 'lime'    ? 'bg-lime-100 text-lime-700 ring-lime-200'      :
+                                                'bg-slate-100 text-slate-700 ring-slate-200'"
+                    >
+                      <span x-text="t.name"></span>
+                      <svg class="w-2.5 h-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </template>
+                </div>
+
                 {/* Expand Toggle */}
                 <div class="flex items-center gap-3 text-xs" style="color: #94a3b8">
                   <button x-on:click="toggleExpand(item.id)" class="flex items-center gap-1 hover:text-gray-700">
@@ -331,11 +362,18 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     </button>
                   </div>
                   <div class="mt-2 flex gap-2 flex-wrap">
-                    <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">
+                    {/* S3-6 — Camera button now opens the burst-camera modal
+                        (long-press for burst, tap for single shot). On
+                        unsupported browsers the modal silently falls back to
+                        the native <input capture> picker. */}
+                    <button type="button"
+                      x-on:click="openBurstCamera(item.id)"
+                      class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                      style="background: #eef2ff; color: var(--ih-primary, #6366f1)"
+                      aria-label="Open burst camera">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       Camera
-                      <input type="file" accept="image/*" capture="environment" class="hidden" x-on:change="uploadPhoto(item.id, $event)" />
-                    </label>
+                    </button>
                     <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                       Library
@@ -867,6 +905,22 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   class="text-[11px] font-mono text-slate-500"
                   x-text="searchMatchCount + ' match' + (searchMatchCount === 1 ? '' : 'es')"
                 ></span>
+                {/* Sprint 3 S3-4 — Tablet 1024-1279: ACTIVE ITEM lives in a
+                    drawer (the persistent right pane only renders at xl ≥1280).
+                    Visible only at lg-not-xl (compound `hidden lg:inline-flex
+                    xl:hidden`) so mobile + desktop are unaffected. */}
+                <button
+                  type="button"
+                  x-show="activeItem"
+                  x-on:click="tabletInspectorOpen = !tabletInspectorOpen"
+                  data-testid="tablet-active-item-toggle"
+                  aria-label="Toggle active item inspector"
+                  class="hidden lg:inline-flex xl:hidden items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
+                  style="color: #475569"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" /></svg>
+                  Inspector
+                </button>
                 <button x-on:click="previewReport()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl" style="color: #64748b">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                   Preview
@@ -1148,11 +1202,18 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       </button>
                     </div>
                     <div class="mt-2 flex gap-2 flex-wrap">
-                      <label class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">
+                      {/* S3-6 — desktop Camera button mirrors the mobile flow:
+                          opens the burst-camera modal (single tap = one shot,
+                          long-press = burst). Modal degrades to file picker if
+                          the browser blocks getUserMedia. */}
+                      <button type="button"
+                        x-on:click="openBurstCamera(item.id)"
+                        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
+                        style="background: #eef2ff; color: var(--ih-primary, #6366f1)"
+                        aria-label="Open burst camera">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         Camera
-                        <input type="file" accept="image/*" class="hidden" x-on:change="uploadPhoto(item.id, $event)" />
-                      </label>
+                      </button>
                       <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                         Library
@@ -1434,10 +1495,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           </main>
 
           {/* Spec 5G M1 — Right pane: active item photos + quick comments.
-              Hidden in focus mode (⌘2), on screens narrower than xl, and
-              while the Comment Library drawer is open (Sprint 1 A-1: avoids
-              the slash-trigger popover overlapping ACTIVE ITEM at 1024-1280px). */}
-          <aside x-show="viewMode !== 'focus' && activeItem && !showCommentLibrary && !slashPickerOpen" class="hidden lg:flex w-[280px] sticky top-0 h-screen flex-shrink-0 flex-col border-l overflow-hidden" style="background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6);">
+              Hidden in focus mode (⌘2), on screens narrower than xl
+              (Sprint 3 S3-4: 1024-1279 tablet zone gets a slide-in drawer
+              instead — see tablet-active-item-drawer below), and while the
+              Comment Library drawer is open (Sprint 1 A-1: avoids the
+              slash-trigger popover overlapping ACTIVE ITEM). */}
+          <aside x-show="viewMode !== 'focus' && activeItem && !showCommentLibrary && !slashPickerOpen" class="hidden xl:flex w-[280px] sticky top-0 h-screen flex-shrink-0 flex-col border-l overflow-hidden" style="background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6);">
             <header class="px-4 py-3 border-b" style="border-color: rgba(226,232,240,0.5);">
               <h3 class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Active Item</h3>
               <p class="text-sm font-bold text-slate-900 mt-0.5 leading-tight" x-text="activeItem?.label || activeItem?.name || ''"></p>
@@ -1503,6 +1566,106 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               </div>
             </footer>
           </aside>
+
+          {/* Sprint 3 S3-4 — Tablet 1024-1279 ACTIVE ITEM drawer.
+              Slides in from the right when the inspector taps the
+              "Inspector" button in the toolbar. Visible ONLY at
+              lg-not-xl (compound `hidden lg:flex xl:hidden` + x-show);
+              the persistent right pane handles ≥1280, mobile gets the
+              dedicated mobile layout.
+              The drawer mirrors the structure of the persistent pane:
+              Active Item header + Photos thumbnail grid + Quick Comments. */}
+          <aside
+            x-show="tabletInspectorOpen && activeItem"
+            data-testid="tablet-active-item-drawer"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="translate-x-full opacity-0"
+            x-transition:enter-end="translate-x-0 opacity-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="translate-x-0 opacity-100"
+            x-transition:leave-end="translate-x-full opacity-0"
+            class="hidden lg:flex xl:hidden fixed inset-y-0 right-0 z-30 w-[320px] flex-col border-l shadow-xl overflow-y-auto"
+            style="background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6); display: none;"
+          >
+            <header class="px-4 py-3 border-b flex items-center justify-between" style="border-color: rgba(226,232,240,0.5);">
+              <div class="flex-1 min-w-0">
+                <h3 class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Active Item</h3>
+                <p class="text-sm font-bold text-slate-900 mt-0.5 leading-tight" x-text="activeItem?.label || activeItem?.name || ''"></p>
+                <p class="text-[10px] font-mono text-slate-400 mt-0.5" x-text="activeItem?.number || ''"></p>
+              </div>
+              <button
+                type="button"
+                x-on:click="tabletInspectorOpen = false"
+                aria-label="Close inspector drawer"
+                class="ml-2 w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </header>
+
+            {/* Photos */}
+            <section class="px-4 py-3 border-b" style="border-color: rgba(226,232,240,0.5);">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
+                  Photos &middot; <span x-text="(results[activeItemId]?.photos || []).length"></span>
+                </span>
+                <label class="text-[10px] text-indigo-500 hover:underline cursor-pointer">
+                  + Add
+                  <input type="file" accept="image/*" capture="environment" class="hidden" x-on:change="if (activeItemId) { uploadPhoto(activeItemId, $event); $event.target.value = ''; }" />
+                </label>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5" x-show="(results[activeItemId]?.photos || []).length > 0">
+                <template x-for="(photo, pi) in (results[activeItemId]?.photos || []).slice(0, 8)" x-bind:key="pi">
+                  <div class="aspect-[4/3] rounded overflow-hidden bg-slate-100">
+                    <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)" class="w-full h-full object-cover" alt="Photo" />
+                  </div>
+                </template>
+              </div>
+              <p x-show="(results[activeItemId]?.photos || []).length === 0" class="text-[11px] italic text-slate-400 py-2">
+                No photos. Press <kbd class="px-1 bg-slate-100 border rounded font-mono">P</kbd> to add.
+              </p>
+            </section>
+
+            {/* Quick comments */}
+            <section class="px-4 py-3 flex-1">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Quick Comments</span>
+                <button x-on:click="openCommentLibrary()" class="text-[10px] text-indigo-500 hover:underline">Browse all</button>
+              </div>
+              <div class="space-y-1">
+                <template x-for="(c, i) in quickCommentsForActive" x-bind:key="i">
+                  <button x-on:click="insertComment(c.text)" class="w-full text-left p-2 rounded text-[11px] text-slate-700 leading-snug border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+                    <div class="flex items-start gap-1.5">
+                      <span class="px-1 py-0.5 text-[8px] font-bold uppercase rounded text-white shrink-0 mt-0.5"
+                        x-bind:style="c.rating === 'satisfactory' ? 'background:#10b981' : (c.rating === 'monitor' ? 'background:#f59e0b' : (c.rating === 'defect' ? 'background:#ef4444' : 'background:#64748b'))"
+                        x-text="c.rating === 'all' ? 'GEN' : c.rating.slice(0, 3)"></span>
+                      <span x-text="c.text"></span>
+                    </div>
+                  </button>
+                </template>
+              </div>
+              <p class="text-[10px] text-slate-400 italic mt-3">
+                Press <kbd class="px-1 bg-slate-100 border rounded font-mono">/</kbd> for full library
+              </p>
+            </section>
+          </aside>
+
+          {/* Backdrop for the tablet drawer — clicking outside closes it. */}
+          <div
+            x-show="tabletInspectorOpen"
+            x-on:click="tabletInspectorOpen = false"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            class="hidden lg:block xl:hidden fixed inset-0 z-20 bg-slate-900/30"
+            style="display: none;"
+            aria-hidden="true"
+          ></div>
         </div>
 
         {/* Round-2 F1 — Multi-recipient Publish modal (Spectora §G.3).
@@ -1513,6 +1676,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
              Send All disabled when nothing is checked. Empty-state shown
              when the inspection has no contacts. */}
         <PublishModal />
+        {/* S3-6 — burst-camera modal lives at the page level so it stays
+            mounted across item navigation. inspection-edit.js dispatches a
+            `burst-camera:open` window event when the user taps a Camera
+            button; the modal's `init()` listens and opens for that item. */}
+        <BurstCamera />
         <Modal
             name="showLegacyPublishOptions"
             title="Publish options"
@@ -1791,6 +1959,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">G + 0–9</span><span>Jump to section by index</span></li>
                 <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">/</span><span>Open Comment Library · <span class="font-mono">;</span> = My Snippets</span></li>
                 <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">P</span><span>Add photo to active item</span></li>
+                <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">T</span><span>Open tag picker for active item</span></li>
                 <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">⌘1 / ⌘2 / ⌘3</span><span>Split / Focus / Preview view mode</span></li>
                 <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">⌘K</span><span>Command palette (coming soon)</span></li>
                 <li class="flex items-start gap-3"><span class="mt-0.5 inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-semibold" style="background: #eef2ff; color: var(--ih-primary, #6366f1)">?</span><span>Toggle this cheatsheet · <span class="font-mono">Esc</span> = close</span></li>
@@ -1868,6 +2037,86 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         </div>
       </div>
 
+      {/* Sprint 3 S3-3 — Tag picker popover. Triggered by T hotkey. Shares
+          the inspection-edit Alpine scope so toggles update tagsByItem
+          and chip rendering without an extra round-trip. */}
+      <div
+        x-show="tagPickerOpen"
+        style="display:none"
+        {...{
+          'x-cloak': '',
+          'x-on:keydown.escape.window': 'if (tagPickerOpen) closeTagPicker()',
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Tag picker"
+        aria-keyshortcuts="t"
+        class="fixed inset-0 z-[55] flex items-start justify-center pt-[12vh] px-4"
+      >
+        <div
+          class="absolute inset-0 bg-slate-900/30"
+          style="backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);"
+          x-on:click="closeTagPicker()"
+          x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+          x-transition:leave="ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+        ></div>
+        <div
+          class="relative w-80 rounded-lg bg-white border border-slate-200"
+          style="box-shadow: 0 12px 32px rgba(15,23,42,0.12);"
+          x-transition:enter="ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2 scale-[0.97]" x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+          x-transition:leave="ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0 scale-100" x-transition:leave-end="opacity-0 translate-y-1 scale-[0.98]"
+        >
+          <div class="px-4 py-3 border-b border-slate-100">
+            <input
+              id="tag-picker-input"
+              type="text"
+              x-model="tagPickerQuery"
+              x-on:keydown="onTagPickerKeydown($event)"
+              placeholder="Filter tags…"
+              class="w-full h-8 px-3 rounded-md border border-slate-200 outline-none text-[13px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
+              aria-label="Tag search"
+              data-testid="tag-picker-input"
+            />
+          </div>
+          <div class="max-h-72 overflow-y-auto py-1" role="listbox" data-testid="tag-picker-list">
+            <template x-for="t in filteredTagsForPicker" x-bind:key="t.id">
+              <button
+                type="button"
+                x-on:click="toggleTag(t)"
+                x-bind:disabled="tagSavingId === t.id"
+                x-bind:class="isTagLinked(t) ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'"
+                class="block w-full text-left px-3 py-2 text-[13px] font-medium transition-colors focus:outline-none flex items-center gap-2 disabled:opacity-50"
+                role="option"
+                data-testid="tag-picker-option"
+              >
+                <span
+                  class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ring-1 ring-inset"
+                  x-bind:class="
+                    t.color === 'amber'   ? 'bg-amber-100 text-amber-700 ring-amber-200'   :
+                    t.color === 'rose'    ? 'bg-rose-100 text-rose-700 ring-rose-200'      :
+                    t.color === 'indigo'  ? 'bg-indigo-100 text-indigo-700 ring-indigo-200':
+                    t.color === 'emerald' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200':
+                    t.color === 'sky'     ? 'bg-sky-100 text-sky-700 ring-sky-200'         :
+                    t.color === 'fuchsia' ? 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200':
+                    t.color === 'lime'    ? 'bg-lime-100 text-lime-700 ring-lime-200'      :
+                                            'bg-slate-100 text-slate-700 ring-slate-200'"
+                  x-text="t.name"
+                ></span>
+                <span x-show="isTagLinked(t)" class="ml-auto text-indigo-600 font-bold">✓</span>
+              </button>
+            </template>
+            <p x-show="filteredTagsForPicker.length === 0" class="px-3 py-3 text-[12px] italic text-slate-400">
+              No tags match. Manage tags in <a href="/library/tags" class="text-indigo-600 hover:underline">Library → Tags</a>.
+            </p>
+          </div>
+          <div class="px-4 py-2 border-t border-slate-100 bg-slate-50/50 rounded-b-lg text-[11px] text-slate-400 font-medium flex items-center gap-2">
+            <kbd class="inline-flex items-center px-1 rounded bg-slate-100 text-slate-600 text-[10px]">T</kbd> open
+            <kbd class="inline-flex items-center px-1 rounded bg-slate-100 text-slate-600 text-[10px]">Esc</kbd> close
+            <a href="/library/tags" class="ml-auto text-indigo-600 hover:underline">Manage</a>
+          </div>
+        </div>
+      </div>
+
 
       <script src="/js/auth.js"></script>
       <script src="/js/modal-dialog.js"></script>
@@ -1885,6 +2134,10 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         }}
       ></script>
       <script src="/js/inspection-edit.js"></script>
+      {/* S3-6 — burst-camera Alpine factory. Loads after inspection-edit.js
+          so the editor's _uploadBlobAsPhoto helper is reachable at commit
+          time. */}
+      <script src="/js/burst-camera.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>
