@@ -517,6 +517,25 @@ app.get('/inspector/:slug', async (c) => {
     return c.html(InspectorProfilePage({ profile, services: catalog, host }));
 });
 
+// Booking #7 Sprint C-2 — busy-only iCal feed. Subscribers (partner agents,
+// the inspector's own personal calendar) see opaque "Busy" blocks with no
+// addresses, client names, or emails. Cancelled inspections drop out so
+// freed slots become bookable again.
+app.get('/inspector/:slug/calendar.ics', async (c) => {
+    const slug = c.req.param('slug');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    if (!tenantId) return c.text('Not found', 404);
+    const ics = await c.var.services.ics.busyFeedForInspector(tenantId, slug);
+    return new Response(ics, {
+        status: 200,
+        headers: {
+            'Content-Type': 'text/calendar; charset=utf-8',
+            'Cache-Control': 'public, max-age=300',
+            'Content-Disposition': `inline; filename="${slug}-busy.ics"`,
+        },
+    });
+});
+
 app.get('/book/:slug', async (c) => {
     const slug = c.req.param('slug');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
