@@ -5,7 +5,31 @@ import { agentInvites, agentTenantLinks, tenants, users } from '../lib/db/schema
 import { contacts } from '../lib/db/schema/contact';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { hashPassword } from '../lib/password';
 import type { EmailService } from './email.service';
+
+export interface ResolvedInvite {
+    token: string;
+    email: string;
+    tenantId: string;
+    tenantName: string;
+    inspector: { id: string; name: string };
+    inviterEmail: string | null;
+    expired: boolean;
+    used: boolean;
+}
+
+export interface AcceptInviteInput {
+    password: string;
+    name: string;
+}
+
+export interface AcceptInviteResult {
+    userId: string;
+    email: string;
+    name: string;
+    tenantId: string; // the invite's tenant — caller can redirect into that scope
+}
 
 /**
  * Agent Accounts A1 — invites, accepts, signups, and the same-email auto-link
@@ -141,6 +165,167 @@ export class AgentService {
             expiresAt: Math.floor(expiresAt.getTime() / 1000),
             emailSent,
         };
+    }
+
+    /**
+     * Resolve an invite token into the metadata the public accept page needs:
+     * inspector name + photo + tenant name + expiry status. Returns null when
+     * no invite row matches the token; surfaces `expired=true` for tokens past
+     * their TTL so the caller can render the friendly recovery page.
+     */
+    async resolveInvite(token: string): Promise<ResolvedInvite | null> {
+        const db = this.getDrizzle();
+        const row = await db
+            .select({
+                token: agentInvites.token,
+                email: agentInvites.email,
+                tenantId: agentInvites.tenantId,
+                expiresAt: agentInvites.expiresAt,
+                acceptedAt: agentInvites.acceptedAt,
+                invitedByUserId: agentInvites.invitedByUserId,
+                tenantName: tenants.name,
+                inspectorName: users.name,
+                inspectorEmail: users.email,
+            })
+            .from(agentInvites)
+            .innerJoin(tenants, eq(tenants.id, agentInvites.tenantId))
+            .innerJoin(users, eq(users.id, agentInvites.invitedByUserId))
+            .where(eq(agentInvites.token, token))
+            .get();
+        if (!row) return null;
+
+        const exp = row.expiresAt instanceof Date ? row.expiresAt.getTime() : Number(row.expiresAt);
+        const expired = exp <= Date.now();
+        const used = row.acceptedAt !== null && row.acceptedAt !== undefined;
+        return {
+            token: row.token,
+            email: row.email,
+            tenantId: row.tenantId,
+            tenantName: row.tenantName,
+            inspector: {
+                id: row.invitedByUserId,
+                name: row.inspectorName ?? row.inspectorEmail ?? 'an inspector',
+            },
+            inviterEmail: row.inspectorEmail ?? null,
+            expired,
+            used,
+        };
+    }
+
+    /**
+     * Accept an invite: validate token, create or reuse a global agent user,
+     * link them to the invite's tenant, run the same-email auto-link routine
+     * to fold in any other tenants that already had this email as a contact,
+     * and mark the invite consumed.
+     *
+     * Throws on expired / already-used / unknown tokens.
+     */
+    async acceptInvite(token: string, input: AcceptInviteInput): Promise<AcceptInviteResult> {
+        const db = this.getDrizzle();
+
+        const invite = await db
+            .select()
+            .from(agentInvites)
+            .where(eq(agentInvites.token, token))
+            .get();
+        if (!invite) throw Errors.NotFound('Invite not found');
+        if (invite.acceptedAt) throw Errors.Conflict('Invite has already been used');
+        const exp = invite.expiresAt instanceof Date ? invite.expiresAt.getTime() : Number(invite.expiresAt);
+        if (exp <= Date.now()) throw Errors.BadRequest('Invite has expired');
+
+        const email = invite.email; // already lowercased on invite()
+
+        // Reuse existing global user when one already exists (e.g. self-signed up
+        // earlier). Otherwise mint a fresh agent user.
+        let agent = await db
+            .select({ id: users.id, name: users.name, email: users.email, role: users.role, tenantId: users.tenantId })
+            .from(users)
+            .where(eq(users.email, email))
+            .get();
+
+        if (!agent) {
+            const id = crypto.randomUUID();
+            const passwordHash = await hashPassword(input.password);
+            await db.insert(users).values({
+                id,
+                tenantId: null,
+                email,
+                passwordHash,
+                name: input.name,
+                role: 'agent',
+                createdAt: new Date(),
+            });
+            agent = { id, name: input.name, email, role: 'agent', tenantId: null };
+        } else if (agent.role !== 'agent') {
+            // Email already belongs to an inspector / owner / admin — block to avoid
+            // accidentally promoting a tenant user to a global agent.
+            throw Errors.Conflict('An account with this email already exists. Please log in instead.');
+        }
+
+        // Create the explicit link from the invite. Idempotent via the unique index.
+        try {
+            await db.insert(agentTenantLinks).values({
+                id: crypto.randomUUID(),
+                agentUserId: agent.id,
+                tenantId: invite.tenantId,
+                inspectorContactId: invite.inspectorContactId ?? null,
+                status: 'active',
+                invitedByUserId: invite.invitedByUserId,
+                createdAt: new Date(),
+            });
+        } catch {
+            // Already linked — fine, proceed.
+        }
+
+        // Fold in any other tenants where this email already exists as a contact
+        // with type='agent'. Reconciles the invite-driven and self-signup paths.
+        await this.autoLinkSameEmail(agent.id, email);
+
+        await db
+            .update(agentInvites)
+            .set({ acceptedAt: new Date() })
+            .where(eq(agentInvites.token, token));
+
+        return {
+            userId: agent.id,
+            email,
+            name: agent.name ?? input.name,
+            tenantId: invite.tenantId,
+        };
+    }
+
+    /**
+     * Self-serve signup: create a global agent user, run autoLinkSameEmail to
+     * surface every tenant that already had this email as a contact, return
+     * the user id. Conflict (existing email) -> 409 with loginUrl hint.
+     */
+    async signup(input: { email: string; password: string; name: string }): Promise<{ userId: string; email: string }> {
+        const db = this.getDrizzle();
+        const email = normalizeEmail(input.email);
+
+        const existing = await db
+            .select({ id: users.id, role: users.role })
+            .from(users)
+            .where(eq(users.email, email))
+            .get();
+        if (existing) {
+            throw Errors.Conflict('An account with this email already exists');
+        }
+
+        const id = crypto.randomUUID();
+        const passwordHash = await hashPassword(input.password);
+        await db.insert(users).values({
+            id,
+            tenantId: null,
+            email,
+            passwordHash,
+            name: input.name,
+            role: 'agent',
+            createdAt: new Date(),
+        });
+
+        await this.autoLinkSameEmail(id, email);
+        return { userId: id, email };
     }
 
     /**

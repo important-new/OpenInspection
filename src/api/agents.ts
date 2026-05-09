@@ -1,4 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { sign } from 'hono/jwt';
+import { setCookie } from 'hono/cookie';
 import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { requireRole } from '../lib/middleware/rbac';
@@ -68,6 +70,87 @@ agentsRoutes.openapi(inviteRoute, async (c) => {
     });
 
     return c.json({ success: true as const, data: result }, 200);
+});
+
+// --- POST /api/agents/accept ---
+
+const AcceptBodySchema = z
+    .object({
+        token: z.string().min(8),
+        password: z.string().min(12),
+        name: z.string().min(2).max(120),
+    })
+    .openapi('AgentAcceptBody');
+
+const AcceptResponseSchema = z
+    .object({
+        success: z.literal(true),
+        data: z.object({
+            redirect: z.string(),
+            userId: z.string(),
+        }),
+    })
+    .openapi('AgentAcceptResponse');
+
+const acceptRoute = createRoute({
+    method: 'post',
+    path: '/accept',
+    tags: ['Agents'],
+    summary: 'Accept a partner-agent invite',
+    description:
+        'Public endpoint. Validates the invite token, creates or reuses the global agent ' +
+        'user, links them to the invite tenant, and runs same-email auto-link to fold in ' +
+        'any other tenants where this email already exists as an agent contact. Returns ' +
+        'a Set-Cookie with the agent JWT and a redirect URL to /agent-dashboard.',
+    request: {
+        body: { content: { 'application/json': { schema: AcceptBodySchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: AcceptResponseSchema } },
+            description: 'Invite accepted',
+        },
+        400: { description: 'Expired token or invalid input' },
+        404: { description: 'Token not found' },
+        409: { description: 'Invite already used or email belongs to non-agent account' },
+    },
+});
+
+agentsRoutes.openapi(acceptRoute, async (c) => {
+    const body = c.req.valid('json');
+    const result = await c.var.services.agent.acceptInvite(body.token, {
+        password: body.password,
+        name: body.name,
+    });
+
+    // Mint the agent JWT — note the deliberate absence of a tenantId claim. Per
+    // Agent Accounts A1 the JWT carries no tenant scope; agent routes resolve a
+    // tenant per-request via resolveAgentTenant().
+    if (!c.env.JWT_SECRET || c.env.JWT_SECRET.length < 32) {
+        throw Errors.Internal('Server configuration error');
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const token = await sign({
+        sub: result.userId,
+        role: 'agent',
+        'custom:userRole': 'agent',
+        email: result.email,
+        iat: now,
+        exp: now + 60 * 60 * 24,
+    }, c.env.JWT_SECRET, 'HS256');
+
+    setCookie(c, '__Host-inspector_token', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Strict',
+        path: '/',
+        maxAge: 60 * 60 * 24,
+    });
+
+    return c.json({
+        success: true as const,
+        data: { redirect: '/agent-dashboard', userId: result.userId },
+    }, 200);
 });
 
 export default agentsRoutes;

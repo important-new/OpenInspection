@@ -30,6 +30,8 @@ import { SettingsPage } from './templates/pages/settings';
 import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
+import { AgentInviteAcceptPage } from './templates/pages/agent-invite-accept';
+import { AgentInviteExpiredPage } from './templates/pages/agent-invite-expired';
 import { TemplatesPage } from './templates/pages/templates';
 import { TemplateEditorPage } from './templates/pages/template-editor';
 import { MarketplacePage } from './templates/pages/marketplace';
@@ -218,9 +220,12 @@ const STATIC_ASSET_EXT = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|tt
 app.use('*', async (c, next) => {
     const path = c.req.path;
     const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup' || path === '/api/auth/login/2fa';
+    // Agent Accounts A1 — both /agent-invite/* (HTML) and /api/agents/accept +
+    // /agent-signup + /api/agent-signup are unauthenticated entry points.
+    const isAgentPublic = path.startsWith('/agent-invite/') || path === '/api/agents/accept' || path === '/agent-signup' || path === '/api/agent-signup';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
 
-    if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    if (isAuthPublic || isPublic || isAgentPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
@@ -506,6 +511,52 @@ app.get('/login', async (c) => {
 
 app.get('/setup', (c) => {
     return c.html(SetupPage({ branding: c.get('branding') }));
+});
+
+// Agent Accounts A1 — public invite acceptance landing.
+// Lifecycle: missing/unknown/expired/used token -> friendly recovery page (410).
+// Valid token -> personal hero + 3 value props + accept-form (HTTP 200).
+app.get('/agent-invite/accept', async (c) => {
+    const branding = c.get('branding');
+    const token = c.req.query('token');
+    if (!token) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'no-token',
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    const invite = await c.var.services.agent.resolveInvite(token);
+    if (!invite) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'unknown',
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    if (invite.used) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'used',
+            inviterName: invite.inspector.name,
+            ...(invite.inviterEmail ? { inviterEmail: invite.inviterEmail } : {}),
+            tenantName: invite.tenantName,
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    if (invite.expired) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'expired',
+            inviterName: invite.inspector.name,
+            ...(invite.inviterEmail ? { inviterEmail: invite.inviterEmail } : {}),
+            tenantName: invite.tenantName,
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    return c.html(AgentInviteAcceptPage({
+        token,
+        inspector: { name: invite.inspector.name },
+        tenantName: invite.tenantName,
+        inviteEmail: invite.email,
+        ...(branding ? { branding } : {}),
+    }));
 });
 
 
