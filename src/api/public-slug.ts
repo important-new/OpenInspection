@@ -1,20 +1,19 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { HonoConfig } from '../types/hono';
 import { SlugAvailabilityResponseSchema } from '../lib/validations/profile.schema';
+import { createApiResponseSchema } from '../lib/validations/shared.schema';
 
 /**
  * Booking #7 Sprint A — public slug-availability endpoint.
  *
- * Mounted at `/api/public/check/slug` so it lands inside the existing
- * `/api/public/*` allowlist in the JWT middleware (no auth required). The
- * tenant is resolved from subdomain by `tenantRouter`; if it can't resolve we
- * return `{ available:false, reason:'invalid' }` rather than a 5xx so the
- * client UI can surface a friendly message.
+ * Mounted at `/api/public/check/slug` inside the `/api/public/*` JWT
+ * allowlist. tenantId resolves from subdomain via `tenantRouter`; an
+ * unresolved tenant returns `{ available:false, reason:'invalid' }` so the
+ * client can surface a friendly message instead of a 5xx.
  *
- * The query param is intentionally permissive (1..64 chars) — the canonical
- * slug rules are enforced by `UserService.checkSlug` via the reservations
- * lookup and (in the dashboard UI) by `SlugSchema` before the request leaves
- * the browser.
+ * The query param is permissive (1..64 chars); canonical slug rules live in
+ * `UserService.checkSlug` (reservations + uniqueness) and `SlugSchema`
+ * (client-side format check).
  */
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -32,10 +31,7 @@ const checkSlugRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: z.object({
-                        success: z.literal(true),
-                        data: SlugAvailabilityResponseSchema,
-                    }),
+                    schema: createApiResponseSchema(SlugAvailabilityResponseSchema),
                 },
             },
             description: 'Availability check result',
@@ -49,7 +45,7 @@ app.openapi(checkSlugRoute, async (c) => {
     if (!tenantId) {
         return c.json({ success: true as const, data: { available: false, reason: 'invalid' as const } }, 200);
     }
-    const result = await c.var.services.userService.checkSlug(tenantId, value);
+    const result = await c.var.services.user.checkSlug(tenantId, value);
     return c.json({ success: true as const, data: result }, 200);
 });
 

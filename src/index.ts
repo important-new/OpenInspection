@@ -458,26 +458,21 @@ app.get('/setup', (c) => {
 });
 
 
-// Booking #7 Sprint A — slug-less /book is now a soft landing, not a working
-// booking form. The first-inspector-wins fallback was deceptive: customers
-// who hit /book without a personal link could accidentally book a random
-// inspector on the team. Per-inspector booking now lives at /book/<slug>.
+// Booking #7 Sprint A — slug-less /book is a soft landing. Working booking
+// forms live at /book/<slug>; the legacy first-inspector-wins fallback was
+// removed because it could land a customer on a random team member.
 app.get('/book', (c) => {
     const branding = c.get('branding');
     return c.html(BookingNoSlugLandingPage({ ...(branding ? { branding } : {}) }));
 });
 
-// Booking #7 Sprint A — per-inspector public booking link. Resolves the slug
-// inside the resolved tenant; renders 404 with a friendly soft-landing page
-// when no match is found.
 app.get('/book/:slug', async (c) => {
     const slug = c.req.param('slug');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
-    if (!tenantId) {
-        return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
-    }
-    const inspector = await c.var.services.userService.findBySlug(tenantId, slug);
+    const inspector = tenantId
+        ? await c.var.services.user.findBySlug(tenantId, slug)
+        : null;
     if (!inspector) {
         return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
     }
@@ -898,21 +893,18 @@ app.get('/report/:id', async (c) => {
     } catch { /* unauthenticated public view */ }
     const isInspectorOrAdmin = role === 'owner' || role === 'admin' || role === 'inspector';
 
-    // BUG #21 — agent-view token bypass. `InspectionService.generateAgentViewToken`
-    // emits a share URL of the form `/report/<id>?view=agent&token=<t>`. The
-    // token KV-resolves to the inspection + tenant pair, so an authenticated
-    // agent (or anyone with the link) can read the report without tripping
-    // payment / agreement gates. Without this branch the agent's email link
-    // would 4xx for any gated inspection, which defeats the whole feature.
+    // BUG #21 — `/report/<id>?view=agent&token=<t>` skips payment/agreement
+    // gates when the KV-resolved token matches this inspection + tenant.
+    // Without it, the agent-view link emitted by InspectionService would hit
+    // the public paywall instead of the report.
     const agentToken = c.req.query('view') === 'agent' ? c.req.query('token') : null;
     let isAgentTokenView = false;
     if (agentToken) {
         const resolved = await c.var.services.inspection.resolveAgentViewToken(agentToken);
-        if (resolved && resolved.inspectionId === id && resolved.tenantId === tenantId) {
-            isAgentTokenView = true;
-        } else {
+        if (!resolved || resolved.inspectionId !== id || resolved.tenantId !== tenantId) {
             return c.html('<html><body><p style="font-family:sans-serif;padding:2rem">Invalid or expired agent view link.</p></body></html>', 403);
         }
+        isAgentTokenView = true;
     }
 
     try {
