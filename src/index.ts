@@ -180,6 +180,24 @@ app.get('/vendor/*', serveStatic(staticOpts({ root: './' })));
 app.get('/fonts.css', serveStatic(staticOpts({ path: './fonts.css' })));
 app.get('/fonts/*', serveStatic(staticOpts({ root: './' })));
 
+// Booking #7 Sprint C-1 — public R2 photo passthrough used by inspector
+// profile photos uploaded via POST /api/profile/photo. The R2 key is
+// tenant-prefixed and includes the userId, so it isn't guessable; only
+// inspector-photos/* paths are exposed to keep other tenant assets private.
+app.get('/photos/tenants/:tenantId/inspector-photos/:filename', async (c) => {
+    const tenantId = c.req.param('tenantId');
+    const filename = c.req.param('filename');
+    if (!c.env.PHOTOS) return c.notFound();
+    const key = `tenants/${tenantId}/inspector-photos/${filename}`;
+    const obj = await c.env.PHOTOS.get(key);
+    if (!obj) return c.notFound();
+    const headers = new Headers();
+    obj.writeHttpMetadata(headers);
+    headers.set('Cache-Control', 'public, max-age=86400');
+    headers.set('etag', obj.httpEtag);
+    return new Response(obj.body, { headers });
+});
+
 // Global Middlewares
 app.use('*', securityHeaders);
 app.use('*', diMiddleware);
