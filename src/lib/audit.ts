@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
-import { auditLogs } from './db/schema/tenant';
+import { eq } from 'drizzle-orm';
+import { auditLogs, users } from './db/schema/tenant';
 import { logger } from './logger';
 import type { HonoConfig } from '../types/hono';
 
@@ -119,4 +120,70 @@ export function auditFromContext(
         ipAddress: c.req.header('CF-Connecting-IP'),
         executionCtx: c.executionCtx,
     });
+}
+
+/**
+ * Sprint B-3 — actions that ought to carry inspector_slug for cross-inspection
+ * grouping in audit dashboards. Other events (logins, settings tweaks, library
+ * edits) intentionally leave the column NULL so the index stays signal-rich.
+ *
+ * The list is forward-compatible: when emitters for these events appear, they
+ * should call writeAuditLogWithSlug instead of writeAuditLog so the slug is
+ * resolved automatically.
+ */
+const INSPECTOR_SLUG_AUDIT_ALLOWLIST = new Set<string>([
+    'user.slug.set',
+    'inspection.created',
+    'inspection.published',
+    'agreement.sent',
+    'invoice.sent',
+    'invoice.paid',
+]);
+
+export interface AuditWithSlugParams {
+    tenantId: string;
+    actorUserId?: string;
+    action: string;
+    entityType: string;
+    entityId?: string;
+    metadata?: Record<string, unknown>;
+    ipAddress?: string;
+}
+
+/**
+ * Sprint B-3 — wraps writeAuditLog so callers don't have to remember to look
+ * up users.slug themselves. Joins on actorUserId and writes the slug into the
+ * inspector_slug column iff the action is in INSPECTOR_SLUG_AUDIT_ALLOWLIST.
+ * For all other actions inspector_slug stays NULL.
+ *
+ * Synchronous wrt the audit insert itself (awaits the slug lookup), but the
+ * insert promise still surfaces as a no-await background write — same shape
+ * as writeAuditLog so callers can fire-and-forget.
+ */
+export async function writeAuditLogWithSlug(db: D1Database, params: AuditWithSlugParams): Promise<void> {
+    let inspectorSlug: string | null = null;
+    if (params.actorUserId && INSPECTOR_SLUG_AUDIT_ALLOWLIST.has(params.action)) {
+        try {
+            const row = await drizzle(db).select({ slug: users.slug }).from(users).where(eq(users.id, params.actorUserId)).get();
+            inspectorSlug = row?.slug ?? null;
+        } catch (e) {
+            logger.error('[audit] slug lookup failed', { actorUserId: params.actorUserId }, e instanceof Error ? e : undefined);
+        }
+    }
+    try {
+        await drizzle(db).insert(auditLogs).values({
+            id: crypto.randomUUID(),
+            tenantId: params.tenantId,
+            userId: params.actorUserId ?? null,
+            action: params.action,
+            entityType: params.entityType,
+            entityId: params.entityId ?? null,
+            metadata: params.metadata ?? null,
+            ipAddress: params.ipAddress ?? null,
+            inspectorSlug,
+            createdAt: new Date(),
+        });
+    } catch (e) {
+        logger.error('[audit] write failed', {}, e instanceof Error ? e : undefined);
+    }
 }
