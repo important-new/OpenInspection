@@ -315,6 +315,16 @@ export const AgentInspectorsPage = ({
                                                 data-copied="false"
                                             >Copy booking link</button>
                                         </div>
+                                        {/* Agent Accounts A3 — Book on Behalf entry point. Per
+                                            directive the agent surfaces this on the inspector
+                                            card so the action stays inside the inspector's
+                                            partnership context. */}
+                                        <a
+                                            href={`/agent-inspectors/${slug}/concierge`}
+                                            class="copy-btn"
+                                            data-testid={`book-on-behalf-${slug}`}
+                                            style="display:block; text-align:center; margin-top: 0.5rem; text-decoration:none;"
+                                        >Book on behalf of client</a>
                                     </article>
                                 );
                             })}

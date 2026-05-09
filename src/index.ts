@@ -122,6 +122,7 @@ import profileRoutes from './api/profile';
 import conciergeRoutes from './api/concierge';
 import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
 import { ConciergeConfirmExpiredPage } from './templates/pages/concierge-confirm-expired';
+import { ConciergeBookPage } from './templates/pages/concierge-book';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -1669,6 +1670,91 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         hostSuffix,
     }));
 });
+// Agent Accounts A3 — Book on Behalf form. Lives under /agent-inspectors so the
+// agent's mental model stays "I'm acting as a partner of <inspector>". The
+// inspector slug in the URL identifies which tenant + inspector contact this
+// concierge booking is for.
+app.get('/agent-inspectors/:slug/concierge', htmlAuthGuard(['agent']), async (c) => {
+    const slug = c.req.param('slug');
+    if (!slug) return c.redirect('/agent-inspectors');
+    const branding = c.get('branding');
+    const user = c.get('user');
+    if (!user?.sub) return c.redirect('/login');
+
+    // Resolve the agent + their linked inspectors (tenant-scoped). Find the
+    // inspector card whose slug matches the URL. This guarantees the agent
+    // can only concierge-book against tenants they're actively linked to.
+    let agentName: string | null = null;
+    try {
+        const db = drizzle(c.env.DB);
+        const me = await db.select({ name: schema.users.name })
+            .from(schema.users)
+            .where(eq(schema.users.id, user.sub))
+            .get();
+        agentName = me?.name ?? null;
+    } catch (err) {
+        logger.warn('concierge.book.identity.failed', {
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+
+    const inspectors = await c.var.services.agent.listInspectors(user.sub);
+    const match = inspectors.find((row) => row.inspectorSlug === slug);
+    if (!match) {
+        // Slug doesn't map to an active link — bounce back to the directory
+        // so the agent doesn't get a dead end.
+        return c.redirect('/agent-inspectors');
+    }
+
+    // Resolve the inspector's contact id in this tenant. The agent's link
+    // carries `inspectorContactId` (the agent's own contact row); the form
+    // needs the *inspector's* contact row, which we look up via email match.
+    let inspectorContactId: string | null = null;
+    try {
+        const db = drizzle(c.env.DB);
+        // The inspector is the user with this slug in the matched tenant.
+        const inspector = await db.select({ email: schema.users.email })
+            .from(schema.users)
+            .where(and(
+                eq(schema.users.tenantId, match.tenantId),
+                eq(schema.users.slug, slug),
+            ))
+            .get();
+        if (inspector?.email) {
+            const c0 = await db.select({ id: schema.contacts.id })
+                .from(schema.contacts)
+                .where(and(
+                    eq(schema.contacts.tenantId, match.tenantId),
+                    eq(schema.contacts.email, inspector.email),
+                ))
+                .get();
+            inspectorContactId = c0?.id ?? null;
+        }
+    } catch (err) {
+        logger.warn('concierge.book.contact.failed', {
+            error: err instanceof Error ? err.message : String(err),
+            slug,
+        });
+    }
+    if (!inspectorContactId) {
+        // Inspector's contact row is missing — render an empty-state page or
+        // redirect. We bounce back so the agent isn't stuck on a broken form.
+        return c.redirect('/agent-inspectors');
+    }
+
+    return c.html(ConciergeBookPage({
+        inspector: {
+            name: match.inspectorName,
+            slug: match.inspectorSlug,
+            contactId: inspectorContactId,
+        },
+        agent: { name: agentName },
+        tenantId: match.tenantId,
+        tenantName: match.tenantName,
+        ...(branding ? { branding } : {}),
+    }));
+});
+
 // Agent Accounts A2 — /agent-settings/profile slug + 3 notification toggles.
 app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
     const branding = c.get('branding');
