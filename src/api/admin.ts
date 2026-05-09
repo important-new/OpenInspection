@@ -5,7 +5,7 @@ import * as schema from '../lib/db/schema';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { safeISODate } from '../lib/date';
-import { getBaseUrl } from '../lib/url';
+import { getBaseUrl, getBookingHost } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -830,7 +830,28 @@ adminRoutes.openapi(sendAgreementRoute, async (c) => {
         logger.warn('audit.append.created.failed', { requestId: request.id, error: (e as Error).message });
     }
 
-    await c.var.services.email.sendAgreementRequest(body.clientEmail, body.clientName ?? null, request.agreementName, signUrl)
+    // Sprint B-4a — append the sender (current admin/inspector) signature so
+    // the client can rebook with this user via the embedded booking link.
+    const senderId = c.get('user')?.sub;
+    let sigInspector: { name: string | null; email: string | null; phone: string | null; licenseNumber: string | null; slug: string | null } | undefined;
+    if (senderId) {
+        try {
+            const row = await drizzle(c.env.DB).select({
+                name:          schema.users.name,
+                email:         schema.users.email,
+                phone:         schema.users.phone,
+                licenseNumber: schema.users.licenseNumber,
+                slug:          schema.users.slug,
+            }).from(schema.users)
+                .where(and(eq(schema.users.id, senderId), eq(schema.users.tenantId, tenantId)))
+                .get();
+            sigInspector = row ?? undefined;
+        } catch (err) {
+            logger.warn('agreement.signature.lookup.failed', { senderId, error: (err as Error).message });
+        }
+    }
+
+    await c.var.services.email.sendAgreementRequest(body.clientEmail, body.clientName ?? null, request.agreementName, signUrl, sigInspector, getBookingHost(c))
         .catch(e => logger.error('Failed to send agreement email', {}, e instanceof Error ? e : undefined));
 
     // Append request.sent only after email is dispatched (or attempted)

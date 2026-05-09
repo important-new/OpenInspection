@@ -1,6 +1,19 @@
 import { AppError, ErrorCode } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { buildIcs, type IcsEvent } from '../lib/ics';
+import { inspectorSignature, type SignatureUser } from '../lib/inspector-signature';
+
+/**
+ * Sprint B-4 — when callers pass `inspector` + `host`, every customer-facing
+ * automation appends the inspector's business-card signature to its HTML body
+ * so customers can rebook with that specific inspector by clicking the link.
+ * Legacy callers that omit the args get the unmodified body (no signature).
+ */
+function appendSignature(html: string, inspector?: SignatureUser, host?: string): string {
+    if (!inspector || !host) return html;
+    const sig = inspectorSignature(inspector, host);
+    return html + sig.html;
+}
 
 /**
  * Service to handle transactional email delivery using Resend.
@@ -100,12 +113,13 @@ export class EmailService {
      * report. Used by `POST /api/inspections/:id/share-agent` so the
      * inspector can hand the agent a 30-day signed URL straight from the
      * report viewer.
+     *
+     * Sprint B-4c — appends the inspector's signature when caller passes
+     * `inspector` + `host` so the receiving agent can rebook with the same
+     * inspector.
      */
-    async sendAgentShareLink(to: string, address: string, reportUrl: string) {
-        await this.sendEmail(
-            [to],
-            `Inspection report shared: ${address}`,
-            `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+    async sendAgentShareLink(to: string, address: string, reportUrl: string, inspector?: SignatureUser, host?: string) {
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                <h1 style="color: #4f46e5;">Inspection Report Shared</h1>
                <p>The inspector has shared the inspection report for <strong>${address}</strong> with you.</p>
                <div style="margin: 32px 0;">
@@ -113,25 +127,33 @@ export class EmailService {
                </div>
                <p style="font-size: 14px; color: #666;">If the button doesn't work, copy and paste this link: ${reportUrl}</p>
                <p style="font-size: 12px; color: #999;">This link expires in 30 days.</p>
-             </div>`
+             </div>`;
+        await this.sendEmail(
+            [to],
+            `Inspection report shared: ${address}`,
+            appendSignature(body, inspector, host),
         );
     }
 
     /**
      * Sends an inspection report delivery email.
+     *
+     * Sprint B-4a — appends the inspector's signature when caller passes
+     * `inspector` + `host`.
      */
-    async sendReportReady(to: string, address: string, reportUrl: string) {
-        await this.sendEmail(
-            [to],
-            `Property Inspection Report: ${address}`,
-            `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+    async sendReportReady(to: string, address: string, reportUrl: string, inspector?: SignatureUser, host?: string) {
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                <h1 style="color: #4f46e5;">Report Ready</h1>
                <p>The inspection for <strong>${address}</strong> has been completed and the report is now available.</p>
                <div style="margin: 32px 0;">
                  <a href="${reportUrl}" style="background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Interactive Report</a>
                </div>
                <p style="font-size: 14px; color: #666;">If the button doesn't work, copy and paste this link: ${reportUrl}</p>
-             </div>`
+             </div>`;
+        await this.sendEmail(
+            [to],
+            `Property Inspection Report: ${address}`,
+            appendSignature(body, inspector, host),
         );
     }
 
@@ -139,18 +161,20 @@ export class EmailService {
      * Sends an inspection report email with the PDF attached.
      * Falls back to caller responsibility if pdfBytes is null/empty —
      * use sendReportReady for the no-attachment variant.
+     *
+     * Sprint B-4a — appends the inspector's signature when caller passes
+     * `inspector` + `host`.
      */
     async sendInspectionReportPdf(
         to: string,
         address: string,
         reportUrl: string,
         pdfBytes: ArrayBuffer,
+        inspector?: SignatureUser,
+        host?: string,
     ) {
         const safeAddress = address.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
-        await this.sendEmail(
-            [to],
-            `Property Inspection Report: ${address}`,
-            `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
                 <h1 style="color: #4f46e5;">Your Inspection Report</h1>
                 <p>The inspection for <strong>${address}</strong> is complete. The full report is attached as a PDF and also available online.</p>
                 <div style="margin: 32px 0;">
@@ -158,20 +182,24 @@ export class EmailService {
                 </div>
                 <p style="font-size: 14px; color: #666;">PDF attachment: <strong>${safeAddress}-report.pdf</strong></p>
                 <p style="font-size: 12px; color: #999;">Online link: ${reportUrl}</p>
-            </div>`,
+            </div>`;
+        await this.sendEmail(
+            [to],
+            `Property Inspection Report: ${address}`,
+            appendSignature(body, inspector, host),
             [{ filename: `${safeAddress}-report.pdf`, content: pdfBytes }],
         );
     }
 
     /**
      * Sends an agreement signing request email to a client.
+     *
+     * Sprint B-4a — appends the inspector's signature when caller passes
+     * `inspector` + `host`.
      */
-    async sendAgreementRequest(to: string, clientName: string | null, agreementName: string, signUrl: string) {
+    async sendAgreementRequest(to: string, clientName: string | null, agreementName: string, signUrl: string, inspector?: SignatureUser, host?: string) {
         const name = clientName || 'Client';
-        await this.sendEmail(
-            [to],
-            `Please sign: ${agreementName}`,
-            `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
                 <h2 style="color: #4f46e5;">Document Ready to Sign</h2>
                 <p>Hi ${name},</p>
                 <p>You have been asked to review and sign the following agreement:</p>
@@ -183,7 +211,11 @@ export class EmailService {
                 <p style="color: #64748b; font-size: 14px; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
                     Thank you,<br>${this.appName} Team
                 </p>
-            </div>`
+            </div>`;
+        await this.sendEmail(
+            [to],
+            `Please sign: ${agreementName}`,
+            appendSignature(body, inspector, host),
         );
     }
 
@@ -265,6 +297,8 @@ export class EmailService {
         confirmationId:   string,
         signedAtUtc:      string,
         ipAddress:        string | null,
+        inspector?:       SignatureUser,
+        host?:            string,
     ) {
         const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const html = `<!DOCTYPE html>
@@ -316,7 +350,7 @@ export class EmailService {
         await this.sendEmail(
             recipients,
             `Agreement signed — ${propertyAddress}`,
-            html,
+            appendSignature(html, inspector, host),
         );
     }
 
@@ -348,15 +382,14 @@ export class EmailService {
         date: string,
         time: string,
         icsEvent?: IcsEvent,
+        inspector?: SignatureUser,
+        host?: string,
     ) {
         const attachments = icsEvent ? [this.icsAttachment(icsEvent)] : undefined;
         const calendarHint = icsEvent
             ? '<p style="margin: 5px 0; color:#64748b; font-size:13px;">A calendar invite (<strong>inspection.ics</strong>) is attached — open it to add this inspection to your calendar.</p>'
             : '';
-        await this.sendEmail(
-            [to],
-            `Inspection Scheduled: ${address}`,
-            `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+        const body = `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
                 <h2 style="color: #4f46e5;">Inspection Scheduled</h2>
                 <p>Hi ${clientName},</p>
                 <p>Your property inspection has been successfully scheduled. Here are the details:</p>
@@ -370,7 +403,11 @@ export class EmailService {
                 <p style="color: #64748b; font-size: 14px; margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
                     Thank you,<br>${this.appName} Team
                 </p>
-            </div>`,
+            </div>`;
+        await this.sendEmail(
+            [to],
+            `Inspection Scheduled: ${address}`,
+            appendSignature(body, inspector, host),
             attachments,
         );
     }
