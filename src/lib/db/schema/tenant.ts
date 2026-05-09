@@ -117,6 +117,10 @@ export const auditLogs = sqliteTable('audit_logs', {
     entityId: text('entity_id'),
     metadata: text('metadata', { mode: 'json' }),
     ipAddress: text('ip_address'),
+    // Sprint B-3 — populated on inspector-facing events (writeAuditLogWithSlug
+    // helper); NULL otherwise so the column stays signal-rich for the audit
+    // dashboard's per-inspector grouping.
+    inspectorSlug: text('inspector_slug'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 }, (t) => [
     index('idx_audit_tenant_created').on(t.tenantId, t.createdAt),
