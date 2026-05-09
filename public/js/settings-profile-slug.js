@@ -11,19 +11,22 @@
 
     function $(id) { return document.getElementById(id); }
 
+    const STATUS_CLASSES = {
+        ok:       ' text-emerald-600 font-semibold',
+        error:    ' text-rose-600 font-semibold',
+        checking: ' text-ink-500',
+        idle:     ' text-ink-500',
+    };
+
     function setStatus(text, kind) {
         const el = $('profileSlugStatus');
         if (!el) return;
         el.textContent = text;
-        // Reset state classes then apply the requested one. Tailwind tokens
-        // chosen so the visual states match the rest of the design system.
-        el.className = 'mt-1 text-xs';
-        switch (kind) {
-            case 'ok':       el.className += ' text-emerald-600 font-semibold'; break;
-            case 'error':    el.className += ' text-rose-600 font-semibold'; break;
-            case 'checking': el.className += ' text-ink-500'; break;
-            default:         el.className += ' text-ink-500'; break;
-        }
+        el.className = 'mt-1 text-xs' + (STATUS_CLASSES[kind] || STATUS_CLASSES.idle);
+    }
+
+    function isValidSlug(value) {
+        return value.length >= 3 && value.length <= 32 && SLUG_RE.test(value);
     }
 
     let debounceId = null;
@@ -63,7 +66,7 @@
             setStatus('Lowercase letters, numbers, and hyphens (3-32 chars).', 'idle');
             return;
         }
-        if (value.length < 3 || value.length > 32 || !SLUG_RE.test(value)) {
+        if (!isValidSlug(value)) {
             setStatus('Invalid format. Use 3-32 lowercase letters/numbers/hyphens.', 'error');
             return;
         }
@@ -133,7 +136,7 @@
         const input = $('profileSlug');
         if (!input) return;
         const value = (input.value || '').trim();
-        if (!SLUG_RE.test(value) || value.length < 3 || value.length > 32) {
+        if (!isValidSlug(value)) {
             setStatus('Invalid format. Use 3-32 lowercase letters/numbers/hyphens.', 'error');
             return;
         }
