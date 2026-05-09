@@ -72,6 +72,8 @@ import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { NotFoundPage } from './templates/pages/not-found';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
+import { InspectorProfilePage } from './templates/pages/inspector-profile';
+import { InspectorNotFoundPage } from './templates/pages/inspector-not-found';
 
 
 import coreAuthRoutes from './api/auth';
@@ -213,7 +215,7 @@ const STATIC_ASSET_EXT = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|tt
 app.use('*', async (c, next) => {
     const path = c.req.path;
     const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup' || path === '/api/auth/login/2fa';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
 
     if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
@@ -489,6 +491,30 @@ app.get('/setup', (c) => {
 app.get('/book', (c) => {
     const branding = c.get('branding');
     return c.html(BookingNoSlugLandingPage({ ...(branding ? { branding } : {}) }));
+});
+
+// Booking #7 Sprint C-1 — public editorial profile page. Served before
+// /book/:slug so an inspector can share /inspector/<slug> as the SEO surface
+// and the customer falls through to /book/<slug> via the page CTA.
+app.get('/inspector/:slug', async (c) => {
+    const slug = c.req.param('slug');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    const branding = c.get('branding');
+    if (!tenantId) {
+        return c.html(InspectorNotFoundPage({ slug, companyName: branding?.siteName }), 404);
+    }
+    const profile = await c.var.services.user.getProfileBySlug(tenantId, slug);
+    if (!profile) {
+        return c.html(InspectorNotFoundPage({ slug, companyName: branding?.siteName }), 404);
+    }
+    const services = await c.var.services.service.listServices(tenantId).catch(() => []);
+    const catalog = services.map(s => ({
+        name: s.name,
+        durationMinutes: s.durationMinutes,
+        price: s.price,
+    }));
+    const host = (c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')) || c.req.header('host') || '';
+    return c.html(InspectorProfilePage({ profile, services: catalog, host }));
 });
 
 app.get('/book/:slug', async (c) => {
