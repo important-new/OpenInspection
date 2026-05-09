@@ -33,6 +33,7 @@ import { RatingSystemService } from '../../services/rating-system.service';
 import { DashboardPrefsService } from '../../services/dashboard-prefs.service';
 import { TagService } from '../../services/tag.service';
 import { PropertyLookupService } from '../../services/property-lookup.service';
+import { UserService } from '../../services/user.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -187,6 +188,9 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.propertyLookup = new PropertyLookupService({
                         ESTATED_API_KEY: c.env.ESTATED_API_KEY,
                     });
+                    break;
+                case 'userService':
+                    target.userService = new UserService(c.env.DB);
                     break;
             }
             return target[prop];

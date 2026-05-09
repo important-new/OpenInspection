@@ -110,6 +110,7 @@ import { RatingSystemService } from '../services/rating-system.service';
 import { DashboardPrefsService } from '../services/dashboard-prefs.service';
 import { TagService } from '../services/tag.service';
 import { PropertyLookupService } from '../services/property-lookup.service';
+import { UserService } from '../services/user.service';
 import { AuthVariables } from './auth';
 
 /**
@@ -150,6 +151,7 @@ export interface AppServices {
     dashboardPrefs: DashboardPrefsService;
     tag: TagService;
     propertyLookup: PropertyLookupService;
+    userService: UserService;
 }
 
 /**

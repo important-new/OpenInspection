@@ -211,12 +211,14 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
     }
 
     const db = drizzle(c.env.DB);
-    let inspectorId = body.inspectorId;
-
+    // Booking #7 Sprint A — inspectorId is now required. The legacy
+    // "first-inspector-wins" fallback was removed because the customer-facing
+    // booking page now resolves an inspector via /book/<slug>, and the form
+    // submits the resolved id as a hidden field. Submissions without it are a
+    // bug or a tampered payload, not a routine fallback case.
+    const inspectorId = body.inspectorId;
     if (!inspectorId) {
-        const first = await db.select({ id: users.id }).from(users).where(eq(users.tenantId, tenantId)).limit(1).get();
-        if (!first) throw Errors.BadRequest('No active inspectors found.');
-        inspectorId = first.id;
+        throw Errors.BadRequest('Booking link missing inspector context. Please use the link your inspector provided.');
     }
 
     // Spec 3C — enforce inspector availability + availability_overrides + existing-bookings collision check.

@@ -21,6 +21,10 @@ export const users = sqliteTable('users', {
     name: text('name'),
     phone: text('phone'),
     licenseNumber: text('license_number'),
+    // Booking #7 Sprint A — per-tenant unique inspector slug used for /book/<slug>.
+    // Nullable until the inspector picks one. Per-tenant uniqueness enforced via
+    // partial index `idx_users_slug_per_tenant` (migrations/0052_inspector_slug.sql).
+    slug: text('slug'),
     role: text('role').notNull().default('admin'),
     googleRefreshToken: text('google_refresh_token'),
     googleCalendarId: text('google_calendar_id'),
@@ -34,6 +38,15 @@ export const users = sqliteTable('users', {
     totpEnabled:       integer('totp_enabled', { mode: 'boolean' }).notNull().default(false),
     totpRecoveryCodes: text('totp_recovery_codes'),
     totpVerifiedAt:    integer('totp_verified_at', { mode: 'timestamp' }),
+});
+
+// Booking #7 Sprint A — reserved/banned slug list. Seeded via migration 0052
+// with the project's reserved route names (admin, api, book, login, etc.) so
+// customers cannot register slugs that would shadow real URL paths.
+export const slugReservations = sqliteTable('slug_reservations', {
+    slug: text('slug').primaryKey(),
+    reason: text('reason').notNull(),
+    blockedAt: integer('blocked_at').notNull(),
 });
 
 export const tenantInvites = sqliteTable('tenant_invites', {
