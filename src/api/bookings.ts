@@ -7,11 +7,12 @@ import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { checkRateLimit } from '../lib/rate-limit';
 import { logger } from '../lib/logger';
-import { 
-    PublicBookingSchema, 
-    InspectorsResponseSchema, 
-    AvailabilityResponseSchema, 
-    BookingResponseSchema 
+import { getBookingHost } from '../lib/url';
+import {
+    PublicBookingSchema,
+    InspectorsResponseSchema,
+    AvailabilityResponseSchema,
+    BookingResponseSchema
 } from '../lib/validations/booking.schema';
 
 const bookingsRoutes = new OpenAPIHono<HonoConfig>();
@@ -352,6 +353,15 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
         const inspectorName = inspector?.name || inspector?.email || (c.env.APP_NAME || 'Your inspector');
         const inspectorEmail = inspector?.email || c.env.SENDER_EMAIL || `noreply@${c.env.APP_NAME?.toLowerCase().replace(/\s/g, '') || 'inspector'}.com`;
 
+        // Sprint B-4a — append inspector signature so customers can rebook
+        // with the same inspector via the per-inspector booking link.
+        const sigInspector = inspector ? {
+            name:          inspector.name ?? null,
+            email:         inspector.email ?? null,
+            phone:         inspector.phone ?? null,
+            licenseNumber: inspector.licenseNumber ?? null,
+            slug:          inspector.slug ?? null,
+        } : undefined;
         await emailService.sendBookingConfirmation(
             body.clientEmail,
             body.clientName,
@@ -368,6 +378,8 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
                 organizerEmail: inspectorEmail,
                 organizerName:  inspectorName,
             },
+            sigInspector,
+            getBookingHost(c),
         ).catch(e => logger.error('Booking confirmation email failed', {}, e instanceof Error ? e : undefined));
     })());
 
@@ -593,8 +605,10 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
                 const confirmationId = signed.id.replace(/-/g, '').slice(0, 8).toUpperCase();
                 const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || null;
 
-                // Look up inspector email so we can CC them.
+                // Look up inspector record so we can CC them and append the
+                // Sprint B-4c signature footer.
                 let inspectorEmail: string | null = null;
+                let inspectorRow: typeof users.$inferSelect | null = null;
                 let propertyAddress = 'your inspection';
                 if (signed.inspectionId) {
                     const db = drizzle(c.env.DB);
@@ -605,8 +619,17 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
                         const insRow = await db.select().from(users)
                             .where(eq(users.id, insp.inspectorId)).get();
                         inspectorEmail = insRow?.email ?? null;
+                        inspectorRow   = insRow ?? null;
                     }
                 }
+
+                const sigInspector = inspectorRow ? {
+                    name:          inspectorRow.name ?? null,
+                    email:         inspectorRow.email ?? null,
+                    phone:         inspectorRow.phone ?? null,
+                    licenseNumber: inspectorRow.licenseNumber ?? null,
+                    slug:          inspectorRow.slug ?? null,
+                } : undefined;
 
                 await c.var.services.email.sendAgreementSignedConfirmation(
                     signed.clientEmail,
@@ -617,6 +640,8 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
                     confirmationId,
                     new Date().toUTCString(),
                     ip,
+                    sigInspector,
+                    getBookingHost(c),
                 );
             } catch (e) {
                 logger.error('agreement.signed confirmation email failed', {}, e instanceof Error ? e : undefined);

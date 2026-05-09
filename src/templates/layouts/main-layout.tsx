@@ -120,11 +120,27 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
     );
 };
 
-export const MainLayout = (props: { title: string, children: unknown, branding?: BrandingConfig | undefined, extraHead?: JSX.Element }): JSX.Element => {
+export const MainLayout = (props: {
+    title: string,
+    children: unknown,
+    branding?: BrandingConfig | undefined,
+    extraHead?: JSX.Element,
+    /**
+     * Sprint B-1 — explicit overrides for the ⌘K booking action; when not
+     * passed, the layout falls back to branding.currentUserSlug /
+     * branding.bookingHost (set by inspectorPaletteMiddleware).
+     */
+    currentUserSlug?: string | null,
+    bookingHost?: string,
+}): JSX.Element => {
     const { title, children, branding, extraHead } = props;
     const siteName = branding?.siteName || 'OpenInspection';
     const logoUrl = branding?.logoUrl;
     const sandboxMode = branding?.sandboxMode === true;
+    // Sprint B-1 — palette context falls back to the value the middleware
+    // hydrated into branding so individual pages don't need to plumb it.
+    const paletteSlug = props.currentUserSlug !== undefined ? props.currentUserSlug : (branding?.currentUserSlug ?? null);
+    const paletteHost = props.bookingHost !== undefined ? props.bookingHost : (branding?.bookingHost ?? '');
 
     return (
         <html lang="en" class="scroll-smooth">
@@ -459,7 +475,10 @@ navigator.serviceWorker?.addEventListener('message', function(e) {
                 <NetworkPill />
                 <ConflictModal />
                 <KeyboardHUD />
-                <CommandPalette />
+                <CommandPalette
+                    currentUserSlug={paletteSlug}
+                    {...(paletteHost ? { bookingHost: paletteHost } : {})}
+                />
                 <InlineTextPopover />
             </body>
         </html>

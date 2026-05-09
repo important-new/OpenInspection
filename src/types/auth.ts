@@ -18,6 +18,14 @@ export interface BrandingConfig {
      *  (env.SANDBOX_MODE === 'true'). Plumbed through branding so every page
      *  template that already accepts branding gets it for free. */
     sandboxMode?: boolean | undefined;
+    /** Sprint B-1 — signed-in user's booking slug. Plumbed via the
+     *  inspectorPaletteMiddleware so MainLayout can pass it to
+     *  <CommandPalette /> for the "Copy my booking link" action. Null when
+     *  the user hasn't picked a slug yet. */
+    currentUserSlug?: string | null | undefined;
+    /** Sprint B-1 — host portion of the booking URL (e.g. "acme.inspectorhub.io").
+     *  Used by the ⌘K palette action and any other slug-aware UI. */
+    bookingHost?: string | undefined;
 }
 
 import { ScopedDB } from '../lib/db/scoped';

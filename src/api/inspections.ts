@@ -3,7 +3,7 @@ import { requireRole } from '../lib/middleware/rbac';
 import { renderProfessionalReport } from '../templates/pages/report.template';
 import { ReportGatePage } from '../templates/pages/report-gate';
 import { auditFromContext } from '../lib/audit';
-import { getBaseUrl } from '../lib/url';
+import { getBaseUrl, getBookingHost } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -38,8 +38,39 @@ import { AggregatedRecommendationsResponseSchema } from '../lib/validations/reco
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
+import type { Context } from 'hono';
+import type { SignatureUser } from '../lib/inspector-signature';
 
 const inspectionsRoutes = new OpenAPIHono<HonoConfig>();
+
+/**
+ * Sprint B-4a — resolves the inspector record for an inspection so outbound
+ * report / agreement / share emails can append the inspector's rebooking
+ * signature footer. Returns undefined when the inspection has no assigned
+ * inspector or the lookup fails — callers should pass undefined through to
+ * EmailService methods, which will skip the footer in that case.
+ */
+async function resolveSignatureInspector(
+    c: Context<HonoConfig>,
+    inspectorId: string | null | undefined,
+    tenantId: string,
+): Promise<SignatureUser | undefined> {
+    if (!inspectorId) return undefined;
+    try {
+        const db = drizzle(c.env.DB);
+        const row = await db.select({
+            name:          users.name,
+            email:         users.email,
+            phone:         users.phone,
+            licenseNumber: users.licenseNumber,
+            slug:          users.slug,
+        }).from(users).where(and(eq(users.id, inspectorId), eq(users.tenantId, tenantId))).get();
+        return row ?? undefined;
+    } catch (err) {
+        logger.error('[email-signature] inspector lookup failed', { inspectorId }, err instanceof Error ? err : undefined);
+        return undefined;
+    }
+}
 
 // --- GET /api/inspections/dashboard — Spec 3A ---
 const dashboardRoute = createRoute({
@@ -1361,17 +1392,22 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
         const clientEmail = inspection.clientEmail;
         const address = inspection.propertyAddress as string;
 
+        // Sprint B-4a — resolve the inspector record so the report email
+        // body carries the rebooking signature footer.
+        const sigInspector = await resolveSignatureInspector(c, inspection.inspectorId, tenantId);
+        const sigHost = getBookingHost(c);
+
         // Best-effort PDF: if BROWSER binding is missing or rendering fails,
         // fall back to the existing text-only "Report Ready" email so we
         // never block inspection completion on an optional dependency.
         const deliver = async () => {
             try {
                 const pdf = await generatePdfFromUrl(c.env.BROWSER, reportUrl);
-                await c.var.services.email.sendInspectionReportPdf(clientEmail, address, reportUrl, pdf);
+                await c.var.services.email.sendInspectionReportPdf(clientEmail, address, reportUrl, pdf, sigInspector, sigHost);
             } catch (err) {
                 logger.error('[complete] PDF generation failed, falling back to text-only email',
                     { inspectionId: id }, err instanceof Error ? err : undefined);
-                await c.var.services.email.sendReportReady(clientEmail, address, reportUrl);
+                await c.var.services.email.sendReportReady(clientEmail, address, reportUrl, sigInspector, sigHost);
             }
         };
         c.executionCtx.waitUntil(deliver());
@@ -1442,14 +1478,18 @@ inspectionsRoutes.openapi(sendReportPdfRoute, async (c) => {
     const reportUrl = `${baseUrl}/report/${id}`;
     const address = inspection.propertyAddress as string;
 
+    // Sprint B-4a — append rebooking signature for the assigned inspector.
+    const sigInspector = await resolveSignatureInspector(c, inspection.inspectorId, tenantId);
+    const sigHost = getBookingHost(c);
+
     try {
         const pdf = await generatePdfFromUrl(c.env.BROWSER, reportUrl);
-        await c.var.services.email.sendInspectionReportPdf(recipient, address, reportUrl, pdf);
+        await c.var.services.email.sendInspectionReportPdf(recipient, address, reportUrl, pdf, sigInspector, sigHost);
         auditFromContext(c, 'inspection.send_pdf', 'inspection', { entityId: id, metadata: { recipient } });
         return c.json({ success: true as const, data: { sentTo: recipient } }, 200);
     } catch (err) {
         logger.error('[send-report-pdf] PDF failed, sending text-only', { inspectionId: id }, err instanceof Error ? err : undefined);
-        await c.var.services.email.sendReportReady(recipient, address, reportUrl);
+        await c.var.services.email.sendReportReady(recipient, address, reportUrl, sigInspector, sigHost);
         auditFromContext(c, 'inspection.send_text_fallback', 'inspection', { entityId: id, metadata: { recipient } });
         // 200 because the user got AN email, just not a PDF — log + audit captures the degradation
         return c.json({ success: true as const, data: { sentTo: recipient } }, 200);
@@ -1861,6 +1901,7 @@ inspectionsRoutes.openapi(createRoute({
         id: inspectionTable.id,
         propertyAddress: inspectionTable.propertyAddress,
         referredByAgentId: inspectionTable.referredByAgentId,
+        inspectorId: inspectionTable.inspectorId,
     }).from(inspectionTable)
         .where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)))
         .get();
@@ -1881,8 +1922,13 @@ inspectionsRoutes.openapi(createRoute({
     const baseUrl = getBaseUrl(c);
     const url = `${baseUrl}/report/${id}?view=agent&token=${token}`;
 
+    // Sprint B-4c — append the inspector's signature so the receiving agent
+    // can rebook with the same inspector for future referrals.
+    const sigInspector = await resolveSignatureInspector(c, inspectionRow.inspectorId, tenantId);
+    const sigHost = getBookingHost(c);
+
     try {
-        await c.var.services.email.sendAgentShareLink(agentRow.email, inspectionRow.propertyAddress, url);
+        await c.var.services.email.sendAgentShareLink(agentRow.email, inspectionRow.propertyAddress, url, sigInspector, sigHost);
     } catch (err) {
         logger.error('[share-agent] email delivery failed', { inspectionId: id }, err instanceof Error ? err : undefined);
         throw Errors.Internal('Failed to send share link');

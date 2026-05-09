@@ -9,6 +9,7 @@ import { users } from './lib/db/schema';
 import * as schema from './lib/db/schema';
 
 import { brandingMiddleware } from './lib/middleware/branding';
+import { inspectorPaletteMiddleware } from './lib/middleware/inspector-palette';
 import { tenantRouter } from './lib/middleware/tenant-router';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
@@ -327,6 +328,12 @@ app.use('*', async (c, next) => {
 
     return next();
 });
+
+// Sprint B-1 — after auth + branding, hydrate the booking-palette context
+// (slug + booking host) into branding so MainLayout's <CommandPalette/> can
+// render the "Copy my booking link" action without each page having to plumb
+// the slug through manually.
+app.use('*', inspectorPaletteMiddleware);
 
 // API Routes
 app.use('/api/*', requireActiveSubscription);
@@ -1376,8 +1383,17 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
     const userId = c.get('user')?.sub;
     const db = drizzle(c.env.DB);
     const [userRow, tenantRow] = await Promise.all([
+        // Sprint B-4b — fetch the full identity card so the "My email signature"
+        // preview can render. Slug stays the only field the slug card needs;
+        // the rest powers the signature card client-side.
         userId
-            ? db.select({ slug: schema.users.slug }).from(schema.users)
+            ? db.select({
+                slug:          schema.users.slug,
+                name:          schema.users.name,
+                email:         schema.users.email,
+                phone:         schema.users.phone,
+                licenseNumber: schema.users.licenseNumber,
+            }).from(schema.users)
                 .where(and(eq(schema.users.id, userId), eq(schema.users.tenantId, tenantId)))
                 .get()
             : Promise.resolve(null),
@@ -1391,6 +1407,12 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
         ...(branding ? { branding } : {}),
         currentSlug: userRow?.slug ?? null,
         tenantSubdomain: tenantRow?.subdomain ?? '',
+        currentUser: userRow ? {
+            name:          userRow.name,
+            email:         userRow.email,
+            phone:         userRow.phone,
+            licenseNumber: userRow.licenseNumber,
+        } : null,
     }));
 });
 

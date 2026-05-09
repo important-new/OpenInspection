@@ -16,7 +16,24 @@
  * The global `?` HUD docs the same shortcut.
  */
 
-export function CommandPalette(): JSX.Element {
+/**
+ * Sprint B-1 — when `currentUserSlug` + `bookingHost` are both provided, the
+ * palette gets data-current-user-slug + data-booking-host data attributes on
+ * its root. command-palette.js reads them to inject a "Copy my booking link"
+ * action into the actions group. When either is missing, the palette renders
+ * exactly as before (no booking action).
+ */
+interface CommandPaletteProps {
+    currentUserSlug?: string | null;
+    bookingHost?: string;
+}
+
+export function CommandPalette(props?: CommandPaletteProps): JSX.Element {
+    const slug = props?.currentUserSlug ?? null;
+    const host = props?.bookingHost ?? '';
+    const slugAttrs: Record<string, string> = (slug && host)
+        ? { 'data-current-user-slug': slug, 'data-booking-host': host }
+        : {};
     return (
         <div
             x-data="commandPalette"
@@ -25,6 +42,7 @@ export function CommandPalette(): JSX.Element {
                 'x-on:keydown.escape.window': 'if (open) { open = false; $event.stopPropagation(); }',
                 'x-cloak': '',
             }}
+            {...slugAttrs}
             x-show="open"
             class="fixed inset-0 z-[10000] flex items-start justify-center pt-[12vh] px-4"
             style="display:none"

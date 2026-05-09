@@ -11,3 +11,16 @@ export function getBaseUrl(c: Context<HonoConfig>): string {
     const host = c.req.header('host') || 'localhost';
     return `${protocol}://${host}`;
 }
+
+/**
+ * Sprint B-4 — extract the bare host (no protocol, no path) for use in
+ * inspectorSignature() which builds `https://{host}/book/{slug}` links.
+ * Mirrors getBaseUrl preference: APP_BASE_URL wins, falls back to the
+ * request's Host header.
+ */
+export function getBookingHost(c: Context<HonoConfig>): string {
+    if (c.env.APP_BASE_URL) {
+        try { return new URL(c.env.APP_BASE_URL).host; } catch { /* fall through */ }
+    }
+    return c.req.header('host') || 'localhost';
+}
