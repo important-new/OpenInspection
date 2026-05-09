@@ -3,6 +3,7 @@ import { Context } from 'hono';
 import { serveStatic } from 'hono/cloudflare-workers';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { verify } from 'hono/jwt';
+import { classifyJwtPayload } from './lib/auth/jwt-claims';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq, asc, desc } from 'drizzle-orm';
 import { users } from './lib/db/schema';
@@ -29,6 +30,9 @@ import { SettingsPage } from './templates/pages/settings';
 import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
+import { AgentInviteAcceptPage } from './templates/pages/agent-invite-accept';
+import { AgentInviteExpiredPage } from './templates/pages/agent-invite-expired';
+import { AgentSignupPage } from './templates/pages/agent-signup';
 import { TemplatesPage } from './templates/pages/templates';
 import { TemplateEditorPage } from './templates/pages/template-editor';
 import { MarketplacePage } from './templates/pages/marketplace';
@@ -84,6 +88,8 @@ import aiRoutes from './api/ai';
 import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
 import agentRoutes from './api/agent';
+import agentsRoutes from './api/agents';
+import agentSignupRoutes from './api/agent-signup';
 import placesRoutes from './api/places';
 import availabilityRoutes from './api/availability';
 import calendarRoutes from './api/calendar';
@@ -216,9 +222,12 @@ const STATIC_ASSET_EXT = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|tt
 app.use('*', async (c, next) => {
     const path = c.req.path;
     const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup' || path === '/api/auth/login/2fa';
+    // Agent Accounts A1 — both /agent-invite/* (HTML) and /api/agents/accept +
+    // /agent-signup + /api/agent-signup are unauthenticated entry points.
+    const isAgentPublic = path.startsWith('/agent-invite/') || path === '/api/agents/accept' || path === '/agent-signup' || path === '/api/agent-signup';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
 
-    if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    if (isAuthPublic || isPublic || isAgentPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
@@ -282,8 +291,7 @@ app.use('*', async (c, next) => {
         }
 
         const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
-        const tenantId = (payload['custom:tenantId'] ?? payload['tenantId']) as string | undefined;
-        const userRole = (payload['custom:userRole'] ?? payload['role']) as string | undefined;
+        const classification = classifyJwtPayload(payload);
         const userId = payload.sub as string | undefined;
         const tokenIat = payload.iat as number | undefined;
 
@@ -298,16 +306,36 @@ app.use('*', async (c, next) => {
             }
         }
 
-        if (tenantId) c.set('tenantId', tenantId);
-        if (userRole) c.set('userRole', userRole as UserRole);
-
-        // Populate the per-request user context. Email is intentionally not carried in the JWT
-        // anymore — routes that need it (e.g. /me) look it up from the DB.
-        if (userRole) {
+        // Agent Accounts A1 — JWTs minted for global agent accounts intentionally
+        // carry no `tenantId` claim. Set `agentUserId` instead so per-route
+        // handlers can resolve a tenant via resolveAgentTenant() and confirm the
+        // active link before any tenant-scoped query runs.
+        if (classification?.kind === 'agent') {
+            c.set('userRole', 'agent' as UserRole);
+            c.set('agentUserId', classification.userId);
             c.set('user', {
-                sub: payload.sub as string,
-                role: userRole as UserRole,
-                tenantId: tenantId as string
+                sub: classification.userId,
+                role: 'agent',
+                // tenantId intentionally undefined — per-route resolution required.
+            });
+        } else if (classification?.kind === 'tenant') {
+            c.set('tenantId', classification.tenantId);
+            c.set('userRole', classification.role);
+            // Populate the per-request user context. Email is intentionally not carried in the JWT
+            // anymore — routes that need it (e.g. /me) look it up from the DB.
+            c.set('user', {
+                sub: classification.userId,
+                role: classification.role,
+                tenantId: classification.tenantId,
+            });
+        } else if (classification?.kind === 'unscoped') {
+            // Inspector-class role without a tenantId claim — historically this branch
+            // was tolerated. Preserve behavior for backwards-safety on existing tokens.
+            c.set('userRole', classification.role);
+            c.set('user', {
+                sub: classification.userId,
+                role: classification.role,
+                tenantId: '' as string,
             });
         }
 
@@ -387,6 +415,10 @@ app.route('/api/profile', profileRoutes);
 app.route('/api/public', repairRequestRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/agent', agentRoutes);
+// Agent Accounts A1 — invite + accept endpoints
+app.route('/api/agents', agentsRoutes);
+// Agent Accounts A1 — self-serve signup
+app.route('/api/agent-signup', agentSignupRoutes);
 app.route('/api/places', placesRoutes);
 app.route('/api/availability', availabilityRoutes);
 // Mount /api/calendar/events BEFORE /api/calendar so the more-specific path takes precedence.
@@ -483,6 +515,61 @@ app.get('/login', async (c) => {
 
 app.get('/setup', (c) => {
     return c.html(SetupPage({ branding: c.get('branding') }));
+});
+
+// Agent Accounts A1 — public invite acceptance landing.
+// Lifecycle: missing/unknown/expired/used token -> friendly recovery page (410).
+// Valid token -> personal hero + 3 value props + accept-form (HTTP 200).
+app.get('/agent-invite/accept', async (c) => {
+    const branding = c.get('branding');
+    const token = c.req.query('token');
+    if (!token) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'no-token',
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    const invite = await c.var.services.agent.resolveInvite(token);
+    if (!invite) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'unknown',
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    if (invite.used) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'used',
+            inviterName: invite.inspector.name,
+            ...(invite.inviterEmail ? { inviterEmail: invite.inviterEmail } : {}),
+            tenantName: invite.tenantName,
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    if (invite.expired) {
+        return c.html(AgentInviteExpiredPage({
+            reason: 'expired',
+            inviterName: invite.inspector.name,
+            ...(invite.inviterEmail ? { inviterEmail: invite.inviterEmail } : {}),
+            tenantName: invite.tenantName,
+            ...(branding ? { branding } : {}),
+        }), 410);
+    }
+    return c.html(AgentInviteAcceptPage({
+        token,
+        inspector: { name: invite.inspector.name },
+        tenantName: invite.tenantName,
+        inviteEmail: invite.email,
+        ...(branding ? { branding } : {}),
+    }));
+});
+
+// Agent Accounts A1 — self-serve agent signup landing.
+app.get('/agent-signup', (c) => {
+    const branding = c.get('branding');
+    return c.html(AgentSignupPage({
+        ...(c.env.TURNSTILE_SITE_KEY ? { siteKey: c.env.TURNSTILE_SITE_KEY } : {}),
+        ...(branding ? { branding } : {}),
+    }));
 });
 
 
@@ -1446,7 +1533,31 @@ app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));
 });
-app.get('/agent-dashboard', htmlAuthGuard(['agent']), (c) => c.html(AgentDashboardPage({ branding: c.get('branding') })));
+app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
+    const branding = c.get('branding');
+    const user = c.get('user');
+    let agentName: string | undefined;
+    // Best-effort lookup of the agent's display name. Agents have tenant_id NULL,
+    // so the standard scoped service can't find them — query directly.
+    if (user?.sub) {
+        try {
+            const { drizzle } = await import('drizzle-orm/d1');
+            const { users: usersTable } = await import('./lib/db/schema/tenant');
+            const { eq } = await import('drizzle-orm');
+            const db = drizzle(c.env.DB);
+            const row = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, user.sub)).get();
+            if (row?.name) agentName = row.name;
+        } catch (err) {
+            logger.warn('agent.dashboard.name.lookup.failed', {
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+    return c.html(AgentDashboardPage({
+        ...(branding ? { branding } : {}),
+        ...(agentName ? { agentName } : {}),
+    }));
+});
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
 app.get('/templates/:id/edit', htmlAuthGuard(['owner', 'admin']), (c) => {
     const id = c.req.param('id') as string;

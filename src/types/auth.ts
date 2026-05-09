@@ -1,6 +1,9 @@
 export interface User {
     sub: string;
     role: 'owner' | 'admin' | 'inspector' | 'agent';
+    // Agent Accounts A1 — tenantId is undefined for global agent accounts
+    // (role='agent'). Each agent route resolves the active tenant per-request
+    // via `resolveAgentTenant()`.
     tenantId?: string;
 }
 
@@ -35,6 +38,10 @@ export interface AuthVariables {
     resolvedTenantId?: string; // Explicitly tracked for isolation guard
     user: User;
     userRole: UserRole;
+    // Agent Accounts A1 — set by JWT middleware on the role=agent branch.
+    // Mirrors `user.sub` but lets agent-only handlers stay narrowly typed
+    // without re-deriving from the broader User payload.
+    agentUserId?: string;
     requestedSubdomain?: string;
     tenantTier?: string;
     tenantStatus?: string;

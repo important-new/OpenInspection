@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const tenants = sqliteTable('tenants', {
@@ -15,7 +15,10 @@ export const tenants = sqliteTable('tenants', {
 
 export const users = sqliteTable('users', {
     id: text('id').primaryKey(),
-    tenantId: text('tenant_id').notNull().references(() => tenants.id),
+    // Agent Accounts A1 — nullable: NULL only when role='agent' (global account
+    // accessing multiple tenants via agent_tenant_links). Inspector / owner /
+    // admin accounts still always carry a tenant_id.
+    tenantId: text('tenant_id').references(() => tenants.id),
     email: text('email').unique().notNull(),
     passwordHash: text('password_hash').notNull(),
     name: text('name'),
@@ -132,6 +135,45 @@ export const auditLogs = sqliteTable('audit_logs', {
 }, (t) => [
     index('idx_audit_tenant_created').on(t.tenantId, t.createdAt),
     index('idx_audit_entity').on(t.entityType, t.entityId),
+]);
+
+// Agent Accounts A1 — multi-to-multi link between global agent users and the
+// tenants they have access to. One row per (agent_user_id, tenant_id). Created
+// either by an explicit invite (POST /api/agents/invite -> accept) or by the
+// same-email auto-link routine that converges contact rows with matching email.
+export const agentTenantLinks = sqliteTable('agent_tenant_links', {
+    id:                  text('id').primaryKey(),
+    agentUserId:         text('agent_user_id').notNull().references(() => users.id),
+    tenantId:            text('tenant_id').notNull().references(() => tenants.id),
+    // Optional pointer to the contacts row this link was promoted from. NULL
+    // when the agent self-signed-up before the inspector added them as a contact.
+    inspectorContactId:  text('inspector_contact_id'),
+    status:              text('status').notNull().default('active'), // pending | active | revoked
+    invitedByUserId:     text('invited_by_user_id'),
+    createdAt:           integer('created_at', { mode: 'timestamp' }).notNull(),
+    revokedAt:           integer('revoked_at', { mode: 'timestamp' }),
+}, (t) => [
+    uniqueIndex('idx_agent_tenant_unique').on(t.agentUserId, t.tenantId),
+    index('idx_agent_tenant_by_tenant').on(t.tenantId, t.status),
+    index('idx_agent_tenant_by_agent').on(t.agentUserId, t.status),
+]);
+
+// Agent Accounts A1 — invite tokens minted by inspectors via POST /api/agents/invite.
+// 7-day TTL. accepted_at flips to a timestamp once the recipient claims the invite;
+// expired/used tokens are kept for audit (we don't delete them).
+export const agentInvites = sqliteTable('agent_invites', {
+    token:               text('token').primaryKey(),
+    tenantId:            text('tenant_id').notNull().references(() => tenants.id),
+    inspectorContactId:  text('inspector_contact_id'),
+    email:               text('email').notNull(),
+    invitedByUserId:     text('invited_by_user_id').notNull().references(() => users.id),
+    expiresAt:           integer('expires_at', { mode: 'timestamp' }).notNull(),
+    acceptedAt:          integer('accepted_at', { mode: 'timestamp' }),
+    createdAt:           integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (t) => [
+    index('idx_agent_invites_email').on(t.email),
+    index('idx_agent_invites_tenant').on(t.tenantId),
+    index('idx_agent_invites_expiration').on(t.expiresAt),
 ]);
 
 export const notifications = sqliteTable('notifications', {

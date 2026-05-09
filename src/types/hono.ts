@@ -112,6 +112,7 @@ import { TagService } from '../services/tag.service';
 import { PropertyLookupService } from '../services/property-lookup.service';
 import { UserService } from '../services/user.service';
 import { IcsService } from '../services/ics.service';
+import { AgentService } from '../services/agent.service';
 import { AuthVariables } from './auth';
 
 /**
@@ -154,6 +155,8 @@ export interface AppServices {
     propertyLookup: PropertyLookupService;
     user: UserService;
     ics: IcsService;
+    // Agent Accounts A1
+    agent: AgentService;
 }
 
 /**
