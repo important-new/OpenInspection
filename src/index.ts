@@ -31,6 +31,7 @@ import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
 import { AgentInspectorsPage } from './templates/pages/agent-inspectors';
+import { AgentSettingsProfilePage } from './templates/pages/agent-settings-profile';
 import { AgentInviteAcceptPage } from './templates/pages/agent-invite-accept';
 import { AgentInviteExpiredPage } from './templates/pages/agent-invite-expired';
 import { AgentSignupPage } from './templates/pages/agent-signup';
@@ -1601,6 +1602,36 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         agent: { name: agentName, slug: agentSlug },
         inspectors,
         hostSuffix,
+    }));
+});
+// Agent Accounts A2 — /agent-settings/profile slug + 3 notification toggles.
+app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
+    const branding = c.get('branding');
+    const user = c.get('user');
+    if (!user?.sub) return c.redirect('/login');
+    const db = drizzle(c.env.DB);
+    const row = await db.select({
+        name:             schema.users.name,
+        email:            schema.users.email,
+        slug:             schema.users.slug,
+        notifyOnReferral: schema.users.notifyOnReferral,
+        notifyOnReport:   schema.users.notifyOnReport,
+        notifyOnPaid:     schema.users.notifyOnPaid,
+    })
+        .from(schema.users)
+        .where(eq(schema.users.id, user.sub))
+        .get();
+    if (!row) return c.redirect('/login');
+    return c.html(AgentSettingsProfilePage({
+        ...(branding ? { branding } : {}),
+        agent: {
+            name:             row.name,
+            email:            row.email,
+            slug:             row.slug,
+            notifyOnReferral: row.notifyOnReferral,
+            notifyOnReport:   row.notifyOnReport,
+            notifyOnPaid:     row.notifyOnPaid,
+        },
     }));
 });
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
