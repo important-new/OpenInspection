@@ -80,7 +80,7 @@ export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector, 
 
                     <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 md:p-10">
                         <div class="mb-8 space-y-2">
-                            <h1 class="text-[22px] font-bold tracking-tight text-slate-900">Schedule an inspection</h1>
+                            <h1 class="text-slate-900" style="font-family: Fraunces, Georgia, serif; font-size: 36px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; margin: 0;">Schedule an inspection</h1>
                             <p class="text-[14px] text-slate-500 leading-relaxed">Tell us about the property and pick a time that works.</p>
                         </div>
 

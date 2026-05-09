@@ -161,6 +161,11 @@ export const AgentDashboardPage = ({
                         border-radius: 16px;
                         padding: 1.25rem 1.5rem;
                         display: flex; flex-direction: column; gap: 0.5rem;
+                        /* Tactile lift — without it the cards merge into the
+                           cream page background and read as outlined boxes
+                           rather than discrete tiles. Subtle to keep the
+                           editorial paper feel. */
+                        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
                     }
                     .stat-eyebrow {
                         font-size: 0.6875rem; font-weight: 700;
