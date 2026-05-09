@@ -45,7 +45,7 @@ app.openapi(checkSlugRoute, async (c) => {
     if (!tenantId) {
         return c.json({ success: true as const, data: { available: false, reason: 'invalid' as const } }, 200);
     }
-    const result = await c.var.services.userService.checkSlug(tenantId, value);
+    const result = await c.var.services.user.checkSlug(tenantId, value);
     return c.json({ success: true as const, data: result }, 200);
 });
 

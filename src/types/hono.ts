@@ -151,7 +151,7 @@ export interface AppServices {
     dashboardPrefs: DashboardPrefsService;
     tag: TagService;
     propertyLookup: PropertyLookupService;
-    userService: UserService;
+    user: UserService;
 }
 
 /**

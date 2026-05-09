@@ -56,7 +56,7 @@ app.openapi(setSlugRoute, async (c) => {
     if (!userId || !tenantId) throw Errors.Unauthorized();
 
     const { slug } = c.req.valid('json');
-    const userService = c.var.services.userService;
+    const userService = c.var.services.user;
     const check = await userService.checkSlug(tenantId, slug, userId);
     if (!check.available) {
         const message = check.reason === 'reserved'

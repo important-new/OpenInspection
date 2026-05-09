@@ -471,7 +471,7 @@ app.get('/book/:slug', async (c) => {
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
     const inspector = tenantId
-        ? await c.var.services.userService.findBySlug(tenantId, slug)
+        ? await c.var.services.user.findBySlug(tenantId, slug)
         : null;
     if (!inspector) {
         return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);

@@ -189,8 +189,8 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         ESTATED_API_KEY: c.env.ESTATED_API_KEY,
                     });
                     break;
-                case 'userService':
-                    target.userService = new UserService(c.env.DB);
+                case 'user':
+                    target.user = new UserService(c.env.DB);
                     break;
             }
             return target[prop];
