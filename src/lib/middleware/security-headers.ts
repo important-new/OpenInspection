@@ -17,10 +17,13 @@ import { HonoConfig } from '../../types/hono';
 export const securityHeaders: MiddlewareHandler<HonoConfig> = async (c, next) => {
     await next();
 
-    // B2: /book?embed=1 is the embeddable booking widget — must allow framing
-    // by any origin. Origin-allowlist enforcement on the actual booking submit
-    // (POST /api/public/book) is the security boundary, not frame-ancestors.
-    const isWidgetEmbed = c.req.path === '/book' && c.req.query('embed') === '1';
+    // B2: /book?embed=1 (legacy) and Sprint C-4 /embed/book/<slug> are the
+    // embeddable booking widgets — must allow framing by any origin. Origin-
+    // allowlist enforcement on the actual booking submit (POST /api/public/book)
+    // is the security boundary, not frame-ancestors.
+    const isWidgetEmbed =
+        (c.req.path === '/book' && c.req.query('embed') === '1') ||
+        c.req.path.startsWith('/embed/');
 
     // NOTE: 'unsafe-inline' is needed for inline scripts in templates. 'unsafe-eval' is required
     // by Alpine.js which uses `new Function()` to evaluate x-data/x-show/x-text expressions.

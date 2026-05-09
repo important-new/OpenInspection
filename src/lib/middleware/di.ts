@@ -34,6 +34,7 @@ import { DashboardPrefsService } from '../../services/dashboard-prefs.service';
 import { TagService } from '../../services/tag.service';
 import { PropertyLookupService } from '../../services/property-lookup.service';
 import { UserService } from '../../services/user.service';
+import { IcsService } from '../../services/ics.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -191,6 +192,16 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     break;
                 case 'user':
                     target.user = new UserService(c.env.DB);
+                    break;
+                case 'ics':
+                    {
+                        // Booking #7 Sprint C-2 — busy-only inspector calendar.
+                        // Host derived from APP_BASE_URL when set so UID values
+                        // are stable across environments; falls back to a
+                        // generic 'openinspection' tag in local dev.
+                        const host = c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'openinspection';
+                        target.ics = new IcsService(c.env.DB, host);
+                    }
                     break;
             }
             return target[prop];

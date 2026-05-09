@@ -1,8 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { drizzle } from 'drizzle-orm/d1';
+import { and, eq } from 'drizzle-orm';
 import type { HonoConfig } from '../types/hono';
 import { ErrorCode, Errors } from '../lib/errors';
 import { SetSlugRequestSchema } from '../lib/validations/profile.schema';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
+import { users } from '../lib/db/schema/tenant';
+import { logger } from '../lib/logger';
 
 /**
  * Booking #7 Sprint A — authenticated profile endpoint mounted at
@@ -76,6 +80,127 @@ app.openapi(setSlugRoute, async (c) => {
     }
     await userService.setSlug(userId, tenantId, slug);
     return c.json({ success: true as const, data: { slug } }, 200);
+});
+
+// ── Sprint C-1 — profile photo upload + bio/service-areas details ──────────────
+
+const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const MAX_PHOTO_BYTES = 2_000_000;
+
+const photoUploadRoute = createRoute({
+    method: 'post',
+    path: '/photo',
+    tags: ['Profile'],
+    summary: 'Upload inspector profile photo (Sprint C-1)',
+    request: {
+        body: {
+            content: {
+                'multipart/form-data': { schema: z.object({ photo: z.any() }) },
+            },
+        },
+    },
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: createApiResponseSchema(z.object({ photoUrl: z.string() })),
+                },
+            },
+            description: 'Uploaded',
+        },
+    },
+});
+
+app.openapi(photoUploadRoute, async (c) => {
+    const userId = c.get('user')?.sub;
+    const tenantId = c.get('tenantId');
+    if (!userId || !tenantId) throw Errors.Unauthorized();
+
+    if (!c.env.PHOTOS) throw Errors.BadRequest('Photo storage not available');
+
+    const fd = await c.req.parseBody();
+    const file = fd['photo'];
+    if (!(file instanceof File)) throw Errors.BadRequest('photo missing');
+    if (file.size > MAX_PHOTO_BYTES) {
+        throw Errors.BadRequest(`photo > ${Math.round(MAX_PHOTO_BYTES / 1_000_000)}MB`);
+    }
+    if (!(ALLOWED_PHOTO_TYPES as readonly string[]).includes(file.type)) {
+        throw Errors.BadRequest('photo must be jpg, png, or webp');
+    }
+
+    const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/png' ? 'png' : 'webp';
+    // Tenant-prefixed key keeps cross-tenant photos isolated even though the
+    // serving route at /photos/:key is public — keys are unguessable + scoped.
+    const key = `tenants/${tenantId}/inspector-photos/${userId}.${ext}`;
+    const buf = new Uint8Array(await file.arrayBuffer());
+    await c.env.PHOTOS.put(key, buf, { httpMetadata: { contentType: file.type } });
+
+    const host = (c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')) || c.req.header('host') || '';
+    const proto = c.env.APP_BASE_URL?.startsWith('http://') ? 'http' : 'https';
+    const photoUrl = `${proto}://${host}/photos/${key}`;
+    await drizzle(c.env.DB).update(users)
+        .set({ photoUrl })
+        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+
+    logger.info('profile.photo.upload', { userId, tenantId, size: file.size, type: file.type });
+    return c.json({ success: true as const, data: { photoUrl } }, 200);
+});
+
+const ProfileDetailsSchema = z.object({
+    bio: z.string().max(600).nullable().optional(),
+    serviceAreas: z.array(z.object({
+        city: z.string().min(1).max(80),
+        state: z.string().min(1).max(40),
+        zip: z.string().min(1).max(20),
+    })).max(20).optional(),
+});
+
+const detailsRoute = createRoute({
+    method: 'post',
+    path: '/details',
+    tags: ['Profile'],
+    summary: 'Update inspector bio + service areas (Sprint C-1)',
+    request: {
+        body: {
+            content: { 'application/json': { schema: ProfileDetailsSchema } },
+        },
+    },
+    responses: {
+        200: {
+            content: {
+                'application/json': {
+                    schema: createApiResponseSchema(z.object({}).passthrough()),
+                },
+            },
+            description: 'Saved',
+        },
+    },
+});
+
+app.openapi(detailsRoute, async (c) => {
+    const userId = c.get('user')?.sub;
+    const tenantId = c.get('tenantId');
+    if (!userId || !tenantId) throw Errors.Unauthorized();
+
+    const body = c.req.valid('json');
+    const updates: { bio?: string | null; serviceAreas?: string } = {};
+    if (body.bio !== undefined) updates.bio = body.bio;
+    if (body.serviceAreas !== undefined) {
+        updates.serviceAreas = JSON.stringify(body.serviceAreas);
+    }
+    if (Object.keys(updates).length === 0) {
+        return c.json({ success: true as const, data: {} }, 200);
+    }
+    await drizzle(c.env.DB).update(users)
+        .set(updates)
+        .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
+
+    logger.info('profile.details.update', {
+        userId,
+        tenantId,
+        fields: Object.keys(updates).join(','),
+    });
+    return c.json({ success: true as const, data: {} }, 200);
 });
 
 export default app;

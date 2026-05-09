@@ -72,6 +72,9 @@ import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { NotFoundPage } from './templates/pages/not-found';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
+import { InspectorProfilePage } from './templates/pages/inspector-profile';
+import { InspectorNotFoundPage } from './templates/pages/inspector-not-found';
+import { BookingEmbedPage } from './templates/pages/booking-embed';
 
 
 import coreAuthRoutes from './api/auth';
@@ -180,6 +183,24 @@ app.get('/vendor/*', serveStatic(staticOpts({ root: './' })));
 app.get('/fonts.css', serveStatic(staticOpts({ path: './fonts.css' })));
 app.get('/fonts/*', serveStatic(staticOpts({ root: './' })));
 
+// Booking #7 Sprint C-1 — public R2 photo passthrough used by inspector
+// profile photos uploaded via POST /api/profile/photo. The R2 key is
+// tenant-prefixed and includes the userId, so it isn't guessable; only
+// inspector-photos/* paths are exposed to keep other tenant assets private.
+app.get('/photos/tenants/:tenantId/inspector-photos/:filename', async (c) => {
+    const tenantId = c.req.param('tenantId');
+    const filename = c.req.param('filename');
+    if (!c.env.PHOTOS) return c.notFound();
+    const key = `tenants/${tenantId}/inspector-photos/${filename}`;
+    const obj = await c.env.PHOTOS.get(key);
+    if (!obj) return c.notFound();
+    const headers = new Headers();
+    obj.writeHttpMetadata(headers);
+    headers.set('Cache-Control', 'public, max-age=86400');
+    headers.set('etag', obj.httpEtag);
+    return new Response(obj.body, { headers });
+});
+
 // Global Middlewares
 app.use('*', securityHeaders);
 app.use('*', diMiddleware);
@@ -195,7 +216,7 @@ const STATIC_ASSET_EXT = /\.(css|js|mjs|map|png|jpe?g|gif|svg|ico|webp|woff2?|tt
 app.use('*', async (c, next) => {
     const path = c.req.path;
     const isAuthPublic = path === '/api/auth/login' || path === '/api/auth/register' || path === '/api/auth/setup' || path === '/api/auth/login/2fa';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
 
     if (isAuthPublic || isPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
@@ -471,6 +492,74 @@ app.get('/setup', (c) => {
 app.get('/book', (c) => {
     const branding = c.get('branding');
     return c.html(BookingNoSlugLandingPage({ ...(branding ? { branding } : {}) }));
+});
+
+// Booking #7 Sprint C-1 — public editorial profile page. Served before
+// /book/:slug so an inspector can share /inspector/<slug> as the SEO surface
+// and the customer falls through to /book/<slug> via the page CTA.
+app.get('/inspector/:slug', async (c) => {
+    const slug = c.req.param('slug');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    const branding = c.get('branding');
+    if (!tenantId) {
+        return c.html(InspectorNotFoundPage({ slug, companyName: branding?.siteName }), 404);
+    }
+    const profile = await c.var.services.user.getProfileBySlug(tenantId, slug);
+    if (!profile) {
+        return c.html(InspectorNotFoundPage({ slug, companyName: branding?.siteName }), 404);
+    }
+    const services = await c.var.services.service.listServices(tenantId).catch(() => []);
+    const catalog = services.map(s => ({
+        name: s.name,
+        durationMinutes: s.durationMinutes,
+        price: s.price,
+    }));
+    const host = (c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')) || c.req.header('host') || '';
+    return c.html(InspectorProfilePage({ profile, services: catalog, host }));
+});
+
+// Booking #7 Sprint C-4 — iframe-friendly booking widget at /embed/book/<slug>.
+// Renders a chrome-less booking form. The security-headers middleware drops
+// X-Frame-Options + sets `frame-ancestors *` for any path under /embed/, so
+// the iframe loads on any host page. The actual booking submit at
+// POST /api/public/book still enforces the per-tenant origin allowlist
+// configured in Settings → Embed Widget.
+app.get('/embed/book/:slug', async (c) => {
+    const slug = c.req.param('slug');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    if (!tenantId) return c.text('Not found', 404);
+    const inspector = await c.var.services.user.findBySlug(tenantId, slug);
+    if (!inspector) return c.text('Not found', 404);
+    const branding = c.get('branding');
+    const styleParam = c.req.query('style');
+    const variant: 'full' | 'compact' = styleParam === 'compact' ? 'compact' : 'full';
+    return c.html(BookingEmbedPage({
+        slug,
+        inspectorId: inspector.id,
+        inspectorName: inspector.name ?? inspector.email ?? 'Inspector',
+        tenantSubdomain: branding?.bookingHost?.split('.')[0] ?? '',
+        siteKey: c.env.TURNSTILE_SITE_KEY ?? '',
+        style: variant,
+    }));
+});
+
+// Booking #7 Sprint C-2 — busy-only iCal feed. Subscribers (partner agents,
+// the inspector's own personal calendar) see opaque "Busy" blocks with no
+// addresses, client names, or emails. Cancelled inspections drop out so
+// freed slots become bookable again.
+app.get('/inspector/:slug/calendar.ics', async (c) => {
+    const slug = c.req.param('slug');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    if (!tenantId) return c.text('Not found', 404);
+    const ics = await c.var.services.ics.busyFeedForInspector(tenantId, slug);
+    return new Response(ics, {
+        status: 200,
+        headers: {
+            'Content-Type': 'text/calendar; charset=utf-8',
+            'Cache-Control': 'public, max-age=300',
+            'Content-Disposition': `inline; filename="${slug}-busy.ics"`,
+        },
+    });
 });
 
 app.get('/book/:slug', async (c) => {
@@ -1393,6 +1482,10 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
                 email:         schema.users.email,
                 phone:         schema.users.phone,
                 licenseNumber: schema.users.licenseNumber,
+                // Sprint C-1 — public profile fields used by the new editor.
+                bio:           schema.users.bio,
+                photoUrl:      schema.users.photoUrl,
+                serviceAreas:  schema.users.serviceAreas,
             }).from(schema.users)
                 .where(and(eq(schema.users.id, userId), eq(schema.users.tenantId, tenantId)))
                 .get()
@@ -1403,6 +1496,19 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
                 .get()
             : Promise.resolve(null),
     ]);
+    // Sprint C-1 — parse persisted serviceAreas JSON for the editor. Defensive
+    // try/catch keeps a malformed blob from breaking the whole settings page.
+    let parsedAreas: Array<{ city: string; state: string; zip: string }> = [];
+    if (userRow?.serviceAreas) {
+        try {
+            const parsed = JSON.parse(userRow.serviceAreas);
+            if (Array.isArray(parsed)) {
+                parsedAreas = parsed.filter((a) =>
+                    a && typeof a === 'object' && typeof a.city === 'string' && typeof a.state === 'string' && typeof a.zip === 'string',
+                );
+            }
+        } catch { /* malformed blob — render empty list */ }
+    }
     return c.html(SettingsProfilePage({
         ...(branding ? { branding } : {}),
         currentSlug: userRow?.slug ?? null,
@@ -1412,6 +1518,11 @@ app.get('/settings/profile', htmlAuthGuard(['owner', 'admin', 'inspector']), asy
             email:         userRow.email,
             phone:         userRow.phone,
             licenseNumber: userRow.licenseNumber,
+        } : null,
+        currentProfile: userRow ? {
+            bio:          userRow.bio,
+            photoUrl:     userRow.photoUrl,
+            serviceAreas: parsedAreas,
         } : null,
     }));
 });
@@ -1473,7 +1584,14 @@ app.get('/settings/catalog/event-types', htmlAuthGuard(['owner', 'admin']), (c) 
 });
 app.get('/settings/catalog/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
     const b = c.get('branding');
-    return c.html(SettingsWidgetPage(b ? { branding: b } : {}));
+    // Sprint C-4 — pass slug + bookingHost so the personal-snippet generator
+    // can render. Both come from the inspectorPaletteMiddleware that already
+    // populates branding for the ⌘K palette.
+    return c.html(SettingsWidgetPage({
+        ...(b ? { branding: b } : {}),
+        currentUserSlug: b?.currentUserSlug ?? null,
+        bookingHost: b?.bookingHost ?? '',
+    }));
 });
 
 // Communication group

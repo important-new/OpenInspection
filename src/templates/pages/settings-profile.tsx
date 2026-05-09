@@ -28,6 +28,17 @@ interface Props {
         phone?: string | null;
         licenseNumber?: string | null;
     } | null;
+    /**
+     * Booking #7 Sprint C-1 — public-profile editable fields (bio, photo,
+     * service areas). Optional so a brand-new user without saved values still
+     * gets a usable editor. Service areas accept up to 20 entries; the
+     * service-side route enforces the same cap.
+     */
+    currentProfile?: {
+        bio?: string | null;
+        photoUrl?: string | null;
+        serviceAreas?: Array<{ city: string; state: string; zip: string }>;
+    } | null;
 }
 
 /**
@@ -37,7 +48,7 @@ interface Props {
  * `/api/public/check/slug` for live availability and posts to
  * `/api/profile/slug` to save.
  */
-export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, currentUser }: Props): JSX.Element => {
+export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, currentUser, currentProfile }: Props): JSX.Element => {
     const slug = currentSlug ?? null;
     const subdomain = tenantSubdomain ?? '';
     const bookingLink = slug && subdomain
@@ -47,6 +58,11 @@ export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, cu
     // slug (no rebooking link to point at otherwise).
     const sigHost = subdomain ? `${subdomain}.inspectorhub.io` : '';
     const showSignatureCard = !!slug && !!sigHost;
+    // Sprint C-1 — public profile section state.
+    const profileBio = currentProfile?.bio ?? '';
+    const profilePhotoUrl = currentProfile?.photoUrl ?? '';
+    const profileAreas = currentProfile?.serviceAreas ?? [];
+    const profileAreasJson = JSON.stringify(profileAreas);
     return (
         <SettingsLayout
             branding={branding}
@@ -180,6 +196,131 @@ export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, cu
                 </dialog>
             </section>
 
+            {/* Booking #7 Sprint C-1 — Public profile editor.
+                Bio + service areas POST to /api/profile/details.
+                Photo POSTs multipart to /api/profile/photo. */}
+            <section
+                data-testid="settings-profile-public-card"
+                class="bg-white rounded-lg border border-surface-200 p-6 space-y-6 mt-6"
+            >
+                <header class="space-y-1">
+                    <h3 class="text-[11px] font-bold text-ink-500 uppercase tracking-[0.2em]">Public profile</h3>
+                    <p class="text-xs text-ink-500">
+                        Photo, bio, and service areas appear on your <code class="font-mono text-ink-700">/inspector/{slug ?? 'your-slug'}</code> page.
+                    </p>
+                </header>
+
+                {/* Photo uploader */}
+                <div
+                    data-testid="settings-profile-photo-uploader"
+                    class="space-y-2"
+                >
+                    <label class="block text-[13px] font-semibold text-ink-900">Profile photo</label>
+                    <div class="flex items-center gap-4">
+                        <div
+                            id="profilePhotoPreview"
+                            data-testid="settings-profile-photo-preview"
+                            data-photo-url={profilePhotoUrl}
+                            class="w-24 h-24 rounded-full bg-surface-100 border border-surface-200 overflow-hidden flex items-center justify-center text-ink-400 text-xs"
+                        >
+                            {profilePhotoUrl ? (
+                                <img src={profilePhotoUrl} alt="Current profile photo" class="w-full h-full object-cover" />
+                            ) : (
+                                <span>No photo</span>
+                            )}
+                        </div>
+                        <div class="space-y-2">
+                            <input
+                                type="file"
+                                id="profilePhotoFile"
+                                data-testid="settings-profile-photo-file"
+                                accept="image/jpeg,image/png,image/webp"
+                                class="block text-xs"
+                            />
+                            <p class="text-[11px] text-ink-500">JPG, PNG, or WebP. Max 2MB. Square crop renders best.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bio */}
+                <div class="space-y-2">
+                    <label for="profileBio" class="block text-[13px] font-semibold text-ink-900">Bio</label>
+                    <textarea
+                        id="profileBio"
+                        data-testid="settings-profile-bio"
+                        rows={4}
+                        maxlength={600}
+                        placeholder="Tell customers a bit about your background, certifications, and inspection style."
+                        class="block w-full rounded-md border border-surface-200 px-3 py-2 text-sm focus:border-blueprint-500 focus:ring-2 focus:ring-blueprint-200 outline-none transition-colors"
+                    >{profileBio}</textarea>
+                    <p
+                        id="profileBioCounter"
+                        data-testid="settings-profile-bio-counter"
+                        class="text-[11px] text-ink-500"
+                    >{profileBio.length} / 600</p>
+                </div>
+
+                {/* Service areas editor */}
+                <div
+                    data-testid="settings-profile-areas-editor"
+                    class="space-y-2"
+                    data-initial-areas={profileAreasJson}
+                >
+                    <label class="block text-[13px] font-semibold text-ink-900">Service areas</label>
+                    <p class="text-[11px] text-ink-500">Cities you regularly serve. Up to 20 entries.</p>
+                    <div id="profileAreasList" class="space-y-2">
+                        {profileAreas.map((a, i) => (
+                            <div class="flex gap-2 items-center" data-testid="settings-profile-area-row" data-area-index={i}>
+                                <input
+                                    type="text"
+                                    placeholder="City"
+                                    value={a.city}
+                                    data-area-field="city"
+                                    class="flex-1 rounded-md border border-surface-200 px-3 py-2 text-sm"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="State"
+                                    value={a.state}
+                                    maxlength={4}
+                                    data-area-field="state"
+                                    class="w-20 rounded-md border border-surface-200 px-3 py-2 text-sm uppercase"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="ZIP"
+                                    value={a.zip}
+                                    maxlength={10}
+                                    data-area-field="zip"
+                                    class="w-24 rounded-md border border-surface-200 px-3 py-2 text-sm"
+                                />
+                                <button
+                                    type="button"
+                                    data-testid="settings-profile-area-remove"
+                                    class="text-xs text-rose-600 hover:underline"
+                                    data-area-action="remove"
+                                >Remove</button>
+                            </div>
+                        ))}
+                    </div>
+                    <button
+                        type="button"
+                        id="profileAreaAdd"
+                        data-testid="settings-profile-area-add"
+                        class="text-xs font-semibold text-blueprint-600 hover:underline"
+                    >+ Add area</button>
+                </div>
+
+                <div class="flex justify-end pt-2 border-t border-surface-200">
+                    <button
+                        type="button"
+                        id="saveProfilePublicBtn"
+                        data-testid="settings-profile-public-save"
+                        class="px-4 py-2 bg-blueprint-500 text-white rounded-md font-bold text-sm hover:bg-blueprint-700 active:scale-[.98] transition-all disabled:bg-surface-200 disabled:cursor-not-allowed"
+                    >Save Profile</button>
+                </div>
+            </section>
+
             {/* Sprint B-4b — My email signature card. Renders only when the
                 user has a slug (otherwise the rebooking-link line is empty
                 and the card has nothing inspector-specific to preview). */}
@@ -237,6 +378,8 @@ export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, cu
             <script src="/js/settings.js"></script>
             <script src="/js/settings-profile-slug.js"></script>
             <script src="/js/settings-profile-signature.js"></script>
+            <script src="/js/settings-profile-photo.js"></script>
+            <script src="/js/settings-profile-public.js"></script>
         </SettingsLayout>
     );
 };

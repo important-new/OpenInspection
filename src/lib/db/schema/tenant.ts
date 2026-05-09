@@ -21,6 +21,13 @@ export const users = sqliteTable('users', {
     name: text('name'),
     phone: text('phone'),
     licenseNumber: text('license_number'),
+    // Booking #7 Sprint C-1 — public inspector profile fields, all nullable so
+    // the editorial profile page can render gracefully when an inspector hasn't
+    // completed their profile yet. `serviceAreas` stores a JSON array of
+    // {city, state, zip} objects; parsed/validated in UserService.getProfileBySlug.
+    photoUrl: text('photo_url'),
+    bio: text('bio'),
+    serviceAreas: text('service_areas'),
     // Booking #7 Sprint A — per-tenant unique inspector slug used for /book/<slug>.
     // Nullable until the inspector picks one. Per-tenant uniqueness enforced via
     // partial index `idx_users_slug_per_tenant` (migrations/0052_inspector_slug.sql).
