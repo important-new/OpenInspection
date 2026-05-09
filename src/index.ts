@@ -750,12 +750,17 @@ app.get('/book/:slug', async (c) => {
     // Same no-email-leak rule as /embed/book — fall back to tenant brand,
     // then a polite literal, before ever exposing the admin inbox.
     const displayName = inspector.name || branding?.siteName || 'Your inspector';
+    // UC-A-1 — preserve the ?ref=<agentSlug> param so the form can submit
+    // it as a hidden field. Server resolves the slug at booking submit time.
+    const refRaw = c.req.query('ref');
+    const agentRefSlug = refRaw && /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(refRaw) ? refRaw : undefined;
     return c.html(PublicBookingPage({
         siteKey: c.env.TURNSTILE_SITE_KEY,
         ...(branding ? { branding } : {}),
         embed,
         style,
         inspector: { id: inspector.id, name: displayName },
+        ...(agentRefSlug ? { agentRefSlug } : {}),
     }));
 });
 

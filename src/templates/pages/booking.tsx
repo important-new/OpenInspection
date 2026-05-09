@@ -16,6 +16,14 @@ interface PublicBookingPageProps {
      *      fallback in `bookings.ts` can be removed.
      */
     inspector?: { id: string; name: string };
+    /**
+     * UC-A-1 — when the page is reached via `/book/<slug>?ref=<agentSlug>`,
+     * the route handler forwards the slug here so the form can submit it
+     * as a hidden `agentRefSlug` field. The server resolves it to the
+     * inspector's contact row for that agent and persists the resulting
+     * id on `inspections.referredByAgentId`.
+     */
+    agentRefSlug?: string;
 }
 
 /**
@@ -39,7 +47,7 @@ interface PublicBookingPageProps {
  * primary CTA, no atmospheric blob, no glass-panel new uses, no
  * font-black anywhere.
  */
-export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector }: PublicBookingPageProps): JSX.Element => {
+export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector, agentRefSlug }: PublicBookingPageProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     const isEmbed = embed === true;
     const widgetStyle = style || 'light';
@@ -90,6 +98,9 @@ export const PublicBookingPage = ({ siteKey, branding, embed, style, inspector }
                                 can be removed. */}
                             {inspector && (
                                 <input type="hidden" name="inspectorId" value={inspector.id} />
+                            )}
+                            {agentRefSlug && (
+                                <input type="hidden" name="agentRefSlug" value={agentRefSlug} />
                             )}
                             {/* ── Property ─────────────────────────────────── */}
                             <section class="space-y-5">

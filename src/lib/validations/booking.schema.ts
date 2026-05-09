@@ -25,6 +25,12 @@ export const PublicBookingSchema = z.object({
     services: z.array(z.object({
         serviceId: z.string().min(1).openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
     })).min(1).max(10).optional().openapi({ description: 'Optional list of services to book in one visit (1-10)' }),
+    // UC-A-1 — agent referral attribution. The `?ref=<agentSlug>` query param
+    // on /book/<inspectorSlug> flows through the form as a hidden field. Server
+    // resolves the slug to a global agent user, finds their active link to
+    // this tenant, and persists the linked inspectorContactId on
+    // inspections.referredByAgentId.
+    agentRefSlug: z.string().min(2).max(64).optional().openapi({ example: 'jane-tester' }),
 }).refine(
     (data) => data.timeSlot !== 'custom' || !!data.customTime,
     { message: 'customTime is required when timeSlot is custom', path: ['customTime'] },

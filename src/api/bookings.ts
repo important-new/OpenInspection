@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, inArray } from 'drizzle-orm';
-import { users, inspections, services as servicesTable } from '../lib/db/schema';
+import { users, inspections, services as servicesTable, agentTenantLinks } from '../lib/db/schema';
+import { isNull } from 'drizzle-orm';
 import { createCalendarEvent } from './calendar';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
@@ -212,6 +213,46 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
     }
 
     const db = drizzle(c.env.DB);
+
+    // UC-A-1 — agent referral attribution. Resolve `?ref=<agentSlug>` (sent
+    // through the form as agentRefSlug) to a contacts.id in this tenant.
+    // Two requirements both need to hold:
+    //   1. A global agent user with that slug exists.
+    //   2. They have an `active` agent_tenant_links row for THIS tenant whose
+    //      inspectorContactId points at the agent's contact row.
+    // Either failure leaves referredByAgentId null — bookings with bad slugs
+    // still succeed; we just don't credit the (unknown) agent.
+    let resolvedAgentContactId: string | null = null;
+    if (body.agentRefSlug) {
+        try {
+            const agent = await db.select({ id: users.id })
+                .from(users)
+                .where(and(
+                    eq(users.slug, body.agentRefSlug),
+                    isNull(users.tenantId),
+                    eq(users.role, 'agent'),
+                ))
+                .get();
+            if (agent) {
+                const link = await db.select({ contactId: agentTenantLinks.inspectorContactId })
+                    .from(agentTenantLinks)
+                    .where(and(
+                        eq(agentTenantLinks.agentUserId, agent.id),
+                        eq(agentTenantLinks.tenantId, tenantId),
+                        eq(agentTenantLinks.status, 'active'),
+                    ))
+                    .get();
+                resolvedAgentContactId = link?.contactId ?? null;
+            }
+        } catch (err) {
+            logger.warn('booking.agentRef.resolve.failed', {
+                slug: body.agentRefSlug,
+                tenantId,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+
     // Booking #7 Sprint A — inspectorId is now required. The legacy
     // "first-inspector-wins" fallback was removed because the customer-facing
     // booking page now resolves an inspector via /book/<slug>, and the form
@@ -308,6 +349,7 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
             paymentStatus: 'unpaid',
             price: 0,
             requestId: createdRequestId,
+            referredByAgentId: resolvedAgentContactId,
             createdAt: now
         });
         allInspectionIds = [primaryInspectionId];
