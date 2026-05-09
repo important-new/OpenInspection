@@ -24,7 +24,7 @@ export interface SlugAvailability {
 export class UserService {
     constructor(private db: D1Database) {}
 
-    private getDB() {
+    private getDrizzle() {
         return drizzle(this.db);
     }
 
@@ -34,7 +34,7 @@ export class UserService {
      * slug may legitimately exist in multiple tenants.
      */
     async findBySlug(tenantId: string, slug: string) {
-        const db = this.getDB();
+        const db = this.getDrizzle();
         const row = await db.select().from(users)
             .where(and(eq(users.tenantId, tenantId), eq(users.slug, slug)))
             .get();
@@ -50,7 +50,7 @@ export class UserService {
      * When taken, three numeric-suffix suggestions are returned.
      */
     async checkSlug(tenantId: string, slug: string, excludeUserId?: string): Promise<SlugAvailability> {
-        const db = this.getDB();
+        const db = this.getDrizzle();
 
         const reserved = await db.select().from(slugReservations)
             .where(eq(slugReservations.slug, slug))
@@ -82,7 +82,7 @@ export class UserService {
         if (!check.available) {
             throw Errors.Conflict(`Slug not available: ${check.reason ?? 'unknown'}`);
         }
-        const db = this.getDB();
+        const db = this.getDrizzle();
         await db.update(users)
             .set({ slug })
             .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
