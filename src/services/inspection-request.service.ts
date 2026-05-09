@@ -28,6 +28,10 @@ export interface CreateRequestInput {
     scheduledAt:     string;
     notes?:          string | null;
     inspectorId?:    string | null;
+    // UC-A-1 — agent referral attribution. Resolved upstream from
+    // `?ref=<agentSlug>` to a contacts.id; copied onto every child
+    // inspection so dashboards + emails can credit the agent.
+    referredByAgentId?: string | null;
 }
 
 export interface CreateSubInspectionInput {
@@ -236,6 +240,7 @@ export class InspectionRequestService {
                 paymentStatus:            'unpaid' as const,
                 price:                    s.price ?? 0,
                 requestId,
+                referredByAgentId:        input.referredByAgentId ?? null,
                 createdAt:                now,
             };
         });

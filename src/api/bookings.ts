@@ -315,6 +315,7 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
             propertyAddress: body.address,
             scheduledAt:     startIso,
             inspectorId,
+            referredByAgentId: resolvedAgentContactId,
         }, subs);
         createdRequestId = created.id;
         allInspectionIds = created.inspections.map(i => i.id);
