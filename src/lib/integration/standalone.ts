@@ -4,6 +4,22 @@ import { tenants, users, templates } from '../db/schema';
 import { IntegrationProvider, TenantUpdateParams } from '../integration';
 import { logger } from '../logger';
 
+/**
+ * SQLite expression that generates a canonically-formatted UUID v4
+ * (8-4-4-4-12 with hyphens, version='4', variant='a'). Earlier seed code
+ * used `lower(hex(randomblob(16)))` which produced a 32-char flat hex
+ * string — Zod UUID validators on send-agreement / list-services /
+ * automation API endpoints reject those, so seeded rows became
+ * unreferenceable.
+ */
+const SQL_UUID_V4 = `lower(
+    substr(hex(randomblob(4)), 1, 8) || '-' ||
+    substr(hex(randomblob(2)), 1, 4) || '-' ||
+    '4' || substr(hex(randomblob(2)), 2, 3) || '-' ||
+    'a' || substr(hex(randomblob(2)), 2, 3) || '-' ||
+    substr(hex(randomblob(6)), 1, 12)
+)`;
+
 // Default Comment Library entries seeded into every new tenant. The same set
 // is also seeded into existing tenants by migration 0022_seed_default_comments.
 // Each row is idempotent on (tenant_id, text) — seeded only when missing.
@@ -14,7 +30,7 @@ async function seedDefaultComments(db: D1Database, tenantId: string): Promise<vo
         // Drizzle schema; unixepoch('now') matches that contract directly.
         await db.prepare(`
             INSERT INTO comments (id, tenant_id, text, category, created_at)
-            SELECT lower(hex(randomblob(16))), ?, x.text, x.category, unixepoch('now')
+            SELECT ${SQL_UUID_V4}, ?, x.text, x.category, unixepoch('now')
             FROM (
                 SELECT 'GFCI protection is missing in kitchen/bathroom/exterior receptacles; recommend installation per current code.' AS text, 'Electrical' AS category UNION ALL
                 SELECT 'Receptacle is wired with reverse polarity; recommend correction by qualified electrician.', 'Electrical' UNION ALL
@@ -54,7 +70,7 @@ async function seedDefaultAutomations(db: D1Database, tenantId: string): Promise
                 active, is_default, created_at
             )
             SELECT
-                lower(hex(randomblob(16))), ?, x.trigger, x.recipient, x.name,
+                ${SQL_UUID_V4}, ?, x.trigger, x.recipient, x.name,
                 0, x.subject_template, x.body_template,
                 1, 1, unixepoch('now')
             FROM (
@@ -111,7 +127,7 @@ async function seedDefaultAgreement(db: D1Database, tenantId: string): Promise<v
 
         await db.prepare(`
             INSERT INTO agreements (id, tenant_id, name, content, version, created_at)
-            SELECT lower(hex(randomblob(16))), ?, ?, ?, 1, unixepoch('now')
+            SELECT ${SQL_UUID_V4}, ?, ?, ?, 1, unixepoch('now')
             WHERE NOT EXISTS (
                 SELECT 1 FROM agreements WHERE tenant_id = ? AND name = ?
             )
@@ -134,7 +150,7 @@ async function seedDefaultServices(db: D1Database, tenantId: string): Promise<vo
                 template_id, agreement_id, active, sort_order, created_at
             )
             SELECT
-                lower(hex(randomblob(16))), ?, x.name, x.description, x.price, x.duration_minutes,
+                ${SQL_UUID_V4}, ?, x.name, x.description, x.price, x.duration_minutes,
                 NULL, NULL, 1, x.sort_order, unixepoch('now')
             FROM (
                 SELECT 'Standard Home Inspection'    AS name, 'Full visual inspection of the home — structure, roof, electrical, plumbing, HVAC, interior, exterior.' AS description, 40000 AS price, 180 AS duration_minutes, 0 AS sort_order UNION ALL

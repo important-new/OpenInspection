@@ -296,9 +296,18 @@ export const AgentDashboardPage = ({
                         color: inherit;
                         text-decoration: none;
                         cursor: pointer;
+                        /* Stage a left accent that fades in on hover so the
+                           clickability cue reads at a glance — the cream-to-cream
+                           background swap alone was too subtle. */
+                        border-left: 3px solid transparent;
+                        transition: background 0.15s ease, border-left-color 0.15s ease;
                     }
                     .referral-row:last-child { border-bottom: 0; }
-                    .referral-row:hover { background: var(--surface); }
+                    .referral-row:hover {
+                        background: var(--primary-soft);
+                        border-left-color: var(--primary);
+                    }
+                    .referral-row:hover .row-cta { color: var(--primary); }
                     .referral-row:focus-visible {
                         outline: 2px solid var(--primary);
                         outline-offset: -2px;
