@@ -1972,7 +1972,9 @@ app.get('/settings/workspace/reports', htmlAuthGuard(['owner', 'admin']), async 
     // hydrate with persisted state on first paint (no off-then-on flash).
     const blockUnpaid                = Boolean((cfg as { blockUnpaid?: boolean | number }).blockUnpaid);
     const blockUnsignedAgreement     = Boolean((cfg as { blockUnsignedAgreement?: boolean | number }).blockUnsignedAgreement);
-    return c.html(SettingsWorkspacePage({ branding: c.get('branding'), subPage: 'reports', showEstimates, enableRepairList, enableCustomerRepairExport, blockUnpaid, blockUnsignedAgreement }));
+    // Migration 0059 — Workers Paid PDF pipeline opt-in.
+    const enablePdfPipeline          = Boolean((cfg as { enablePdfPipeline?: boolean | number }).enablePdfPipeline);
+    return c.html(SettingsWorkspacePage({ branding: c.get('branding'), subPage: 'reports', showEstimates, enableRepairList, enableCustomerRepairExport, blockUnpaid, blockUnsignedAgreement, enablePdfPipeline }));
 });
 // Round-2 backlog G3 — Custom referral sources sub-page. Reads
 // tenant_configs.custom_referral_sources via the BrandingService so the

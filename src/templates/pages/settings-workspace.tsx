@@ -12,6 +12,7 @@ interface ReportsProps extends Props {
     enableCustomerRepairExport?:  boolean;
     blockUnpaid?:                 boolean;
     blockUnsignedAgreement?:      boolean;
+    enablePdfPipeline?:           boolean;
 }
 
 // Round-2 backlog G3 — extra prop only used by the new Referral sub-page
@@ -191,12 +192,13 @@ export const SettingsWorkspaceTelemetryPage = ({ branding }: Props): JSX.Element
  * (block when invoice unpaid / block when agreement unsigned). Both groups
  * share the same Alpine `save()` shared method that PATCHes /api/branding.
  */
-export const SettingsWorkspaceReportsPage = ({ branding, showEstimates, enableRepairList, enableCustomerRepairExport, blockUnpaid, blockUnsignedAgreement }: ReportsProps): JSX.Element => {
+export const SettingsWorkspaceReportsPage = ({ branding, showEstimates, enableRepairList, enableCustomerRepairExport, blockUnpaid, blockUnsignedAgreement, enablePdfPipeline }: ReportsProps): JSX.Element => {
     const initialEstimates              = showEstimates ? 'true' : 'false';
     const initialRepairList             = enableRepairList ? 'true' : 'false';
     const initialCustomerRepairExport   = enableCustomerRepairExport ? 'true' : 'false';
     const initialBlockUnpaid            = blockUnpaid ? 'true' : 'false';
     const initialBlockUnsignedAgreement = blockUnsignedAgreement ? 'true' : 'false';
+    const initialPdfPipeline            = enablePdfPipeline ? 'true' : 'false';
     return (
         <SettingsLayout
             branding={branding}
@@ -214,6 +216,7 @@ export const SettingsWorkspaceReportsPage = ({ branding, showEstimates, enableRe
                     enableCustomerRepairExport: ${initialCustomerRepairExport},
                     blockUnpaid: ${initialBlockUnpaid},
                     blockUnsignedAgreement: ${initialBlockUnsignedAgreement},
+                    enablePdfPipeline: ${initialPdfPipeline},
                     saving: false,
                     async save(payload) {
                         this.saving = true;
@@ -304,6 +307,31 @@ export const SettingsWorkspaceReportsPage = ({ branding, showEstimates, enableRe
                         class="mt-1 h-5 w-10 rounded-full appearance-none bg-surface-200 checked:bg-blueprint-500 transition-colors cursor-pointer relative shrink-0"
                         style="background-position: left center; background-repeat: no-repeat;"
                         {...(enableCustomerRepairExport ? { checked: true } : {})}
+                    />
+                </label>
+
+                {/* Migration 0059 — Workers Paid PDF pipeline opt-in. */}
+                <div class="border-t border-surface-200" />
+                <label class="flex items-start justify-between gap-6 cursor-pointer">
+                    <div class="flex-1">
+                        <div class="text-sm font-bold text-ink-900">Pre-render PDFs (Workers Paid only)</div>
+                        <div class="text-xs text-ink-500 mt-1 leading-relaxed">
+                            Renders Summary + Full PDFs to R2 in the background at publish
+                            time and exposes a Refresh PDFs / Download PDF dropdown in the
+                            report viewer. Requires Cloudflare Workers Paid plan (Browser
+                            Rendering binding). Default OFF — the report viewer always
+                            falls back to a free in-browser print dialog regardless of
+                            this toggle.
+                        </div>
+                    </div>
+                    <input
+                        type="checkbox"
+                        data-testid="settings-enable-pdf-pipeline-toggle"
+                        x-model="enablePdfPipeline"
+                        x-on:change="save({ enablePdfPipeline: enablePdfPipeline })"
+                        class="mt-1 h-5 w-10 rounded-full appearance-none bg-surface-200 checked:bg-blueprint-500 transition-colors cursor-pointer relative shrink-0"
+                        style="background-position: left center; background-repeat: no-repeat;"
+                        {...(enablePdfPipeline ? { checked: true } : {})}
                     />
                 </label>
 
@@ -462,7 +490,7 @@ Referral partner"
  * `subPage` URL segment. Keeps `index.ts` route registrations short.
  */
 export const SettingsWorkspacePage = (
-    { branding, subPage, showEstimates, enableRepairList, enableCustomerRepairExport, blockUnpaid, blockUnsignedAgreement, customReferralSources }:
+    { branding, subPage, showEstimates, enableRepairList, enableCustomerRepairExport, blockUnpaid, blockUnsignedAgreement, enablePdfPipeline, customReferralSources }:
     ReportsProps & ReferralProps & { subPage: WorkspaceSubPage }
 ): JSX.Element => {
     if (subPage === 'theme') return SettingsWorkspaceThemePage({ branding });
@@ -474,6 +502,7 @@ export const SettingsWorkspacePage = (
         if (typeof enableCustomerRepairExport === 'boolean') props.enableCustomerRepairExport = enableCustomerRepairExport;
         if (typeof blockUnpaid                === 'boolean') props.blockUnpaid                = blockUnpaid;
         if (typeof blockUnsignedAgreement     === 'boolean') props.blockUnsignedAgreement     = blockUnsignedAgreement;
+        if (typeof enablePdfPipeline          === 'boolean') props.enablePdfPipeline          = enablePdfPipeline;
         return SettingsWorkspaceReportsPage(props);
     }
     if (subPage === 'referral') {

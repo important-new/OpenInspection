@@ -1750,25 +1750,32 @@ inspectionsRoutes.openapi(publishRoute, async (c) => {
     // publish. Best-effort: failures log but never block the publish
     // response. Persistent record in report_pdfs lets the client UI poll
     // (status: queued -> rendering -> ready) and offer Refresh PDFs.
-    const baseUrl = getBaseUrl(c);
-    const reportUrl = `${baseUrl}/report/${id}`;
-    const sourceVersion = Date.now();
+    //
+    // Migration 0059 — gated by tenant_configs.enable_pdf_pipeline (default
+    // OFF). Free-plan tenants and Paid tenants who don't want the spend
+    // skip rendering entirely; the report viewer's window.print() button
+    // remains the universal fallback.
     const reportPdf = c.var.services.reportPdf;
-    const renderBoth = async () => {
-        try {
-            await Promise.all([
-                reportPdf.markQueued(id, tenantId, 'summary'),
-                reportPdf.markQueued(id, tenantId, 'full'),
-            ]);
-            await Promise.allSettled([
-                reportPdf.renderAndStore(id, tenantId, 'summary', { reportUrl, sourceVersion }),
-                reportPdf.renderAndStore(id, tenantId, 'full',    { reportUrl, sourceVersion }),
-            ]);
-        } catch (err) {
-            logger.error('[publish] PDF render enqueue failed', { inspectionId: id }, err instanceof Error ? err : undefined);
-        }
-    };
-    c.executionCtx.waitUntil(renderBoth());
+    if (await reportPdf.isPipelineEnabled(tenantId)) {
+        const baseUrl = getBaseUrl(c);
+        const reportUrl = `${baseUrl}/report/${id}`;
+        const sourceVersion = Date.now();
+        const renderBoth = async () => {
+            try {
+                await Promise.all([
+                    reportPdf.markQueued(id, tenantId, 'summary'),
+                    reportPdf.markQueued(id, tenantId, 'full'),
+                ]);
+                await Promise.allSettled([
+                    reportPdf.renderAndStore(id, tenantId, 'summary', { reportUrl, sourceVersion }),
+                    reportPdf.renderAndStore(id, tenantId, 'full',    { reportUrl, sourceVersion }),
+                ]);
+            } catch (err) {
+                logger.error('[publish] PDF render enqueue failed', { inspectionId: id }, err instanceof Error ? err : undefined);
+            }
+        };
+        c.executionCtx.waitUntil(renderBoth());
+    }
 
     return c.json({ success: true, data: result }, 200);
 });
@@ -1796,6 +1803,9 @@ inspectionsRoutes.openapi(createRoute({
     const tenantId = c.get('tenantId') as string;
     const { id } = c.req.valid('param');
     const reportPdf = c.var.services.reportPdf;
+    if (!(await reportPdf.isPipelineEnabled(tenantId))) {
+        throw Errors.Forbidden('PDF pipeline is disabled for this workspace. Enable it in Settings → Reports.');
+    }
     const baseUrl = getBaseUrl(c);
     const reportUrl = `${baseUrl}/report/${id}`;
     const sourceVersion = Date.now();
@@ -1850,6 +1860,12 @@ inspectionsRoutes.openapi(createRoute({
     const { id } = c.req.valid('param');
     const { type } = c.req.valid('query');
     const reportPdf = c.var.services.reportPdf;
+    if (!(await reportPdf.isPipelineEnabled(tenantId))) {
+        // Pipeline opt-in (migration 0059) — return 404 instead of leaking
+        // the existence of any pre-migration rendered PDFs. Clients fall
+        // back to window.print() in the report viewer.
+        return c.json({ success: false, error: { message: 'PDF not found' } }, 404);
+    }
     const record = await reportPdf.getPdfRecord(id, tenantId, type);
     if (!record) return c.json({ success: false, error: { message: 'PDF not found' } }, 404);
     if (record.status !== 'ready') {

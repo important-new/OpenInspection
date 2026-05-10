@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
-import { reportPdfs } from '../lib/db/schema';
+import { reportPdfs, tenantConfigs } from '../lib/db/schema';
 import type { ReportPdf } from '../lib/db/schema';
 import { generatePdfFromUrl } from '../lib/pdf';
 import { Errors } from '../lib/errors';
@@ -35,6 +35,22 @@ export class ReportPdfService {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private getDrizzle() { return drizzle(this.db as any); }
+
+    /**
+     * Migration 0059 — gate the Browser-Rendering pipeline behind a tenant
+     * opt-in toggle so Workers Free hosters don't burn isolate seconds on
+     * a binding that always 404s, and Paid tenants pay only when they
+     * deliberately want pre-rendered PDFs (vs the always-free
+     * window.print() the public viewer ships with).
+     */
+    async isPipelineEnabled(tenantId: string): Promise<boolean> {
+        const db = this.getDrizzle();
+        const row = await db.select({ enabled: tenantConfigs.enablePdfPipeline })
+            .from(tenantConfigs)
+            .where(eq(tenantConfigs.tenantId, tenantId))
+            .get();
+        return row?.enabled === true;
+    }
 
     /**
      * Look up an existing PDF record. Returns null if never rendered.

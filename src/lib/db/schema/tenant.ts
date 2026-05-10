@@ -128,6 +128,13 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     // magic-link goes to client immediately. 1 (true) = Spectora reviewer
     // mode: inspector must approve the draft before the client gets the link.
     conciergeReviewRequired: integer('concierge_review_required', { mode: 'boolean' }).notNull().default(false),
+    // Migration 0059 — Workers Paid PDF pipeline opt-in.
+    // Default 0 (OFF) — keeps the Free-plan path cost-free (window.print()
+    // fallback in the viewer is unaffected). Tenants on Workers Paid flip
+    // this in Settings -> Reports to enable Browser-Rendering background
+    // PDF generation at publish time + the Refresh PDFs / Download PDF
+    // dropdown in the report viewer.
+    enablePdfPipeline: integer('enable_pdf_pipeline', { mode: 'boolean' }).notNull().default(false),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 

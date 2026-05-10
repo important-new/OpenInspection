@@ -32,6 +32,8 @@ export const UpdateBrandingSchema = z.object({
     // seven values (Realtor / Past Client / …) is hardcoded; this array
     // appends to it. Trimmed entries; max 32 to keep the dropdown usable.
     customReferralSources: z.array(z.string().min(1).max(50)).max(32).optional().openapi({ example: ['Magazine ad', 'Trade show'] }),
+    // Migration 0059 — Workers Paid PDF pipeline opt-in. Default OFF.
+    enablePdfPipeline: z.boolean().optional().openapi({ example: false }),
 }).openapi('UpdateBranding');
 
 /**
