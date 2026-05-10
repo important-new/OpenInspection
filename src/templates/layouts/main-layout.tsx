@@ -115,6 +115,18 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
                 <KeyboardHUD />
                 <CommandPalette />
                 <InlineTextPopover />
+                {/* B4 — SW registration. Mirrored from MainLayout so a public
+                    visitor who lands on /book or /inspector/<slug> first also
+                    gets the offline-capable worker installed. Feature-guarded
+                    and .catch(console.warn) so it can't crash the page. */}
+                <script dangerouslySetInnerHTML={{ __html: `
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js')
+            .catch(function (err) { console.warn('[sw] registration failed', err); });
+    });
+}
+` }} />
             </body>
         </html>
     );
@@ -461,8 +473,21 @@ export const MainLayout = (props: {
                         }
                     })();
                 ` }} />
-                {/* B4 — SW message handlers: drain queue on bg-sync, toast on SW update */}
+                {/* B4 — SW registration + message handlers. The PWA service
+                    worker (offline-first cache + photo upload background sync)
+                    lives at /sw.js but was never registered, so UC-I-6
+                    (offline write-up) was broken. Registration is wrapped in
+                    a feature guard and uses .catch(console.warn) so a failed
+                    install can't crash the page. The same script is mirrored
+                    in BareLayout below so public pages (/book,
+                    /inspector/<slug>) also install the worker. */}
                 <script dangerouslySetInnerHTML={{ __html: `
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js')
+            .catch(function (err) { console.warn('[sw] registration failed', err); });
+    });
+}
 navigator.serviceWorker?.addEventListener('message', function(e) {
     if (e.data && e.data.type === 'drain-queue') {
         import('/js/sync-engine.js').then(function(m) { m.drainQueue(); }).catch(function() {});
