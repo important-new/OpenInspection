@@ -36,21 +36,25 @@ export class AutomationService {
         );
         if (toInsert.length === 0) return;
 
-        await db.insert(automations).values(
-            toInsert.map(seed => ({
-                id:              nanoid(),
-                tenantId,
-                name:            seed.name,
-                trigger:         seed.trigger,
-                recipient:       seed.recipient,
-                delayMinutes:    seed.delayMinutes,
-                subjectTemplate: seed.subjectTemplate,
-                bodyTemplate:    seed.bodyTemplate,
-                active:          true,
-                isDefault:       true,
-                createdAt:       new Date(),
-            }))
-        );
+        // D1 caps prepared-statement bind parameters at 100. Each row binds
+        // 11 columns, so chunk to 8 rows / 88 binds per insert.
+        const CHUNK_SIZE = 8;
+        const rows = toInsert.map(seed => ({
+            id:              nanoid(),
+            tenantId,
+            name:            seed.name,
+            trigger:         seed.trigger,
+            recipient:       seed.recipient,
+            delayMinutes:    seed.delayMinutes,
+            subjectTemplate: seed.subjectTemplate,
+            bodyTemplate:    seed.bodyTemplate,
+            active:          true,
+            isDefault:       true,
+            createdAt:       new Date(),
+        }));
+        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+            await db.insert(automations).values(rows.slice(i, i + CHUNK_SIZE));
+        }
         logger.info('AutomationService: seeded default rules', { tenantId, count: toInsert.length });
     }
 
@@ -104,7 +108,13 @@ export class AutomationService {
 
     async trigger(ctx: TriggerContext): Promise<void> {
         const db = this.getDrizzle();
-        await this.ensureSeeds(ctx.tenantId);
+        try {
+            await this.ensureSeeds(ctx.tenantId);
+        } catch (err) {
+            logger.error('AutomationService.trigger: ensureSeeds failed (continuing with existing rules)',
+                { event: ctx.triggerEvent, tenantId: ctx.tenantId },
+                err instanceof Error ? err : undefined);
+        }
 
         const rules = await db.select().from(automations)
             .where(and(
@@ -113,13 +123,24 @@ export class AutomationService {
                 eq(automations.trigger, ctx.triggerEvent as any),
                 eq(automations.active, true),
             ));
+        logger.info('AutomationService.trigger: rules matched',
+            { event: ctx.triggerEvent, tenantId: ctx.tenantId, count: rules.length });
         if (rules.length === 0) return;
 
         const inspRows = await db.select().from(inspections)
             .where(and(eq(inspections.id, ctx.inspectionId), eq(inspections.tenantId, ctx.tenantId)))
             .limit(1);
         const insp = inspRows[0];
-        if (!insp || insp.disableAutomations) return;
+        if (!insp) {
+            logger.error('AutomationService.trigger: inspection not found',
+                { event: ctx.triggerEvent, inspectionId: ctx.inspectionId });
+            return;
+        }
+        if (insp.disableAutomations) {
+            logger.info('AutomationService.trigger: disableAutomations set, skipping',
+                { inspectionId: ctx.inspectionId });
+            return;
+        }
 
         // Skip rules whose template requires {{agreement_sign_url}} but this
         // inspection didn't opt-in to agreements (agreementRequired = false)
@@ -130,19 +151,38 @@ export class AutomationService {
             }
             return true;
         });
+        logger.info('AutomationService.trigger: rules after filter',
+            { event: ctx.triggerEvent, before: rules.length, after: filteredRules.length });
         if (filteredRules.length === 0) return;
 
         const now = new Date();
         const logs = filteredRules.flatMap(rule => {
             const email = this.resolveEmail(rule.recipient as string, insp);
-            if (!email) return [];
+            if (!email) {
+                logger.info('AutomationService.trigger: no email resolved (will fan out at delivery)',
+                    { ruleId: rule.id, recipient: rule.recipient });
+                return [];
+            }
             const sendAt = new Date(now.getTime() + rule.delayMinutes * 60_000).toISOString();
             return [{ id: nanoid(), tenantId: ctx.tenantId, automationId: rule.id,
                       inspectionId: ctx.inspectionId, recipientEmail: email,
                       sendAt, deliveredAt: null, status: 'pending' as const, error: null }];
         });
 
-        if (logs.length > 0) await db.insert(automationLogs).values(logs);
+        logger.info('AutomationService.trigger: logs prepared',
+            { event: ctx.triggerEvent, count: logs.length });
+        if (logs.length > 0) {
+            try {
+                await db.insert(automationLogs).values(logs);
+                logger.info('AutomationService.trigger: logs inserted',
+                    { event: ctx.triggerEvent, count: logs.length });
+            } catch (err) {
+                logger.error('AutomationService.trigger: log insert failed',
+                    { event: ctx.triggerEvent, count: logs.length },
+                    err instanceof Error ? err : undefined);
+                throw err;
+            }
+        }
         if (logs.length > 0 && this.notification) {
             await this.notification.createForAllAdmins(ctx.tenantId, {
                 type: ctx.triggerEvent,

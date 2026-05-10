@@ -2280,6 +2280,13 @@ app.notFound((c) => {
     return c.html(NotFoundPage({ branding: c.get('branding') }), 404);
 });
 
-export default app;
-export { scheduled } from './scheduled';
+// CF Workers ESM expects { fetch, scheduled } on the default export.
+// Named exports of `scheduled` aren't recognized by the runtime —
+// without this `Handler does not export a scheduled() function` fires
+// on every cron tick and the automation flush never runs.
+import { scheduled } from './scheduled';
+export default {
+    fetch: app.fetch.bind(app),
+    scheduled,
+};
 export { SignCompletionWorkflow } from './workflows/sign-completion-workflow';
