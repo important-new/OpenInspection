@@ -1623,6 +1623,14 @@ app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));
 });
+// Agent surfaces all need the same host-suffix derivation for ⌘K palette
+// "Copy booking link" actions. Centralized here to keep the three handlers
+// in lockstep with /agent-inspectors.
+function deriveAgentHostSuffix(c: Context<HonoConfig>): string {
+    const rawBase = (c.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    return rawBase.split('.').slice(rawBase.split('.').length > 2 ? 1 : 0).join('.') || 'inspectorhub.io';
+}
+
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     const branding = c.get('branding');
     const user = c.get('user');
@@ -1631,20 +1639,27 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     // tenant-scoped services don't apply.
     let agentName: string | null = null;
     let agentEmail: string | null = null;
+    let agentSlug: string | null = null;
     try {
         const db = drizzle(c.env.DB);
         const row = await db.select({
             name: schema.users.name,
             email: schema.users.email,
+            slug: schema.users.slug,
         }).from(schema.users).where(eq(schema.users.id, user.sub)).get();
         agentName = row?.name ?? null;
         agentEmail = row?.email ?? null;
+        agentSlug = row?.slug ?? null;
     } catch (err) {
         logger.warn('agent.dashboard.identity.lookup.failed', {
             error: err instanceof Error ? err.message : String(err),
         });
     }
     const referrals = await c.var.services.agent.listReferrals(user.sub, { limit: 100 });
+    // UC-A-6 — load inspector links so the ⌘K palette can offer "Copy booking
+    // link — {inspector}" actions on the dashboard too. listInspectors is
+    // tenant-scoped + cached, so the cost is bounded.
+    const inspectors = await c.var.services.agent.listInspectors(user.sub);
     // "Reports ready to read" = delivered referrals. Sprint A2 ships without a
     // last-read timestamp, so the count surfaces every published report; future
     // sprints can add a per-row read marker.
@@ -1654,10 +1669,12 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     const sparkline = await c.var.services.agent.referralsByDay(user.sub, 7).catch(() => ({ created: [] as number[] }));
     return c.html(AgentDashboardPage({
         ...(branding ? { branding } : {}),
-        agent: { name: agentName, email: agentEmail },
+        agent: { name: agentName, email: agentEmail, slug: agentSlug },
         referrals,
         unreadReports,
         sparklineCreated: sparkline.created,
+        inspectors,
+        bookingHost: deriveAgentHostSuffix(c),
     }));
 });
 // Agent Accounts A2 — /agent-inspectors directory of linked inspector cards
@@ -1691,8 +1708,7 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
     // shows a working URL in both topologies.
     const isStandalone = (c.env.APP_MODE as string) !== 'saas';
     const requestHost = c.req.header('host') || 'localhost';
-    const rawBase = (c.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    const hostSuffix = rawBase.split('.').slice(rawBase.split('.').length > 2 ? 1 : 0).join('.') || 'inspectorhub.io';
+    const hostSuffix = deriveAgentHostSuffix(c);
     return c.html(AgentInspectorsPage({
         ...(branding ? { branding } : {}),
         agent: { name: agentName, slug: agentSlug },
@@ -1807,6 +1823,9 @@ app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
         .where(eq(schema.users.id, user.sub))
         .get();
     if (!row) return c.redirect('/login');
+    // UC-A-6 — load inspector links so the ⌘K palette has "Copy booking link"
+    // actions on the settings page as well.
+    const inspectors = await c.var.services.agent.listInspectors(user.sub);
     return c.html(AgentSettingsProfilePage({
         ...(branding ? { branding } : {}),
         agent: {
@@ -1817,6 +1836,8 @@ app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
             notifyOnReport:   row.notifyOnReport,
             notifyOnPaid:     row.notifyOnPaid,
         },
+        inspectors,
+        bookingHost: deriveAgentHostSuffix(c),
     }));
 });
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));

@@ -1,9 +1,10 @@
 import type { BrandingConfig } from '../../types/auth';
-import type { AgentReferralRow } from '../../services/agent.service';
+import type { AgentReferralRow, AgentInspectorRow } from '../../services/agent.service';
+import { AgentCommandPalette } from '../components/agent-command-palette';
 
 export interface AgentDashboardProps {
     branding?: BrandingConfig | undefined;
-    agent: { name?: string | null; email?: string | null };
+    agent: { name?: string | null; email?: string | null; slug?: string | null };
     referrals: AgentReferralRow[];
     unreadReports: number;
     /**
@@ -12,6 +13,10 @@ export interface AgentDashboardProps {
      * index = today. Empty array hides the sparkline.
      */
     sparklineCreated?: number[];
+    /** Linked inspectors — feeds the ⌘K palette's "Copy booking link" actions. */
+    inspectors?: AgentInspectorRow[];
+    /** Host suffix (e.g. `inspectorhub.io`) — used to compose booking URLs in the palette. */
+    bookingHost?: string;
 }
 
 /**
@@ -114,6 +119,8 @@ export const AgentDashboardPage = ({
     referrals,
     unreadReports,
     sparklineCreated,
+    inspectors = [],
+    bookingHost = 'inspectorhub.io',
 }: AgentDashboardProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     const primaryColor = branding?.primaryColor || '#4f46e5';
@@ -284,9 +291,18 @@ export const AgentDashboardPage = ({
                         gap: 1rem; align-items: center;
                         padding: 1rem 1.25rem;
                         border-bottom: 1px solid var(--line);
+                        /* UC-A-4 — entire row is an <a>; strip default link styles so it
+                           inherits the surface look. */
+                        color: inherit;
+                        text-decoration: none;
+                        cursor: pointer;
                     }
                     .referral-row:last-child { border-bottom: 0; }
                     .referral-row:hover { background: var(--surface); }
+                    .referral-row:focus-visible {
+                        outline: 2px solid var(--primary);
+                        outline-offset: -2px;
+                    }
                     .referral-main { min-width: 0; }
                     .referral-address {
                         font-weight: 600; font-size: 0.9375rem;
@@ -506,8 +522,19 @@ export const AgentDashboardPage = ({
                                     {section.rows.map((r) => {
                                         const steps = computeSteps(r);
                                         const canViewReport = steps.published;
+                                        // UC-A-4 — entire row links to /report/<id>. The route is in
+                                        // isPublic allowlist (no tenant cookie required); the report's
+                                        // own gate decides what to show for unpublished/draft reports.
+                                        const href = canViewReport
+                                            ? `/report/${r.id}?view=agent`
+                                            : `/report/${r.id}`;
                                         return (
-                                            <div class="referral-row">
+                                            <a
+                                                class="referral-row"
+                                                href={href}
+                                                rel="noreferrer"
+                                                data-testid={`referral-row-${r.id}`}
+                                            >
                                                 <div class="referral-main">
                                                     <div class="referral-address">{r.propertyAddress}</div>
                                                     <div class="referral-meta">
@@ -541,11 +568,11 @@ export const AgentDashboardPage = ({
                                                     <span class={`sparkline-step${steps.paid ? ' on paid' : ''}`} title="Paid"></span>
                                                 </div>
                                                 {canViewReport ? (
-                                                    <a class="row-cta" href={`/report/${r.id}?view=agent`}>View report</a>
+                                                    <span class="row-cta">View report</span>
                                                 ) : (
                                                     <span class="row-cta disabled" aria-disabled="true">Awaiting report</span>
                                                 )}
-                                            </div>
+                                            </a>
                                         );
                                     })}
                                 </div>
@@ -555,6 +582,19 @@ export const AgentDashboardPage = ({
                 </main>
 
                 <script src="/js/agent-dashboard.js"></script>
+
+                {/* UC-A-6 — agent ⌘K palette. Alpine 3 is loaded `defer` so the
+                    palette's vanilla x-data initializes after DOMContentLoaded. */}
+                <script defer src="/vendor/alpine.min.js"></script>
+                <AgentCommandPalette
+                    inspectors={inspectors.map((row) => ({
+                        name: row.inspectorName,
+                        slug: row.inspectorSlug,
+                        tenantSubdomain: row.tenantSubdomain,
+                    }))}
+                    agentSlug={agent.slug ?? null}
+                    bookingHost={bookingHost}
+                />
             </body>
         </html>
     );

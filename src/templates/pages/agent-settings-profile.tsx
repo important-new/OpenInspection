@@ -1,4 +1,6 @@
 import type { BrandingConfig } from '../../types/auth';
+import type { AgentInspectorRow } from '../../services/agent.service';
+import { AgentCommandPalette } from '../components/agent-command-palette';
 
 export interface AgentSettingsProfileProps {
     branding?: BrandingConfig | undefined;
@@ -10,6 +12,10 @@ export interface AgentSettingsProfileProps {
         notifyOnReport: boolean;
         notifyOnPaid: boolean;
     };
+    /** Linked inspectors — feeds the ⌘K palette's "Copy booking link" actions. */
+    inspectors?: AgentInspectorRow[];
+    /** Host suffix (e.g. `inspectorhub.io`) — used to compose booking URLs in the palette. */
+    bookingHost?: string;
 }
 
 interface ToggleRowProps {
@@ -51,7 +57,7 @@ function ToggleRow({ testId, title, subtitle, field, active }: ToggleRowProps): 
  *    consistent with /settings/profile so an inspector who's also signed up
  *    as an agent can pattern-match between the two screens.
  */
-export const AgentSettingsProfilePage = ({ branding, agent }: AgentSettingsProfileProps): JSX.Element => {
+export const AgentSettingsProfilePage = ({ branding, agent, inspectors = [], bookingHost = 'inspectorhub.io' }: AgentSettingsProfileProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     const primaryColor = branding?.primaryColor || '#4f46e5';
     const slug = agent.slug ?? null;
@@ -334,6 +340,19 @@ export const AgentSettingsProfilePage = ({ branding, agent }: AgentSettingsProfi
                 </main>
 
                 <script src="/js/agent-settings-profile.js"></script>
+
+                {/* UC-A-6 — agent ⌘K palette. Inspector list is fetched server-side
+                    in the route handler so the palette has data on every page. */}
+                <script defer src="/vendor/alpine.min.js"></script>
+                <AgentCommandPalette
+                    inspectors={inspectors.map((row) => ({
+                        name: row.inspectorName,
+                        slug: row.inspectorSlug,
+                        tenantSubdomain: row.tenantSubdomain,
+                    }))}
+                    agentSlug={agent.slug ?? null}
+                    bookingHost={bookingHost}
+                />
             </body>
         </html>
     );

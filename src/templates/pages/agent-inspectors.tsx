@@ -1,5 +1,6 @@
 import type { BrandingConfig } from '../../types/auth';
 import type { AgentInspectorRow } from '../../services/agent.service';
+import { AgentCommandPalette } from '../components/agent-command-palette';
 
 export interface AgentInspectorsProps {
     branding?: BrandingConfig | undefined;
@@ -341,6 +342,19 @@ export const AgentInspectorsPage = ({
                 </main>
 
                 <script src="/js/agent-inspectors.js"></script>
+
+                {/* UC-A-6 — agent ⌘K palette. Reuses the inspector list already
+                    loaded for this page so no second fetch is needed. */}
+                <script defer src="/vendor/alpine.min.js"></script>
+                <AgentCommandPalette
+                    inspectors={inspectors.map((row) => ({
+                        name: row.inspectorName,
+                        slug: row.inspectorSlug,
+                        tenantSubdomain: row.tenantSubdomain,
+                    }))}
+                    agentSlug={refSlug}
+                    bookingHost={hostSuffix}
+                />
             </body>
         </html>
     );

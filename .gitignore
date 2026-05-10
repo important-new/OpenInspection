@@ -27,3 +27,4 @@ wrangler.*.toml
 .qwen/
 .worktrees/
 .tsbuildinfo
+.claude/
