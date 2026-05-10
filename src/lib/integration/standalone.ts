@@ -38,6 +38,122 @@ async function seedDefaultComments(db: D1Database, tenantId: string): Promise<vo
     }
 }
 
+// Default automation rules seeded for every new tenant. Without these, none of
+// the lifecycle emails (booking confirm, report ready, agreement nag, invoice,
+// payment receipt) actually fire. Schema constrains `trigger` to a fixed enum
+// (see migrations/0032_inspection_events.sql) and `recipient` to a single value
+// per row, so multi-recipient intents fan out into one row per recipient.
+//
+// Idempotent: NOT EXISTS guard on (tenant_id, trigger, recipient, name).
+async function seedDefaultAutomations(db: D1Database, tenantId: string): Promise<void> {
+    try {
+        await db.prepare(`
+            INSERT INTO automations (
+                id, tenant_id, trigger, recipient, name,
+                delay_minutes, subject_template, body_template,
+                active, is_default, created_at
+            )
+            SELECT
+                lower(hex(randomblob(16))), ?, x.trigger, x.recipient, x.name,
+                0, x.subject_template, x.body_template,
+                1, 1, unixepoch('now')
+            FROM (
+                SELECT 'report.published'      AS trigger, 'client'       AS recipient, 'Report Ready (Client)'                 AS name, 'Your inspection report is ready — {{property_address}}' AS subject_template, '<p>Hi {{client_name}},</p><p>Your inspection report for <strong>{{property_address}}</strong> is ready to view.</p><p><a href="{{report_url}}">View Report</a></p><p>— {{company_name}}</p>' AS body_template UNION ALL
+                SELECT 'report.published',           'buying_agent',                    'Report Ready (Buyer''s Agent)',                 'Your inspection report is ready — {{property_address}}',                                                '<p>The inspection report for <strong>{{property_address}}</strong> is ready.</p><p><a href="{{report_url}}">View Report</a></p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'inspection.confirmed',       'client',                          '24-Hour Reminder',                              'Reminder: Inspection tomorrow — {{property_address}}',                                                   '<p>Hi {{client_name}},</p><p>Just a reminder that your inspection at <strong>{{property_address}}</strong> is scheduled for <strong>{{scheduled_date}}</strong>. Your inspector will arrive during the scheduled window.</p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'inspection.cancelled',       'client',                          'Cancellation Notice (Client)',                  'Inspection cancelled — {{property_address}}',                                                            '<p>Hi {{client_name}},</p><p>Your inspection at <strong>{{property_address}}</strong> has been cancelled. Please contact us to reschedule.</p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'inspection.cancelled',       'buying_agent',                    'Cancellation Notice (Buyer''s Agent)',          'Inspection cancelled — {{property_address}}',                                                            '<p>The inspection at <strong>{{property_address}}</strong> has been cancelled. The client may need to reschedule.</p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'inspection.created',         'client',                          'Send Agreement to Client',                      'Please sign your inspection agreement — {{property_address}}',                                            '<p>Hi {{client_name}},</p><p>Please review and sign the inspection agreement for <strong>{{property_address}}</strong> scheduled for {{scheduled_date}}.</p><p><a href="{{agreement_sign_url}}">Review &amp; Sign Agreement</a></p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'agreement.signed',           'client',                          'Agreement Signed Confirmation',                 'Confirmation: agreement signed — {{property_address}}',                                                  '<p>Hi {{client_name}},</p><p>Thank you for signing the inspection agreement for <strong>{{property_address}}</strong>. We will see you on {{scheduled_date}}.</p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'invoice.created',            'client',                          'Invoice / Payment Request',                     'Invoice for your inspection — {{property_address}}',                                                     '<p>Hi {{client_name}},</p><p>An invoice has been created for your inspection at <strong>{{property_address}}</strong>.</p><p><a href="{{invoice_url}}">View &amp; Pay Invoice</a></p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'payment.received',           'inspector',                       'Payment Received (Inspector)',                  'Payment received — {{property_address}}',                                                                '<p>Payment has been received for the inspection at <strong>{{property_address}}</strong> (client: {{client_name}}).</p><p>— {{company_name}}</p>' UNION ALL
+                SELECT 'payment.received',           'client',                          'Payment Received (Client Receipt)',             'Receipt: payment received — {{property_address}}',                                                       '<p>Hi {{client_name}},</p><p>Thank you — your payment for the inspection at <strong>{{property_address}}</strong> has been received.</p><p>— {{company_name}}</p>'
+            ) AS x
+            WHERE NOT EXISTS (
+                SELECT 1 FROM automations a
+                WHERE a.tenant_id = ?
+                  AND a.trigger    = x.trigger
+                  AND a.recipient  = x.recipient
+                  AND a.name       = x.name
+            )
+        `).bind(tenantId, tenantId).run();
+    } catch (err) {
+        // non-fatal: setup wizard must not fail because of seed data
+        logger.warn('seedDefaultAutomations failed', { tenantId, error: (err as Error).message });
+    }
+}
+
+// Default pre-inspection agreement seeded for every new tenant. Plain-text
+// content (no HTML) so the agreement viewer can render it consistently across
+// sign UI, signed-copy email, and PDF. Idempotent on (tenant_id, name).
+async function seedDefaultAgreement(db: D1Database, tenantId: string): Promise<void> {
+    try {
+        const content = [
+            'PRE-INSPECTION AGREEMENT',
+            '',
+            '1. SCOPE OF INSPECTION',
+            'This is a visual inspection of the readily accessible and visible portions of the property. The inspection is non-invasive: no destructive testing, no removal of finishes, panels, or insulation, and no dismantling of equipment. Areas concealed by stored items, vegetation, snow, finished surfaces, or otherwise inaccessible are excluded. Items not specifically called out in the report are outside the scope of this inspection.',
+            '',
+            '2. STANDARDS AND LIMITATIONS',
+            'The inspection is performed in general accordance with widely accepted home inspection standards of practice. It is intended to identify material defects in the systems and components inspected on the date of the inspection only. The inspection is not a code, environmental, geological, structural-engineering, mold, lead-paint, asbestos, radon, pest, or hazardous-substance evaluation. We do not operate systems that are shut off, winterized, or appear unsafe to operate. We do not move furniture, appliances, or stored items.',
+            '',
+            '3. NON-WARRANTY',
+            'The report is an opinion based on a limited visual observation. It is NOT a warranty, guarantee, insurance policy, or substitute for any disclosure required by law from the seller or any other party. Latent or concealed defects, conditions that change after the inspection, and conditions outside the inspector\'s scope are excluded. The client is encouraged to engage qualified specialists for any item the report recommends further evaluation of.',
+            '',
+            '4. CLIENT ACKNOWLEDGEMENT',
+            'By signing below the client acknowledges that they have read this agreement, understand the scope and limitations of the inspection, and accept the inspector\'s findings as an opinion subject to the conditions stated above. The client agrees that any dispute arising from the inspection or report will be limited to the fee paid for the inspection.',
+            '',
+            '5. VALIDITY',
+            'This agreement is valid for thirty (30) days from the date of signature and applies to the single inspection scheduled at the address identified in the booking. A new agreement is required for each subsequent inspection.',
+            '',
+            'Signed electronically by the client at the time and IP address recorded in the audit trail attached to this document.',
+        ].join('\n');
+
+        await db.prepare(`
+            INSERT INTO agreements (id, tenant_id, name, content, version, created_at)
+            SELECT lower(hex(randomblob(16))), ?, ?, ?, 1, unixepoch('now')
+            WHERE NOT EXISTS (
+                SELECT 1 FROM agreements WHERE tenant_id = ? AND name = ?
+            )
+        `).bind(tenantId, 'Pre-Inspection Agreement', content, tenantId, 'Pre-Inspection Agreement').run();
+    } catch (err) {
+        // non-fatal: setup wizard must not fail because of seed data
+        logger.warn('seedDefaultAgreement failed', { tenantId, error: (err as Error).message });
+    }
+}
+
+// Default services library seeded for every new tenant. These are the priced
+// inspection products that customers pick from on /book; without them the
+// public booking page has no items to add to cart. Idempotent on
+// (tenant_id, name).
+async function seedDefaultServices(db: D1Database, tenantId: string): Promise<void> {
+    try {
+        await db.prepare(`
+            INSERT INTO services (
+                id, tenant_id, name, description, price, duration_minutes,
+                template_id, agreement_id, active, sort_order, created_at
+            )
+            SELECT
+                lower(hex(randomblob(16))), ?, x.name, x.description, x.price, x.duration_minutes,
+                NULL, NULL, 1, x.sort_order, unixepoch('now')
+            FROM (
+                SELECT 'Standard Home Inspection'    AS name, 'Full visual inspection of the home — structure, roof, electrical, plumbing, HVAC, interior, exterior.' AS description, 40000 AS price, 180 AS duration_minutes, 0 AS sort_order UNION ALL
+                SELECT 'Pre-Listing Inspection',          'Inspection performed for the seller before listing the home, so issues can be addressed in advance.',     35000,         150,                  1 UNION ALL
+                SELECT 'Termite Inspection Add-on',       'Wood-destroying organism inspection. Add-on to a Standard or Pre-Listing inspection.',                    15000,         30,                   2
+            ) AS x
+            WHERE NOT EXISTS (
+                SELECT 1 FROM services s WHERE s.tenant_id = ? AND s.name = x.name
+            )
+        `).bind(tenantId, tenantId).run();
+    } catch (err) {
+        // non-fatal: setup wizard must not fail because of seed data
+        logger.warn('seedDefaultServices.failed', {
+            tenantId,
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+}
+
 /**
  * Standalone implementation of IntegrationProvider.
  * Used in the open-source version where Core is managed directly or via local CLI/Admin UI.
@@ -116,6 +232,19 @@ export class StandaloneProvider implements IntegrationProvider {
                 // Default Comment Library — gives new inspectors a starting set
                 // so they aren't typing every defect description from scratch.
                 await seedDefaultComments(this.db, tenantId);
+
+                // Default automation rules so lifecycle emails (booking,
+                // report-ready, agreement-sent, invoice, payment) actually
+                // fire on a fresh tenant. UC-A-3 / UC-C-2 / UC-C-3 gap.
+                await seedDefaultAutomations(this.db, tenantId);
+
+                // Default pre-inspection agreement template so the e-sign flow
+                // (UC-C-2) has a document to send.
+                await seedDefaultAgreement(this.db, tenantId);
+
+                // Default priced services so the public booking page (UC-C-3
+                // multi-service booking) has items to render.
+                await seedDefaultServices(this.db, tenantId);
             } else {
                 await db.update(users).set({ passwordHash: adminPasswordHash }).where(eq(users.id, existingUser.id));
             }
