@@ -70,6 +70,15 @@ interface ReportPageProps {
   // Round-2 backlog G1 (Spectora §E.2) — Property Facts banner payload.
   // Renders nothing when every field is null/empty.
   propertyFacts?: PropertyFactsBannerProps['facts'] | undefined;
+  // UC-C-6 — when present (report status === 'delivered'), surface a
+  // Message Inspector button that links to /messages/<token>. The token
+  // is minted lazily by MessageService.getOrCreateToken on first report
+  // view. Null/undefined hides the button.
+  messageToken?: string | null | undefined;
+  // UC-C-7 — when status === 'delivered', surface a Share button that
+  // POSTs to /api/public/inspections/:id/share-token to mint a 30-day
+  // view-only link the customer can hand off to a third party.
+  isDelivered?: boolean;
 }
 
 const SECTION_ICONS: Record<string, string> = {
@@ -94,6 +103,8 @@ export function ReportCardStackPage(props: ReportPageProps) {
   const showEditAffordance = canEditSection(props.viewerRole ?? null);
   const enableRepairList = props.enableRepairList ?? false;
   const enableCustomerRepairExport = props.enableCustomerRepairExport ?? false;
+  const messageToken = props.messageToken ?? null;
+  const isDelivered = props.isDelivered ?? false;
   // Server-side defect filter for ?summary=1 (PDF Summary mode).
   // Keeps only sections with at least one defect, and within each kept
   // section, only items whose severityBucket maps to defect.
@@ -209,7 +220,67 @@ export function ReportCardStackPage(props: ReportPageProps) {
               </div>
               <span class="text-xs font-semibold tracking-widest uppercase theme-text-muted">CERTIFIED INSPECTION REPORT</span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 no-print">
+              {/* UC-C-6 — Reply / Message Inspector. Visible only on delivered reports. */}
+              {messageToken ? (
+                <a
+                  href={`/messages/${messageToken}`}
+                  data-testid="report-message-inspector"
+                  class="px-4 py-2 text-sm font-medium rounded-lg theme-border border theme-text-secondary flex items-center gap-2 hover:bg-slate-50 transition-colors"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  Message Inspector
+                </a>
+              ) : null}
+              {/* UC-C-7 — Share / Forward report. Visible only on delivered reports. */}
+              {isDelivered ? (
+                <div
+                  x-data="{ open: false, generating: false, shareUrl: '', err: '' }"
+                  class="relative"
+                >
+                  <button
+                    type="button"
+                    {...{ 'x-on:click': 'open = !open' }}
+                    data-testid="report-share-toggle"
+                    class="px-4 py-2 text-sm font-medium rounded-lg theme-border border theme-text-secondary flex items-center gap-2 hover:bg-slate-50 transition-colors"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+                    Share
+                  </button>
+                  <div
+                    {...{ 'x-show': 'open', 'x-cloak': '', 'x-on:click.outside': 'open = false' }}
+                    class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-slate-200 p-4 z-50"
+                    style="display: none"
+                  >
+                    <p class="text-xs text-slate-600 mb-3">Generate a link the recipient can open without logging in. The link expires in 30 days.</p>
+                    <button
+                      type="button"
+                      {...{
+                        'x-show': '!shareUrl',
+                        'x-bind:disabled': 'generating',
+                        'x-on:click': `generating=true; err=''; fetch('/api/public/inspections/${inspectionId}/share-token',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.json()).then(j=>{ if(j.success){ shareUrl = j.data.url; } else { err = j.error?.message || 'Failed to generate'; } generating=false; }).catch(()=>{ err='Network error'; generating=false; });`,
+                      }}
+                      data-testid="report-share-generate"
+                      class="w-full px-3 py-2 text-sm font-semibold rounded-md theme-accent text-white disabled:opacity-50"
+                      {...{ 'x-text': "generating ? 'Generating...' : 'Generate share link'" }}
+                    />
+                    <div {...{ 'x-show': 'shareUrl' }} class="space-y-2" style="display: none">
+                      <input
+                        readonly
+                        data-testid="report-share-url"
+                        {...{ 'x-bind:value': 'shareUrl' }}
+                        class="w-full text-xs border border-slate-200 rounded px-2 py-1.5 bg-slate-50"
+                      />
+                      <button
+                        type="button"
+                        {...{ 'x-on:click': "navigator.clipboard.writeText(shareUrl); open=false;" }}
+                        class="w-full px-3 py-2 text-sm font-semibold rounded-md theme-accent text-white"
+                      >Copy &amp; close</button>
+                    </div>
+                    <div {...{ 'x-show': 'err', 'x-text': 'err' }} class="text-xs text-rose-600 mt-2" style="display: none" />
+                  </div>
+                </div>
+              ) : null}
               <button class="px-4 py-2 text-sm font-medium rounded-lg theme-border border theme-text-secondary flex items-center gap-2" onclick="window.print()">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 PDF

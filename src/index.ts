@@ -118,6 +118,7 @@ import inspectionRequestsRoutes from './api/inspection-requests';
 import repairRequestRoutes from './api/repair-requests';
 import tagsRoutes, { inspectionTagRoutes } from './api/tags';
 import publicSlugRoutes from './api/public-slug';
+import publicShareRoutes from './api/public-share';
 import profileRoutes from './api/profile';
 import conciergeRoutes from './api/concierge';
 import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
@@ -425,6 +426,8 @@ app.route('/api/profile', profileRoutes);
 // per-tenant enable_customer_repair_export flag + payment + agreement gates
 // before sending.
 app.route('/api/public', repairRequestRoutes);
+// UC-C-7 — public share-token mint (customer Forward report flow).
+app.route('/api/public', publicShareRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/agent', agentRoutes);
 // Agent Accounts A1 — invite + accept endpoints
@@ -1304,6 +1307,20 @@ app.get('/report/:id', async (c) => {
 
         const data = await service.getReportData(id, tenantId as string);
 
+        // UC-C-6 — lazily mint the conversation token for the public Reply
+        // entry point. Only minted on delivered reports so a half-finished
+        // draft can't accidentally surface a chat link in the toolbar.
+        let messageToken: string | null = null;
+        const isDelivered = data.inspection.status === 'delivered';
+        if (isDelivered) {
+            try {
+                messageToken = await c.var.services.message.getOrCreateToken(id, tenantId as string);
+            } catch (err) {
+                logger.error('Failed to ensure message token for report', { inspectionId: id },
+                    err instanceof Error ? err : undefined);
+            }
+        }
+
         // Track E1 — surface the per-tenant Repair List toggle so the report
         // viewer can render the "View repair list" top-right link only when
         // the workspace has opted in. Failure to read the column is treated
@@ -1352,6 +1369,11 @@ app.get('/report/:id', async (c) => {
             // Round-2 backlog G1 — Property Facts banner above the report
             // header. Auto-hidden when every field is empty.
             propertyFacts: data.propertyFacts,
+            // UC-C-6 / UC-C-7 — customer-facing entry points to the existing
+            // public messages page and the public share-token endpoint.
+            // Both gate on isDelivered so they never appear on draft reports.
+            messageToken,
+            isDelivered,
         }));
     } catch {
         return c.text('Report not found', 404);
