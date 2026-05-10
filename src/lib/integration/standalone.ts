@@ -61,41 +61,40 @@ async function seedDefaultComments(db: D1Database, tenantId: string): Promise<vo
 // per row, so multi-recipient intents fan out into one row per recipient.
 //
 // Idempotent: NOT EXISTS guard on (tenant_id, trigger, recipient, name).
+// Implemented as a per-row JS loop because D1 caps compound SELECT terms
+// (~10) so the prior single-statement INSERT … SELECT … UNION ALL fan-out
+// raised SQLITE_ERROR "too many terms in compound SELECT" at run time.
 async function seedDefaultAutomations(db: D1Database, tenantId: string): Promise<void> {
-    try {
-        await db.prepare(`
-            INSERT INTO automations (
-                id, tenant_id, trigger, recipient, name,
-                delay_minutes, subject_template, body_template,
-                active, is_default, created_at
-            )
-            SELECT
-                ${SQL_UUID_V4}, ?, x.trigger, x.recipient, x.name,
-                0, x.subject_template, x.body_template,
-                1, 1, unixepoch('now')
-            FROM (
-                SELECT 'report.published'      AS trigger, 'client'       AS recipient, 'Report Ready (Client)'                 AS name, 'Your inspection report is ready — {{property_address}}' AS subject_template, '<p>Hi {{client_name}},</p><p>Your inspection report for <strong>{{property_address}}</strong> is ready to view.</p><p><a href="{{report_url}}">View Report</a></p><p>— {{company_name}}</p>' AS body_template UNION ALL
-                SELECT 'report.published',           'buying_agent',                    'Report Ready (Buyer''s Agent)',                 'Your inspection report is ready — {{property_address}}',                                                '<p>The inspection report for <strong>{{property_address}}</strong> is ready.</p><p><a href="{{report_url}}">View Report</a></p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'inspection.confirmed',       'client',                          '24-Hour Reminder',                              'Reminder: Inspection tomorrow — {{property_address}}',                                                   '<p>Hi {{client_name}},</p><p>Just a reminder that your inspection at <strong>{{property_address}}</strong> is scheduled for <strong>{{scheduled_date}}</strong>. Your inspector will arrive during the scheduled window.</p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'inspection.cancelled',       'client',                          'Cancellation Notice (Client)',                  'Inspection cancelled — {{property_address}}',                                                            '<p>Hi {{client_name}},</p><p>Your inspection at <strong>{{property_address}}</strong> has been cancelled. Please contact us to reschedule.</p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'inspection.cancelled',       'buying_agent',                    'Cancellation Notice (Buyer''s Agent)',          'Inspection cancelled — {{property_address}}',                                                            '<p>The inspection at <strong>{{property_address}}</strong> has been cancelled. The client may need to reschedule.</p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'inspection.created',         'client',                          'Send Agreement to Client',                      'Please sign your inspection agreement — {{property_address}}',                                            '<p>Hi {{client_name}},</p><p>Please review and sign the inspection agreement for <strong>{{property_address}}</strong> scheduled for {{scheduled_date}}.</p><p><a href="{{agreement_sign_url}}">Review &amp; Sign Agreement</a></p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'agreement.signed',           'client',                          'Agreement Signed Confirmation',                 'Confirmation: agreement signed — {{property_address}}',                                                  '<p>Hi {{client_name}},</p><p>Thank you for signing the inspection agreement for <strong>{{property_address}}</strong>. We will see you on {{scheduled_date}}.</p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'invoice.created',            'client',                          'Invoice / Payment Request',                     'Invoice for your inspection — {{property_address}}',                                                     '<p>Hi {{client_name}},</p><p>An invoice has been created for your inspection at <strong>{{property_address}}</strong>.</p><p><a href="{{invoice_url}}">View &amp; Pay Invoice</a></p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'payment.received',           'inspector',                       'Payment Received (Inspector)',                  'Payment received — {{property_address}}',                                                                '<p>Payment has been received for the inspection at <strong>{{property_address}}</strong> (client: {{client_name}}).</p><p>— {{company_name}}</p>' UNION ALL
-                SELECT 'payment.received',           'client',                          'Payment Received (Client Receipt)',             'Receipt: payment received — {{property_address}}',                                                       '<p>Hi {{client_name}},</p><p>Thank you — your payment for the inspection at <strong>{{property_address}}</strong> has been received.</p><p>— {{company_name}}</p>'
-            ) AS x
-            WHERE NOT EXISTS (
-                SELECT 1 FROM automations a
-                WHERE a.tenant_id = ?
-                  AND a.trigger    = x.trigger
-                  AND a.recipient  = x.recipient
-                  AND a.name       = x.name
-            )
-        `).bind(tenantId, tenantId).run();
-    } catch (err) {
-        // non-fatal: setup wizard must not fail because of seed data
-        logger.warn('seedDefaultAutomations failed', { tenantId, error: (err as Error).message });
+    const rows: Array<[string, string, string, string, string]> = [
+        ['report.published', 'client', 'Report Ready (Client)', 'Your inspection report is ready — {{property_address}}', '<p>Hi {{client_name}},</p><p>Your inspection report for <strong>{{property_address}}</strong> is ready to view.</p><p><a href="{{report_url}}">View Report</a></p><p>— {{company_name}}</p>'],
+        ['report.published', 'buying_agent', "Report Ready (Buyer's Agent)", 'Your inspection report is ready — {{property_address}}', '<p>The inspection report for <strong>{{property_address}}</strong> is ready.</p><p><a href="{{report_url}}">View Report</a></p><p>— {{company_name}}</p>'],
+        ['inspection.confirmed', 'client', '24-Hour Reminder', 'Reminder: Inspection tomorrow — {{property_address}}', '<p>Hi {{client_name}},</p><p>Just a reminder that your inspection at <strong>{{property_address}}</strong> is scheduled for <strong>{{scheduled_date}}</strong>. Your inspector will arrive during the scheduled window.</p><p>— {{company_name}}</p>'],
+        ['inspection.cancelled', 'client', 'Cancellation Notice (Client)', 'Inspection cancelled — {{property_address}}', '<p>Hi {{client_name}},</p><p>Your inspection at <strong>{{property_address}}</strong> has been cancelled. Please contact us to reschedule.</p><p>— {{company_name}}</p>'],
+        ['inspection.cancelled', 'buying_agent', "Cancellation Notice (Buyer's Agent)", 'Inspection cancelled — {{property_address}}', '<p>The inspection at <strong>{{property_address}}</strong> has been cancelled. The client may need to reschedule.</p><p>— {{company_name}}</p>'],
+        ['inspection.created', 'client', 'Send Agreement to Client', 'Please sign your inspection agreement — {{property_address}}', '<p>Hi {{client_name}},</p><p>Please review and sign the inspection agreement for <strong>{{property_address}}</strong> scheduled for {{scheduled_date}}.</p><p><a href="{{agreement_sign_url}}">Review &amp; Sign Agreement</a></p><p>— {{company_name}}</p>'],
+        ['agreement.signed', 'client', 'Agreement Signed Confirmation', 'Confirmation: agreement signed — {{property_address}}', '<p>Hi {{client_name}},</p><p>Thank you for signing the inspection agreement for <strong>{{property_address}}</strong>. We will see you on {{scheduled_date}}.</p><p>— {{company_name}}</p>'],
+        ['invoice.created', 'client', 'Invoice / Payment Request', 'Invoice for your inspection — {{property_address}}', '<p>Hi {{client_name}},</p><p>An invoice has been created for your inspection at <strong>{{property_address}}</strong>.</p><p><a href="{{invoice_url}}">View &amp; Pay Invoice</a></p><p>— {{company_name}}</p>'],
+        ['payment.received', 'inspector', 'Payment Received (Inspector)', 'Payment received — {{property_address}}', '<p>Payment has been received for the inspection at <strong>{{property_address}}</strong> (client: {{client_name}}).</p><p>— {{company_name}}</p>'],
+        ['payment.received', 'client', 'Payment Received (Client Receipt)', 'Receipt: payment received — {{property_address}}', '<p>Hi {{client_name}},</p><p>Thank you — your payment for the inspection at <strong>{{property_address}}</strong> has been received.</p><p>— {{company_name}}</p>'],
+    ];
+    const stmt = `
+        INSERT INTO automations (id, tenant_id, trigger, recipient, name, delay_minutes, subject_template, body_template, active, is_default, created_at)
+        SELECT ${SQL_UUID_V4}, ?, ?, ?, ?, 0, ?, ?, 1, 1, unixepoch('now')
+        WHERE NOT EXISTS (
+            SELECT 1 FROM automations WHERE tenant_id = ? AND trigger = ? AND recipient = ? AND name = ?
+        )
+    `;
+    for (const [trigger, recipient, name, subject, body] of rows) {
+        try {
+            await db.prepare(stmt)
+                .bind(tenantId, trigger, recipient, name, subject, body, tenantId, trigger, recipient, name)
+                .run();
+        } catch (err) {
+            logger.warn('seedDefaultAutomations.row.failed', {
+                tenantId, trigger, name,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
     }
 }
 
