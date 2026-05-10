@@ -30,6 +30,7 @@ import { SettingsPage } from './templates/pages/settings';
 import { PublicBookingPage } from './templates/pages/booking';
 import { FormRendererPage } from './templates/pages/form-renderer';
 import { AgentDashboardPage } from './templates/pages/agent-dashboard';
+import { AgentRecommendationsPage } from './templates/pages/agent-recommendations';
 import { AgentInspectorsPage } from './templates/pages/agent-inspectors';
 import { AgentSettingsProfilePage } from './templates/pages/agent-settings-profile';
 import { AgentInviteAcceptPage } from './templates/pages/agent-invite-accept';
@@ -1699,6 +1700,14 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
         bookingHost: deriveAgentHostSuffix(c),
     }));
 });
+// UC-A-5 — agent recommendations export. Server renders the static shell;
+// the page hits /api/agent/my-recommendations on init and groups defects
+// by Safety / Recommendation / Maintenance.
+app.get('/agent-recommendations', htmlAuthGuard(['agent']), (c) => {
+    const branding = c.get('branding');
+    return c.html(AgentRecommendationsPage(branding ? { branding } : {}));
+});
+
 // Agent Accounts A2 — /agent-inspectors directory of linked inspector cards
 // with copy-able booking links. host suffix is derived from APP_BASE_URL when
 // set so the rendered link stays stable across environments; falls back to the

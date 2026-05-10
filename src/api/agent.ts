@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq, sql } from 'drizzle-orm';
 import { requireRole } from '../lib/middleware/rbac';
@@ -73,6 +74,53 @@ agentRoutes.openapi(getReportsRoute, async (c) => {
         success: true, 
         data: { agentId, reports: rows } 
     }, 200);
+});
+
+/**
+ * UC-A-5 — agent's flattened recommendations grouped by safety / recommendation /
+ * maintenance. Pulls from referred-and-delivered inspections only; access is
+ * scoped via the same agent_tenant_links predicate as listReferrals.
+ */
+const RecommendationRowSchema = z.object({
+    inspectionId:    z.string(),
+    propertyAddress: z.string(),
+    inspectionDate:  z.string(),
+    sectionTitle:    z.string(),
+    itemLabel:       z.string(),
+    defectTitle:     z.string(),
+    category:        z.enum(['safety', 'recommendation', 'maintenance']),
+    comment:         z.string(),
+    location:        z.string().nullable(),
+    photos:          z.array(z.string()),
+});
+const myRecommendationsRoute = createRoute({
+    method: 'get',
+    path: '/my-recommendations',
+    tags: ['Agents'],
+    summary: 'Defects from referred inspections grouped by category',
+    responses: {
+        200: {
+            content: { 'application/json': { schema: z.object({
+                success: z.boolean(),
+                data: z.object({
+                    safety:         z.array(RecommendationRowSchema),
+                    recommendation: z.array(RecommendationRowSchema),
+                    maintenance:    z.array(RecommendationRowSchema),
+                }),
+            }) } },
+            description: 'Success',
+        },
+        401: { description: 'Unauthorized' },
+        403: { description: 'Forbidden' },
+    },
+    security: [{ bearerAuth: [] }],
+});
+
+agentRoutes.openapi(myRecommendationsRoute, async (c) => {
+    await requireRole(['agent'])(c, async () => {});
+    const user = c.get('user');
+    const groups = await c.var.services.agent.listRecommendationsForAgent(user.sub);
+    return c.json({ success: true, data: groups }, 200);
 });
 
 /**

@@ -423,6 +423,7 @@ export const AgentDashboardPage = ({
                         <span class="brand-name">{siteName}</span>
                     </div>
                     <nav class="topbar-actions">
+                        <a class="topbar-link" href="/agent-recommendations">Recommendations</a>
                         <a class="topbar-link" href="/agent-inspectors">Inspectors</a>
                         <a class="topbar-link" href="/agent-settings/profile">Settings</a>
                         <button id="signoutBtn" class="topbar-link" type="button">Sign out</button>

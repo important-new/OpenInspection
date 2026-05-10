@@ -3,11 +3,16 @@ import { and, desc, eq, ne } from 'drizzle-orm';
 import { isNull } from 'drizzle-orm';
 import { agentInvites, agentTenantLinks, tenants, users } from '../lib/db/schema/tenant';
 import { contacts } from '../lib/db/schema/contact';
-import { inspections } from '../lib/db/schema/inspection';
+import { inspections, inspectionResults } from '../lib/db/schema/inspection';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { hashPassword } from '../lib/password';
 import type { EmailService } from './email.service';
+import {
+    flattenInspectionToRecommendations,
+    groupRecommendations,
+    type AgentRecommendationGroups,
+} from './agent-recommendations';
 
 export interface AgentReferralRow {
     id: string;
@@ -500,6 +505,76 @@ export class AgentService {
             paymentStatus:   r.paymentStatus,
             inspectorName:   r.inspectorName ?? null,
         }));
+    }
+
+    /**
+     * UC-A-5 — flatten the agent's referred-and-delivered inspections into a
+     * Safety / Recommendation / Maintenance grouped list of defect rows.
+     * Reuses the same access predicate as listReferrals (inner join on
+     * `agent_tenant_links` + email-fallback for legacy contacts) so an agent
+     * cannot cross-tenant snoop or pull recommendations from inspections
+     * they didn't refer.
+     */
+    async listRecommendationsForAgent(
+        agentUserId: string,
+    ): Promise<AgentRecommendationGroups> {
+        const db = this.getDrizzle();
+        const rows = await db
+            .select({
+                id:                inspections.id,
+                tenantId:          inspections.tenantId,
+                propertyAddress:   inspections.propertyAddress,
+                date:              inspections.date,
+                templateSnapshot:  inspections.templateSnapshot,
+                referredById:      inspections.referredByAgentId,
+                contactEmail:      contacts.email,
+                linkContactId:     agentTenantLinks.inspectorContactId,
+                resultsData:       inspectionResults.data,
+            })
+            .from(inspections)
+            .innerJoin(
+                agentTenantLinks,
+                and(
+                    eq(agentTenantLinks.tenantId, inspections.tenantId),
+                    eq(agentTenantLinks.agentUserId, agentUserId),
+                    eq(agentTenantLinks.status, 'active'),
+                ),
+            )
+            .leftJoin(
+                contacts,
+                and(
+                    eq(contacts.id, inspections.referredByAgentId),
+                    eq(contacts.tenantId, inspections.tenantId),
+                ),
+            )
+            .leftJoin(
+                inspectionResults,
+                and(
+                    eq(inspectionResults.inspectionId, inspections.id),
+                    eq(inspectionResults.tenantId, inspections.tenantId),
+                ),
+            )
+            .where(eq(inspections.status, 'delivered'))
+            .all();
+
+        const agent = await db.select({ email: users.email })
+            .from(users).where(eq(users.id, agentUserId)).get();
+        const agentEmail = agent?.email ?? null;
+
+        const filtered = rows.filter((r) => {
+            if (r.referredById && r.linkContactId && r.referredById === r.linkContactId) return true;
+            if (agentEmail && r.contactEmail && r.contactEmail.toLowerCase() === agentEmail.toLowerCase()) return true;
+            return false;
+        });
+
+        const flat = filtered.flatMap((r) => flattenInspectionToRecommendations({
+            id:               r.id,
+            propertyAddress:  r.propertyAddress,
+            date:             r.date,
+            templateSnapshot: r.templateSnapshot,
+            resultsData:      r.resultsData,
+        }));
+        return groupRecommendations(flat);
     }
 
     /**
