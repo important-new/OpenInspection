@@ -62,8 +62,16 @@ function sanitizeDefectStates(data: Record<string, unknown>): void {
     }
 }
 
-function fireAutomation(db: D1Database, tenantId: string, inspectionId: string, event: string): void {
-    new AutomationService(db)
+/**
+ * Returns the trigger Promise so callers can keep the worker isolate alive
+ * via `c.executionCtx.waitUntil(...)`. The previous fire-and-forget version
+ * dangled the promise — CF Workers terminated the isolate after the
+ * response was sent, so AutomationService.trigger never inserted the
+ * automation_logs row, and report.published / inspection.confirmed /
+ * inspection.cancelled / inspection.created automations never fired.
+ */
+function fireAutomation(db: D1Database, tenantId: string, inspectionId: string, event: string): Promise<void> {
+    return new AutomationService(db)
         .trigger({ tenantId, inspectionId, triggerEvent: event, companyName: '', reportBaseUrl: '' })
         .catch(err => logger.error('automation trigger failed', { event }, err instanceof Error ? err : undefined));
 }
@@ -347,7 +355,7 @@ export class InspectionService {
         };
 
         await this.sdb.insert(inspections, newInspection);
-        fireAutomation(this.db, tenantId, id, 'inspection.created');
+        await fireAutomation(this.db, tenantId, id, 'inspection.created');
 
         // Soft-upsert the client into Contacts so it shows up in the Contacts list
         // for future re-use (search, agent linking). Idempotent on tenantId+email
@@ -1609,7 +1617,12 @@ export class InspectionService {
         await db.update(inspections)
             .set({ status: 'delivered' })
             .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)));
-        fireAutomation(this.db, tenantId, inspectionId, 'report.published');
+        // Await so AutomationService.trigger actually inserts automation_logs
+        // before the response goes out — the prior fire-and-forget pattern
+        // dangled the promise so CF terminated the isolate before the insert
+        // completed (and ditto for inspection.confirmed / cancelled / created
+        // below — all four paths now block on trigger).
+        await fireAutomation(this.db, tenantId, inspectionId, 'report.published');
 
         return {
             reportUrl: `/report/${inspectionId}`,
@@ -1635,7 +1648,7 @@ export class InspectionService {
             status:      'confirmed',
             confirmedAt: new Date().toISOString(),
         }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
-        fireAutomation(this.db, tenantId, id, 'inspection.confirmed');
+        await fireAutomation(this.db, tenantId, id, 'inspection.confirmed');
     }
 
     async cancelInspection(tenantId: string, id: string, reason: string, notes?: string): Promise<void> {
@@ -1645,7 +1658,7 @@ export class InspectionService {
             cancelReason: reason,
             cancelNotes:  notes ?? null,
         }).where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
-        fireAutomation(this.db, tenantId, id, 'inspection.cancelled');
+        await fireAutomation(this.db, tenantId, id, 'inspection.cancelled');
     }
 
     async uncancelInspection(tenantId: string, id: string): Promise<void> {
