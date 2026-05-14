@@ -60,6 +60,22 @@ function statusBadge(status) {
     return '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500">Draft</span>';
 }
 
+function qboSyncBadge(qboSyncStatus) {
+    if (qboSyncStatus === 'synced') {
+        return '<span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 dark:bg-green-900/20 dark:text-green-400 px-2 py-0.5 rounded-full">' +
+            '<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>QBO</span>';
+    }
+    if (qboSyncStatus === 'pending') {
+        return '<span class="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">' +
+            '<span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span>Syncing</span>';
+    }
+    if (qboSyncStatus === 'failed') {
+        return '<span class="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full cursor-pointer" title="QBO sync failed — check Settings › Integrations">' +
+            '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>&#x26A0; Failed</span>';
+    }
+    return '';
+}
+
 function renderInvoices(list) {
     var tbody = document.getElementById('invoicesBody');
     if (!tbody) return;
@@ -81,7 +97,7 @@ function renderInvoices(list) {
             (inv.clientEmail ? '<p class="text-xs text-slate-400">' + inv.clientEmail + '</p>' : '') + '</td>' +
             '<td class="py-5 px-8 text-sm font-bold text-slate-900">$' + (inv.amountCents / 100).toFixed(2) + '</td>' +
             '<td class="py-5 px-8 text-sm text-slate-500">' + (inv.dueDate || '\u2014') + '</td>' +
-            '<td class="py-5 px-8">' + statusBadge(inv.status) + '</td>' +
+            '<td class="py-5 px-8"><div class="flex items-center gap-2">' + statusBadge(inv.status) + qboSyncBadge(inv.qboSyncStatus) + '</div></td>' +
             '<td class="py-5 pr-10 text-right flex gap-2 justify-end">' + actions + '</td></tr>';
     }).join('');
 }
