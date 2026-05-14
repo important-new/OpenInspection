@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { qboConnections, qboEntityMap, qboSyncErrors } from '../lib/db/schema/qbo';
+import { invoices } from '../lib/db/schema/invoice';
 import { encryptToken, decryptToken } from '../lib/qbo-crypto';
 import { logger } from '../lib/logger';
 import { QBOTokenResponseSchema } from '../lib/validations/qbo.schema';
@@ -405,6 +406,230 @@ export class QBOService {
         } catch (e) {
             logger.error('QBO upsertCustomer failed', { tenantId, contactId: contact.id }, e instanceof Error ? e : undefined);
             await this.logSyncError(tenantId, 'contact', contact.id, e);
+        }
+    }
+
+    // ─── Invoice Sync ─────────────────────────────────────────────────────────
+
+    async upsertInvoice(
+        tenantId: string,
+        invoice: {
+            id: string;
+            invoiceNumber?: string | null;
+            contactId?: string | null;
+            dueDate?: string | null;
+            lineItems: Array<{ description: string; amountCents: number; quantity?: number }>;
+            status: string;
+        },
+    ): Promise<void> {
+        const db = this.getDrizzle();
+        const conn = await db.select().from(qboConnections).where(eq(qboConnections.tenantId, tenantId)).get();
+        if (!conn) return;
+
+        let qboCustomerId: string | null = null;
+        if (invoice.contactId) {
+            const contactMap = await db.select().from(qboEntityMap).where(
+                and(eq(qboEntityMap.tenantId, tenantId), eq(qboEntityMap.oiType, 'contact'), eq(qboEntityMap.oiId, invoice.contactId)),
+            ).get();
+            qboCustomerId = contactMap?.qboId ?? null;
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        const dueDate = invoice.dueDate ? invoice.dueDate.slice(0, 10) : today;
+
+        const lines = invoice.lineItems.map(item => {
+            const qty = item.quantity ?? 1;
+            const unitPrice = item.amountCents / 100 / qty;
+            const amount = item.amountCents / 100;
+            return {
+                DetailType: 'SalesItemLineDetail',
+                Amount: amount,
+                SalesItemLineDetail: {
+                    ItemRef: { value: conn.defaultItemId, name: item.description.slice(0, 100) },
+                    UnitPrice: unitPrice,
+                    Qty: qty,
+                },
+            };
+        });
+
+        const payload: Record<string, unknown> = {
+            DocNumber:   this.buildDocNumber(invoice.invoiceNumber ?? invoice.id),
+            TxnDate:     today,
+            DueDate:     dueDate,
+            Line:        lines,
+            EmailStatus: invoice.status === 'sent' ? 'EmailSent' : 'NotSet',
+        };
+        if (qboCustomerId) payload.CustomerRef = { value: qboCustomerId };
+
+        const existing = await db.select().from(qboEntityMap).where(
+            and(eq(qboEntityMap.tenantId, tenantId), eq(qboEntityMap.oiType, 'invoice'), eq(qboEntityMap.oiId, invoice.id)),
+        ).get();
+
+        try {
+            if (existing) {
+                let syncToken = existing.qboSyncToken;
+                for (let attempt = 0; attempt < 3; attempt++) {
+                    try {
+                        const updated = await this.apiCall<{ Invoice: { Id: string; SyncToken: string } }>(
+                            tenantId, 'PUT', 'invoice',
+                            { ...payload, Id: existing.qboId, SyncToken: syncToken },
+                        );
+                        await db.update(qboEntityMap).set({
+                            qboSyncToken: updated.Invoice.SyncToken,
+                            syncedAt:     Math.floor(Date.now() / 1000),
+                        }).where(eq(qboEntityMap.id, existing.id));
+                        return;
+                    } catch (err: unknown) {
+                        const qboErr = err as { status?: number };
+                        if (qboErr?.status === 400) {
+                            const refetched = await this.apiCall<{ Invoice: { Id: string; SyncToken: string } }>(
+                                tenantId, 'GET', `invoice/${existing.qboId}`,
+                            );
+                            syncToken = refetched.Invoice.SyncToken;
+                            continue;
+                        }
+                        throw err;
+                    }
+                }
+            } else {
+                const created = await this.apiCall<{ Invoice: { Id: string; SyncToken: string } }>(
+                    tenantId, 'POST', 'invoice', payload,
+                );
+                const now = Math.floor(Date.now() / 1000);
+                await db.insert(qboEntityMap).values({
+                    id: crypto.randomUUID(), tenantId,
+                    oiType: 'invoice', oiId: invoice.id,
+                    qboType: 'Invoice', qboId: created.Invoice.Id,
+                    qboSyncToken: created.Invoice.SyncToken, syncedAt: now,
+                });
+            }
+
+            await db.update(invoices).set({ qboSyncStatus: 'synced' }).where(
+                and(eq(invoices.id, invoice.id), eq(invoices.tenantId, tenantId)),
+            );
+        } catch (e) {
+            await db.update(invoices).set({ qboSyncStatus: 'failed' }).where(
+                and(eq(invoices.id, invoice.id), eq(invoices.tenantId, tenantId)),
+            );
+            logger.error('QBO upsertInvoice failed', { tenantId, invoiceId: invoice.id }, e instanceof Error ? e : undefined);
+            await this.logSyncError(tenantId, 'invoice', invoice.id, e);
+        }
+    }
+
+    async voidInvoice(tenantId: string, invoiceId: string): Promise<void> {
+        const db = this.getDrizzle();
+        const mapped = await db.select().from(qboEntityMap).where(
+            and(eq(qboEntityMap.tenantId, tenantId), eq(qboEntityMap.oiType, 'invoice'), eq(qboEntityMap.oiId, invoiceId)),
+        ).get();
+        if (!mapped) return;
+
+        try {
+            const voided = await this.apiCall<{ Invoice: { Id: string; SyncToken: string } }>(
+                tenantId, 'POST', `invoice?operation=void`,
+                { Id: mapped.qboId, SyncToken: mapped.qboSyncToken },
+            );
+            await db.update(qboEntityMap).set({
+                qboSyncToken: voided.Invoice.SyncToken,
+                syncedAt:     Math.floor(Date.now() / 1000),
+            }).where(eq(qboEntityMap.id, mapped.id));
+        } catch (e) {
+            logger.error('QBO voidInvoice failed', { tenantId, invoiceId }, e instanceof Error ? e : undefined);
+            await this.logSyncError(tenantId, 'invoice', invoiceId, e);
+        }
+    }
+
+    async recordPayment(tenantId: string, invoiceId: string, amountPaid: number): Promise<void> {
+        const db = this.getDrizzle();
+        const invoiceMap = await db.select().from(qboEntityMap).where(
+            and(eq(qboEntityMap.tenantId, tenantId), eq(qboEntityMap.oiType, 'invoice'), eq(qboEntityMap.oiId, invoiceId)),
+        ).get();
+        if (!invoiceMap) return;
+
+        // Look up the QBO customer ID via the entity map for contacts linked to this invoice
+        const row = await this.db.prepare(
+            `SELECT qem_c.qbo_id AS qbo_customer_id
+             FROM qbo_entity_map qem_i
+             JOIN qbo_entity_map qem_c
+               ON qem_c.tenant_id = qem_i.tenant_id
+              AND qem_c.oi_type = 'contact'
+              AND qem_c.qbo_type = 'Customer'
+             WHERE qem_i.tenant_id = ?
+               AND qem_i.oi_type = 'invoice'
+               AND qem_i.oi_id = ?
+             LIMIT 1`,
+        ).bind(tenantId, invoiceId).first<{ qbo_customer_id: string }>().catch(() => null);
+
+        const qboCustomerId = row?.qbo_customer_id ?? null;
+        if (!qboCustomerId) {
+            logger.info('QBO recordPayment: no customer mapping — skipping', { tenantId, invoiceId });
+            return;
+        }
+
+        try {
+            await this.apiCall(tenantId, 'POST', 'payment', {
+                CustomerRef: { value: qboCustomerId },
+                TotalAmt:    amountPaid,
+                TxnDate:     new Date().toISOString().slice(0, 10),
+                Line:        [{ Amount: amountPaid, LinkedTxn: [{ TxnId: invoiceMap.qboId, TxnType: 'Invoice' }] }],
+            });
+        } catch (e) {
+            logger.error('QBO recordPayment failed', { tenantId, invoiceId }, e instanceof Error ? e : undefined);
+            await this.logSyncError(tenantId, 'invoice', invoiceId, e);
+        }
+    }
+
+    async createCreditMemo(tenantId: string, invoiceId: string, refundAmount: number): Promise<void> {
+        const db = this.getDrizzle();
+        const conn = await db.select().from(qboConnections).where(eq(qboConnections.tenantId, tenantId)).get();
+        if (!conn) return;
+
+        // Look up the QBO customer ID via the entity map for contacts linked to this invoice
+        const row = await this.db.prepare(
+            `SELECT qem_c.qbo_id AS qbo_customer_id
+             FROM qbo_entity_map qem_i
+             JOIN qbo_entity_map qem_c
+               ON qem_c.tenant_id = qem_i.tenant_id
+              AND qem_c.oi_type = 'contact'
+              AND qem_c.qbo_type = 'Customer'
+             WHERE qem_i.tenant_id = ?
+               AND qem_i.oi_type = 'invoice'
+               AND qem_i.oi_id = ?
+             LIMIT 1`,
+        ).bind(tenantId, invoiceId).first<{ qbo_customer_id: string }>().catch(() => null);
+
+        const qboCustomerId = row?.qbo_customer_id ?? null;
+        if (!qboCustomerId) return;
+
+        try {
+            const created = await this.apiCall<{ CreditMemo: { Id: string; SyncToken: string } }>(
+                tenantId, 'POST', 'creditmemo', {
+                    CustomerRef: { value: qboCustomerId },
+                    TxnDate:     new Date().toISOString().slice(0, 10),
+                    Line:        [{
+                        DetailType: 'SalesItemLineDetail',
+                        Amount:     refundAmount,
+                        SalesItemLineDetail: {
+                            ItemRef:   { value: conn.defaultItemId },
+                            UnitPrice: refundAmount,
+                            Qty:       1,
+                        },
+                    }],
+                },
+            );
+            const now = Math.floor(Date.now() / 1000);
+            await db.insert(qboEntityMap).values({
+                id:           crypto.randomUUID(),
+                tenantId,
+                oiType:       'refund',
+                oiId:         invoiceId,
+                qboType:      'CreditMemo',
+                qboId:        created.CreditMemo.Id,
+                qboSyncToken: created.CreditMemo.SyncToken,
+                syncedAt:     now,
+            });
+        } catch (e) {
+            logger.error('QBO createCreditMemo failed', { tenantId, invoiceId }, e instanceof Error ? e : undefined);
+            await this.logSyncError(tenantId, 'refund', invoiceId, e);
         }
     }
 
