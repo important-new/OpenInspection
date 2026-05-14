@@ -76,6 +76,8 @@ import { SettingsWorkspacePage } from './templates/pages/settings-workspace';
 import { SettingsCommunicationPage } from './templates/pages/settings-communication';
 import { SettingsAccountPage } from './templates/pages/settings-account';
 import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
+import { SettingsIntegrationsPage } from './templates/pages/settings-integrations';
+import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
@@ -2054,6 +2056,10 @@ app.get('/settings/communication/email', htmlAuthGuard(['owner', 'admin']), (c) 
 app.get('/settings/communication/automations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAutomationsPage({ branding: c.get('branding') })));
 app.get('/settings/communication/calendar', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsCommunicationPage({ branding: c.get('branding'), subPage: 'calendar' })));
 app.get('/settings/communication/integrations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsCommunicationPage({ branding: c.get('branding'), subPage: 'integrations' })));
+
+// Integrations group
+app.get('/settings/integrations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsIntegrationsPage({ branding: c.get('branding') })));
+app.get('/settings/integrations/qbo', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsIntegrationsQBOPage({ branding: c.get('branding') })));
 
 // Account group (per-user, all roles allowed)
 app.get('/settings/account', htmlAuthGuard(), (c) => c.redirect('/settings/account/password'));
