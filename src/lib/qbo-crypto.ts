@@ -26,7 +26,7 @@ export async function encryptToken(plaintext: string, jwtSecret: string): Promis
     const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
     combined.set(iv, 0);
     combined.set(new Uint8Array(ciphertext), iv.byteLength);
-    return btoa(String.fromCharCode(...combined));
+    return btoa(Array.from(combined, b => String.fromCharCode(b)).join(''));
 }
 
 export async function decryptToken(encrypted: string, jwtSecret: string): Promise<string> {
