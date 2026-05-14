@@ -82,3 +82,20 @@ describe('QBOService.buildDocNumber', () => {
         expect(result).toBe('INV-001');
     });
 });
+
+describe('QBOService.buildDisplayName', () => {
+    it('formats first + last name', () => {
+        const svc = new QBOService({} as any, 'cid', 'csec', 'whsec', 'secret32chars_aaaaaaaaaaaaaaaa');
+        expect((svc as any).buildDisplayName('John', 'Smith', null, 0)).toBe('John Smith');
+    });
+
+    it('appends email on retry 1', () => {
+        const svc = new QBOService({} as any, 'cid', 'csec', 'whsec', 'secret32chars_aaaaaaaaaaaaaaaa');
+        expect((svc as any).buildDisplayName('John', 'Smith', 'j@x.com', 1)).toBe('John Smith (j@x.com)');
+    });
+
+    it('appends contactId on retry 2', () => {
+        const svc = new QBOService({} as any, 'cid', 'csec', 'whsec', 'secret32chars_aaaaaaaaaaaaaaaa');
+        expect((svc as any).buildDisplayName('John', 'Smith', 'j@x.com', 2, 'cid-123')).toBe('John Smith (cid-123)');
+    });
+});
