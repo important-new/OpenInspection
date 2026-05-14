@@ -79,7 +79,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                             key={stat.id}
                             type="button"
                             x-on:click={`sections['${stat.target}']=true; $nextTick(()=>{ const el=document.getElementById('bucket-${stat.target}'); if(el) el.scrollIntoView({behavior:'smooth', block:'start'}); })`}
-                            class="group p-4 rounded-lg bg-white border border-slate-200 animate-fade-in text-left hover:shadow-md hover:border-slate-300 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                            class="group p-4 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 animate-fade-in text-left hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                             style={`animation-delay: ${0.1 + i * 0.05}s`}
                             title={`Jump to ${stat.label}`}
                         >
@@ -89,7 +89,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 </div>
                                 <span class="sr-only">Live</span>
                             </div>
-                            <h3 class="text-2xl font-bold text-slate-900 tracking-tight tabular-nums mb-1" id={stat.id}>0</h3>
+                            <h3 class="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight tabular-nums mb-1" id={stat.id}>0</h3>
                             <p class="text-[12px] font-bold text-slate-500 uppercase tracking-[0.15em]">{stat.label}</p>
                             {/* Agent Accounts A3 — UPCOMING substate. Per
                                 directive we do NOT add a 5th stat card; the
@@ -119,7 +119,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                 </div>
 
                 {/* Earnings Panel — only visible when there's revenue activity */}
-                <div x-data="dashboardEarnings()" x-init="loadEarnings()" x-show="earnings.paid > 0 || earnings.pending > 0" class="bg-white rounded-md shadow-sm border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" style="display: none;">
+                <div x-data="dashboardEarnings()" x-init="loadEarnings()" x-show="earnings.paid > 0 || earnings.pending > 0" class="bg-white dark:bg-slate-800 rounded-md shadow-sm border border-slate-100 dark:border-slate-700 p-6 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" style="display: none;">
                     <div>
                         <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Paid this period</div>
                         <div class="mt-1 text-xl font-bold text-emerald-600" x-text="formatCurrency(earnings.paid)"></div>
@@ -177,13 +177,13 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 x-on:click="setFilter(opt.id)"
                                 x-bind:class={`activeFilter === opt.id
                                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900'`}
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-200'`}
                                 class="inline-flex items-center gap-1.5 h-7 px-3 rounded-full border text-[11px] font-bold uppercase tracking-[0.08em] transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                             >
                                 <span x-text="opt.label"></span>
                                 <span
                                     x-show="opt.id !== 'all' && filterCounts[opt.id] > 0"
-                                    x-bind:class={`activeFilter === opt.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'`}
+                                    x-bind:class={`activeFilter === opt.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'`}
                                     class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] tabular-nums"
                                     x-text="filterCounts[opt.id]"
                                 ></span>
@@ -200,7 +200,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                 x-model="activeTagFilter"
                                 x-on:change="onTagFilterChange()"
                                 aria-label="Filter by tag"
-                                class="h-7 px-2 rounded-full border text-[11px] font-bold uppercase tracking-[0.08em] outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white text-slate-600 border-slate-200"
+                                class="h-7 px-2 rounded-full border text-[11px] font-bold uppercase tracking-[0.08em] outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700"
                                 data-testid="dashboard-tag-filter"
                             >
                                 <option value="">Any tag</option>
@@ -223,7 +223,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     <section
                         x-show="!loading && (activeFilter !== 'all' || !!tagFilterIds)"
                         {...{ 'x-cloak': true }}
-                        class="bg-white border border-slate-200 rounded-md scroll-mt-20"
+                        class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md scroll-mt-20"
                         data-test="inspection-filter-list"
                     >
                         <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
@@ -255,7 +255,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Needs Attention */}
-                    <section id="bucket-needsAttention" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.needsAttention.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-md scroll-mt-20">
+                    <section id="bucket-needsAttention" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.needsAttention.length > 0" {...{ 'x-cloak': true }} class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md scroll-mt-20">
                         <button type="button" x-on:click="sections.needsAttention = !sections.needsAttention"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -273,7 +273,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Today */}
-                    <section id="bucket-today" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.today.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-md scroll-mt-20">
+                    <section id="bucket-today" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.today.length > 0" {...{ 'x-cloak': true }} class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md scroll-mt-20">
                         <button type="button" x-on:click="sections.today = !sections.today"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -291,7 +291,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Today's events (Spec 4D.T10) */}
-                    <section x-show="!loading && activeFilter === 'all' && !tagFilterIds && todayEvents.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-md">
+                    <section x-show="!loading && activeFilter === 'all' && !tagFilterIds && todayEvents.length > 0" {...{ 'x-cloak': true }} class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md">
                         <button type="button" x-on:click="sections.todayEvents = !sections.todayEvents"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -314,7 +314,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: This Week */}
-                    <section id="bucket-thisWeek" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.thisWeek.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-md scroll-mt-20">
+                    <section id="bucket-thisWeek" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.thisWeek.length > 0" {...{ 'x-cloak': true }} class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md scroll-mt-20">
                         <button type="button" x-on:click="sections.thisWeek = !sections.thisWeek"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -332,7 +332,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Later */}
-                    <section x-show="!loading && activeFilter === 'all' && !tagFilterIds && (buckets.later.length > 0 || buckets.laterTotal > 0)" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-md">
+                    <section x-show="!loading && activeFilter === 'all' && !tagFilterIds && (buckets.later.length > 0 || buckets.laterTotal > 0)" {...{ 'x-cloak': true }} class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md">
                         <button type="button" x-on:click="sections.later = !sections.later"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -355,7 +355,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Recent Reports */}
-                    <section id="bucket-recentReports" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.recentReports.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-md scroll-mt-20">
+                    <section id="bucket-recentReports" x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.recentReports.length > 0" {...{ 'x-cloak': true }} class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md scroll-mt-20">
                         <button type="button" x-on:click="sections.recentReports = !sections.recentReports"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">
@@ -373,7 +373,7 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     </section>
 
                     {/* Section: Cancelled */}
-                    <section x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.cancelled.length > 0" {...{ 'x-cloak': true }} class="bg-white border border-slate-200 rounded-md">
+                    <section x-show="!loading && activeFilter === 'all' && !tagFilterIds && buckets.cancelled.length > 0" {...{ 'x-cloak': true }} class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md">
                         <button type="button" x-on:click="sections.cancelled = !sections.cancelled"
                                 class="w-full flex items-center justify-between px-5 py-4 text-left">
                             <div class="flex items-center gap-3">

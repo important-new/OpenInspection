@@ -28,8 +28,8 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                     {/* Header */}
                     <header class="space-y-2">
                         <span class="inline-flex items-center rounded-md bg-blueprint-100 px-2.5 py-1 text-[10px] font-bold text-blueprint-700 uppercase tracking-[0.2em]">Settings</span>
-                        <h1 class="text-3xl font-bold tracking-tight text-ink-900">Settings</h1>
-                        <p class="text-base text-ink-600 max-w-2xl">Configure your workspace, catalog, integrations, and account. Pick a section to get started.</p>
+                        <h1 class="text-3xl font-bold tracking-tight text-ink-900 dark:text-slate-100">Settings</h1>
+                        <p class="text-base text-ink-600 dark:text-slate-400 max-w-2xl">Configure your workspace, catalog, integrations, and account. Pick a section to get started.</p>
                     </header>
 
                     {/* Group cards */}
@@ -43,7 +43,7 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                             return (
                                 <a
                                     href={href}
-                                    class="group bg-white rounded-lg border border-surface-200 p-5 hover:border-blueprint-200 hover:shadow-md transition-all flex items-start gap-4"
+                                    class="group bg-white dark:bg-slate-800 rounded-lg border border-surface-200 dark:border-slate-700 p-5 hover:border-blueprint-200 dark:hover:border-slate-600 hover:shadow-md transition-all flex items-start gap-4"
                                 >
                                     <div class="w-11 h-11 rounded-md bg-blueprint-100 text-blueprint-700 flex items-center justify-center flex-shrink-0 group-hover:bg-blueprint-500 group-hover:text-white transition-colors">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,9 +51,9 @@ export const SettingsPage = ({ branding }: { branding?: BrandingConfig | undefin
                                         </svg>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <div class="font-bold text-ink-900 text-sm tracking-tight">{group.label}</div>
-                                        <div class="text-xs text-ink-600 mt-0.5">{group.description}</div>
-                                        <div class="text-[11px] text-ink-500 mt-2 font-medium">
+                                        <div class="font-bold text-ink-900 dark:text-slate-100 text-sm tracking-tight">{group.label}</div>
+                                        <div class="text-xs text-ink-600 dark:text-slate-400 mt-0.5">{group.description}</div>
+                                        <div class="text-[11px] text-ink-500 dark:text-slate-500 mt-2 font-medium">
                                             {group.subPages.length} {group.subPages.length === 1 ? 'item' : 'items'} &middot; {group.subPages.map(s => s.label).join(', ')}
                                         </div>
                                     </div>

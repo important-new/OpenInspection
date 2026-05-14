@@ -55,9 +55,9 @@ export const PageHeader = ({
                             {eyebrow}
                         </span>
                     )}
-                    <h1 class="text-[22px] font-bold tracking-tight text-slate-900 leading-tight truncate">{title}</h1>
+                    <h1 class="text-[22px] font-bold tracking-tight text-slate-900 dark:text-slate-100 leading-tight truncate">{title}</h1>
                     {meta && (
-                        <div class="text-[13px] text-slate-500 font-medium leading-relaxed">
+                        <div class="text-[13px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                             {meta}
                         </div>
                     )}
