@@ -1193,15 +1193,30 @@ export class InspectionService {
         // Sprint 2 S2-4 — per-tenant flag controls whether the published
         // report renders "Estimated cost: $X – $Y" badges on defect cards.
         let showEstimates = false;
+        let reportTheme: 'modern' | 'classic' | 'minimal' = 'modern';
         try {
-            const cfg = await db.select({ showEstimates: tenantConfigs.showEstimates })
+            const cfg = await db.select({
+                showEstimates: tenantConfigs.showEstimates,
+                reportTheme:   tenantConfigs.reportTheme,
+            })
                 .from(tenantConfigs)
                 .where(eq(tenantConfigs.tenantId, tenantId))
                 .get();
-            if (cfg) showEstimates = Boolean(cfg.showEstimates);
+            if (cfg) {
+                showEstimates = Boolean(cfg.showEstimates);
+                if (cfg.reportTheme === 'classic' || cfg.reportTheme === 'minimal') {
+                    reportTheme = cfg.reportTheme;
+                }
+            }
         } catch {
-            // tenant_configs row missing — assume disabled (the migration
-            // defaults the column to 0 anyway, so this is just paranoia).
+            // tenant_configs row missing — defaults apply.
+        }
+        // Per-inspection override wins over tenant default.
+        const inspectionThemeOverride = (inspection as { reportThemeOverride?: string | null }).reportThemeOverride;
+        if (inspectionThemeOverride === 'classic' || inspectionThemeOverride === 'minimal') {
+            reportTheme = inspectionThemeOverride;
+        } else if (inspectionThemeOverride === 'modern') {
+            reportTheme = 'modern';
         }
 
         // Round-2 backlog G1 (Spectora §E.2) — Property Facts banner rendered
@@ -1219,7 +1234,7 @@ export class InspectionService {
 
         return {
             inspection: { ...inspection, inspectorName },
-            theme: 'modern' as const,
+            theme: reportTheme,
             stats: { total: stats.total, satisfactory: stats.satisfactory, monitor: stats.monitor, defect: stats.defect },
             sections,
             ratingLevels: levels.length > 0 ? levels : [
