@@ -1,15 +1,11 @@
 import { Hono } from 'hono';
 import type { HonoConfig } from '../types/hono';
-import { QBOService } from '../services/qbo.service';
 import { logger } from '../lib/logger';
 
 const api = new Hono<HonoConfig>();
 
-/**
- * POST /api/integrations/qbo/webhook
- * Excluded from JWT middleware — verified via intuit-signature HMAC instead.
- * Processes CloudEvents v1.0 payload (mandatory format from 2026-05-15).
- */
+// Excluded from JWT middleware (see index.ts `isPublic`) — verified via the
+// intuit-signature HMAC inside QBOService.handleWebhook.
 api.post('/', async (c) => {
     const headerSig = c.req.header('intuit-signature');
     if (!headerSig) {
@@ -17,20 +13,12 @@ api.post('/', async (c) => {
         return c.json({ error: 'Missing signature' }, 401);
     }
 
-    // Read raw body BEFORE any parsing — hashing must use raw bytes
+    // Read raw body before any parsing — HMAC must use the exact bytes Intuit signed.
     const rawBody = await c.req.text();
-
-    const svc = new QBOService(
-        c.env.DB,
-        c.env.QBO_CLIENT_ID ?? '',
-        c.env.QBO_CLIENT_SECRET ?? '',
-        c.env.QBO_WEBHOOK_SECRET ?? '',
-        c.env.JWT_SECRET,
-    );
-
+    const svc = c.var.services.qbo;
     const invoiceSvc = c.var.services.invoice;
 
-    // Respond 200 immediately — Intuit retries on non-200
+    // Respond 200 immediately — Intuit retries on non-200, so do the work in the background.
     c.executionCtx.waitUntil(
         svc.handleWebhook(
             rawBody,

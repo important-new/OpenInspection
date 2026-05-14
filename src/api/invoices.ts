@@ -43,12 +43,10 @@ invoiceRoutes.openapi(createInvoiceRoute, async (c) => {
     if (c.env.QBO_CLIENT_ID) {
         c.executionCtx.waitUntil(
             c.var.services.qbo.upsertInvoice(tenantId, {
-                id: invoice.id,
-                invoiceNumber: null,
-                contactId: null,
-                dueDate: invoice.dueDate,
+                id:        invoice.id,
+                dueDate:   invoice.dueDate,
                 lineItems: invoice.lineItems,
-                status: invoice.status,
+                status:    invoice.status,
             }),
         );
     }
@@ -71,17 +69,15 @@ invoiceRoutes.openapi(markSentRoute, async (c) => {
     const tenantId = c.get('tenantId');
     await c.var.services.invoice.markSent(id, tenantId);
     if (c.env.QBO_CLIENT_ID) {
-        const all = await c.var.services.invoice.listInvoices(tenantId);
-        const inv = all.find(i => i.id === id);
+        const inv = (await c.var.services.invoice.listInvoices(tenantId)).find(i => i.id === id);
         if (inv) {
             c.executionCtx.waitUntil(
                 c.var.services.qbo.upsertInvoice(tenantId, {
-                    id: inv.id,
-                    invoiceNumber: null,
-                    contactId: null,
-                    dueDate: inv.dueDate,
+                    id:        inv.id,
+                    contactId: inv.contactId ?? null,
+                    dueDate:   inv.dueDate,
                     lineItems: inv.lineItems,
-                    status: 'sent',
+                    status:    'sent',
                 }),
             );
         }
@@ -105,8 +101,7 @@ invoiceRoutes.openapi(markPaidRoute, async (c) => {
     const tenantId = c.get('tenantId');
     await c.var.services.invoice.markPaid(id, tenantId, 'oi');
     if (c.env.QBO_CLIENT_ID) {
-        const all = await c.var.services.invoice.listInvoices(tenantId);
-        const inv = all.find(i => i.id === id);
+        const inv = (await c.var.services.invoice.listInvoices(tenantId)).find(i => i.id === id);
         if (inv) {
             c.executionCtx.waitUntil(
                 c.var.services.qbo.recordPayment(tenantId, id, inv.amountCents / 100),

@@ -4,12 +4,14 @@ import { qboConnections, qboEntityMap, qboSyncErrors } from '../lib/db/schema/qb
 import { invoices } from '../lib/db/schema/invoice';
 import { encryptToken, decryptToken } from '../lib/qbo-crypto';
 import { logger } from '../lib/logger';
-import { QBOTokenResponseSchema, type QBOCloudEvent } from '../lib/validations/qbo.schema';
+import { QBOTokenResponseSchema, QBOCloudEventSchema, type QBOCloudEvent } from '../lib/validations/qbo.schema';
 
 const QBO_API_BASE = 'https://quickbooks.api.intuit.com/v3/company';
 const QBO_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 const QBO_REVOKE_URL = 'https://developer.api.intuit.com/v2/oauth2/tokens/revoke';
 const MINOR_VERSION = '75';
+const ACCESS_TOKEN_TTL_SEC = 3600;
+const CDC_PAGE_SIZE = 1000;
 
 export interface QBOConnectionStatus {
     realmId: string;
@@ -25,6 +27,11 @@ type QBOToken = {
     realmId: string;
     tenantId: string;
 };
+
+type InvoiceSummary = { Id: string; SyncToken: string; Balance: number; TotalAmt: number };
+
+type MarkPaidFn = (invoiceId: string, tenantId: string) => Promise<void>;
+type MarkPartialFn = (invoiceId: string, balance: number, tenantId: string) => Promise<void>;
 
 export class QBOService {
     constructor(
@@ -45,7 +52,7 @@ export class QBOService {
     private parseCloudEventType(type: string): { entityType: string; operation: string } | null {
         const parts = type.split('.');
         if (parts.length < 4 || parts[0] !== 'qbo') return null;
-        return { entityType: parts[1], operation: parts[2] };
+        return { entityType: parts[1]!, operation: parts[2]! };
     }
 
     private async verifyWebhookSignature(rawBody: string, headerSig: string): Promise<boolean> {
@@ -119,7 +126,7 @@ export class QBOService {
         await db.update(qboConnections).set({
             accessToken:           await encryptToken(data.access_token, this.jwtSecret),
             refreshToken:          await encryptToken(data.refresh_token, this.jwtSecret),
-            tokenExpiresAt:        now + 3600,
+            tokenExpiresAt:        now + ACCESS_TOKEN_TTL_SEC,
             refreshTokenExpiresAt: now + data.x_refresh_token_expires_in,
         }).where(eq(qboConnections.tenantId, tenantId));
 
@@ -224,45 +231,100 @@ export class QBOService {
         }
     }
 
-    /**
-     * Verifies and dispatches an inbound QBO Cloud Event webhook.
-     * Returns false if the signature is invalid or the event type is unrecognized.
-     */
-    async handleWebhookEvent(
+    // Raw SQL because Drizzle does not type the cross-table join we need.
+    private async getQBOCustomerIdForInvoice(tenantId: string, invoiceId: string): Promise<string | null> {
+        const row = await this.db.prepare(
+            `SELECT qem_c.qbo_id AS qbo_customer_id
+             FROM invoices inv
+             JOIN qbo_entity_map qem_c
+               ON qem_c.oi_id = inv.contact_id
+              AND qem_c.tenant_id = inv.tenant_id
+              AND qem_c.oi_type = 'contact'
+             WHERE inv.id = ? AND inv.tenant_id = ?
+             LIMIT 1`,
+        ).bind(invoiceId, tenantId).first<{ qbo_customer_id: string }>().catch(() => null);
+        return row?.qbo_customer_id ?? null;
+    }
+
+    private async applyInvoiceStatusFromQBO(
         tenantId: string,
-        rawBody: string,
-        signature: string,
-        eventType: string,
-        entityId: string,
-        occurredAt: number,
+        inv: InvoiceSummary,
+        markPaid: MarkPaidFn,
+        markPartial: MarkPartialFn,
     ): Promise<boolean> {
-        const valid = await this.verifyWebhookSignature(rawBody, signature);
-        if (!valid) {
-            logger.warn('QBO webhook signature mismatch', { tenantId });
-            return false;
-        }
+        const db = this.getDrizzle();
+        const mapped = await db.select().from(qboEntityMap).where(
+            and(
+                eq(qboEntityMap.tenantId, tenantId),
+                eq(qboEntityMap.qboType, 'Invoice'),
+                eq(qboEntityMap.qboId, inv.Id),
+            ),
+        ).get();
+        if (!mapped) return false;
 
-        const parsed = this.parseCloudEventType(eventType);
-        if (!parsed) {
-            logger.warn('QBO webhook unrecognized event type', { tenantId, eventType });
-            return false;
-        }
+        await db.update(qboEntityMap).set({
+            qboSyncToken: inv.SyncToken,
+            syncedAt:     Math.floor(Date.now() / 1000),
+        }).where(eq(qboEntityMap.id, mapped.id));
 
-        try {
-            logger.info('QBO webhook received', {
-                tenantId,
-                entityType: parsed.entityType,
-                operation:  parsed.operation,
-                entityId,
-                occurredAt: this.toIso8601(occurredAt),
-                docRef:     this.buildDocNumber(entityId),
-            });
-        } catch (e) {
-            await this.logSyncError(tenantId, parsed.entityType, entityId, e);
-            return false;
+        if (inv.Balance === 0) {
+            await markPaid(mapped.oiId, tenantId);
+        } else if (inv.Balance < inv.TotalAmt) {
+            await markPartial(mapped.oiId, inv.Balance, tenantId);
         }
-
         return true;
+    }
+
+    // ─── Connection lifecycle ─────────────────────────────────────────────────
+
+    async saveConnection(input: {
+        tenantId: string;
+        realmId: string;
+        companyName: string | null;
+        accessToken: string;
+        refreshToken: string;
+        refreshTokenExpiresIn: number;
+    }): Promise<void> {
+        const db = this.getDrizzle();
+        const now = Math.floor(Date.now() / 1000);
+        const [encAccess, encRefresh] = await Promise.all([
+            encryptToken(input.accessToken, this.jwtSecret),
+            encryptToken(input.refreshToken, this.jwtSecret),
+        ]);
+        const baseValues = {
+            realmId:               input.realmId,
+            companyName:           input.companyName,
+            accessToken:           encAccess,
+            refreshToken:          encRefresh,
+            tokenExpiresAt:        now + ACCESS_TOKEN_TTL_SEC,
+            refreshTokenExpiresAt: now + input.refreshTokenExpiresIn,
+        };
+        await db.insert(qboConnections).values({
+            tenantId:      input.tenantId,
+            syncEnabled:   1,
+            defaultItemId: '1',
+            createdAt:     now,
+            ...baseValues,
+        }).onConflictDoUpdate({
+            target: qboConnections.tenantId,
+            set:    baseValues,
+        });
+    }
+
+    async setSyncEnabled(tenantId: string): Promise<boolean | null> {
+        const db = this.getDrizzle();
+        const row = await db.select().from(qboConnections).where(eq(qboConnections.tenantId, tenantId)).get();
+        if (!row) return null;
+        const newEnabled = row.syncEnabled === 1 ? 0 : 1;
+        await db.update(qboConnections).set({ syncEnabled: newEnabled })
+            .where(eq(qboConnections.tenantId, tenantId));
+        return newEnabled === 1;
+    }
+
+    async resolveError(tenantId: string, errorId: string): Promise<void> {
+        const db = this.getDrizzle();
+        await db.update(qboSyncErrors).set({ resolved: 1 })
+            .where(and(eq(qboSyncErrors.id, errorId), eq(qboSyncErrors.tenantId, tenantId)));
     }
 
     // ─── Item Bootstrap ───────────────────────────────────────────────────────
@@ -361,7 +423,8 @@ export class QBOService {
                     tenantId,
                     `SELECT * FROM Customer WHERE PrimaryEmailAddr = '${contact.email.replace(/'/g, "\\'")}' MAXRESULTS 5`,
                 );
-                const match = found.QueryResponse.Customer?.[0];
+                const matches = found.QueryResponse.Customer ?? [];
+                const match = matches[0];
                 if (match) {
                     const now = Math.floor(Date.now() / 1000);
                     await db.insert(qboEntityMap).values({
@@ -370,9 +433,9 @@ export class QBOService {
                         qboType: 'Customer', qboId: match.Id,
                         qboSyncToken: match.SyncToken, syncedAt: now,
                     });
-                    if ((found.QueryResponse.Customer?.length ?? 0) > 1) {
+                    if (matches.length > 1) {
                         logger.info('QBO: multiple customers found by email — using first', {
-                            tenantId, contactId: contact.id, count: found.QueryResponse.Customer!.length,
+                            tenantId, contactId: contact.id, count: matches.length,
                         });
                     }
                     await this.apiCall(tenantId, 'PUT', 'customer', {
@@ -397,7 +460,8 @@ export class QBOService {
                     });
                     return;
                 } catch (err: unknown) {
-                    const qboErr = err as { qboResponse?: { Fault?: { Error?: Array<{ code?: string }> } }; status?: number };
+                    const qboErr = err as { qboResponse?: { Fault?: { Error?: Array<{ code?: string }> } } };
+                    // 6140 = "Duplicate Name Exists Error" — retry with a disambiguated DisplayName
                     const code = qboErr?.qboResponse?.Fault?.Error?.[0]?.code;
                     if (code === '6140' && retry < 2) continue;
                     throw err;
@@ -439,15 +503,13 @@ export class QBOService {
 
         const lines = invoice.lineItems.map(item => {
             const qty = item.quantity ?? 1;
-            const unitPrice = item.amountCents / 100 / qty;
-            const amount = item.amountCents / 100;
             return {
                 DetailType: 'SalesItemLineDetail',
-                Amount: amount,
+                Amount:     item.amountCents / 100,
                 SalesItemLineDetail: {
-                    ItemRef: { value: conn.defaultItemId, name: item.description.slice(0, 100) },
-                    UnitPrice: unitPrice,
-                    Qty: qty,
+                    ItemRef:   { value: conn.defaultItemId, name: item.description.slice(0, 100) },
+                    UnitPrice: item.amountCents / 100 / qty,
+                    Qty:       qty,
                 },
             };
         });
@@ -480,6 +542,7 @@ export class QBOService {
                         }).where(eq(qboEntityMap.id, existing.id));
                         return;
                     } catch (err: unknown) {
+                        // 400 typically indicates a stale SyncToken — refetch and retry
                         const qboErr = err as { status?: number };
                         if (qboErr?.status === 400) {
                             const refetched = await this.apiCall<{ Invoice: { Id: string; SyncToken: string } }>(
@@ -545,18 +608,7 @@ export class QBOService {
         ).get();
         if (!invoiceMap) return;
 
-        const customerRow = await this.db.prepare(
-            `SELECT qem_c.qbo_id AS qbo_customer_id
-             FROM invoices inv
-             JOIN qbo_entity_map qem_c
-               ON qem_c.oi_id = inv.contact_id
-              AND qem_c.tenant_id = inv.tenant_id
-              AND qem_c.oi_type = 'contact'
-             WHERE inv.id = ? AND inv.tenant_id = ?
-             LIMIT 1`,
-        ).bind(invoiceId, tenantId).first<{ qbo_customer_id: string }>().catch(() => null);
-
-        const qboCustomerId = customerRow?.qbo_customer_id ?? null;
+        const qboCustomerId = await this.getQBOCustomerIdForInvoice(tenantId, invoiceId);
         if (!qboCustomerId) {
             logger.info('QBO recordPayment: no customer mapping — skipping', { tenantId, invoiceId });
             return;
@@ -580,18 +632,7 @@ export class QBOService {
         const conn = await db.select().from(qboConnections).where(eq(qboConnections.tenantId, tenantId)).get();
         if (!conn) return;
 
-        const creditCustomerRow = await this.db.prepare(
-            `SELECT qem_c.qbo_id AS qbo_customer_id
-             FROM invoices inv
-             JOIN qbo_entity_map qem_c
-               ON qem_c.oi_id = inv.contact_id
-              AND qem_c.tenant_id = inv.tenant_id
-              AND qem_c.oi_type = 'contact'
-             WHERE inv.id = ? AND inv.tenant_id = ?
-             LIMIT 1`,
-        ).bind(invoiceId, tenantId).first<{ qbo_customer_id: string }>().catch(() => null);
-
-        const qboCustomerId = creditCustomerRow?.qbo_customer_id ?? null;
+        const qboCustomerId = await this.getQBOCustomerIdForInvoice(tenantId, invoiceId);
         if (!qboCustomerId) return;
 
         try {
@@ -632,61 +673,44 @@ export class QBOService {
     async handleWebhook(
         rawBody: string,
         headerSig: string,
-        markPaid: (invoiceId: string, tenantId: string) => Promise<void>,
-        markPartial: (invoiceId: string, balance: number, tenantId: string) => Promise<void>,
+        markPaid: MarkPaidFn,
+        markPartial: MarkPartialFn,
     ): Promise<{ valid: boolean }> {
         const valid = await this.verifyWebhookSignature(rawBody, headerSig);
         if (!valid) return { valid: false };
 
-        let events: QBOCloudEvent[];
+        let raw: unknown;
         try {
-            const parsed = JSON.parse(rawBody) as unknown;
-            events = Array.isArray(parsed) ? parsed as QBOCloudEvent[] : [parsed as QBOCloudEvent];
+            raw = JSON.parse(rawBody);
         } catch {
             return { valid: true };
         }
 
+        const candidates = Array.isArray(raw) ? raw : [raw];
+        const events: QBOCloudEvent[] = [];
+        for (const c of candidates) {
+            const parsed = QBOCloudEventSchema.safeParse(c);
+            if (parsed.success) events.push(parsed.data);
+        }
+
+        const db = this.getDrizzle();
         for (const event of events) {
-            const parsed = this.parseCloudEventType(event.type ?? '');
-            if (!parsed) continue;
+            const parsed = this.parseCloudEventType(event.type);
+            if (!parsed || parsed.entityType !== 'invoice') continue;
 
-            const realmId = event.intuitaccountid;
-            const entityId = event.intuitentityid;
-
-            const db = this.getDrizzle();
             const conn = await db.select().from(qboConnections)
-                .where(eq(qboConnections.realmId, realmId)).get();
+                .where(eq(qboConnections.realmId, event.intuitaccountid)).get();
             if (!conn) continue;
 
-            const tenantId = conn.tenantId;
-
-            if (parsed.entityType === 'invoice') {
-                try {
-                    const data = await this.apiCall<{ Invoice: { Id: string; SyncToken: string; Balance: number; TotalAmt: number } }>(
-                        tenantId, 'GET', `invoice/${entityId}`,
-                    );
-                    const inv = data.Invoice;
-
-                    const mapped = await db.select().from(qboEntityMap).where(
-                        and(
-                            eq(qboEntityMap.tenantId, tenantId),
-                            eq(qboEntityMap.qboType, 'Invoice'),
-                            eq(qboEntityMap.qboId, inv.Id),
-                        ),
-                    ).get();
-                    if (!mapped) continue;
-
-                    await db.update(qboEntityMap).set({ qboSyncToken: inv.SyncToken, syncedAt: Math.floor(Date.now() / 1000) })
-                        .where(eq(qboEntityMap.id, mapped.id));
-
-                    if (inv.Balance === 0) {
-                        await markPaid(mapped.oiId, tenantId);
-                    } else if (inv.Balance < inv.TotalAmt) {
-                        await markPartial(mapped.oiId, inv.Balance, tenantId);
-                    }
-                } catch (e) {
-                    logger.error('QBO webhook invoice processing failed', { tenantId, entityId }, e instanceof Error ? e : undefined);
-                }
+            try {
+                const data = await this.apiCall<{ Invoice: InvoiceSummary }>(
+                    conn.tenantId, 'GET', `invoice/${event.intuitentityid}`,
+                );
+                await this.applyInvoiceStatusFromQBO(conn.tenantId, data.Invoice, markPaid, markPartial);
+            } catch (e) {
+                logger.error('QBO webhook invoice processing failed',
+                    { tenantId: conn.tenantId, entityId: event.intuitentityid },
+                    e instanceof Error ? e : undefined);
             }
         }
 
@@ -697,8 +721,8 @@ export class QBOService {
 
     async runCDCSync(
         tenantId: string,
-        markPaid: (invoiceId: string, tenantId: string) => Promise<void>,
-        markPartial: (invoiceId: string, balance: number, tenantId: string) => Promise<void>,
+        markPaid: MarkPaidFn,
+        markPartial: MarkPartialFn,
     ): Promise<{ processed: number }> {
         const db = this.getDrizzle();
         const conn = await db.select().from(qboConnections)
@@ -710,8 +734,8 @@ export class QBOService {
         let startPosition = 1;
 
         while (true) {
-            const query = `SELECT * FROM Invoice WHERE MetaData.LastUpdatedTime > '${sinceIso}' STARTPOSITION ${startPosition} MAXRESULTS 1000`;
-            let result: { QueryResponse: { Invoice?: Array<{ Id: string; SyncToken: string; Balance: number; TotalAmt: number }> } };
+            const query = `SELECT * FROM Invoice WHERE MetaData.LastUpdatedTime > '${sinceIso}' STARTPOSITION ${startPosition} MAXRESULTS ${CDC_PAGE_SIZE}`;
+            let result: { QueryResponse: { Invoice?: InvoiceSummary[] } };
             try {
                 result = await this.qboQuery(tenantId, query);
             } catch (e) {
@@ -721,29 +745,13 @@ export class QBOService {
 
             const invoiceList = result.QueryResponse.Invoice ?? [];
             for (const inv of invoiceList) {
-                const mapped = await db.select().from(qboEntityMap).where(
-                    and(
-                        eq(qboEntityMap.tenantId, tenantId),
-                        eq(qboEntityMap.qboType, 'Invoice'),
-                        eq(qboEntityMap.qboId, inv.Id),
-                    ),
-                ).get();
-                if (!mapped) continue;
-
-                await db.update(qboEntityMap).set({ qboSyncToken: inv.SyncToken, syncedAt: Math.floor(Date.now() / 1000) })
-                    .where(eq(qboEntityMap.id, mapped.id));
-
-                if (inv.Balance === 0) {
-                    await markPaid(mapped.oiId, tenantId);
-                } else if (inv.Balance < inv.TotalAmt) {
-                    await markPartial(mapped.oiId, inv.Balance, tenantId);
-                }
-                processed++;
+                const applied = await this.applyInvoiceStatusFromQBO(tenantId, inv, markPaid, markPartial);
+                if (applied) processed++;
                 await new Promise(r => setTimeout(r, 100));
             }
 
-            if (invoiceList.length < 1000) break;
-            startPosition += 1000;
+            if (invoiceList.length < CDC_PAGE_SIZE) break;
+            startPosition += CDC_PAGE_SIZE;
         }
 
         await db.update(qboConnections).set({ lastSyncAt: Math.floor(Date.now() / 1000) })
@@ -757,14 +765,14 @@ export class QBOService {
         const row = await db.select().from(qboConnections)
             .where(eq(qboConnections.tenantId, tenantId)).get();
         if (!row) return null;
-        const errorCount = await db.select().from(qboSyncErrors)
+        const errorRows = await db.select().from(qboSyncErrors)
             .where(and(eq(qboSyncErrors.tenantId, tenantId), eq(qboSyncErrors.resolved, 0))).all();
         return {
             realmId:               row.realmId,
             companyName:           row.companyName,
             lastSyncAt:            row.lastSyncAt,
             syncEnabled:           row.syncEnabled === 1,
-            openErrors:            errorCount.length,
+            openErrors:            errorRows.length,
             refreshTokenExpiresAt: row.refreshTokenExpiresAt,
         };
     }
@@ -774,18 +782,6 @@ export class QBOService {
         const db = this.getDrizzle();
         await db.delete(qboEntityMap).where(eq(qboEntityMap.tenantId, tenantId));
         await db.delete(qboConnections).where(eq(qboConnections.tenantId, tenantId));
-    }
-
-    async searchCustomer(tenantId: string, email: string): Promise<{ Id: string; DisplayName: string } | null> {
-        try {
-            const result = await this.qboQuery<{ QueryResponse: { Customer?: Array<{ Id: string; DisplayName: string }> } }>(
-                tenantId,
-                `SELECT * FROM Customer WHERE PrimaryEmailAddr = '${email.replace(/'/g, "\\'")}' MAXRESULTS 1`,
-            );
-            return result.QueryResponse.Customer?.[0] ?? null;
-        } catch {
-            return null;
-        }
     }
 
     async linkExistingCustomer(tenantId: string, contactId: string, qboCustomerId: string): Promise<void> {
@@ -802,8 +798,7 @@ export class QBOService {
             syncedAt:     now,
         }).onConflictDoUpdate({
             target: [qboEntityMap.tenantId, qboEntityMap.oiType, qboEntityMap.oiId],
-            set: { qboId: qboCustomerId, syncedAt: now },
+            set:    { qboId: qboCustomerId, syncedAt: now },
         });
     }
 }
-
