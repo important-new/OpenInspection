@@ -38,7 +38,18 @@ const createInvoiceRoute = createRoute({
 });
 
 invoiceRoutes.openapi(createInvoiceRoute, async (c) => {
-    const invoice = await c.var.services.invoice.createInvoice(c.get('tenantId'), c.req.valid('json'));
+    const tenantId = c.get('tenantId');
+    const invoice = await c.var.services.invoice.createInvoice(tenantId, c.req.valid('json'));
+    if (c.env.QBO_CLIENT_ID) {
+        c.executionCtx.waitUntil(
+            c.var.services.qbo.upsertInvoice(tenantId, {
+                id:        invoice.id,
+                dueDate:   invoice.dueDate,
+                lineItems: invoice.lineItems,
+                status:    invoice.status,
+            }),
+        );
+    }
     return c.json({ success: true as const, data: { invoice } }, 201);
 });
 
@@ -54,7 +65,23 @@ const markSentRoute = createRoute({
 });
 
 invoiceRoutes.openapi(markSentRoute, async (c) => {
-    await c.var.services.invoice.markSent(c.req.valid('param').id as string, c.get('tenantId'));
+    const id = c.req.valid('param').id as string;
+    const tenantId = c.get('tenantId');
+    await c.var.services.invoice.markSent(id, tenantId);
+    if (c.env.QBO_CLIENT_ID) {
+        const inv = (await c.var.services.invoice.listInvoices(tenantId)).find(i => i.id === id);
+        if (inv) {
+            c.executionCtx.waitUntil(
+                c.var.services.qbo.upsertInvoice(tenantId, {
+                    id:        inv.id,
+                    contactId: inv.contactId ?? null,
+                    dueDate:   inv.dueDate,
+                    lineItems: inv.lineItems,
+                    status:    'sent',
+                }),
+            );
+        }
+    }
     return c.json({ success: true }, 200);
 });
 
@@ -70,7 +97,17 @@ const markPaidRoute = createRoute({
 });
 
 invoiceRoutes.openapi(markPaidRoute, async (c) => {
-    await c.var.services.invoice.markPaid(c.req.valid('param').id as string, c.get('tenantId'));
+    const id = c.req.valid('param').id as string;
+    const tenantId = c.get('tenantId');
+    await c.var.services.invoice.markPaid(id, tenantId, 'oi');
+    if (c.env.QBO_CLIENT_ID) {
+        const inv = (await c.var.services.invoice.listInvoices(tenantId)).find(i => i.id === id);
+        if (inv) {
+            c.executionCtx.waitUntil(
+                c.var.services.qbo.recordPayment(tenantId, id, inv.amountCents / 100),
+            );
+        }
+    }
     return c.json({ success: true }, 200);
 });
 
@@ -86,7 +123,14 @@ const deleteInvoiceRoute = createRoute({
 });
 
 invoiceRoutes.openapi(deleteInvoiceRoute, async (c) => {
-    await c.var.services.invoice.deleteInvoice(c.req.valid('param').id as string, c.get('tenantId'));
+    const id = c.req.valid('param').id as string;
+    const tenantId = c.get('tenantId');
+    await c.var.services.invoice.deleteInvoice(id, tenantId);
+    if (c.env.QBO_CLIENT_ID) {
+        c.executionCtx.waitUntil(
+            c.var.services.qbo.voidInvoice(tenantId, id),
+        );
+    }
     return c.json({ success: true }, 200);
 });
 

@@ -586,62 +586,13 @@ html[data-color-scheme="light"] {
 
 /* ── Body / root ─────────────────────────────────────────── */
 html[data-color-scheme="dark"] body {
-    background-color: var(--ih-bg-app) !important;
-    color: var(--ih-fg-1) !important;
+    background-color: var(--ih-bg-app);
+    color: var(--ih-fg-1);
 }
 html[data-color-scheme="dark"] ::selection {
     background-color: rgba(129, 140, 248, 0.3);
     color: #f1f5f9;
 }
-
-/* ── Backgrounds ─────────────────────────────────────────── */
-html[data-color-scheme="dark"] .bg-white          { background-color: var(--ih-bg-card) !important; }
-html[data-color-scheme="dark"] .bg-\[\#fdfdfd\]  { background-color: var(--ih-bg-card) !important; }
-html[data-color-scheme="dark"] .bg-\[\#f8fafc\]  { background-color: var(--ih-bg-app)  !important; }
-/* Direct element fallback for main layout containers */
-html[data-color-scheme="dark"] main              { background-color: var(--ih-bg-app)  !important; }
-html[data-color-scheme="dark"] .bg-slate-50       { background-color: var(--ih-bg-muted) !important; }
-html[data-color-scheme="dark"] .bg-slate-100      { background-color: #1a2540 !important; }
-html[data-color-scheme="dark"] .bg-slate-200      { background-color: #223050 !important; }
-html[data-color-scheme="dark"] .bg-slate-50\/50   { background-color: rgba(22,32,50,0.5) !important; }
-html[data-color-scheme="dark"] .bg-indigo-50      { background-color: rgba(129,140,248,0.12) !important; }
-/* Custom surface palette (tailwind.config surface-*) */
-html[data-color-scheme="dark"] .bg-surface-50    { background-color: var(--ih-bg-app)  !important; }
-html[data-color-scheme="dark"] .bg-surface-100   { background-color: var(--ih-bg-page) !important; }
-html[data-color-scheme="dark"] .bg-surface-200   { background-color: var(--ih-bg-card) !important; }
-
-/* ── Text ────────────────────────────────────────────────── */
-html[data-color-scheme="dark"] .text-slate-900    { color: var(--ih-fg-1) !important; }
-html[data-color-scheme="dark"] .text-slate-800    { color: var(--ih-fg-1) !important; }
-html[data-color-scheme="dark"] .text-slate-700    { color: var(--ih-fg-2) !important; }
-html[data-color-scheme="dark"] .text-slate-600    { color: var(--ih-fg-2) !important; }
-html[data-color-scheme="dark"] .text-slate-500    { color: var(--ih-fg-3) !important; }
-html[data-color-scheme="dark"] .text-slate-400    { color: var(--ih-fg-4) !important; }
-html[data-color-scheme="dark"] .text-indigo-600   { color: #818cf8 !important; }
-/* Custom ink palette (tailwind.config ink-*) — warm grays need brightening in dark mode */
-html[data-color-scheme="dark"] .text-ink-900      { color: var(--ih-fg-1) !important; }
-html[data-color-scheme="dark"] .text-ink-800      { color: var(--ih-fg-1) !important; }
-html[data-color-scheme="dark"] .text-ink-700      { color: var(--ih-fg-2) !important; }
-html[data-color-scheme="dark"] .text-ink-600      { color: var(--ih-fg-2) !important; }
-html[data-color-scheme="dark"] .text-ink-500      { color: var(--ih-fg-3) !important; }
-html[data-color-scheme="dark"] .text-ink-400      { color: var(--ih-fg-4) !important; }
-html[data-color-scheme="dark"] .text-ink-300      { color: var(--ih-fg-5) !important; }
-/* ink backgrounds used as subtle dividers/chips */
-html[data-color-scheme="dark"] .bg-ink-900        { background-color: var(--ih-bg-card) !important; }
-html[data-color-scheme="dark"] .bg-ink-300        { background-color: rgba(255,255,255,0.10) !important; }
-
-/* ── Borders ─────────────────────────────────────────────── */
-html[data-color-scheme="dark"] .border-slate-100  { border-color: rgba(255,255,255,0.06) !important; }
-html[data-color-scheme="dark"] .border-slate-200  { border-color: rgba(255,255,255,0.10) !important; }
-html[data-color-scheme="dark"] .border-slate-300  { border-color: rgba(255,255,255,0.14) !important; }
-
-/* ── Hover states ────────────────────────────────────────── */
-html[data-color-scheme="dark"] .hover\:bg-slate-50:hover   { background-color: rgba(255,255,255,0.05) !important; }
-html[data-color-scheme="dark"] .hover\:bg-slate-100:hover  { background-color: rgba(255,255,255,0.08) !important; }
-html[data-color-scheme="dark"] .hover\:bg-white:hover      { background-color: rgba(255,255,255,0.06) !important; }
-html[data-color-scheme="dark"] .hover\:bg-red-50:hover     { background-color: rgba(239,68,68,0.10) !important; }
-html[data-color-scheme="dark"] .hover\:text-indigo-600:hover { color: #818cf8 !important; }
-html[data-color-scheme="dark"] .hover\:border-slate-300:hover { border-color: rgba(255,255,255,0.18) !important; }
 
 /* ── Glass / card components ─────────────────────────────── */
 html[data-color-scheme="dark"] .glass {
@@ -692,6 +643,134 @@ html[data-color-scheme="dark"] .signature-pad-wrap {
 
 /* ── Command palette / modal backdrop ────────────────────── */
 html[data-color-scheme="dark"] .bg-slate-900\/50 { background-color: rgba(0,0,0,0.6) !important; }
+
+/* ── Sidebar / app shell ─────────────────────────────────── */
+html[data-color-scheme="dark"] aside.w-72 {
+    background-color: #0f172a !important;
+    border-right-color: rgba(255,255,255,0.08) !important;
+}
+html[data-color-scheme="dark"] aside.w-72 .border-b { border-color: rgba(255,255,255,0.06) !important; }
+html[data-color-scheme="dark"] aside.w-72 .border-l { border-color: rgba(255,255,255,0.06) !important; }
+html[data-color-scheme="dark"] aside.w-72 .border-t { border-color: rgba(255,255,255,0.06) !important; }
+html[data-color-scheme="dark"] aside.w-72 .bg-slate-50\/50 {
+    background-color: rgba(15,23,42,0.6) !important;
+}
+html[data-color-scheme="dark"] aside.w-72 .bg-slate-50 {
+    background-color: rgba(255,255,255,0.04) !important;
+}
+html[data-color-scheme="dark"] aside.w-72 a,
+html[data-color-scheme="dark"] aside.w-72 button,
+html[data-color-scheme="dark"] aside.w-72 summary {
+    color: #94a3b8;
+}
+html[data-color-scheme="dark"] aside.w-72 a:hover,
+html[data-color-scheme="dark"] aside.w-72 button:hover,
+html[data-color-scheme="dark"] aside.w-72 summary:hover {
+    background-color: rgba(255,255,255,0.06) !important;
+    color: #818cf8 !important;
+}
+html[data-color-scheme="dark"] aside.w-72 .bg-indigo-50 { background-color: rgba(99,102,241,0.15) !important; }
+html[data-color-scheme="dark"] aside.w-72 .text-indigo-600 { color: #818cf8 !important; }
+html[data-color-scheme="dark"] aside.w-72 kbd {
+    background-color: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.1) !important;
+    color: #64748b !important;
+}
+
+/* ── Mobile header bar ───────────────────────────────────── */
+html[data-color-scheme="dark"] .lg\:hidden.sticky.top-0.z-40 {
+    background-color: #0f172a !important;
+    border-bottom-color: rgba(255,255,255,0.08) !important;
+}
+html[data-color-scheme="dark"] .lg\:hidden.sticky.top-0.z-40 span.text-slate-900 { color: #f1f5f9 !important; }
+
+/* ── Mobile menu overlay panel ───────────────────────────── */
+html[data-color-scheme="dark"] .fixed.inset-0.z-50.lg\:hidden > div:not(.absolute) {
+    background-color: #0f172a !important;
+}
+html[data-color-scheme="dark"] .fixed.inset-0.z-50.lg\:hidden .border-b { border-color: rgba(255,255,255,0.06) !important; }
+html[data-color-scheme="dark"] .fixed.inset-0.z-50.lg\:hidden .border-t { border-color: rgba(255,255,255,0.06) !important; }
+html[data-color-scheme="dark"] .fixed.inset-0.z-50.lg\:hidden .bg-slate-50\/50 { background-color: rgba(15,23,42,0.6) !important; }
+
+/* ── Theme toggle dropdowns ──────────────────────────────── */
+html[data-color-scheme="dark"] #themeMenu,
+html[data-color-scheme="dark"] [x-data="themeMenu()"] [x-show="open"] {
+    background-color: #1e293b !important;
+    border-color: rgba(255,255,255,0.1) !important;
+}
+html[data-color-scheme="dark"] [x-data="themeMenu()"] [x-show="open"] button:hover {
+    background-color: rgba(255,255,255,0.06) !important;
+    color: #818cf8 !important;
+}
+
+/* ── Main content area ───────────────────────────────────── */
+html[data-color-scheme="dark"] main.md\:flex-1 {
+    background-color: var(--ih-bg-app) !important;
+}
+
+/* ── Modal card ──────────────────────────────────────────── */
+html[data-color-scheme="dark"] [role="dialog"] > div {
+    background-color: var(--ih-bg-card) !important;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+html[data-color-scheme="dark"] [role="dialog"] h2,
+html[data-color-scheme="dark"] [role="dialog"] h3 { color: var(--ih-fg-1) !important; }
+html[data-color-scheme="dark"] [role="dialog"] p.text-slate-500 { color: var(--ih-fg-3) !important; }
+html[data-color-scheme="dark"] [role="dialog"] label { color: var(--ih-fg-3) !important; }
+html[data-color-scheme="dark"] [role="dialog"] .bg-slate-100 { background-color: rgba(255,255,255,0.08) !important; }
+html[data-color-scheme="dark"] [role="dialog"] button.bg-white {
+    background-color: var(--ih-bg-card) !important;
+    color: var(--ih-fg-2) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+html[data-color-scheme="dark"] [role="dialog"] button.hover\:bg-slate-50:hover { background-color: rgba(255,255,255,0.06) !important; }
+
+/* ── White card panels (bg-white used as a card) ─────────── */
+html[data-color-scheme="dark"] .bg-white.rounded-md,
+html[data-color-scheme="dark"] .bg-white.rounded-lg,
+html[data-color-scheme="dark"] .bg-white.rounded-xl {
+    background-color: var(--ih-bg-card) !important;
+}
+html[data-color-scheme="dark"] .bg-white.border {
+    background-color: var(--ih-bg-card) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+
+/* ── Table headers (bg-slate-50/40, bg-slate-50/50) ─────── */
+html[data-color-scheme="dark"] thead.bg-slate-50\/40,
+html[data-color-scheme="dark"] thead.bg-slate-50\/50 {
+    background-color: rgba(255,255,255,0.03) !important;
+}
+
+/* ── Borders on panels / sections ───────────────────────── */
+html[data-color-scheme="dark"] .border-slate-100,
+html[data-color-scheme="dark"] .border-slate-100\/50 {
+    border-color: rgba(255,255,255,0.06) !important;
+}
+html[data-color-scheme="dark"] .border-slate-200 { border-color: rgba(255,255,255,0.08) !important; }
+
+/* ── Text colours ────────────────────────────────────────── */
+html[data-color-scheme="dark"] .text-slate-900 { color: var(--ih-fg-1) !important; }
+html[data-color-scheme="dark"] .text-slate-700 { color: var(--ih-fg-2) !important; }
+html[data-color-scheme="dark"] .text-slate-600 { color: var(--ih-fg-2) !important; }
+html[data-color-scheme="dark"] .text-slate-500 { color: var(--ih-fg-3) !important; }
+html[data-color-scheme="dark"] .text-slate-400 { color: var(--ih-fg-4) !important; }
+html[data-color-scheme="dark"] .text-slate-300 { color: var(--ih-fg-5) !important; }
+
+/* ── Custom ink-* token overrides (Settings pages) ───────── */
+html[data-color-scheme="dark"] .text-ink-900 { color: var(--ih-fg-1) !important; }
+html[data-color-scheme="dark"] .text-ink-800 { color: var(--ih-fg-1) !important; }
+html[data-color-scheme="dark"] .text-ink-700 { color: var(--ih-fg-2) !important; }
+html[data-color-scheme="dark"] .text-ink-600 { color: var(--ih-fg-2) !important; }
+html[data-color-scheme="dark"] .text-ink-500 { color: var(--ih-fg-3) !important; }
+html[data-color-scheme="dark"] .text-ink-400 { color: var(--ih-fg-4) !important; }
+html[data-color-scheme="dark"] .text-ink-300 { color: var(--ih-fg-5) !important; }
+html[data-color-scheme="dark"] .border-surface-200 { border-color: rgba(255,255,255,0.08) !important; }
+html[data-color-scheme="dark"] .bg-surface-50 { background-color: var(--ih-bg-app) !important; }
+html[data-color-scheme="dark"] .bg-surface-100 { background-color: var(--ih-bg-muted) !important; }
+html[data-color-scheme="dark"] .bg-blueprint-100 { background-color: rgba(99,102,241,0.15) !important; }
+html[data-color-scheme="dark"] .text-blueprint-700 { color: #818cf8 !important; }
+html[data-color-scheme="dark"] .hover\:bg-blueprint-500:hover { background-color: #6366f1 !important; }
 
 /* ── Dividers ────────────────────────────────────────────── */
 html[data-color-scheme="dark"] .divide-slate-200 > * + * { border-color: rgba(255,255,255,0.08) !important; }

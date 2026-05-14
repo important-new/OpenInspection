@@ -6,7 +6,7 @@ workers_dev = true
 preview_urls = true
 
 [triggers]
-crons = ["* * * * *", "0 2 * * *"]
+crons = ["* * * * *", "0 2 * * *", "0 * * * *"]
 
 [assets]
 directory = "./public"
@@ -50,6 +50,9 @@ TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 # ESTATED_API_KEY         — Optional. Sprint 3 S3-1 — public-records auto-fill for Property Facts.
 #                           Without it, /api/inspections/:id/property-facts/autofill returns
 #                           { data: null, reason: 'NO_API_KEY' } and the UI prompts manual entry.
+# QBO_CLIENT_ID          — Optional. Intuit app client ID (from developer.intuit.com)
+# QBO_CLIENT_SECRET      — Optional. Intuit app client secret
+# QBO_WEBHOOK_SECRET     — Optional. Webhook verifier token from Intuit Developer Portal
 
 # ── Cloudflare resource bindings ─────────────────────────────────────────────
 # These IDs are populated automatically by `npm run setup:cloudflare`.

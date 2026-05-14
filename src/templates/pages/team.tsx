@@ -18,7 +18,7 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
                         meta={<span x-text="metaText"></span>}
                         actions={
                             <div class="flex items-center gap-2">
-                                <div id="quotaBadge" class="hidden sm:flex items-center gap-2 px-3 h-8 rounded-md bg-slate-50 border border-slate-200">
+                                <div id="quotaBadge" class="hidden sm:flex items-center gap-2 px-3 h-8 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                     <span class="w-1 h-1 rounded-full bg-indigo-500"></span>
                                     <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">Seats:</span>
                                     <span class="text-[12px] font-bold text-slate-900 leading-none">Loading...</span>
@@ -39,10 +39,10 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
                 <div class="grid grid-cols-1 gap-6">
                     {/* Active Members */}
                     <div class="glass-panel rounded-xl overflow-hidden shadow-md">
-                        <div class="px-10 py-8 border-b border-slate-100/50 bg-slate-50/30 flex items-center justify-between">
+                        <div class="px-10 py-8 border-b border-slate-100/50 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-900/30 flex items-center justify-between">
                             <div class="flex items-center gap-4">
-                                <h2 class="text-xl font-bold text-slate-900 tracking-tight">Active Directory</h2>
-                                <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Team Members</span>
+                                <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Active Directory</h2>
+                                <span class="text-[10px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-widest">Team Members</span>
                             </div>
                         </div>
                         <div class="overflow-x-auto custom-scrollbar">
@@ -62,11 +62,11 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
                     </div>
 
                     {/* Pending Invites */}
-                    <div class="glass-panel rounded-xl overflow-hidden shadow-xl shadow-slate-100/50 border-dashed border-2 border-slate-200 bg-slate-50/10">
-                        <div class="px-10 py-8 border-b border-slate-100/50 bg-white/30 flex items-center justify-between">
+                    <div class="glass-panel rounded-xl overflow-hidden shadow-xl shadow-slate-100/50 border-dashed border-2 border-slate-200 dark:border-slate-700 bg-slate-50/10">
+                        <div class="px-10 py-8 border-b border-slate-100/50 dark:border-slate-700 bg-white/30 dark:bg-slate-900/20 flex items-center justify-between">
                             <div class="flex items-center gap-4">
-                                <h2 class="text-xl font-bold text-slate-400 tracking-tight">Pending Invitations</h2>
-                                <div class="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-400 uppercase">Incoming</div>
+                                <h2 class="text-xl font-bold text-slate-400 dark:text-slate-500 tracking-tight">Pending Invitations</h2>
+                                <div class="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Incoming</div>
                             </div>
                         </div>
                         <div class="overflow-x-auto custom-scrollbar">

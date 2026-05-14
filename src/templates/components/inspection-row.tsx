@@ -23,7 +23,7 @@ import { RowStatusIcons } from './row-status-icons';
  * the matching DOM nodes without re-rendering the whole list.
  */
 export const InspectionRow = (): JSX.Element => (
-    <div class="px-5 py-3 border-t border-slate-100 flex items-center gap-3 flex-wrap sm:flex-nowrap" data-test="inspection-row">
+    <div class="px-5 py-3 border-t border-slate-100 dark:border-slate-700 flex items-center gap-3 flex-wrap sm:flex-nowrap" data-test="inspection-row">
         {/* Property address — always rendered. Click target for the row. */}
         <a x-bind:href="'/inspections/' + i.id + '/edit'" class="flex-1 min-w-0">
             <p
@@ -102,9 +102,9 @@ export const InspectionRow = (): JSX.Element => (
         {/* Action menu — always rendered (not part of the customizable column set). */}
         <div x-data="actionMenu({ id: i.id, status: i.status })" class="relative ml-3">
             <button type="button" x-on:click="open = !open" class="text-slate-400 hover:text-slate-700 px-2 text-lg font-bold">•••</button>
-            <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-10 min-w-[140px]">
+            <div x-show="open" {...{ 'x-cloak': true, 'x-on:click.outside': 'open = false' }} class="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10 min-w-[140px]">
                 <template x-for="a in validActions()" {...{ 'x-bind:key': 'a' }}>
-                    <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50" x-text="actionLabel(a)"></button>
+                    <button type="button" x-on:click="run(a)" class="block w-full text-left px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-300" x-text="actionLabel(a)"></button>
                 </template>
             </div>
         </div>

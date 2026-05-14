@@ -44,7 +44,7 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                     address book) from "Agents" (partner-link management). The
                     Agents tab fetches /api/agents and renders status-badged
                     rows with Revoke / Re-invite per row. */}
-                <div role="tablist" aria-label="Contacts and partner agents" class="flex gap-2 border-b border-slate-200">
+                <div role="tablist" aria-label="Contacts and partner agents" class="flex gap-2 border-b border-slate-200 dark:border-slate-700">
                     <button
                         type="button"
                         role="tab"
@@ -53,7 +53,7 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         data-tab="clients"
                         aria-selected="true"
                         aria-controls="contactsClientsPanel"
-                        class="px-4 py-2 text-[13px] font-bold text-slate-700 border-b-2 border-indigo-600"
+                        class="px-4 py-2 text-[13px] font-bold text-slate-700 dark:text-slate-300 border-b-2 border-indigo-600"
                     >
                         Contacts
                     </button>
@@ -65,7 +65,7 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                         data-tab="agents"
                         aria-selected="false"
                         aria-controls="contactsAgentsPanel"
-                        class="px-4 py-2 text-[13px] font-bold text-slate-500 border-b-2 border-transparent hover:text-slate-700"
+                        class="px-4 py-2 text-[13px] font-bold text-slate-500 dark:text-slate-400 border-b-2 border-transparent hover:text-slate-700 dark:hover:text-slate-300"
                     >
                         Agents
                     </button>
@@ -182,15 +182,15 @@ export const ContactsPage = ({ branding }: { branding?: BrandingConfig | undefin
                     class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
                     {...{ 'x-on:click': 'if ($event.target === $el) close()' }}
                 >
-                    <div class="bg-white rounded-md shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-                        <header class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
-                            <h2 class="text-lg font-bold text-slate-900">Import contacts from CSV</h2>
-                            <button x-on:click="close()" class="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+                    <div class="bg-white dark:bg-slate-800 rounded-md shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        <header class="px-3 py-2 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Import contacts from CSV</h2>
+                            <button x-on:click="close()" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 text-xl leading-none">&times;</button>
                         </header>
 
                         {/* Step 1: Upload */}
                         <div x-show="step === 'upload'" class="p-6 space-y-4">
-                            <p class="text-sm text-slate-600">Upload a CSV with your contacts. Spectora and ITB exports work out of the box.</p>
+                            <p class="text-sm text-slate-600 dark:text-slate-400">Upload a CSV with your contacts. Spectora and ITB exports work out of the box.</p>
                             <input type="file" accept=".csv,text/csv" x-on:change="onFileChange($event)" class="text-sm" />
                             <p x-show="fileName" class="text-xs text-slate-500" x-text={"`Selected: ${fileName}`"}></p>
                             <textarea x-model="csvText" rows={6} placeholder="...or paste CSV content here" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono"></textarea>

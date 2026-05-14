@@ -6,8 +6,9 @@ import { safeISODate } from '../lib/date';
 import { AutomationService } from './automation.service';
 import { logger } from '../lib/logger';
 
-function getStatus(inv: { sentAt: Date | null; paidAt: Date | null }): 'draft' | 'sent' | 'paid' {
+function getStatus(inv: { sentAt: Date | null; paidAt: Date | null; partialPaidAt?: Date | null }): 'draft' | 'sent' | 'paid' | 'partial' {
     if (inv.paidAt) return 'paid';
+    if (inv.partialPaidAt) return 'partial';
     if (inv.sentAt) return 'sent';
     return 'draft';
 }
@@ -97,11 +98,32 @@ export class InvoiceService {
         await db.update(invoices).set({ sentAt: new Date() }).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
     }
 
-    async markPaid(id: string, tenantId: string) {
+    async markPaid(id: string, tenantId: string, source: 'oi' | 'qbo' = 'oi'): Promise<void> {
         const db = this.getDrizzle();
         const existing = await db.select().from(invoices).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId))).get();
         if (!existing) throw Errors.NotFound('Invoice not found');
-        await db.update(invoices).set({ paidAt: new Date() }).where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
+        await db.update(invoices).set({ paidAt: new Date(), partialPaidAt: null })
+            .where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
+        void source; // consumed by route handler to decide QBO sync
+    }
+
+    async markPartial(id: string, tenantId: string, source: 'oi' | 'qbo' = 'oi'): Promise<void> {
+        const db = this.getDrizzle();
+        await db.update(invoices).set({ partialPaidAt: new Date(), paidAt: null })
+            .where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
+        void source;
+    }
+
+    async markRefunded(id: string, tenantId: string): Promise<void> {
+        const db = this.getDrizzle();
+        await db.update(invoices).set({ paidAt: null, partialPaidAt: null })
+            .where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
+    }
+
+    async setQboSyncStatus(id: string, tenantId: string, status: 'synced' | 'pending' | 'failed'): Promise<void> {
+        const db = this.getDrizzle();
+        await db.update(invoices).set({ qboSyncStatus: status })
+            .where(and(eq(invoices.id, id), eq(invoices.tenantId, tenantId)));
     }
 
     async deleteInvoice(id: string, tenantId: string) {
