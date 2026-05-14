@@ -39,3 +39,4 @@ export { reportPdfs } from './report-pdf';
 export type { ReportPdf, NewReportPdf } from './report-pdf';
 export { signingKeys, esignAuditLogs } from './esign';
 export type { SigningKey, NewSigningKey, EsignAuditLog, NewEsignAuditLog } from './esign';
+export { qboConnections, qboEntityMap, qboSyncErrors } from './qbo';
