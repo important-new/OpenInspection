@@ -54,6 +54,11 @@ contactRoutes.openapi(createContactRoute, async (c) => {
         ...data,
         createdByUserId: user?.sub ?? null,
     });
+    if (c.env.QBO_CLIENT_ID) {
+        c.executionCtx.waitUntil(
+            c.var.services.qbo.upsertCustomer(tenantId, contact),
+        );
+    }
     return c.json({ success: true as const, data: { contact } }, 201);
 });
 
@@ -87,6 +92,11 @@ contactRoutes.openapi(updateContactRoute, async (c) => {
     if ('agency' in raw) data.agency = raw.agency ?? null;
     if ('notes' in raw) data.notes = raw.notes ?? null;
     const contact = await c.var.services.contact.updateContact(id as string, tenantId, data);
+    if (c.env.QBO_CLIENT_ID) {
+        c.executionCtx.waitUntil(
+            c.var.services.qbo.upsertCustomer(tenantId, contact),
+        );
+    }
     return c.json({ success: true as const, data: { contact } }, 200);
 });
 
