@@ -4,7 +4,7 @@ import { qboConnections, qboEntityMap, qboSyncErrors } from '../lib/db/schema/qb
 import { invoices } from '../lib/db/schema/invoice';
 import { encryptToken, decryptToken } from '../lib/qbo-crypto';
 import { logger } from '../lib/logger';
-import { QBOTokenResponseSchema } from '../lib/validations/qbo.schema';
+import { QBOTokenResponseSchema, type QBOCloudEvent } from '../lib/validations/qbo.schema';
 
 const QBO_API_BASE = 'https://quickbooks.api.intuit.com/v3/company';
 const QBO_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
@@ -625,6 +625,131 @@ export class QBOService {
             logger.error('QBO createCreditMemo failed', { tenantId, invoiceId }, e instanceof Error ? e : undefined);
             await this.logSyncError(tenantId, 'refund', invoiceId, e);
         }
+    }
+
+    // ─── Inbound: Webhook ─────────────────────────────────────────────────────
+
+    async handleWebhook(
+        rawBody: string,
+        headerSig: string,
+        markPaid: (invoiceId: string, tenantId: string) => Promise<void>,
+        markPartial: (invoiceId: string, balance: number, tenantId: string) => Promise<void>,
+    ): Promise<{ valid: boolean }> {
+        const valid = await this.verifyWebhookSignature(rawBody, headerSig);
+        if (!valid) return { valid: false };
+
+        let events: QBOCloudEvent[];
+        try {
+            const parsed = JSON.parse(rawBody) as unknown;
+            events = Array.isArray(parsed) ? parsed as QBOCloudEvent[] : [parsed as QBOCloudEvent];
+        } catch {
+            return { valid: true };
+        }
+
+        for (const event of events) {
+            const parsed = this.parseCloudEventType(event.type ?? '');
+            if (!parsed) continue;
+
+            const realmId = event.intuitaccountid;
+            const entityId = event.intuitentityid;
+
+            const db = this.getDrizzle();
+            const conn = await db.select().from(qboConnections)
+                .where(eq(qboConnections.realmId, realmId)).get();
+            if (!conn) continue;
+
+            const tenantId = conn.tenantId;
+
+            if (parsed.entityType === 'invoice') {
+                try {
+                    const data = await this.apiCall<{ Invoice: { Id: string; SyncToken: string; Balance: number; TotalAmt: number } }>(
+                        tenantId, 'GET', `invoice/${entityId}`,
+                    );
+                    const inv = data.Invoice;
+
+                    const mapped = await db.select().from(qboEntityMap).where(
+                        and(
+                            eq(qboEntityMap.tenantId, tenantId),
+                            eq(qboEntityMap.qboType, 'Invoice'),
+                            eq(qboEntityMap.qboId, inv.Id),
+                        ),
+                    ).get();
+                    if (!mapped) continue;
+
+                    await db.update(qboEntityMap).set({ qboSyncToken: inv.SyncToken, syncedAt: Math.floor(Date.now() / 1000) })
+                        .where(eq(qboEntityMap.id, mapped.id));
+
+                    if (inv.Balance === 0) {
+                        await markPaid(mapped.oiId, tenantId);
+                    } else if (inv.Balance < inv.TotalAmt) {
+                        await markPartial(mapped.oiId, inv.Balance, tenantId);
+                    }
+                } catch (e) {
+                    logger.error('QBO webhook invoice processing failed', { tenantId, entityId }, e instanceof Error ? e : undefined);
+                }
+            }
+        }
+
+        return { valid: true };
+    }
+
+    // ─── Inbound: CDC (Hourly Cron) ───────────────────────────────────────────
+
+    async runCDCSync(
+        tenantId: string,
+        markPaid: (invoiceId: string, tenantId: string) => Promise<void>,
+        markPartial: (invoiceId: string, balance: number, tenantId: string) => Promise<void>,
+    ): Promise<{ processed: number }> {
+        const db = this.getDrizzle();
+        const conn = await db.select().from(qboConnections)
+            .where(and(eq(qboConnections.tenantId, tenantId), eq(qboConnections.syncEnabled, 1))).get();
+        if (!conn) return { processed: 0 };
+
+        const sinceIso = this.toIso8601(conn.lastSyncAt ?? conn.createdAt);
+        let processed = 0;
+        let startPosition = 1;
+
+        while (true) {
+            const query = `SELECT * FROM Invoice WHERE MetaData.LastUpdatedTime > '${sinceIso}' STARTPOSITION ${startPosition} MAXRESULTS 1000`;
+            let result: { QueryResponse: { Invoice?: Array<{ Id: string; SyncToken: string; Balance: number; TotalAmt: number }> } };
+            try {
+                result = await this.qboQuery(tenantId, query);
+            } catch (e) {
+                logger.error('QBO CDC query failed', { tenantId }, e instanceof Error ? e : undefined);
+                break;
+            }
+
+            const invoiceList = result.QueryResponse.Invoice ?? [];
+            for (const inv of invoiceList) {
+                const mapped = await db.select().from(qboEntityMap).where(
+                    and(
+                        eq(qboEntityMap.tenantId, tenantId),
+                        eq(qboEntityMap.qboType, 'Invoice'),
+                        eq(qboEntityMap.qboId, inv.Id),
+                    ),
+                ).get();
+                if (!mapped) continue;
+
+                await db.update(qboEntityMap).set({ qboSyncToken: inv.SyncToken, syncedAt: Math.floor(Date.now() / 1000) })
+                    .where(eq(qboEntityMap.id, mapped.id));
+
+                if (inv.Balance === 0) {
+                    await markPaid(mapped.oiId, tenantId);
+                } else if (inv.Balance < inv.TotalAmt) {
+                    await markPartial(mapped.oiId, inv.Balance, tenantId);
+                }
+                processed++;
+                await new Promise(r => setTimeout(r, 100));
+            }
+
+            if (invoiceList.length < 1000) break;
+            startPosition += 1000;
+        }
+
+        await db.update(qboConnections).set({ lastSyncAt: Math.floor(Date.now() / 1000) })
+            .where(eq(qboConnections.tenantId, tenantId));
+
+        return { processed };
     }
 
     async getConnectionStatus(tenantId: string): Promise<QBOConnectionStatus | null> {
