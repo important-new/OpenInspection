@@ -76,6 +76,11 @@ export interface AppEnv {
     // entry. Matches the existing GOOGLE_PLACES_API_KEY graceful-degrade
     // pattern.
     ESTATED_API_KEY?: string;
+
+    // QuickBooks Online integration
+    QBO_CLIENT_ID?: string;
+    QBO_CLIENT_SECRET?: string;
+    QBO_WEBHOOK_SECRET?: string;
 }
 
 import { AdminService } from '../services/admin.service';
@@ -160,6 +165,8 @@ export interface AppServices {
     agent: AgentService;
     // Agent Accounts A3
     concierge: ConciergeService;
+    // QuickBooks Online integration
+    qbo: import('../services/qbo.service').QBOService;
 }
 
 /**
