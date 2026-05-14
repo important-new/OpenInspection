@@ -1,66 +1,85 @@
 /**
- * Color scheme toggle — auto / dark / light (3-way cycle).
+ * Color scheme — auto / dark / light.
  * Reads/writes localStorage key 'ih-color-scheme'.
- *   null      → auto  (follow OS prefers-color-scheme)
- *   'dark'    → dark
- *   'light'   → light
+ *   null / absent → auto  (follow OS prefers-color-scheme)
+ *   'dark'        → dark
+ *   'light'       → light
+ *
+ * Public API:
+ *   window.setColorScheme(mode)  — set 'auto'|'dark'|'light' explicitly
+ *   window.themeMenu()           — Alpine factory for the sidebar dropdown
+ *
  * The html[data-color-scheme] attribute is set by an inline <script> in
- * <head> before stylesheets load to prevent FOUC; this file handles the
- * runtime toggle and icon/label updates.
+ * <head> before stylesheets load to prevent FOUC.
  */
 (function () {
-    function isDarkActive() {
-        return document.documentElement.getAttribute('data-color-scheme') === 'dark';
+    function currentMode() {
+        var s = localStorage.getItem('ih-color-scheme');
+        return s === 'dark' || s === 'light' ? s : 'auto';
     }
 
-    function currentMode() {
-        var saved = localStorage.getItem('ih-color-scheme');
-        if (saved === 'dark' || saved === 'light') return saved;
-        return 'auto';
+    function isDark() {
+        return document.documentElement.getAttribute('data-color-scheme') === 'dark';
     }
 
     function applyMode(mode) {
         if (mode === 'auto') {
             localStorage.removeItem('ih-color-scheme');
-            var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            document.documentElement.setAttribute('data-color-scheme', systemDark ? 'dark' : 'light');
+            var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-color-scheme', sysDark ? 'dark' : 'light');
         } else {
             localStorage.setItem('ih-color-scheme', mode);
             document.documentElement.setAttribute('data-color-scheme', mode);
         }
     }
 
-    function updateUI() {
+    function effectiveLabel() {
         var mode = currentMode();
-        var dark = isDarkActive();
-
-        // Desktop icons
-        var sun  = document.getElementById('themeSunIcon');
-        var moon = document.getElementById('themeMoonIcon');
-        var auto = document.getElementById('themeAutoIcon');
-        var lbl  = document.getElementById('themeToggleLabel');
-        if (sun)  sun.classList.toggle('hidden', mode !== 'dark');
-        if (moon) moon.classList.toggle('hidden', mode !== 'light');
-        if (auto) auto.classList.toggle('hidden', mode !== 'auto');
-        if (lbl)  lbl.textContent = mode === 'auto' ? 'Auto' : (dark ? 'Dark Mode' : 'Light Mode');
-
-        // Mobile icons + label
-        var msun  = document.getElementById('mobileThemeSunIcon');
-        var mmoon = document.getElementById('mobileThemeMoonIcon');
-        var mauto = document.getElementById('mobileThemeAutoIcon');
-        var mlbl  = document.getElementById('mobileThemeLabel');
-        if (msun)  msun.classList.toggle('hidden', mode !== 'dark');
-        if (mmoon) mmoon.classList.toggle('hidden', mode !== 'light');
-        if (mauto) mauto.classList.toggle('hidden', mode !== 'auto');
-        if (mlbl)  mlbl.textContent = mode === 'auto' ? 'Auto' : (dark ? 'Dark Mode' : 'Light Mode');
+        var dark = isDark();
+        if (mode === 'auto') return 'Auto · ' + (dark ? 'Dark' : 'Light');
+        return dark ? 'Dark' : 'Light';
     }
 
-    // Cycle: auto → dark → light → auto
-    window.toggleColorScheme = function () {
+    function updateUI() {
         var mode = currentMode();
-        var next = mode === 'auto' ? 'dark' : (mode === 'dark' ? 'light' : 'auto');
-        applyMode(next);
+        var label = effectiveLabel();
+
+        // Desktop icons
+        var moon = document.getElementById('themeMoonIcon');
+        var sun  = document.getElementById('themeSunIcon');
+        var auto = document.getElementById('themeAutoIcon');
+        var lbl  = document.getElementById('themeToggleLabel');
+        if (moon) moon.classList.toggle('hidden', mode !== 'dark');
+        if (sun)  sun.classList.toggle('hidden', mode !== 'light');
+        if (auto) auto.classList.toggle('hidden', mode !== 'auto');
+        if (lbl)  lbl.textContent = label;
+
+        // Mobile icons
+        var mmoon = document.getElementById('mobileThemeMoonIcon');
+        var msun  = document.getElementById('mobileThemeSunIcon');
+        var mauto = document.getElementById('mobileThemeAutoIcon');
+        var mlbl  = document.getElementById('mobileThemeLabel');
+        if (mmoon) mmoon.classList.toggle('hidden', mode !== 'dark');
+        if (msun)  msun.classList.toggle('hidden', mode !== 'light');
+        if (mauto) mauto.classList.toggle('hidden', mode !== 'auto');
+        if (mlbl)  mlbl.textContent = label;
+    }
+
+    window.setColorScheme = function (mode) {
+        applyMode(mode);
         updateUI();
+    };
+
+    // Alpine factory for the sidebar dropdown
+    window.themeMenu = function () {
+        return {
+            open: false,
+            get mode() { return currentMode(); },
+            set: function (m) {
+                this.open = false;
+                window.setColorScheme(m);
+            },
+        };
     };
 
     // Sync UI on first paint (icons may not be in DOM during <head> script)
