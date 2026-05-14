@@ -9,6 +9,10 @@ export interface ScheduledEnv {
     SENDER_EMAIL?: string;
     APP_NAME?: string;
     APP_BASE_URL?: string;
+    JWT_SECRET?: string;
+    QBO_CLIENT_ID?: string;
+    QBO_CLIENT_SECRET?: string;
+    QBO_WEBHOOK_SECRET?: string;
 }
 
 export async function scheduled(
@@ -21,6 +25,42 @@ export async function scheduled(
         const agreementService = new AgreementService(env.DB);
         const count = await agreementService.expireOlderThan(14);
         logger.info('[cron] expired agreements', { count });
+        return;
+    }
+
+    // Hourly at :00 — QBO CDC payment status sync
+    if (event.cron === '0 * * * *') {
+        if (!env.JWT_SECRET || !env.QBO_CLIENT_ID) {
+            logger.info('[cron:qbo] QBO not configured — skipping CDC');
+            return;
+        }
+        const { QBOService } = await import('./services/qbo.service');
+        const { InvoiceService } = await import('./services/invoice.service');
+        const svc = new QBOService(
+            env.DB,
+            env.QBO_CLIENT_ID,
+            env.QBO_CLIENT_SECRET ?? '',
+            env.QBO_WEBHOOK_SECRET ?? '',
+            env.JWT_SECRET,
+        );
+        const invoiceSvc = new InvoiceService(env.DB);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = (await import('drizzle-orm/d1')).drizzle(env.DB as any);
+        const { qboConnections } = await import('./lib/db/schema/qbo');
+        const { eq } = await import('drizzle-orm');
+        const connections = await db.select().from(qboConnections).where(eq(qboConnections.syncEnabled, 1)).all();
+        for (const conn of connections) {
+            try {
+                const { processed } = await svc.runCDCSync(
+                    conn.tenantId,
+                    (invoiceId, tid) => invoiceSvc.markPaid(invoiceId, tid, 'qbo'),
+                    (invoiceId, _bal, tid) => invoiceSvc.markPartial(invoiceId, tid, 'qbo'),
+                );
+                if (processed > 0) logger.info('[cron:qbo] CDC processed invoices', { tenantId: conn.tenantId, processed });
+            } catch (e) {
+                logger.error('[cron:qbo] tenant CDC failed', { tenantId: conn.tenantId }, e instanceof Error ? e : undefined);
+            }
+        }
         return;
     }
 
