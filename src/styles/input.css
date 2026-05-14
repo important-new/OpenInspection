@@ -605,6 +605,10 @@ html[data-color-scheme="dark"] .bg-slate-100      { background-color: #1a2540 !i
 html[data-color-scheme="dark"] .bg-slate-200      { background-color: #223050 !important; }
 html[data-color-scheme="dark"] .bg-slate-50\/50   { background-color: rgba(22,32,50,0.5) !important; }
 html[data-color-scheme="dark"] .bg-indigo-50      { background-color: rgba(129,140,248,0.12) !important; }
+/* Custom surface palette (tailwind.config surface-*) */
+html[data-color-scheme="dark"] .bg-surface-50    { background-color: var(--ih-bg-app)  !important; }
+html[data-color-scheme="dark"] .bg-surface-100   { background-color: var(--ih-bg-page) !important; }
+html[data-color-scheme="dark"] .bg-surface-200   { background-color: var(--ih-bg-card) !important; }
 
 /* ── Text ────────────────────────────────────────────────── */
 html[data-color-scheme="dark"] .text-slate-900    { color: var(--ih-fg-1) !important; }
