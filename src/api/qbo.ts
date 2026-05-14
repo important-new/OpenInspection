@@ -4,7 +4,7 @@ import { verify } from 'hono/jwt';
 import type { HonoConfig } from '../types/hono';
 import { QBOService } from '../services/qbo.service';
 import { encryptToken } from '../lib/qbo-crypto';
-import { QBOTokenResponseSchema, QBOCompanyInfoResponseSchema } from '../lib/validations/qbo.schema';
+import { QBOTokenResponseSchema, QBOCompanyInfoResponseSchema, QBOLinkCustomerBodySchema } from '../lib/validations/qbo.schema';
 import { logger } from '../lib/logger';
 import { drizzle } from 'drizzle-orm/d1';
 import { qboConnections, qboSyncErrors } from '../lib/db/schema/qbo';
@@ -103,13 +103,19 @@ api.get('/callback', async (c) => {
         } catch { /* non-fatal */ }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const [encAccessToken, encRefreshToken] = await Promise.all([
+            encryptToken(tokens.access_token, c.env.JWT_SECRET),
+            encryptToken(tokens.refresh_token, c.env.JWT_SECRET),
+        ]);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const db = drizzle(c.env.DB as any);
         await db.insert(qboConnections).values({
             tenantId,
             realmId,
             companyName,
-            accessToken:           await encryptToken(tokens.access_token, c.env.JWT_SECRET),
-            refreshToken:          await encryptToken(tokens.refresh_token, c.env.JWT_SECRET),
+            accessToken:           encAccessToken,
+            refreshToken:          encRefreshToken,
             tokenExpiresAt:        now + 3600,
             refreshTokenExpiresAt: now + tokens.x_refresh_token_expires_in,
             syncEnabled:           1,
@@ -120,8 +126,8 @@ api.get('/callback', async (c) => {
             set: {
                 realmId,
                 companyName,
-                accessToken:           await encryptToken(tokens.access_token, c.env.JWT_SECRET),
-                refreshToken:          await encryptToken(tokens.refresh_token, c.env.JWT_SECRET),
+                accessToken:           encAccessToken,
+                refreshToken:          encRefreshToken,
                 tokenExpiresAt:        now + 3600,
                 refreshTokenExpiresAt: now + tokens.x_refresh_token_expires_in,
             },
@@ -187,9 +193,10 @@ api.post('/errors/:id/retry', async (c) => {
 api.post('/contacts/:contactId/link', async (c) => {
     const tenantId = c.get('tenantId') as string;
     const contactId = c.req.param('contactId');
-    const body = await c.req.json<{ qboCustomerId: string }>();
+    const parsed = QBOLinkCustomerBodySchema.safeParse(await c.req.json());
+    if (!parsed.success) return c.json({ success: false, error: 'Invalid body' }, 400);
     const svc = getQBOService(c.env);
-    await svc.linkExistingCustomer(tenantId, contactId, body.qboCustomerId);
+    await svc.linkExistingCustomer(tenantId, contactId, parsed.data.qboCustomerId);
     return c.json({ success: true });
 });
 

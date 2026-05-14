@@ -67,5 +67,9 @@ export const QBOErrorSchema = z.object({
     }).optional(),
 });
 
+export const QBOLinkCustomerBodySchema = z.object({
+    qboCustomerId: z.string().min(1),
+});
+
 export type QBOCloudEvent = z.infer<typeof QBOCloudEventSchema>;
 export type QBOTokenResponse = z.infer<typeof QBOTokenResponseSchema>;
