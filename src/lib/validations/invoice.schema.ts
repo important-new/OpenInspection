@@ -30,5 +30,5 @@ export const InvoiceResponseSchema = z.object({
     sentAt: z.string().nullable(),
     paidAt: z.string().nullable(),
     createdAt: z.string(),
-    status: z.enum(['draft', 'sent', 'paid']),
+    status: z.enum(['draft', 'sent', 'paid', 'partial']),
 }).openapi('Invoice');

@@ -10,7 +10,7 @@ interface InvoicePublicProps {
     invoice: {
         id:           string;
         amountCents:  number;
-        status:       'draft' | 'sent' | 'paid';
+        status:       'draft' | 'sent' | 'paid' | 'partial';
         dueDate?:     string | null;
         notes?:       string | null;
         lineItems:    Array<{ description: string; amountCents: number }>;
