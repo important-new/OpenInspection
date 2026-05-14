@@ -545,21 +545,18 @@ export class QBOService {
         ).get();
         if (!invoiceMap) return;
 
-        // Look up the QBO customer ID via the entity map for contacts linked to this invoice
-        const row = await this.db.prepare(
+        const customerRow = await this.db.prepare(
             `SELECT qem_c.qbo_id AS qbo_customer_id
-             FROM qbo_entity_map qem_i
+             FROM invoices inv
              JOIN qbo_entity_map qem_c
-               ON qem_c.tenant_id = qem_i.tenant_id
+               ON qem_c.oi_id = inv.contact_id
+              AND qem_c.tenant_id = inv.tenant_id
               AND qem_c.oi_type = 'contact'
-              AND qem_c.qbo_type = 'Customer'
-             WHERE qem_i.tenant_id = ?
-               AND qem_i.oi_type = 'invoice'
-               AND qem_i.oi_id = ?
+             WHERE inv.id = ? AND inv.tenant_id = ?
              LIMIT 1`,
-        ).bind(tenantId, invoiceId).first<{ qbo_customer_id: string }>().catch(() => null);
+        ).bind(invoiceId, tenantId).first<{ qbo_customer_id: string }>().catch(() => null);
 
-        const qboCustomerId = row?.qbo_customer_id ?? null;
+        const qboCustomerId = customerRow?.qbo_customer_id ?? null;
         if (!qboCustomerId) {
             logger.info('QBO recordPayment: no customer mapping — skipping', { tenantId, invoiceId });
             return;
@@ -583,21 +580,18 @@ export class QBOService {
         const conn = await db.select().from(qboConnections).where(eq(qboConnections.tenantId, tenantId)).get();
         if (!conn) return;
 
-        // Look up the QBO customer ID via the entity map for contacts linked to this invoice
-        const row = await this.db.prepare(
+        const creditCustomerRow = await this.db.prepare(
             `SELECT qem_c.qbo_id AS qbo_customer_id
-             FROM qbo_entity_map qem_i
+             FROM invoices inv
              JOIN qbo_entity_map qem_c
-               ON qem_c.tenant_id = qem_i.tenant_id
+               ON qem_c.oi_id = inv.contact_id
+              AND qem_c.tenant_id = inv.tenant_id
               AND qem_c.oi_type = 'contact'
-              AND qem_c.qbo_type = 'Customer'
-             WHERE qem_i.tenant_id = ?
-               AND qem_i.oi_type = 'invoice'
-               AND qem_i.oi_id = ?
+             WHERE inv.id = ? AND inv.tenant_id = ?
              LIMIT 1`,
-        ).bind(tenantId, invoiceId).first<{ qbo_customer_id: string }>().catch(() => null);
+        ).bind(invoiceId, tenantId).first<{ qbo_customer_id: string }>().catch(() => null);
 
-        const qboCustomerId = row?.qbo_customer_id ?? null;
+        const qboCustomerId = creditCustomerRow?.qbo_customer_id ?? null;
         if (!qboCustomerId) return;
 
         try {

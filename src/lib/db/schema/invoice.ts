@@ -1,11 +1,13 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { tenants } from './tenant';
 import { inspections } from './inspection';
+import { contacts } from './contact';
 
 export const invoices = sqliteTable('invoices', {
     id: text('id').primaryKey(),
     tenantId: text('tenant_id').notNull().references(() => tenants.id),
     inspectionId: text('inspection_id').references(() => inspections.id),
+    contactId: text('contact_id').references(() => contacts.id),
     clientName: text('client_name'),
     clientEmail: text('client_email'),
     amountCents: integer('amount_cents').notNull().default(0),
