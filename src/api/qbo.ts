@@ -13,10 +13,13 @@ import { eq, and } from 'drizzle-orm';
 const api = new Hono<HonoConfig>();
 
 function getQBOService(env: HonoConfig['Bindings']): QBOService {
+    if (!env.QBO_CLIENT_ID || !env.QBO_CLIENT_SECRET) {
+        throw new Error('QBO credentials not configured');
+    }
     return new QBOService(
         env.DB,
-        env.QBO_CLIENT_ID ?? '',
-        env.QBO_CLIENT_SECRET ?? '',
+        env.QBO_CLIENT_ID,
+        env.QBO_CLIENT_SECRET,
         env.QBO_WEBHOOK_SECRET ?? '',
         env.JWT_SECRET,
     );
@@ -44,12 +47,15 @@ api.get('/status', async (c) => {
 
 // GET /connect — initiate OAuth flow
 api.get('/connect', async (c) => {
-    if (!c.env.QBO_CLIENT_ID) {
-        return c.html('<p>QBO_CLIENT_ID not configured</p>', 503);
+    if (!c.env.QBO_CLIENT_ID || !c.env.QBO_CLIENT_SECRET) {
+        return c.html('<p>QBO credentials not configured</p>', 503);
+    }
+    if (!c.env.APP_BASE_URL) {
+        return c.html('<p>APP_BASE_URL not configured</p>', 503);
     }
     const state = crypto.randomUUID();
     await c.env.TENANT_CACHE.put(`qbo_oauth_state:${state}`, '1', { expirationTtl: 600 });
-    const redirectUri = `${c.env.APP_BASE_URL ?? ''}/settings/integrations/qbo/callback`;
+    const redirectUri = `${c.env.APP_BASE_URL}/settings/integrations/qbo/callback`;
     const url = new URL('https://appcenter.intuit.com/connect/oauth2');
     url.searchParams.set('client_id', c.env.QBO_CLIENT_ID);
     url.searchParams.set('redirect_uri', redirectUri);
@@ -138,7 +144,7 @@ api.get('/callback', async (c) => {
 
         return c.redirect('/settings/integrations/qbo?connected=1');
     } catch (e) {
-        logger.error('QBO OAuth callback failed', {}, e instanceof Error ? e : undefined);
+        logger.error('QBO OAuth callback failed', { realmId }, e instanceof Error ? e : undefined);
         return c.redirect('/settings/integrations/qbo?error=oauth_failed');
     }
 });
