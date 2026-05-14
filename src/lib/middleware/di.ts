@@ -37,6 +37,7 @@ import { UserService } from '../../services/user.service';
 import { IcsService } from '../../services/ics.service';
 import { AgentService } from '../../services/agent.service';
 import { ConciergeService } from '../../services/concierge.service';
+import { QBOService } from '../../services/qbo.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -242,6 +243,15 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                             c.env.APP_BASE_URL || '',
                         );
                     }
+                    break;
+                case 'qbo':
+                    target.qbo = new QBOService(
+                        c.env.DB,
+                        c.env.QBO_CLIENT_ID ?? '',
+                        c.env.QBO_CLIENT_SECRET ?? '',
+                        c.env.QBO_WEBHOOK_SECRET ?? '',
+                        c.env.JWT_SECRET,
+                    );
                     break;
             }
             return target[prop];

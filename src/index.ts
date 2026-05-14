@@ -122,6 +122,8 @@ import publicSlugRoutes from './api/public-slug';
 import publicShareRoutes from './api/public-share';
 import profileRoutes from './api/profile';
 import conciergeRoutes from './api/concierge';
+import qboRoutes from './api/qbo';
+import qboWebhookRoutes from './api/qbo-webhook';
 import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
 import { ConciergeConfirmExpiredPage } from './templates/pages/concierge-confirm-expired';
 import { ConciergeBookPage } from './templates/pages/concierge-book';
@@ -237,7 +239,7 @@ app.use('*', async (c, next) => {
     // Agent Accounts A3 — concierge magic-link entry points (client-facing,
     // no JWT). The token in the URL is the secret.
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path);
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
     if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
@@ -461,6 +463,8 @@ app.route('/api/ics', icsRoutes);
 app.route('/api/users', userRoutes);
 app.route('/api/messages', messageRoutes);
 app.route('/api/notifications', notificationsRoutes);
+app.route('/settings/integrations/qbo', qboRoutes);
+app.route('/api/integrations/qbo/webhook', qboWebhookRoutes);
 
 // OpenAPI Documentation
 app.doc('/doc', {
