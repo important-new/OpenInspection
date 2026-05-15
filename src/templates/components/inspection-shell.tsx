@@ -92,9 +92,9 @@ export const InspectionShell = ({
             {hasMultipleSiblings && siblings && (
                 <nav
                     aria-label="Sibling inspections"
-                    class="flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-50 rounded-md border border-slate-200"
+                    class="flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700"
                 >
-                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                         Same visit
                     </span>
                     {siblings.map((s) => {
@@ -103,8 +103,8 @@ export const InspectionShell = ({
                             <a
                                 href={`/inspections/${s.id}/${current}`}
                                 class={isCurrent
-                                    ? 'px-2.5 py-1 rounded-md bg-white border border-indigo-300 text-indigo-700 text-[11px] font-bold'
-                                    : 'px-2.5 py-1 rounded-md text-slate-600 text-[11px] font-medium hover:bg-white hover:text-slate-900 transition-colors'}
+                                    ? 'px-2.5 py-1 rounded-md bg-white dark:bg-slate-700 border border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold'
+                                    : 'px-2.5 py-1 rounded-md text-slate-600 dark:text-slate-400 text-[11px] font-medium hover:bg-white dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100 transition-colors'}
                                 aria-current={isCurrent ? 'page' : undefined}
                             >
                                 {s.templateName}
@@ -118,7 +118,7 @@ export const InspectionShell = ({
             <nav
                 role="tablist"
                 aria-label="Inspection sections"
-                class="border-b border-slate-200 sticky top-0 z-20 bg-[#f8fafc]"
+                class="border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 bg-[#f8fafc] dark:bg-slate-900"
             >
                 <div class="flex items-center gap-1 overflow-x-auto hide-scrollbar">
                     {visibleTabs.map((t) => {
@@ -130,8 +130,8 @@ export const InspectionShell = ({
                                 aria-current={active ? 'page' : undefined}
                                 aria-selected={active ? 'true' : 'false'}
                                 class={active
-                                    ? 'px-4 py-3 text-[13px] font-bold border-b-2 border-indigo-500 text-slate-900 whitespace-nowrap'
-                                    : 'px-4 py-3 text-[13px] font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 whitespace-nowrap transition-colors'}
+                                    ? 'px-4 py-3 text-[13px] font-bold border-b-2 border-indigo-500 text-slate-900 dark:text-slate-100 whitespace-nowrap'
+                                    : 'px-4 py-3 text-[13px] font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 whitespace-nowrap transition-colors'}
                             >
                                 {t.label}
                             </a>

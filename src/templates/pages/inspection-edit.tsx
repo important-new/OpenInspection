@@ -533,20 +533,18 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                         the native <input capture> picker. */}
                     <button type="button"
                       x-on:click="openBurstCamera(item.id)"
-                      class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-                      style="background: #eef2ff; color: var(--ih-primary, #6366f1)"
+                      class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
                       aria-label="Open burst camera">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       Camera
                     </button>
-                    <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
+                    <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                       Library
                     </button>
                     <button type="button"
                       x-on:click="suggestComment(item.label, currentSection?.title || '', document.getElementById('notes-mob-' + item.id), $event)"
-                      class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                      style="background: #fef3c7; color: #b45309">
+                      class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                       Suggest
                     </button>
@@ -1360,20 +1358,18 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                           the browser blocks getUserMedia. */}
                       <button type="button"
                         x-on:click="openBurstCamera(item.id)"
-                        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-                        style="background: #eef2ff; color: var(--ih-primary, #6366f1)"
+                        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
                         aria-label="Open burst camera">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         Camera
                       </button>
-                      <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
+                      <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                         Library
                       </button>
                       <button type="button"
                         x-on:click="suggestComment(item.label, currentSection?.title || '', document.getElementById('notes-dsk-' + item.id), $event)"
-                        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                        style="background: #fef3c7; color: #b45309">
+                        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                         Suggest
                       </button>

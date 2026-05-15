@@ -67,10 +67,10 @@ export const InspectionSettingsPage = ({
 
                     <form x-show="!loading" style="display:none" {...{ 'x-on:submit.prevent': 'save()' }} class="space-y-6">
                         <fieldset class="space-y-4">
-                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900">Schedule</legend>
+                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">Schedule</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <label class="block">
-                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Date</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Date</span>
                                     {/* Iter-2 bug #6 — explicit `lang="en"` stops Chrome on
                                         zh-CN OS locales from rendering the native date
                                         placeholder as 「年/月/日」. */}
@@ -79,14 +79,14 @@ export const InspectionSettingsPage = ({
                                         lang="en"
                                         placeholder="YYYY-MM-DD"
                                         x-model="form.date"
-                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                                     />
                                 </label>
                                 <label class="block">
-                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Inspector</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Inspector</span>
                                     <select
                                         x-model="form.inspectorId"
-                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                                     >
                                         <option value="">— Unassigned —</option>
                                         <template x-for="u in inspectors" {...{ 'x-bind:key': 'u.id' }}>
@@ -100,7 +100,7 @@ export const InspectionSettingsPage = ({
                                 signals; never gates the report. */}
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <label class="block">
-                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Closing Date</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Closing Date</span>
                                     {/* Iter-2 bug #6 — same as the schedule date input above:
                                         explicit `lang="en"` overrides the OS locale so users
                                         on zh-CN do not see 「年/月/日」 as the placeholder. */}
@@ -110,7 +110,7 @@ export const InspectionSettingsPage = ({
                                         placeholder="YYYY-MM-DD"
                                         data-testid="inspection-closing-date"
                                         x-model="form.closingDate"
-                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                                     />
                                 </label>
                             </div>
@@ -128,25 +128,25 @@ export const InspectionSettingsPage = ({
                             identifier). Referral Source is the merged
                             seed + tenant custom list. */}
                         <fieldset class="space-y-4">
-                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900">Order &amp; referral</legend>
+                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">Order &amp; referral</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <label class="block">
-                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Order ID</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Order ID</span>
                                     <input
                                         type="text"
                                         maxLength={64}
                                         placeholder="—"
                                         data-testid="inspection-order-id"
                                         x-model="form.orderId"
-                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none placeholder:text-slate-300"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none placeholder:text-slate-300 dark:placeholder:text-slate-600"
                                     />
                                 </label>
                                 <label class="block">
-                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Referral Source</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Referral Source</span>
                                     <select
                                         data-testid="inspection-referral-source"
                                         x-model="form.referralSource"
-                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                                     >
                                         <option value="">— Select source —</option>
                                         {sources.map(s => (
@@ -155,18 +155,18 @@ export const InspectionSettingsPage = ({
                                     </select>
                                 </label>
                             </div>
-                            <p class="text-[12px] text-slate-500">
-                                Add custom referral sources at <a href="/settings/workspace/referral" class="text-indigo-600 hover:underline">Settings → Workspace → Referral Sources</a>.
+                            <p class="text-[12px] text-slate-500 dark:text-slate-400">
+                                Add custom referral sources at <a href="/settings/workspace/referral" class="text-indigo-600 dark:text-indigo-400 hover:underline">Settings → Workspace → Referral Sources</a>.
                             </p>
                         </fieldset>
 
                         <fieldset class="space-y-4">
-                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900">Template</legend>
+                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">Template</legend>
                             <label class="block">
-                                <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Inspection template</span>
+                                <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Inspection template</span>
                                 <select
                                     x-model="form.templateId"
-                                    class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                    class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                                 >
                                     <option value="">— Select template —</option>
                                     <template x-for="t in templates" {...{ 'x-bind:key': 't.id' }}>
@@ -191,10 +191,10 @@ export const InspectionSettingsPage = ({
                         </fieldset>
 
                         <fieldset class="space-y-4">
-                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900">Pricing & gates</legend>
+                            <legend class="text-[16px] font-semibold tracking-tight text-slate-900 dark:text-slate-100">Pricing & gates</legend>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <label class="block">
-                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Price (cents)</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Price (cents)</span>
                                     <input
                                         type="number"
                                         min="0"
@@ -204,11 +204,11 @@ export const InspectionSettingsPage = ({
                                     />
                                 </label>
                                 <div class="flex flex-col gap-2 pt-5">
-                                    <label class="inline-flex items-center gap-2 text-[13px] text-slate-700">
+                                    <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
                                         <input type="checkbox" x-model="form.paymentRequired" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20" />
                                         Payment required to view report
                                     </label>
-                                    <label class="inline-flex items-center gap-2 text-[13px] text-slate-700">
+                                    <label class="inline-flex items-center gap-2 text-[13px] text-slate-700 dark:text-slate-300">
                                         <input type="checkbox" x-model="form.agreementRequired" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/20" />
                                         Agreement signature required
                                     </label>
@@ -216,7 +216,7 @@ export const InspectionSettingsPage = ({
                             </div>
                         </fieldset>
 
-                        <div class="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
+                        <div class="flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
                             <span x-show="saveState === 'saving'" class="text-[12px] text-amber-600 font-bold">Saving…</span>
                             <span x-show="saveState === 'saved'"  style="display:none" class="text-[12px] text-emerald-600 font-bold">Saved</span>
                             <span x-show="saveState === 'error'"  style="display:none" class="text-[12px] text-rose-600 font-bold">Error — try again</span>
