@@ -17,14 +17,14 @@ import type { BrandingConfig } from '../../types/auth';
 interface Props { branding?: BrandingConfig | undefined }
 
 const TAG_COLORS: ReadonlyArray<{ value: string; label: string; tw: string }> = [
-    { value: 'slate',    label: 'Slate',    tw: 'bg-slate-100 text-slate-700 ring-slate-200' },
-    { value: 'amber',    label: 'Amber',    tw: 'bg-amber-100 text-amber-700 ring-amber-200' },
-    { value: 'rose',     label: 'Rose',     tw: 'bg-rose-100 text-rose-700 ring-rose-200' },
-    { value: 'indigo',   label: 'Indigo',   tw: 'bg-indigo-100 text-indigo-700 ring-indigo-200' },
-    { value: 'emerald',  label: 'Emerald',  tw: 'bg-emerald-100 text-emerald-700 ring-emerald-200' },
-    { value: 'sky',      label: 'Sky',      tw: 'bg-sky-100 text-sky-700 ring-sky-200' },
-    { value: 'fuchsia',  label: 'Fuchsia',  tw: 'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200' },
-    { value: 'lime',     label: 'Lime',     tw: 'bg-lime-100 text-lime-700 ring-lime-200' },
+    { value: 'slate',   label: 'Slate',   tw: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 ring-slate-200 dark:ring-slate-500' },
+    { value: 'amber',   label: 'Amber',   tw: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-700' },
+    { value: 'rose',    label: 'Rose',    tw: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 ring-rose-200 dark:ring-rose-700' },
+    { value: 'indigo',  label: 'Indigo',  tw: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-700' },
+    { value: 'emerald', label: 'Emerald', tw: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-700' },
+    { value: 'sky',     label: 'Sky',     tw: 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 ring-sky-200 dark:ring-sky-700' },
+    { value: 'fuchsia', label: 'Fuchsia', tw: 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 ring-fuchsia-200 dark:ring-fuchsia-700' },
+    { value: 'lime',    label: 'Lime',    tw: 'bg-lime-100 dark:bg-lime-900/40 text-lime-700 dark:text-lime-300 ring-lime-200 dark:ring-lime-700' },
 ];
 
 export const TagsPage = ({ branding }: Props): JSX.Element => {
