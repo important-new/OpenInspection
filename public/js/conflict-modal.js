@@ -30,6 +30,12 @@ function conflictModalFactory() {
 
             const refresh = async () => {
                 const all = await db.conflicts.orderBy('createdAt').toArray();
+                // Continuously purge stale empty rows (mirrors the one-shot init
+                // cleanup) so new empties created after init don't accumulate.
+                const empties = all.filter(isEmpty);
+                if (empties.length > 0) {
+                    await Promise.all(empties.map((c) => db.conflicts.delete(c.id)));
+                }
                 this.conflicts = all.filter((c) => !isEmpty(c));
                 this.open = this.conflicts.length > 0;
                 if (this.index >= this.conflicts.length) this.index = 0;
