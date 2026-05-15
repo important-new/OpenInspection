@@ -742,6 +742,33 @@ html[data-color-scheme="dark"] thead.bg-slate-50\/50 {
     background-color: rgba(255,255,255,0.03) !important;
 }
 
+/* ── JS-rendered table rows (contacts, invoices, agreements) ─ */
+html[data-color-scheme="dark"] #contactsBody tr:hover,
+html[data-color-scheme="dark"] #agentLinksBody tr:hover,
+html[data-color-scheme="dark"] #invoicesBody tr:hover,
+html[data-color-scheme="dark"] #membersList tr:hover,
+html[data-color-scheme="dark"] #invitesList tr:hover {
+    background-color: rgba(30,41,59,0.9) !important;
+}
+
+/* ── FullCalendar dark overrides ─────────────────────────── */
+html[data-color-scheme="dark"] #calendar th {
+    background-color: var(--ih-bg-card) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+}
+html[data-color-scheme="dark"] #calendar td {
+    border-color: rgba(255,255,255,0.06) !important;
+}
+html[data-color-scheme="dark"] #calendar .fc-day-today {
+    background-color: rgba(99,102,241,0.12) !important;
+}
+html[data-color-scheme="dark"] #calendar .fc-event {
+    border-color: rgba(255,255,255,0.15) !important;
+}
+html[data-color-scheme="dark"] #calendar .fc-scrollgrid {
+    border-color: rgba(255,255,255,0.08) !important;
+}
+
 /* ── Borders on panels / sections ───────────────────────── */
 html[data-color-scheme="dark"] .border-slate-100,
 html[data-color-scheme="dark"] .border-slate-100\/50 {

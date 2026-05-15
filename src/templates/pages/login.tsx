@@ -294,6 +294,40 @@ export const LoginPage = ({ branding }: { branding?: BrandingConfig | undefined 
                         .login-heading { font-size: 1.375rem; }
                         .brand-mark { margin-bottom: 2rem; }
                     }
+
+                    /* ---- Dark mode ---- */
+                    [data-color-scheme="dark"] body {
+                        background: #0f172a;
+                        color: #f1f5f9;
+                    }
+                    [data-color-scheme="dark"] .login-heading { color: #f1f5f9; }
+                    [data-color-scheme="dark"] .login-sub { color: #94a3b8; }
+                    [data-color-scheme="dark"] .form-label { color: #cbd5e1; }
+                    [data-color-scheme="dark"] .form-input {
+                        background: #1e293b;
+                        border-color: #334155;
+                        color: #f1f5f9;
+                    }
+                    [data-color-scheme="dark"] .form-input::placeholder { color: #64748b; }
+                    [data-color-scheme="dark"] .form-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.2); }
+                    [data-color-scheme="dark"] .form-input:-webkit-autofill,
+                    [data-color-scheme="dark"] .form-input:-webkit-autofill:hover,
+                    [data-color-scheme="dark"] .form-input:-webkit-autofill:focus {
+                        -webkit-box-shadow: 0 0 0 1000px #1e293b inset;
+                        -webkit-text-fill-color: #f1f5f9;
+                        caret-color: #f1f5f9;
+                    }
+                    [data-color-scheme="dark"] .form-hint { color: #94a3b8; }
+                    [data-color-scheme="dark"] .divider-text { color: #64748b; }
+                    [data-color-scheme="dark"] .divider-line { border-color: #334155; }
+                    [data-color-scheme="dark"] .link-subtle { color: #818cf8; }
+                    [data-color-scheme="dark"] .brand-name { color: #f1f5f9; }
+                    [data-color-scheme="dark"] .footer-text { color: #64748b; }
+                    [data-color-scheme="dark"] .error-box {
+                        background: #450a0a;
+                        border-color: #991b1b;
+                        color: #fca5a5;
+                    }
                 ` }} />
 
                 {gaMeasurementId && (

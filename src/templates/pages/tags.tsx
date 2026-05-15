@@ -54,19 +54,19 @@ export const TagsPage = ({ branding }: Props): JSX.Element => {
                 />
 
                 {/* Loading + error */}
-                <div x-show="loading" class="text-center py-12 bg-slate-50 rounded-md text-[13px] text-slate-500 font-semibold">Loading tags…</div>
-                <div x-show="error" style="display:none" class="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-700" x-text="error"></div>
+                <div x-show="loading" class="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-md text-[13px] text-slate-500 dark:text-slate-400 font-semibold">Loading tags…</div>
+                <div x-show="error" style="display:none" class="rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 px-4 py-3 text-[13px] text-rose-700 dark:text-rose-400" x-text="error"></div>
 
                 {/* Empty */}
-                <div x-show="!loading && tags.length === 0" style="display:none" class="text-center py-12 bg-slate-50 rounded-md">
-                    <p class="text-slate-500 font-semibold">No tags yet.</p>
-                    <p class="text-slate-400 text-sm mt-2">Reload to plant the five seed tags, or add your own.</p>
+                <div x-show="!loading && tags.length === 0" style="display:none" class="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-md">
+                    <p class="text-slate-500 dark:text-slate-400 font-semibold">No tags yet.</p>
+                    <p class="text-slate-400 dark:text-slate-500 text-sm mt-2">Reload to plant the five seed tags, or add your own.</p>
                 </div>
 
                 {/* List */}
                 <div x-show="!loading && tags.length > 0" style="display:none" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="tag-list">
                     <template x-for="tag in tags" {...{ 'x-bind:key': 'tag.id' }}>
-                        <div class="p-4 bg-white border border-slate-200 rounded-md shadow-sm hover:shadow transition" x-bind:data-tag-id="tag.id" x-bind:data-tag-name="tag.name">
+                        <div class="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm hover:shadow transition" x-bind:data-tag-id="tag.id" x-bind:data-tag-name="tag.name">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex-1 min-w-0">
                                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-bold ring-1 ring-inset" x-bind:class="colorClass(tag.color)" x-text="tag.name"></span>

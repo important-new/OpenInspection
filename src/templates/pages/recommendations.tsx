@@ -62,14 +62,14 @@ export const RecommendationsPage = ({ branding }: Props): JSX.Element => (
                 </select>
             </div>
 
-            <div x-show="items.length === 0 && !loading" class="text-center py-12 bg-slate-50 rounded-md">
-                <p class="text-slate-500 font-semibold">No recommendations yet.</p>
-                <p class="text-slate-400 text-sm mt-2">Click "Seed defaults" above to load 80 starter entries, or add your own.</p>
+            <div x-show="items.length === 0 && !loading" class="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-md">
+                <p class="text-slate-500 dark:text-slate-400 font-semibold">No recommendations yet.</p>
+                <p class="text-slate-400 dark:text-slate-500 text-sm mt-2">Click "Seed defaults" above to load 80 starter entries, or add your own.</p>
             </div>
 
             <div x-show="items.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-3 print:hidden">
                 <template x-for="rec in items" {...{ 'x-bind:key': 'rec.id' }}>
-                    <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition">
+                    <div class="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm hover:shadow-md transition">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 mb-1">

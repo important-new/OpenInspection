@@ -19,7 +19,7 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                 {/* R7-25: Spell out the import / update relationship so
                     inspectors aren't unsure whether importing creates a
                     copy they own or links to a remote template. */}
-                <div class="inline-flex items-start gap-2 px-4 py-2 rounded-md bg-slate-50 border border-slate-200 text-[11px] text-slate-600 max-w-2xl">
+                <div class="inline-flex items-start gap-2 px-4 py-2 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 max-w-2xl">
                     <svg class="w-4 h-4 mt-0.5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <div>
                         <strong>Import = your own copy.</strong> When the publisher updates the template, you'll see "Update available" and can pull the new version (or keep your customizations).
@@ -30,9 +30,9 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                 <div class="flex flex-col sm:flex-row gap-3">
                     <input type="text" x-model="search" {...{ 'x-on:input.debounce.300ms': 'load()' }}
                         placeholder="Search templates..."
-                        class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                        class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500" />
                     <select x-model="category" x-on:change="load()"
-                        class="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500">
+                        class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500">
                         <option value="">All Categories</option>
                         <option value="residential">Residential</option>
                         <option value="commercial">Commercial</option>
@@ -42,7 +42,7 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                     </select>
                     {/* Polish 5 — client-side sort */}
                     <select x-model="sort" x-on:change="resort()"
-                        class="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500">
+                        class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-500">
                         <option value="featured">Featured first</option>
                         <option value="recent">Recently added</option>
                         <option value="popular">Most imports</option>
@@ -60,11 +60,11 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                                 <div class="flex items-start justify-between">
                                     <div>
                                         <div class="flex items-center gap-2">
-                                            <h3 class="font-bold text-slate-900 text-lg" x-text="l.name"></h3>
-                                            <span x-show="l.featured" class="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">★ Featured</span>
+                                            <h3 class="font-bold text-slate-900 dark:text-white text-lg" x-text="l.name"></h3>
+                                            <span x-show="l.featured" class="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">★ Featured</span>
                                         </div>
                                         <div class="flex items-center gap-2 mt-1">
-                                            <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full capitalize" x-text="l.kind"></span>
+                                            <span class="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full capitalize" x-text="l.kind"></span>
                                             <span class="text-xs text-slate-400 font-mono" x-text="'v' + l.semver"></span>
                                             <span class="text-xs text-slate-500" x-text="l.itemCount + ' entries'"></span>
                                         </div>
@@ -81,7 +81,7 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                                         </button>
                                     </template>
                                     <template x-if="l.importedSemver && !l.hasUpdate">
-                                        <span class="px-4 py-1.5 text-sm rounded-md font-bold bg-slate-100 text-slate-400">Imported</span>
+                                        <span class="px-4 py-1.5 text-sm rounded-md font-bold bg-slate-100 dark:bg-slate-700 text-slate-400">Imported</span>
                                     </template>
                                     <template x-if="l.hasUpdate">
                                         <button x-on:click="openUpdateConfirm(l, 'library')"
@@ -104,17 +104,17 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                             <div class="flex items-start justify-between">
                                 <div>
                                     <div class="flex items-center gap-2">
-                                        <h3 class="font-bold text-slate-900 text-lg" x-text="t.name"></h3>
-                                        <span x-show="t.featured" class="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">★ Featured</span>
+                                        <h3 class="font-bold text-slate-900 dark:text-white text-lg" x-text="t.name"></h3>
+                                        <span x-show="t.featured" class="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">★ Featured</span>
                                     </div>
                                     <div class="flex items-center gap-2 mt-1">
-                                        <span class="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full capitalize" x-text="t.category.replace('_',' ')"></span>
+                                        <span class="text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 px-2 py-0.5 rounded-full capitalize" x-text="t.category.replace('_',' ')"></span>
                                         <span class="text-xs text-slate-400 font-mono" x-text="'v' + t.semver"></span>
                                     </div>
                                 </div>
                             </div>
                             <p class="text-sm text-slate-500" x-text="t.changelog || 'Standard inspection template.'"></p>
-                            <div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 gap-2">
+                            <div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100 dark:border-slate-700 gap-2">
                                 <span class="text-xs text-slate-400" x-text="t.downloadCount + ' imports'"></span>
                                 <div class="flex items-center gap-2">
                                     {/* Polish 5 — Preview button */}
@@ -126,7 +126,7 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                                         </button>
                                     </template>
                                     <template x-if="t.importedSemver && !t.hasUpdate">
-                                        <span class="px-4 py-1.5 rounded-xl bg-slate-100 text-slate-400 text-xs font-bold">Imported</span>
+                                        <span class="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-400 text-xs font-bold">Imported</span>
                                     </template>
                                     {/* Round 37 — Update flow (Scheme 2). Opens a confirm
                                         modal explaining "creates a new copy" before POSTing. */}
@@ -150,10 +150,10 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                 {/* Pagination */}
                 <div class="flex items-center justify-center gap-3" x-show="totalPages > 1">
                     <button x-on:click="prevPage()" x-bind:disabled="page <= 1"
-                        class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold disabled:opacity-40">Prev</button>
-                    <span class="text-sm text-slate-600 font-semibold" x-text="`Page ${page} of ${totalPages}`"></span>
+                        class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:text-slate-300 text-sm font-bold disabled:opacity-40">Prev</button>
+                    <span class="text-sm text-slate-600 dark:text-slate-300 font-semibold" x-text="`Page ${page} of ${totalPages}`"></span>
                     <button x-on:click="nextPage()" x-bind:disabled="page >= totalPages"
-                        class="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold disabled:opacity-40">Next</button>
+                        class="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 dark:text-slate-300 text-sm font-bold disabled:opacity-40">Next</button>
                 </div>
 
                 {/* Polish 5 — Preview modal. Footer has Close + Import (conditional),
@@ -168,7 +168,7 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                             <button
                                 type="button"
                                 x-on:click="previewOpen = false"
-                                class="h-10 px-4 rounded-xl border bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all"
+                                class="h-10 px-4 rounded-xl border bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-600 transition-all"
                                 style="border-color: #e2e8f0"
                             >
                                 Close
@@ -193,20 +193,20 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                             <span class="text-rose-500" x-text="previewDefectTotal + ' defects'"></span>
                         </p>
                         <template x-for="sec in (previewSchema?.sections || [])" {...{ 'x-bind:key': 'sec.id' }}>
-                            <details class="bg-slate-50 rounded-xl p-3" open>
-                                <summary class="cursor-pointer font-bold text-sm text-slate-800 flex items-center justify-between">
+                            <details class="bg-slate-50 dark:bg-slate-800 rounded-xl p-3" open>
+                                <summary class="cursor-pointer font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center justify-between">
                                     <span x-text="sec.title || sec.name || sec.id"></span>
                                     <span class="text-xs text-slate-400" x-text="(sec.items?.length || 0) + ' items'"></span>
                                 </summary>
-                                <ul class="mt-2 space-y-1 text-xs text-slate-600 pl-3">
+                                <ul class="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-400 pl-3">
                                     <template x-for="it in (sec.items || [])" {...{ 'x-bind:key': 'it.id' }}>
                                         <li class="flex items-center gap-2 flex-wrap py-1">
-                                            <span class="w-1 h-1 rounded-full bg-slate-300"></span>
-                                            <span class="font-semibold text-slate-700" x-text="it.label || it.name || it.id"></span>
-                                            <span class="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-200 text-slate-600" x-text="it.type || 'rich'"></span>
-                                            <span x-show="it._info > 0" class="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded" x-text="'info: ' + it._info"></span>
-                                            <span x-show="it._lim > 0" class="text-[10px] font-mono text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded" x-text="'lim: ' + it._lim"></span>
-                                            <span x-show="it._def > 0" class="text-[10px] font-mono text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded" x-text="'def: ' + it._def"></span>
+                                            <span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+                                            <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="it.label || it.name || it.id"></span>
+                                            <span class="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300" x-text="it.type || 'rich'"></span>
+                                            <span x-show="it._info > 0" class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded" x-text="'info: ' + it._info"></span>
+                                            <span x-show="it._lim > 0" class="text-[10px] font-mono text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 px-1.5 py-0.5 rounded" x-text="'lim: ' + it._lim"></span>
+                                            <span x-show="it._def > 0" class="text-[10px] font-mono text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30 px-1.5 py-0.5 rounded" x-text="'def: ' + it._def"></span>
                                         </li>
                                     </template>
                                 </ul>
@@ -228,7 +228,7 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                             <button
                                 type="button"
                                 x-on:click="closeUpdateConfirm()"
-                                class="flex-1 h-10 px-4 rounded-xl border bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all"
+                                class="flex-1 h-10 px-4 rounded-xl border bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-600 transition-all"
                                 style="border-color: #e2e8f0"
                             >
                                 Cancel
@@ -243,16 +243,16 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                         </>
                     }
                 >
-                    <div class="space-y-3 text-sm text-slate-700">
+                    <div class="space-y-3 text-sm text-slate-700 dark:text-slate-200">
                         <p>
                             <strong x-text="updateTarget?.name || ''"></strong>
-                            <span class="text-slate-500"> will move from </span>
-                            <span class="font-mono text-xs text-slate-700" x-text="'v' + (updateTarget?.importedSemver || '?')"></span>
-                            <span class="text-slate-500"> to </span>
-                            <span class="font-mono text-xs font-bold text-amber-700" x-text="'v' + (updateTarget?.semver || '?')"></span>.
+                            <span class="text-slate-500 dark:text-slate-400"> will move from </span>
+                            <span class="font-mono text-xs text-slate-700 dark:text-slate-300" x-text="'v' + (updateTarget?.importedSemver || '?')"></span>
+                            <span class="text-slate-500 dark:text-slate-400"> to </span>
+                            <span class="font-mono text-xs font-bold text-amber-700 dark:text-amber-400" x-text="'v' + (updateTarget?.semver || '?')"></span>.
                         </p>
                         <template x-if="updateKind === 'template'">
-                            <p class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-900">
+                            <p class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
                                 A new copy will be created with the suffix
                                 <span class="font-mono font-bold" x-text="'(v' + (updateTarget?.semver || '?') + ')'"></span>.
                                 Your current copy is <strong>preserved</strong> so existing
@@ -261,7 +261,7 @@ export const MarketplacePage = ({ branding }: { branding?: BrandingConfig | unde
                             </p>
                         </template>
                         <template x-if="updateKind === 'library'">
-                            <p class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-900">
+                            <p class="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
                                 The new pack's entries will be <strong>added</strong> alongside
                                 your existing ones. Old entries are <strong>not deleted</strong>.
                                 If you want a clean state, delete the old entries from

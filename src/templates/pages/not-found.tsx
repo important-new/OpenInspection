@@ -87,19 +87,19 @@ export const NotFoundPage = (props: NotFoundPageProps = {}): JSX.Element => {
 
     return (
         <BareLayout title={`${siteName} | ${ctx.title}`} branding={branding}>
-            <div class="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-12">
+            <div class="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4 py-12">
                 <div class="max-w-md w-full text-center space-y-6">
                     {branding?.logoUrl && (
                         <img src={branding.logoUrl} alt={siteName} class="h-10 mx-auto opacity-80" />
                     )}
-                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mx-auto">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 mx-auto">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
                         </svg>
                     </div>
                     <div class="space-y-2">
-                        <h1 class="text-[22px] font-bold tracking-tight text-slate-900">{ctx.title}</h1>
-                        <p class="text-[14px] text-slate-500 leading-relaxed">{ctx.body}</p>
+                        <h1 class="text-[22px] font-bold tracking-tight text-slate-900 dark:text-slate-100">{ctx.title}</h1>
+                        <p class="text-[14px] text-slate-500 dark:text-slate-400 leading-relaxed">{ctx.body}</p>
                     </div>
                     {cta && (
                         <a

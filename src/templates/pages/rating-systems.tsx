@@ -29,15 +29,15 @@ export const RatingSystemsPage = ({ branding }: Props): JSX.Element => {
                 />
 
                 {/* Loading state */}
-                <div x-show="loading" class="text-center py-12 bg-slate-50 rounded-md">
+                <div x-show="loading" class="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-md">
                     <p class="text-slate-500 font-semibold">Loading rating systems…</p>
                 </div>
 
                 {/* Error banner */}
-                <div x-show="error" style="display:none" class="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] text-rose-700" x-text="error"></div>
+                <div x-show="error" style="display:none" class="rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 px-4 py-3 text-[13px] text-rose-700 dark:text-rose-400" x-text="error"></div>
 
                 {/* Empty state — only shown when load completed and the list is genuinely empty */}
-                <div x-show="!loading && systems.length === 0" style="display:none" class="text-center py-12 bg-slate-50 rounded-md">
+                <div x-show="!loading && systems.length === 0" style="display:none" class="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-md">
                     <p class="text-slate-500 font-semibold">No rating systems found.</p>
                     <p class="text-slate-400 text-sm mt-2">Reload the page to seed the four canonical systems.</p>
                 </div>
@@ -45,13 +45,13 @@ export const RatingSystemsPage = ({ branding }: Props): JSX.Element => {
                 {/* List */}
                 <div x-show="!loading && systems.length > 0" style="display:none" class="grid grid-cols-1 md:grid-cols-2 gap-3" data-testid="rating-system-list">
                     <template x-for="sys in systems" {...{ 'x-bind:key': 'sys.id' }}>
-                        <div class="p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition" x-bind:data-rating-system-id="sys.id" x-bind:data-rating-system-slug="sys.slug">
+                        <div class="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm hover:shadow-md transition" x-bind:data-rating-system-id="sys.id" x-bind:data-rating-system-slug="sys.slug">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2 mb-1 flex-wrap">
-                                        <p class="font-bold text-slate-900" x-text="sys.name"></p>
-                                        <span x-show="sys.isDefault" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200">Default</span>
-                                        <span x-show="sys.isSeed" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200">Seed</span>
+                                        <p class="font-bold text-slate-900 dark:text-slate-100" x-text="sys.name"></p>
+                                        <span x-show="sys.isDefault" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 ring-1 ring-indigo-200 dark:ring-indigo-700">Default</span>
+                                        <span x-show="sys.isSeed" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-600">Seed</span>
                                     </div>
                                     <p class="text-xs text-slate-500" x-text="sys.description || '(no description)'"></p>
                                     <div class="flex flex-wrap gap-1.5 mt-3">
