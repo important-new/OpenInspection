@@ -44,8 +44,7 @@ export const PublishModal = (): JSX.Element => (
                 <button
                     type="button"
                     x-on:click="showPublishModal = false"
-                    class="flex-1 h-10 px-4 text-sm font-semibold rounded-xl border bg-white hover:bg-slate-50 transition-all"
-                    style="border-color: #e2e8f0; color: #475569"
+                    class="flex-1 h-10 px-4 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600 transition-all"
                 >
                     Cancel
                 </button>
@@ -93,18 +92,17 @@ export const PublishModal = (): JSX.Element => (
             {/* Body — only when recipients are loaded */}
             <div x-show="!loadingRecipients && recipients.length > 0" style="display:none" class="space-y-4">
                 {/* Report summary card (same as before) */}
-                <div class="p-3 rounded-xl" style="background: #f1f5f9">
-                    <div class="text-xs font-mono" style="color: #475569">Report Summary</div>
+                <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-700/50">
+                    <div class="text-xs font-mono text-slate-500 dark:text-slate-400">Report Summary</div>
                     <div
-                        class="text-sm mt-1 font-semibold"
-                        style="color: #0f172a"
+                        class="text-sm mt-1 font-semibold text-slate-900 dark:text-slate-100"
                         x-text="reportStats.total + ' items  |  ' + reportStats.defect + ' defects  |  ' + reportStats.monitor + ' monitors'"
                     ></div>
                 </div>
 
                 {/* Send a copy of … radio */}
                 <div class="space-y-2">
-                    <div class="text-[10px] font-bold uppercase tracking-[0.2em]" style="color: #475569">
+                    <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                         Send a copy of
                     </div>
                     <div class="flex gap-2" data-test="publish-payload-radio">
@@ -115,7 +113,7 @@ export const PublishModal = (): JSX.Element => (
                                 x-model="publishOptions.payload"
                                 class="peer sr-only"
                             />
-                            <div class="px-3 py-2 rounded-xl border text-sm font-semibold text-slate-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:border-indigo-300 transition-all" style="border-color: #e2e8f0">
+                            <div class="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/30 peer-checked:text-indigo-700 dark:peer-checked:text-indigo-300 peer-checked:border-indigo-300 dark:peer-checked:border-indigo-600 transition-all">
                                 The report
                             </div>
                         </label>
@@ -126,7 +124,7 @@ export const PublishModal = (): JSX.Element => (
                                 x-model="publishOptions.payload"
                                 class="peer sr-only"
                             />
-                            <div class="px-3 py-2 rounded-xl border text-sm font-semibold text-slate-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:border-indigo-300 transition-all" style="border-color: #e2e8f0">
+                            <div class="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-900/30 peer-checked:text-indigo-700 dark:peer-checked:text-indigo-300 peer-checked:border-indigo-300 dark:peer-checked:border-indigo-600 transition-all">
                                 The agreement
                             </div>
                         </label>
@@ -135,16 +133,16 @@ export const PublishModal = (): JSX.Element => (
 
                 {/* Recipients list */}
                 <div class="space-y-2" data-test="publish-recipient-list">
-                    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 text-[10px] font-bold uppercase tracking-[0.2em]" style="color: #475569">
+                    <div class="grid grid-cols-[1fr_auto_auto] gap-3 px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                         <span>Recipient</span>
                         <span class="w-12 text-center">Email</span>
                         <span class="w-12 text-center">Text</span>
                     </div>
                     <template x-for="(r, idx) in recipients" {...{ 'x-bind:key': '(r.contactId || "client") + idx' }}>
-                        <div class="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 rounded-xl border" style="border-color: #e2e8f0; background: #f8fafc">
+                        <div class="grid grid-cols-[1fr_auto_auto] gap-3 items-center px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/40">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm font-semibold truncate" style="color: #0f172a" x-text="r.name"></span>
+                                    <span class="text-sm font-semibold truncate text-slate-900 dark:text-slate-100" x-text="r.name"></span>
                                     {Object.entries(ROLE_CHIP).map(([role, chip]) => (
                                         <span
                                             x-show={`r.role === '${role}'`}
@@ -155,7 +153,7 @@ export const PublishModal = (): JSX.Element => (
                                         </span>
                                     ))}
                                 </div>
-                                <div class="text-[11px] mt-0.5 truncate" style="color: #64748b">
+                                <div class="text-[11px] mt-0.5 truncate text-slate-500 dark:text-slate-400">
                                     <span x-show="r.email" x-text="r.email"></span>
                                     <span x-show="r.email && r.phone"> · </span>
                                     <span x-show="r.phone" x-text="r.phone"></span>

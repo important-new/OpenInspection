@@ -57,7 +57,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             background-image: radial-gradient(circle, #cbd5e1 0.6px, transparent 0.6px);
             background-size: 20px 20px;
           }
-          .dark .editor-canvas {
+          [data-color-scheme="dark"] .editor-canvas {
             background: #0f172a;
             background-image: radial-gradient(circle, #334155 0.6px, transparent 0.6px);
             background-size: 20px 20px;
@@ -67,7 +67,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             backdrop-filter: blur(16px) saturate(1.5);
             border-bottom: 1px solid rgba(226,232,240,0.6);
           }
-          .dark .mobile-sticky-hdr {
+          [data-color-scheme="dark"] .mobile-sticky-hdr {
             background: rgba(15,23,42,0.92);
             border-bottom-color: rgba(51,65,85,0.6);
           }
@@ -78,7 +78,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             border-left: 3px solid transparent;
             touch-action: manipulation;
           }
-          .dark .item-card {
+          [data-color-scheme="dark"] .item-card {
             background: rgba(30,41,59,0.85);
             border-color: rgba(51,65,85,0.7);
           }
@@ -88,7 +88,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             border-top: 1px solid rgba(226,232,240,0.6);
             padding-bottom: max(12px, env(safe-area-inset-bottom));
           }
-          .dark .mobile-bottom-bar {
+          [data-color-scheme="dark"] .mobile-bottom-bar {
             background: rgba(15,23,42,0.92);
             border-top-color: rgba(51,65,85,0.6);
           }
@@ -97,7 +97,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             backdrop-filter: blur(12px);
             border-color: rgba(226,232,240,0.6);
           }
-          .dark .sidebar-glass {
+          [data-color-scheme="dark"] .sidebar-glass {
             background: rgba(15,23,42,0.80);
             border-color: rgba(51,65,85,0.6);
           }
@@ -106,7 +106,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             backdrop-filter: blur(16px) saturate(1.5);
             border-bottom: 1px solid rgba(226,232,240,0.6);
           }
-          .dark .toolbar-glass {
+          [data-color-scheme="dark"] .toolbar-glass {
             background: rgba(15,23,42,0.92);
             border-bottom-color: rgba(51,65,85,0.6);
           }
@@ -114,7 +114,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             background: #ffffff;
             box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
           }
-          .dark .quick-rating-sheet {
+          [data-color-scheme="dark"] .quick-rating-sheet {
             background: #1e293b;
             box-shadow: 0 -8px 32px rgba(0,0,0,0.40);
           }
@@ -123,7 +123,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             border-color: #e2e8f0;
             color: #0f172a;
           }
-          .dark .item-notes-textarea {
+          [data-color-scheme="dark"] .item-notes-textarea {
             background: #1e293b;
             border-color: #475569;
             color: #e2e8f0;
@@ -132,20 +132,20 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             border-color: #e2e8f0;
             background: rgba(255,255,255,0.6);
           }
-          .dark .canned-comments-wrap {
+          [data-color-scheme="dark"] .canned-comments-wrap {
             border-color: #475569;
             background: rgba(30,41,59,0.6);
           }
           .canned-tab-border {
             border-color: #e2e8f0;
           }
-          .dark .canned-tab-border {
+          [data-color-scheme="dark"] .canned-tab-border {
             border-color: #475569;
           }
           .inline-input {
             border-color: #e2e8f0;
           }
-          .dark .inline-input {
+          [data-color-scheme="dark"] .inline-input {
             background: #1e293b;
             border-color: #475569;
             color: #e2e8f0;
@@ -154,7 +154,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             border-color: #e2e8f0;
             color: #475569;
           }
-          .dark .inline-select {
+          [data-color-scheme="dark"] .inline-select {
             background: #1e293b;
             border-color: #475569;
             color: #e2e8f0;
@@ -162,7 +162,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           .status-bar {
             border-color: rgba(226,232,240,0.6);
           }
-          .dark .status-bar {
+          [data-color-scheme="dark"] .status-bar {
             background: #1e293b;
             border-color: rgba(51,65,85,0.6);
           }
