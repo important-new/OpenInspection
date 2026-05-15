@@ -144,11 +144,11 @@ async function loadAgreements() {
                 <tr>
                     <td colspan="4" class="py-32 text-center">
                         <div class="flex flex-col items-center gap-6">
-                            <div class="w-20 h-20 rounded-lg bg-indigo-50 flex items-center justify-center">
+                            <div class="w-20 h-20 rounded-lg bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center">
                                 <svg class="w-10 h-10 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             </div>
                             <div>
-                                <p class="text-lg font-bold text-slate-900 tracking-tight">No agreements yet</p>
+                                <p class="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight">No agreements yet</p>
                                 <p class="text-sm text-slate-400 font-medium mt-1">Create a service agreement or liability waiver.</p>
                             </div>
                             <button onclick="showCreateModal()" class="px-6 py-3 rounded-xl bg-indigo-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-slate-900 transition-all active:scale-95">New Agreement</button>
