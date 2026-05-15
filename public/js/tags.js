@@ -51,14 +51,14 @@
 
                 colorClass(color) {
                     const map = {
-                        slate:    'bg-slate-100 text-slate-700 ring-slate-200',
-                        amber:    'bg-amber-100 text-amber-700 ring-amber-200',
-                        rose:     'bg-rose-100 text-rose-700 ring-rose-200',
-                        indigo:   'bg-indigo-100 text-indigo-700 ring-indigo-200',
-                        emerald:  'bg-emerald-100 text-emerald-700 ring-emerald-200',
-                        sky:      'bg-sky-100 text-sky-700 ring-sky-200',
-                        fuchsia:  'bg-fuchsia-100 text-fuchsia-700 ring-fuchsia-200',
-                        lime:     'bg-lime-100 text-lime-700 ring-lime-200',
+                        slate:   'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 ring-slate-200 dark:ring-slate-500',
+                        amber:   'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-700',
+                        rose:    'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 ring-rose-200 dark:ring-rose-700',
+                        indigo:  'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-700',
+                        emerald: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 ring-emerald-200 dark:ring-emerald-700',
+                        sky:     'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 ring-sky-200 dark:ring-sky-700',
+                        fuchsia: 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 ring-fuchsia-200 dark:ring-fuchsia-700',
+                        lime:    'bg-lime-100 dark:bg-lime-900/40 text-lime-700 dark:text-lime-300 ring-lime-200 dark:ring-lime-700',
                     };
                     return map[color] || map.slate;
                 },
