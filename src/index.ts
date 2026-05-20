@@ -672,11 +672,15 @@ app.get('/book', (c) => {
 // Booking #7 Sprint C-1 — public editorial profile page. Served before
 // /book/:slug so an inspector can share /inspector/<slug> as the SEO surface
 // and the customer falls through to /book/<slug> via the page CTA.
-app.get('/inspector/:slug', async (c) => {
+app.get('/inspector/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
-    if (!tenantId) {
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
         return c.html(InspectorNotFoundPage({ slug, companyName: branding?.siteName }), 404);
     }
     const profile = await c.var.services.user.getProfileBySlug(tenantId, slug);
@@ -699,10 +703,16 @@ app.get('/inspector/:slug', async (c) => {
 // the iframe loads on any host page. The actual booking submit at
 // POST /api/public/book still enforces the per-tenant origin allowlist
 // configured in Settings → Embed Widget.
-app.get('/embed/book/:slug', async (c) => {
+app.get('/embed/book/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
     const inspector = await c.var.services.user.findBySlug(tenantId, slug);
     if (!inspector) return c.text('Not found', 404);
     const branding = c.get('branding');
