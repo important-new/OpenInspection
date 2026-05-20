@@ -2507,4 +2507,64 @@ inspectionsRoutes.openapi(revokeObserverLinkRoute, async (c) => {
     return c.json({ success: true as const }, 200);
 });
 
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem D phase 7 task 7.3 — ReportVersions routes.
+// -----------------------------------------------------------------------------
+// List + get-snapshot + diff. snapshotOnPublish is invoked from the
+// existing publish flow as part of subsystem D P9 (Republish UX, separate
+// commit) — only the read APIs land here.
+
+const listVersionsRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/versions',
+    tags:       ['ReportVersions'],
+    summary:    'List published versions for an inspection',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request:    { params: z.object({ id: z.string().uuid() }) },
+    responses:  { 200: { description: 'ok' } },
+});
+inspectionsRoutes.openapi(listVersionsRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const versions = await c.var.services.reportVersion.list(c.get('tenantId'), id);
+    return c.json({ success: true as const, data: { versions } }, 200);
+});
+
+const getVersionRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/versions/{n}',
+    tags:       ['ReportVersions'],
+    summary:    'Get full snapshot for a specific version',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request:    { params: z.object({ id: z.string().uuid(), n: z.string().regex(/^\d+$/) }) },
+    responses:  { 200: { description: 'ok' }, 404: { description: 'not found' } },
+});
+inspectionsRoutes.openapi(getVersionRoute, async (c) => {
+    const { id, n } = c.req.valid('param');
+    const snap = await c.var.services.reportVersion.get(c.get('tenantId'), id, parseInt(n, 10));
+    if (!snap) throw Errors.NotFound('Version not found');
+    return c.json({ success: true as const, data: snap }, 200);
+});
+
+const diffVersionRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/versions/{n}/diff',
+    tags:       ['ReportVersions'],
+    summary:    'Diff version :n against ?from=<version>',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), n: z.string().regex(/^\d+$/) }),
+        query:  z.object({ from: z.string().regex(/^\d+$/) }),
+    },
+    responses: { 200: { description: 'ok' }, 404: { description: 'one of the versions not found' } },
+});
+inspectionsRoutes.openapi(diffVersionRoute, async (c) => {
+    const { id, n } = c.req.valid('param');
+    const { from }  = c.req.valid('query');
+    const diff = await c.var.services.reportVersion.diff(
+        c.get('tenantId'), id, parseInt(from, 10), parseInt(n, 10),
+    );
+    if (!diff) throw Errors.NotFound('Version diff not available');
+    return c.json({ success: true as const, data: diff }, 200);
+});
+
 export default inspectionsRoutes;

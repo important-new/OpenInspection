@@ -3,6 +3,7 @@ import { HonoConfig, AppServices } from '../../types/hono';
 import { AdminService } from '../../services/admin.service';
 import { UnitService } from '../../services/unit.service';
 import { ObserverLinkService } from '../../services/observer-link.service';
+import { ReportVersionService } from '../../services/report-version.service';
 import { AIService } from '../../services/ai.service';
 import { AuthService } from '../../services/auth.service';
 import { BookingService } from '../../services/booking.service';
@@ -275,6 +276,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                 case 'observerLink':
                     // Design System 0520 subsystem D — ObserverLink read-only
                     target.observerLink = new ObserverLinkService(c.env.DB);
+                    break;
+                case 'reportVersion':
+                    // Design System 0520 subsystem D — ReportVersions snapshot
+                    target.reportVersion = new ReportVersionService(c.env.DB);
                     break;
             }
             return target[prop];

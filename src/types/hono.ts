@@ -208,6 +208,8 @@ export interface AppServices {
     unit: import('../services/unit.service').UnitService;
     // Design System 0520 subsystem D — ObserverLink (no-account read-only)
     observerLink: import('../services/observer-link.service').ObserverLinkService;
+    // Design System 0520 subsystem D — ReportVersions (snapshot-on-publish)
+    reportVersion: import('../services/report-version.service').ReportVersionService;
 }
 
 /**
