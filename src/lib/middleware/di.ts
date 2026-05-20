@@ -42,6 +42,7 @@ import { QBOService } from '../../services/qbo.service';
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
 import { getDeploymentProfile } from '../deployment-profile';
+import { buildKeyring } from '../jwt-keyring';
 
 /**
  * Middleware that injects a lazy-loaded service registry into the Hono context.
@@ -49,6 +50,15 @@ import { getDeploymentProfile } from '../deployment-profile';
  */
 export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
     c.set('profile', getDeploymentProfile(c.env));
+    // Per-request ES256 keyring. PEM → CryptoKey imports happen at most once
+    // per request; downstream sign/verify call sites share the same Promise.
+    // .catch() suppresses the "unhandled rejection" diagnostic for requests
+    // that never touch JWTs (webhooks, healthchecks). Real awaiters still see
+    // the original rejection — the .catch() returns a separate, swallowed
+    // chain that never sees an `await`.
+    const keyringPromise = buildKeyring(c.env as unknown as Record<string, string | undefined>);
+    keyringPromise.catch(() => { /* defer reporting to the first awaiter */ });
+    c.set('keyringPromise', keyringPromise);
     // Pre-load DB secrets only when env vars are absent and tenant is known.
     // Env vars always take priority over DB-stored config.
     let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};

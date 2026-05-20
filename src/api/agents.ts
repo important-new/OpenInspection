@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { sign } from 'hono/jwt';
 import { setCookie } from 'hono/cookie';
 import { drizzle } from 'drizzle-orm/d1';
 import { desc, eq } from 'drizzle-orm';
 import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { requireRole } from '../lib/middleware/rbac';
+import { signJwt } from '../lib/jwt-keyring';
 import { agentTenantLinks, users } from '../lib/db/schema/tenant';
 
 /**
@@ -129,18 +129,16 @@ agentsRoutes.openapi(acceptRoute, async (c) => {
     // Mint the agent JWT — note the deliberate absence of a tenantId claim. Per
     // Agent Accounts A1 the JWT carries no tenant scope; agent routes resolve a
     // tenant per-request via resolveAgentTenant().
-    if (!c.env.JWT_SECRET || c.env.JWT_SECRET.length < 32) {
-        throw Errors.Internal('Server configuration error');
-    }
+    const keyring = await c.var.keyringPromise!;
     const now = Math.floor(Date.now() / 1000);
-    const token = await sign({
+    const token = await signJwt({
         sub: result.userId,
         role: 'agent',
         'custom:userRole': 'agent',
         email: result.email,
         iat: now,
         exp: now + 60 * 60 * 24,
-    }, c.env.JWT_SECRET, 'HS256');
+    }, keyring);
 
     setCookie(c, '__Host-inspector_token', token, {
         httpOnly: true,

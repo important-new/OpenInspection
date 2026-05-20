@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
-import { verify } from 'hono/jwt';
 import type { HonoConfig } from '../types/hono';
+import { verifyJwt } from '../lib/jwt-keyring';
 import { QBOTokenResponseSchema, QBOCompanyInfoResponseSchema, QBOLinkCustomerBodySchema } from '../lib/validations/qbo.schema';
 import { logger } from '../lib/logger';
 
@@ -15,7 +15,8 @@ api.use('*', async (c, next) => {
     const token = getCookie(c, '__Host-inspector_token') ?? getCookie(c, 'inspector_token');
     if (!token) return c.json({ success: false, error: 'Unauthorized' }, 401);
     try {
-        await verify(token, c.env.JWT_SECRET, 'HS256');
+        const keyring = await c.var.keyringPromise!;
+        await verifyJwt(token, keyring);
         return next();
     } catch {
         return c.json({ success: false, error: 'Unauthorized' }, 401);

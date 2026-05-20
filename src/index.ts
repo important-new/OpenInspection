@@ -2,7 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { Context } from 'hono';
 import { serveStatic } from 'hono/cloudflare-workers';
 import { deleteCookie, getCookie } from 'hono/cookie';
-import { verify } from 'hono/jwt';
+import { verifyJwt } from './lib/jwt-keyring';
 import { classifyJwtPayload } from './lib/auth/jwt-claims';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq, asc, desc, sql } from 'drizzle-orm';
@@ -292,9 +292,15 @@ app.use('*', async (c, next) => {
 
     if (!token) return next();
 
-    // Fail closed if the signing key is missing or too weak to meaningfully resist offline brute force.
-    if (!c.env.JWT_SECRET || c.env.JWT_SECRET.length < 32) {
-        logger.error('JWT_SECRET is missing or shorter than 32 characters; refusing to verify tokens');
+    // Resolve the per-request keyring (built lazily in diMiddleware). If the
+    // worker is misconfigured (no JWT_CURRENT_KID or no matching keypair),
+    // buildKeyring rejects — surface as 500 so the request fails closed.
+    let keyring;
+    try {
+        keyring = await c.var.keyringPromise!;
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('JWT keyring failed to build', { message: msg });
         throw Errors.Internal('Server configuration error');
     }
 
@@ -314,7 +320,7 @@ app.use('*', async (c, next) => {
             }
         }
 
-        const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
+        const payload = await verifyJwt(token, keyring);
         const classification = classifyJwtPayload(payload);
         const userId = payload.sub as string | undefined;
         const tokenIat = payload.iat as number | undefined;
@@ -535,9 +541,10 @@ app.get('/login', async (c) => {
     // Agent JWTs (role='agent') belong on /agent-dashboard, not the inspector
     // dashboard which would render an empty shell because agents have no tenant.
     const token = getCookie(c, '__Host-inspector_token');
-    if (token && c.env.JWT_SECRET) {
+    if (token) {
         try {
-            const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
+            const keyring = await c.var.keyringPromise!;
+            const payload = await verifyJwt(token, keyring);
             const role = (payload as Record<string, unknown>)['custom:userRole'] || (payload as Record<string, unknown>).role;
             return c.redirect(role === 'agent' ? '/agent-dashboard' : '/dashboard');
         } catch {
@@ -1248,10 +1255,10 @@ app.get('/report/:tenant/:id', async (c) => {
     let role: string | null = null;
     try {
         const { getCookie } = await import('hono/cookie');
-        const { verify } = await import('hono/jwt');
         const tok = getCookie(c, '__Host-inspector_token');
-        if (tok && c.env.JWT_SECRET) {
-            const payload = await verify(tok, c.env.JWT_SECRET, 'HS256');
+        if (tok) {
+            const keyring = await c.var.keyringPromise!;
+            const payload = await verifyJwt(tok, keyring);
             role = (payload as { role?: string })?.role ?? null;
         }
     } catch { /* unauthenticated public view */ }
@@ -1564,10 +1571,10 @@ app.get('/r/:id/repair-request', async (c) => {
     let role: string | null = null;
     try {
         const { getCookie } = await import('hono/cookie');
-        const { verify } = await import('hono/jwt');
         const tok = getCookie(c, '__Host-inspector_token');
-        if (tok && c.env.JWT_SECRET) {
-            const payload = await verify(tok, c.env.JWT_SECRET, 'HS256');
+        if (tok) {
+            const keyring = await c.var.keyringPromise!;
+            const payload = await verifyJwt(tok, keyring);
             role = (payload as { role?: string })?.role ?? null;
         }
     } catch { /* unauthenticated public view */ }

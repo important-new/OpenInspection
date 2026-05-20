@@ -9,9 +9,26 @@ export interface AppEnv {
     PHOTOS: R2Bucket;
     
     // Security & Auth
+    /** Legacy HS256 signing secret. Still used as the KDF input for
+     *  tenant config encryption (config-crypto.ts), QBO token encryption
+     *  (qbo-crypto.ts), audit signing-key encryption (KEY_ENCRYPTION_SECRET
+     *  fallback), and M2M Bearer auth. Pre-launch JWT migration removed
+     *  it from sign()/verify() paths; rotation scripts will retire those
+     *  remaining usages. */
     JWT_SECRET: string;
     /** Spec 5H — AES-GCM key for encrypting tenant Ed25519 private keys. Falls back to JWT_SECRET. */
     KEY_ENCRYPTION_SECRET: string;
+    /** Multi-version ES256 keyring (see src/lib/jwt-keyring.ts). Every JWT
+     *  is signed/verified through this keyring; `JWT_CURRENT_KID` names the
+     *  active signer (e.g. "v1"). Versions are discovered dynamically by
+     *  pairing JWT_PRIVATE_KEY_V<N> with JWT_PUBLIC_KEY_V<N>. */
+    JWT_CURRENT_KID?: string;
+    JWT_PRIVATE_KEY_V1?: string;
+    JWT_PUBLIC_KEY_V1?:  string;
+    JWT_PRIVATE_KEY_V2?: string;
+    JWT_PUBLIC_KEY_V2?:  string;
+    JWT_PRIVATE_KEY_V3?: string;
+    JWT_PUBLIC_KEY_V3?:  string;
     TURNSTILE_SITE_KEY: string;
     TURNSTILE_SECRET_KEY: string;
     GOOGLE_CLIENT_ID: string;

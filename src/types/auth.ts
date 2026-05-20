@@ -36,6 +36,7 @@ export interface BrandingConfig {
 }
 
 import { ScopedDB } from '../lib/db/scoped';
+import type { JwtKeyring } from '../lib/jwt-keyring';
 
 export interface AuthVariables {
     tenantId: string;
@@ -51,6 +52,10 @@ export interface AuthVariables {
     tenantStatus?: string;
     branding?: BrandingConfig;
     sdb?: ScopedDB;
+    /** Lazy-built ES256 keyring (one per request). Resolves to a JwtKeyring
+     *  with private/public keys imported once. Handlers that sign or verify
+     *  JWTs should `await c.var.keyringPromise`. */
+    keyringPromise?: Promise<JwtKeyring>;
 }
 
 export interface InspectionData {

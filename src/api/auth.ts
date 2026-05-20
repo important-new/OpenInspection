@@ -2,7 +2,6 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, sql } from 'drizzle-orm';
 import { users } from '../lib/db/schema';
-import { sign, verify } from 'hono/jwt';
 import { setCookie, deleteCookie } from 'hono/cookie';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
@@ -12,6 +11,7 @@ import { checkRateLimit } from '../lib/rate-limit';
 import { requireCsrfToken } from '../lib/middleware/csrf';
 import { requireRole } from '../lib/middleware/rbac';
 import { verifyPassword } from '../lib/password';
+import { signJwt, verifyJwt } from '../lib/jwt-keyring';
 import {
     LoginSchema,
     ChangePasswordSchema,
@@ -28,17 +28,6 @@ import {
     Login2faResponseSchema
 } from '../lib/validations/auth.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
-
-/**
- * Require a strong JWT_SECRET (≥32 chars) before signing/verifying anything.
- * Fail-closed if missing or too weak to resist offline brute-force.
- */
-function requireJwtSecret(secret: string | undefined): string {
-    if (!secret || secret.length < 32) {
-        throw Errors.Internal('Server configuration error');
-    }
-    return secret;
-}
 
 /**
  * Cookie attributes for the auth token. `__Host-` prefix demands Secure + path=/ + no Domain,
@@ -104,19 +93,19 @@ coreAuthRoutes.openapi(loginRoute, async (c) => {
     const body = c.req.valid('json');
     const user = await c.var.services.auth.validateCredentials(body.email, body.password);
 
-    const secret = requireJwtSecret(c.env.JWT_SECRET);
+    const keyring = await c.var.keyringPromise!;
     const now = Math.floor(Date.now() / 1000);
 
     // Spec 4A — If the user has 2FA enabled, return a short-lived challenge token instead of
     // the session JWT. The client must POST it back along with a TOTP code to /api/auth/login/2fa
     // before any session is granted.
     if (user.totpEnabled) {
-        const challengeToken = await sign({
+        const challengeToken = await signJwt({
             sub: user.id,
             t: 'challenge',
             iat: now,
             exp: now + 60 * 5,
-        }, secret, 'HS256');
+        }, keyring);
         // Intentionally NOT a Set-Cookie — challenge tokens travel JSON-only so a stolen
         // session cookie alone never permits 2FA bypass.
         return c.json({
@@ -127,14 +116,14 @@ coreAuthRoutes.openapi(loginRoute, async (c) => {
 
     // Email is intentionally NOT in the payload — JWTs are signed but not encrypted, and the
     // token travels through logs / intermediaries. PII belongs in the DB, not in the bearer.
-    const token = await sign({
+    const token = await signJwt({
         sub: user.id,
         'custom:tenantId': user.tenantId,
         'custom:userRole': user.role,
         role: user.role,
         iat: now,
         exp: now + 60 * 60 * 24,
-    }, secret, 'HS256');
+    }, keyring);
 
     setCookie(c, '__Host-inspector_token', token, authCookieOptions());
 
@@ -210,16 +199,16 @@ coreAuthRoutes.openapi(joinTeamRoute, async (c) => {
     const body = c.req.valid('json');
     const user = await c.var.services.auth.joinTeam(body.token, body.password);
 
-    const secret = requireJwtSecret(c.env.JWT_SECRET);
+    const keyring = await c.var.keyringPromise!;
     const now = Math.floor(Date.now() / 1000);
-    const token = await sign({
+    const token = await signJwt({
         sub: user.id,
         'custom:tenantId': user.tenantId,
         'custom:userRole': user.role,
         role: user.role,
         iat: now,
         exp: now + 60 * 60 * 24,
-    }, secret, 'HS256');
+    }, keyring);
 
     setCookie(c, '__Host-inspector_token', token, authCookieOptions());
 
@@ -383,16 +372,16 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
     // 4. Issue a JWT for the new admin so the caller can authenticate immediately
     const newUser = await db.select().from(users).where(eq(users.email, body.email)).get().catch(() => null);
     if (newUser) {
-        const secret = requireJwtSecret(c.env.JWT_SECRET);
+        const keyring = await c.var.keyringPromise!;
         const now = Math.floor(Date.now() / 1000);
-        const token = await sign({
+        const token = await signJwt({
             sub: newUser.id,
             'custom:tenantId': newUser.tenantId,
             'custom:userRole': newUser.role,
             role: newUser.role,
             iat: now,
             exp: now + 60 * 60 * 24,
-        }, secret, 'HS256');
+        }, keyring);
         setCookie(c, '__Host-inspector_token', token, authCookieOptions());
     }
 
@@ -786,11 +775,11 @@ coreAuthRoutes.openapi(login2faRoute, async (c) => {
     await checkRateLimit(c, 'login');
 
     const { challengeToken, code } = c.req.valid('json');
-    const secret = requireJwtSecret(c.env.JWT_SECRET);
+    const keyring = await c.var.keyringPromise!;
 
     let payload: Record<string, unknown>;
     try {
-        payload = await verify(challengeToken, secret, 'HS256') as Record<string, unknown>;
+        payload = await verifyJwt(challengeToken, keyring);
     } catch {
         throw Errors.Unauthorized('Invalid or expired challenge');
     }
@@ -822,14 +811,14 @@ coreAuthRoutes.openapi(login2faRoute, async (c) => {
     if (!codeOk) throw Errors.Unauthorized('Invalid verification code');
 
     const now = Math.floor(Date.now() / 1000);
-    const sessionToken = await sign({
+    const sessionToken = await signJwt({
         sub: me.id,
         'custom:tenantId': me.tenantId,
         'custom:userRole': me.role,
         role: me.role,
         iat: now,
         exp: now + 60 * 60 * 24,
-    }, secret, 'HS256');
+    }, keyring);
 
     setCookie(c, '__Host-inspector_token', sessionToken, authCookieOptions());
     return c.json({ success: true, data: { redirect: '/dashboard' } }, 200);
