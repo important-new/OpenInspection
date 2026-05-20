@@ -44,6 +44,11 @@ function backfillLevelDescriptions(levels) {
 }
 
 function inspectionEditor(inspectionId) {
+  // Design System 0520 subsystem D phase 2 task 2.2 — expose the
+  // inspection id on a global the UnitTree factory reads so it knows
+  // which /api/inspections/:id/units to hit.
+  window.__inspectionEditorRoot = { inspectionId };
+
   return {
     inspectionId: inspectionId,
     inspection: {},
@@ -53,6 +58,12 @@ function inspectionEditor(inspectionId) {
     expanded: {},
     activeItemId: null,
     currentSectionIdx: 0,
+    // Design System 0520 subsystem D P2.2 — when the inspector picks a
+    // unit in the UnitTree left rail, the tree broadcasts
+    // `unit-selected` on window and this state mirrors the active unit
+    // id. Item-render templates can read `visibleItems` (computed
+    // below) to scope what's shown.
+    selectedUnitId: null,
     // Spec 5G M1.1 — view modes (⌘1=split, ⌘2=focus, ⌘3=preview)
     viewMode: 'split',
     // Spec 5G M2 — Comment Library slide-out
@@ -173,6 +184,13 @@ function inspectionEditor(inspectionId) {
       const clearLocalCheatsheet = () => { window.__oiLocalCheatsheet = false; };
       window.addEventListener('pagehide', clearLocalCheatsheet, { once: true });
       window.addEventListener('beforeunload', clearLocalCheatsheet, { once: true });
+
+      // Design System 0520 subsystem D P2.2 — mirror the UnitTree
+      // selection into Alpine state. The tree component fires this
+      // event on every click; null means "show all units / no scope".
+      window.addEventListener('unit-selected', (e) => {
+        this.selectedUnitId = (e?.detail?.unitId) ?? null;
+      });
 
       // Design System 0520 subsystem D phase 9 — fetch existing version count
       // so the publish-modal renders "Republish vN+1" when the inspection has

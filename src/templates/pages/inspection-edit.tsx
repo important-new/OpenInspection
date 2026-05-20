@@ -12,6 +12,7 @@ import { ProgressStrip } from '../components/progress-strip';
 import { TeamBanner } from '../components/team-banner';
 import { FooterBar } from '../components/footer-bar';
 import { ReconnectBanner } from '../components/reconnect-banner';
+import { UnitTree } from '../components/unit-tree';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -296,6 +297,13 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             Sticky amber strip at top showing offline-queue status when
             pending writes are queued or conflicts have surfaced. */}
         <ReconnectBanner />
+        {/* Design System 0520 subsystem D phase 2 task 2.2 — UnitTree.
+            Hidden by `x-show="hasUnits || allowEnable"` so single-unit
+            residential inspections never see the rail. When shown, the
+            factory broadcasts `unit-selected` on window and the editor
+            scopes visibleItems via the `selectedUnitId` Alpine state
+            (see public/js/inspection-edit.js). */}
+        <UnitTree />
         {/* Design System 0520 subsystem B phase 6 task 6.5 — TeamBanner.
             Auto-hidden when inspection.team_mode is false; otherwise shows
             stacked avatars of lead + helpers and a Manage button that
@@ -2453,6 +2461,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       <script type="module" src="/js/progress-strip.js"></script>
       {/* Design System 0520 subsystem B phase 6 — TeamBanner factory. */}
       <script src="/js/team-banner.js"></script>
+      {/* Design System 0520 subsystem D phase 2 — UnitTree factory.
+          The tree appears as a left rail when this inspection has any
+          inspection_units rows, and broadcasts `unit-selected` events
+          for the editor's scoped-filter logic. */}
+      <script src="/js/unit-tree.js"></script>
       {/* Design System 0520 subsystem B phase 4 — OfflineQueue adapter +
           its FooterBar / ReconnectBanner consumers. Loaded as modules so
           the adapter can import from /js/sync-engine.js + /js/db.js. */}
