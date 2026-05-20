@@ -56,6 +56,11 @@ export const users = sqliteTable('users', {
     notifyOnReferral: integer('notify_on_referral', { mode: 'boolean' }).notNull().default(true),
     notifyOnReport:   integer('notify_on_report',   { mode: 'boolean' }).notNull().default(true),
     notifyOnPaid:     integer('notify_on_paid',     { mode: 'boolean' }).notNull().default(false),
+    // Design System 0520 subsystem B phase 1 — debounced "user last active"
+    // timestamp updated by touch-last-active middleware (30s debounce window
+    // per worker isolate). Powers TeamStrip "last active Nm ago" pill and the
+    // soft-presence fallback when WebSocket cannot connect.
+    lastActiveAt:     integer('last_active_at'),
 });
 
 // Booking #7 Sprint A — reserved/banned slug list. Seeded via migration 0052

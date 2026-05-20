@@ -97,6 +97,16 @@ export const inspections = sqliteTable('inspections', {
     //   'awaiting_inspector' = agent submitted; inspector must approve (Spectora reviewer mode)
     //   'awaiting_client'    = magic-link sent to client; waiting on confirmation (HomeGauge auto mode or post-inspector-approve)
     conciergeStatus:     text('concierge_status'),
+    // Design System 0520 M3 — TeamMode + multi-inspector (subsystem B, phase 1).
+    //   teamMode             = boolean flag enabling team UI (TeamBanner / RosterPopover).
+    //   leadInspectorId      = primary inspector. NULL ⇒ falls back to inspectorId above.
+    //   helperInspectorIds   = JSON array of additional inspectors with edit access.
+    //   dataVersion          = monotonic counter; bumped on every successful field write
+    //                          (see InspectionService.patchItem) for offline-queue staleness checks.
+    teamMode:            integer('team_mode', { mode: 'boolean' }).notNull().default(false),
+    leadInspectorId:     text('lead_inspector_id'),
+    helperInspectorIds:  text('helper_inspector_ids').notNull().default('[]'),
+    dataVersion:         integer('data_version').notNull().default(0),
 });
 
 // Sprint 2 S2-2 — A single customer booking can spawn multiple inspections
