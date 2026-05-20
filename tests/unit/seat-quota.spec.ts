@@ -10,8 +10,24 @@ vi.mock('drizzle-orm/d1', () => ({
     drizzle: vi.fn(),
 }));
 
+// Mock the usage module so the middleware's getSeatUsage import is
+// replaced with a vi.fn() controllable per-test. Hoisted by vitest before
+// the middleware module evaluates, so it sees the stub.
+vi.mock('../../src/features/seat-quota/usage', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../src/features/seat-quota/usage')>();
+    return {
+        ...actual,
+        getSeatUsage: vi.fn(actual.getSeatUsage),
+    };
+});
+
 import { drizzle as mockDrizzle } from 'drizzle-orm/d1';
 import { getSeatUsage } from '../../src/features/seat-quota/usage';
+import { Hono } from 'hono';
+import { requireSeatAvailable } from '../../src/features/seat-quota';
+import { SAAS_SHARED_PROFILE, STANDALONE_PROFILE, type DeploymentProfile } from '../../src/lib/deployment-profile';
+import { AppError } from '../../src/lib/errors';
+import type { HonoConfig } from '../../src/types/hono';
 
 describe('getSeatUsage', () => {
     let testDb: BetterSQLite3Database<typeof schema>;
@@ -97,5 +113,66 @@ describe('getSeatUsage', () => {
         const usage = await getSeatUsage('t1', {} as any);
         expect(usage.used).toBe(2);
         expect(usage.remaining).toBe(8);
+    });
+});
+
+describe('requireSeatAvailable middleware', () => {
+    function makeApp(
+        profile: DeploymentProfile = SAAS_SHARED_PROFILE,
+        tenantId: string | null = 'tenant-1',
+    ) {
+        const app = new Hono<HonoConfig>();
+        // Mirror the global error handler from src/index.ts so the
+        // AppError thrown by the middleware translates to a JSON 4xx.
+        app.onError((err, c) => {
+            if (err instanceof AppError) {
+                return c.json(
+                    { success: false, error: { code: err.code, message: err.message, details: err.details } },
+                    err.status,
+                );
+            }
+            return c.json({ success: false, error: { code: 'internal_error', message: 'boom' } }, 500);
+        });
+        app.use('*', async (c, next) => {
+            c.set('profile', profile);
+            if (tenantId) c.set('tenantId', tenantId);
+            await next();
+        });
+        app.use('*', requireSeatAvailable);
+        app.post('/invite', (c) => c.json({ ok: true }));
+        return app;
+    }
+
+    beforeEach(() => {
+        // Ensure each test starts with a clean mock — no leftover
+        // mockResolvedValueOnce from a prior case.
+        vi.mocked(getSeatUsage).mockReset();
+    });
+
+    it('short-circuits to next() when profile.hasSeatQuota is false', async () => {
+        // STANDALONE_PROFILE.hasSeatQuota === false, so no DB call needed.
+        const app = makeApp(STANDALONE_PROFILE);
+        const res = await app.request('/invite', { method: 'POST' }, { DB: {} } as never);
+        expect(res.status).toBe(200);
+        expect(vi.mocked(getSeatUsage)).not.toHaveBeenCalled();
+    });
+
+    it('passes through when seats remain (saas-shared)', async () => {
+        vi.mocked(getSeatUsage).mockResolvedValueOnce({ used: 3, max: 10, remaining: 7 });
+        const app = makeApp(SAAS_SHARED_PROFILE);
+        const res = await app.request('/invite', { method: 'POST' }, { DB: {} } as never);
+        expect(res.status).toBe(200);
+        expect(vi.mocked(getSeatUsage)).toHaveBeenCalledWith('tenant-1', expect.anything());
+    });
+
+    it('rejects with 402 SEAT_LIMIT_REACHED when at limit (saas-shared)', async () => {
+        vi.mocked(getSeatUsage).mockResolvedValueOnce({ used: 10, max: 10, remaining: 0 });
+        const app = makeApp(SAAS_SHARED_PROFILE);
+        const res = await app.request('/invite', { method: 'POST' }, { DB: {} } as never);
+        expect(res.status).toBe(402);
+        const body = (await res.json()) as { success: false; error: { code: string; details: unknown } };
+        expect(body.success).toBe(false);
+        expect(body.error.code).toBe('seat_limit_reached');
+        expect(body.error.details).toEqual({ used: 10, max: 10, billingPortalUrl: null });
     });
 });
