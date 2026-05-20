@@ -124,6 +124,12 @@ function inspectionEditor(inspectionId) {
     // Keeps localStorage-only snippets as a fallback (offline / older saves).
     _userSnippets: [],
 
+    // Design System 0520 M10 — SpeedMode state (subsystem A, phase 3).
+    // Full-screen single-item rating overlay. See components/speed-mode.tsx.
+    speedMode: false,
+    speedQueue: [],     // flat indices into the materialised items list (see _flatItems)
+    speedCurrent: 0,
+
     publishOptions: {
       theme: 'modern',
       notifyClient: true,
@@ -264,6 +270,28 @@ function inspectionEditor(inspectionId) {
             return;
           }
           return;
+        }
+        // Design System 0520 M10 — SpeedMode hotkeys (subsystem A, phase 3).
+        // `Z` toggles overlay. While speedMode === true, intercept 1..5 (rate
+        // + auto-advance), Tab/Arrow (nav), Enter (open editor), Esc (exit).
+        if ((e.key === 'z' || e.key === 'Z') && !inField) {
+          e.preventDefault();
+          this.toggleSpeedMode();
+          return;
+        }
+        if (this.speedMode) {
+          if (e.key >= '1' && e.key <= '5') {
+            e.preventDefault();
+            var sVals = ['sat', 'monitor', 'defect', 'ni', 'np'];
+            this.speedRate(sVals[parseInt(e.key, 10) - 1]);
+            return;
+          }
+          if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); this.speedSkip(); return; }
+          if (e.key === 'Tab' && e.shiftKey)  { e.preventDefault(); this.speedPrev(); return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); this.speedSkip(); return; }
+          if (e.key === 'ArrowLeft')  { e.preventDefault(); this.speedPrev(); return; }
+          if (e.key === 'Enter')      { e.preventDefault(); this.speedOpenEditor(); return; }
+          if (e.key === 'Escape')     { e.preventDefault(); this.speedMode = false; return; }
         }
         // When Comment Library drawer is open, intercept nav + insert keys
         if (this.showCommentLibrary) {
@@ -2269,6 +2297,130 @@ function inspectionEditor(inspectionId) {
       }
       this.showAiPopover = false;
       this.aiSuggestions = [];
+    },
+
+    // ============================================================
+    // Design System 0520 M10 — SpeedMode methods (subsystem A, phase 3).
+    // Pure helpers live in /public/js/speed-mode-helpers.js (exposed as
+    // window.SpeedMode by inspection-edit.tsx).
+    // ============================================================
+    _flatItems() {
+      // Build a flat array of items in template order with derived metadata.
+      // Cached per call (template + results are reactive — fresh build is
+      // cheap for typical inspections of ~150 items).
+      var out = [];
+      var sections = this.template && this.template.sections ? this.template.sections : [];
+      for (var s = 0; s < sections.length; s++) {
+        var sec = sections[s];
+        var items = sec.items || [];
+        for (var i = 0; i < items.length; i++) {
+          out.push({
+            id: items[i].id,
+            label: items[i].label || items[i].name || '',
+            sectionName: sec.title || sec.name || '',
+            sectionIdx: s,
+            itemIdx: i,
+            rating: (this.results[items[i].id] && this.results[items[i].id].rating) || null,
+          });
+        }
+      }
+      return out;
+    },
+
+    toggleSpeedMode() {
+      if (!this.speedMode) {
+        var items = this._flatItems();
+        var Q = window.SpeedMode && window.SpeedMode.buildSpeedQueue ? window.SpeedMode.buildSpeedQueue(items) : [];
+        if (Q.length === 0) {
+          if (typeof showToast === 'function') showToast('All items rated ✓');
+          return;
+        }
+        this._speedItems = items;
+        this.speedQueue = Q;
+        this.speedCurrent = 0;
+        this.speedMode = true;
+      } else {
+        this.speedMode = false;
+      }
+    },
+
+    get speedItemTitle() {
+      if (!this.speedMode) return '';
+      var idx = this.speedQueue[this.speedCurrent];
+      if (idx == null || !this._speedItems) return '';
+      return this._speedItems[idx] ? this._speedItems[idx].label : '';
+    },
+    get speedSectionName() {
+      if (!this.speedMode) return '';
+      var idx = this.speedQueue[this.speedCurrent];
+      if (idx == null || !this._speedItems) return '';
+      return this._speedItems[idx] ? this._speedItems[idx].sectionName : '';
+    },
+    get speedTotalCount() {
+      return this._speedItems ? this._speedItems.length : 0;
+    },
+    get speedRatedCount() {
+      if (!this._speedItems) return 0;
+      var c = 0;
+      for (var i = 0; i < this._speedItems.length; i++) {
+        if ((this.results[this._speedItems[i].id] || {}).rating) c++;
+      }
+      return c;
+    },
+    get speedPercentText() {
+      var total = this.speedTotalCount;
+      if (!total) return '0%';
+      return Math.round((this.speedRatedCount / total) * 100) + '%';
+    },
+
+    speedRate(value) {
+      if (!this.speedMode) return;
+      var qi = this.speedQueue[this.speedCurrent];
+      if (qi == null) return;
+      var item = this._speedItems[qi];
+      if (!item) return;
+      // Translate design-spec value → ratingLevels[N].id.
+      var map = { sat: 0, monitor: 1, defect: 2, ni: 3, np: 4 };
+      var idx = map[value];
+      if (idx == null || !this.ratingLevels[idx]) return;
+      this.setRating(item.id, this.ratingLevels[idx].id);
+      // Remove from queue + auto-advance.
+      this.speedQueue.splice(this.speedCurrent, 1);
+      if (this.speedQueue.length === 0) {
+        if (typeof showToast === 'function') showToast('All items rated ✓');
+        var self = this;
+        setTimeout(function () { self.speedMode = false; }, 1500);
+        return;
+      }
+      if (this.speedCurrent >= this.speedQueue.length) {
+        this.speedCurrent = this.speedQueue.length - 1;
+      }
+    },
+
+    speedSkip() {
+      if (!this.speedMode) return;
+      var next = window.SpeedMode && window.SpeedMode.nextUnratedIndex
+        ? window.SpeedMode.nextUnratedIndex(this.speedQueue, this.speedCurrent)
+        : -1;
+      this.speedCurrent = next === -1 ? 0 : next;
+    },
+
+    speedPrev() {
+      if (!this.speedMode) return;
+      if (this.speedCurrent > 0) this.speedCurrent--;
+    },
+
+    speedOpenEditor() {
+      if (!this.speedMode) return;
+      var qi = this.speedQueue[this.speedCurrent];
+      if (qi == null || !this._speedItems) return;
+      var item = this._speedItems[qi];
+      if (!item) return;
+      this.speedMode = false;
+      this.activeItemId = item.id;
+      this.currentSectionIdx = item.sectionIdx;
+      var el = document.getElementById('item-' + item.id);
+      if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
   };
 }
