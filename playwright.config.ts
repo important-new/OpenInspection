@@ -107,5 +107,9 @@ export default defineConfig({
             name: 'subsystem-b-wizard',
             testMatch: 'subsystem-b-wizard.spec.ts',
         },
+        {
+            name: 'subsystem-b-team-strip',
+            testMatch: 'subsystem-b-team-strip.spec.ts',
+        },
     ],
 });
