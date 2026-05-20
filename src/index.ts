@@ -741,13 +741,18 @@ app.get('/inspector/:slug/calendar.ics', async (c) => {
     });
 });
 
-app.get('/book/:slug', async (c) => {
+app.get('/book/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
-    const inspector = tenantId
-        ? await c.var.services.user.findBySlug(tenantId, slug)
-        : null;
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
+    }
+    const inspector = await c.var.services.user.findBySlug(tenantId, slug);
     if (!inspector) {
         return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
     }
