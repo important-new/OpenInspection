@@ -2,6 +2,7 @@ import { BareLayout } from '../layouts/main-layout';
 import { BrandingConfig } from '../../types/auth';
 import { ReportSidebar, type ReportSidebarSection } from '../components/report-sidebar';
 import { ReportTabBar } from '../components/report-tab-bar';
+import { TeamCredit, type TeamCreditMember } from '../components/team-credit';
 import { ShareDropdown } from '../components/share-dropdown';
 import { PdfDropdown } from '../components/pdf-dropdown';
 import { ReportStatusPill } from '../components/report-status-pill';
@@ -30,7 +31,11 @@ export function renderProfessionalReport(data: {
     results: { data: Record<string, ResultItem> } | undefined,
     branding?: BrandingConfig | undefined,
     isAuthenticated?: boolean | undefined,
-    resolvedTheme?: 'modern' | 'classic' | 'minimal' | undefined
+    resolvedTheme?: 'modern' | 'classic' | 'minimal' | undefined,
+    // Design System 0520 subsystem E P8 — TeamCredit footer block.
+    // Both optional so existing callers keep rendering unchanged.
+    team?: TeamCreditMember[],
+    nachiNumber?: string | null,
 }): JSX.Element {
     const { inspection, template, results, branding } = data;
     const isAuthenticated = data.isAuthenticated ?? false;
@@ -606,6 +611,11 @@ export function renderProfessionalReport(data: {
         });
     ` }} />
     </div>
+
+    {/* Design System 0520 subsystem E P8 — TeamCredit + NACHI badge. */}
+    {(data.team?.length ?? 0) > 0 || data.nachiNumber
+        ? <TeamCredit team={data.team ?? []} nachi={data.nachiNumber ?? null} />
+        : null}
 
     {/* Sub-spec D Task 1 — Alpine controller for the new sidebar / tabs / dropdowns. */}
     <script src="/js/report-viewer.js"></script>
