@@ -81,6 +81,7 @@ import { SettingsCommunicationPage } from './templates/pages/settings-communicat
 import { SettingsAccountPage } from './templates/pages/settings-account';
 import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { SettingsIntegrationsPage } from './templates/pages/settings-integrations';
+import { IntegrationsGridPage } from './templates/pages/settings-integrations-grid';
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
@@ -93,6 +94,7 @@ import { agreementSignPath } from './lib/public-urls';
 
 import coreAuthRoutes from './api/auth';
 import identityRoutes from './api/identity';
+import integrationsApiRoutes from './api/integrations';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
@@ -432,6 +434,8 @@ app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
 // Design System 0520 subsystem E P4 — IdentitySwitcher routes (M20).
 app.route('/api/identities', identityRoutes);
+// Design System 0520 subsystem E P6 — IntegrationGrid status (M22).
+app.route('/api/integrations', integrationsApiRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 // Design System 0520 subsystem B phase 2 — tenant-level presence channel
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
@@ -2162,6 +2166,13 @@ app.get('/settings/communication/integrations', htmlAuthGuard(['owner', 'admin']
 
 // Integrations group
 app.get('/settings/integrations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsIntegrationsPage({ branding: c.get('branding') })));
+// Design System 0520 subsystem E P6 — IntegrationGrid (M22) at a
+// distinct path so the existing per-integration settings page stays
+// the default for legacy in-bound links.
+app.get('/settings/integrations-grid', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(IntegrationsGridPage(b ? { branding: b } : {}));
+});
 app.get('/settings/integrations/qbo', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsIntegrationsQBOPage({ branding: c.get('branding') })));
 
 // Account group (per-user, all roles allowed)

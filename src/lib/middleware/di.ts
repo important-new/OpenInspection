@@ -39,6 +39,7 @@ import { AgentService } from '../../services/agent.service';
 import { ConciergeService } from '../../services/concierge.service';
 import { QBOService } from '../../services/qbo.service';
 import { IdentityService } from '../../services/identity.service';
+import { IntegrationsService } from '../../services/integrations.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -270,6 +271,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                 case 'identity':
                     // Design System 0520 subsystem E P4 — IdentitySwitcher (M20)
                     target.identity = new IdentityService(c.env.DB);
+                    break;
+                case 'integrations':
+                    // Design System 0520 subsystem E P6 — IntegrationGrid (M22)
+                    target.integrations = new IntegrationsService(c.env.DB, c.env);
                     break;
             }
             return target[prop];

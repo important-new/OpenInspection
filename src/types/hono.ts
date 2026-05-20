@@ -206,6 +206,8 @@ export interface AppServices {
     qbo: import('../services/qbo.service').QBOService;
     // Design System 0520 subsystem E P4 — IdentitySwitcher (M20)
     identity: import('../services/identity.service').IdentityService;
+    // Design System 0520 subsystem E P6 — IntegrationsService (M22)
+    integrations: import('../services/integrations.service').IntegrationsService;
 }
 
 /**
