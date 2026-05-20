@@ -1,6 +1,7 @@
 import { Context, Next } from 'hono';
 import { HonoConfig, AppServices } from '../../types/hono';
 import { AdminService } from '../../services/admin.service';
+import { ApprenticeService } from '../../services/apprentice.service';
 import { AIService } from '../../services/ai.service';
 import { AuthService } from '../../services/auth.service';
 import { BookingService } from '../../services/booking.service';
@@ -265,6 +266,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         c.env.QBO_WEBHOOK_SECRET ?? '',
                         c.env.JWT_SECRET,
                     );
+                    break;
+                case 'apprentice':
+                    // Design System 0520 subsystem C — apprentice review queue
+                    target.apprentice = new ApprenticeService(c.env.DB);
                     break;
             }
             return target[prop];

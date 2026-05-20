@@ -49,7 +49,7 @@ describe('requireRole alias acceptance', () => {
         const guard = requireRole(['lead']);
         const ctx = makeCtx('inspector');
         let nextCalled = false;
-        await guard(ctx as never, () => { nextCalled = true; });
+        await guard(ctx as never, async () => { nextCalled = true; });
         expect(nextCalled).toBe(true);
     });
 
@@ -57,7 +57,7 @@ describe('requireRole alias acceptance', () => {
         const guard = requireRole(['inspector']);
         const ctx = makeCtx('lead');
         let nextCalled = false;
-        await guard(ctx as never, () => { nextCalled = true; });
+        await guard(ctx as never, async () => { nextCalled = true; });
         expect(nextCalled).toBe(true);
     });
 

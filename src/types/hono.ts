@@ -204,6 +204,8 @@ export interface AppServices {
     concierge: ConciergeService;
     // QuickBooks Online integration
     qbo: import('../services/qbo.service').QBOService;
+    // Design System 0520 subsystem C — apprentice review queue
+    apprentice: import('../services/apprentice.service').ApprenticeService;
 }
 
 /**
