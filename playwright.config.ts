@@ -102,5 +102,10 @@ export default defineConfig({
             name: 'subsystem-a-inspector-tools-dock',
             testMatch: 'subsystem-a-inspector-tools-dock.spec.ts',
         },
+        // Design System 0520 subsystem B — auto-skipped when env vars unset.
+        {
+            name: 'subsystem-b-wizard',
+            testMatch: 'subsystem-b-wizard.spec.ts',
+        },
     ],
 });
