@@ -7,6 +7,7 @@ import { SpeedMode } from '../components/speed-mode';
 import { PhotoStudio } from '../components/photo-studio';
 import { InspectorToolsDock } from '../components/inspector-tools-dock';
 import { LiveConflictModal } from '../components/live-conflict-modal';
+import { RosterPopover } from '../components/roster-popover';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -284,6 +285,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       </nav>
       <div
         x-data={`inspectionEditor('${inspectionId}')`}
+        data-inspection-id={inspectionId}
         class="min-h-screen editor-canvas"
       >
         {/* Spec 5G M1.1 — Global hotkey photo input. P key triggers .click()
@@ -1940,6 +1942,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             queue. This one fires when an online PATCH returns 409 because
             another inspector saved the same field concurrently. */}
         <LiveConflictModal />
+        {/* Design System 0520 subsystem B phase 7 — RosterPopover. Opens
+            via `open-roster-popover` window event; subscribes to the
+            current inspection's PresenceClient to show who is editing
+            (and which item). Add/Invite buttons are stubs that activate
+            when subsystem C M9 InviteSeatModal ships. */}
+        <RosterPopover />
         <Modal
             name="showLegacyPublishOptions"
             title="Publish options"
@@ -2414,6 +2422,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           Loaded as a module so it can `import` the conflict-resolver-helpers
           ESM bundle alongside its companion components. */}
       <script type="module" src="/js/live-conflict-modal.js"></script>
+      {/* Design System 0520 subsystem B phase 7 — RosterPopover + its
+          PresenceClient dependency. Both modules — PresenceClient self-
+          registers on window, RosterPopover reads from the data-inspection-id
+          attribute stamped on the editor root. */}
+      <script type="module" src="/js/presence-client.js"></script>
+      <script type="module" src="/js/roster-popover.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>
