@@ -413,6 +413,62 @@ export class InspectionService {
     }
 
     /**
+     * Design System 0520 subsystem B phase 5 — NewInspectionWizard creation
+     * path. Thin wrapper around createInspection that maps the wizard's
+     * 4-step payload onto the existing column set + the new team_mode /
+     * lead_inspector_id / helper_inspector_ids columns added in subsystem
+     * B phase 1.
+     *
+     * Returns the freshly-inserted inspection id so the wizard factory can
+     * redirect to /inspections/:id/edit.
+     *
+     * Services array (wizard step 2) is stored informational-only on this
+     * MVP — wiring to the inspectionServices catalog needs slug→id
+     * lookup which is a separate follow-up.
+     */
+    async createFromWizard(
+        tenantId: string,
+        creatorUserId: string,
+        input: import('../lib/validations/wizard.schema').CreateInspectionFromWizardInput,
+    ): Promise<{ id: string }> {
+        // Build the base CreateInspectionData shape consumed by createInspection.
+        // The wizard's schedule.startTime is appended to the ISO date so the
+        // existing `date` column carries both — the editor's calendar pane
+        // already round-trips this format.
+        const dateTime = `${input.schedule.date}T${input.schedule.startTime}:00`;
+
+        const created = await this.createInspection(tenantId, {
+            inspectorId:     creatorUserId,
+            propertyAddress: input.property.address,
+            clientName:      'Private Client',  // wizard MVP — client picker is step-extension follow-up
+            clientEmail:     null,
+            clientPhone:     null,
+            templateId:      null,
+            date:            dateTime,
+            yearBuilt:       input.property.yearBuilt ?? null,
+            sqft:            input.property.sqft ?? null,
+            foundationType:  null,
+            bedrooms:        null,
+            bathrooms:       null,
+        } as unknown as CreateInspectionData & { inspectorId?: string });
+
+        // Set team_mode / lead / helpers via direct UPDATE — createInspection
+        // doesn't know about subsystem B's new columns yet.
+        if (input.teamMode || input.leadInspectorId || (input.helperInspectorIds?.length ?? 0) > 0) {
+            const db = this.getDrizzle();
+            await db.update(inspections)
+                .set({
+                    teamMode:           input.teamMode,
+                    leadInspectorId:    input.teamMode ? (input.leadInspectorId ?? creatorUserId) : null,
+                    helperInspectorIds: JSON.stringify(input.teamMode ? (input.helperInspectorIds ?? []) : []),
+                })
+                .where(and(eq(inspections.id, created.id), eq(inspections.tenantId, tenantId)));
+        }
+
+        return { id: created.id };
+    }
+
+    /**
      * Clones an existing inspection.
      */
     async cloneInspection(id: string, tenantId: string): Promise<Inspection> {

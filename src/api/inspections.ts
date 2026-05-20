@@ -38,6 +38,7 @@ import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validatio
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
 import { PatchItemFieldSchema } from '../lib/validations/inspection-patch.schema';
+import { CreateInspectionFromWizardSchema } from '../lib/validations/wizard.schema';
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
@@ -2172,6 +2173,45 @@ inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
     const tenantId = c.get('tenantId');
     await c.var.services.concierge.approveByInspector(id, tenantId);
     return c.json({ success: true as const, data: { success: true as const } }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 5 task 5.3 — NewInspectionWizard create.
+// -----------------------------------------------------------------------------
+// Sibling endpoint to POST /api/inspections (the legacy single-step create).
+// 4-step wizard payload validated by CreateInspectionFromWizardSchema.
+// Returns the new inspection id so the wizard factory redirects to
+// /inspections/:id/edit on success.
+const createFromWizardRoute = createRoute({
+    method:     'post',
+    path:       '/wizard',
+    tags:       ['Inspections'],
+    summary:    'Create an inspection from the 4-step NewInspectionWizard',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        body: { content: { 'application/json': { schema: CreateInspectionFromWizardSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Created',
+            content: { 'application/json': { schema: z.object({
+                success: z.literal(true),
+                data:    z.object({ id: z.string() }),
+            }) } },
+        },
+        400: { description: 'Validation error' },
+    },
+});
+
+inspectionsRoutes.openapi(createFromWizardRoute, async (c) => {
+    const input    = c.req.valid('json');
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+    const out = await c.var.services.inspection.createFromWizard(tenantId, userId, input);
+    return c.json({ success: true as const, data: out }, 200);
 });
 
 // -----------------------------------------------------------------------------
