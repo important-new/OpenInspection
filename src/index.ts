@@ -85,6 +85,7 @@ import { SettingsIntegrationsPage } from './templates/pages/settings-integration
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
 import { ObservePage, ObserverExpiredPage } from './templates/pages/observe';
+import { VersionDiffPage } from './templates/pages/version-diff';
 import { observerCookieGuard, OBSERVER_EXPIRED_PATH } from './lib/middleware/observer-cookie';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
@@ -619,6 +620,23 @@ app.get('/observe/inspections/:id', observerCookieGuard, (c) => {
 app.get(OBSERVER_EXPIRED_PATH, (c) => {
     const b = c.get('branding');
     return c.html(ObserverExpiredPage(b ? { branding: b } : {}));
+});
+
+// Design System 0520 subsystem D P8 — version diff viewer.
+// JWT-guarded (inspector / admin) read-only side-by-side comparison
+// of two published report versions. Backed by ReportVersionService.
+app.get('/inspections/:id/versions/:n/diff', htmlAuthGuard(), (c) => {
+    const id = c.req.param('id');
+    const n  = parseInt(c.req.param('n') ?? '1', 10);
+    if (!id || Number.isNaN(n) || n < 1) {
+        return c.html(NotFoundPage({ branding: c.get('branding') }), 404);
+    }
+    const b = c.get('branding');
+    return c.html(VersionDiffPage({
+        inspectionId: id,
+        toVersion:    n,
+        ...(b ? { branding: b } : {}),
+    }));
 });
 
 // Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
