@@ -10,6 +10,7 @@ import { agreementSignUrl } from '../lib/public-urls';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { verifyM2mAuth } from '../lib/m2m-auth';
 import {
     UpdateBrandingSchema,
     InviteMemberSchema,
@@ -1408,8 +1409,9 @@ adminRoutes.openapi({
         401: { description: 'Unauthorized' },
     },
 }, async (c) => {
-    const auth = c.req.header('authorization');
-    if (auth !== `Bearer ${c.env.PORTAL_M2M_SECRET}`) throw Errors.Unauthorized();
+    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+        throw Errors.Unauthorized();
+    }
 
     const { tenants } = await import('../lib/db/schema');
     const { TemplateSeedService } = await import('../services/template-seed.service');
