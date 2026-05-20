@@ -1646,7 +1646,7 @@ adminRoutes.openapi({
     // fresh maxUsers value rather than the stale snapshot.
     try {
         await c.env.TENANT_CACHE.delete(`tenant:${tenantId}`);
-    } catch (_e) { /* cache miss is fine — read-through repopulates */ }
+    } catch { /* cache miss is fine — read-through repopulates */ }
 
     logger.info('sync-quota applied', { tenantId, maxUsers });
     return c.json({ success: true as const, data: { success: true } }, 200);
