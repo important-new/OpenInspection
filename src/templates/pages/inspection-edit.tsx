@@ -8,6 +8,7 @@ import { PhotoStudio } from '../components/photo-studio';
 import { InspectorToolsDock } from '../components/inspector-tools-dock';
 import { LiveConflictModal } from '../components/live-conflict-modal';
 import { RosterPopover } from '../components/roster-popover';
+import { ProgressStrip } from '../components/progress-strip';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -288,6 +289,10 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         data-inspection-id={inspectionId}
         class="min-h-screen editor-canvas"
       >
+        {/* Design System 0520 subsystem B phase 6 — ProgressStrip donut
+            + ETA + section heat-map. Auto-hides when no items yet. */}
+        <ProgressStrip />
+
         {/* Spec 5G M1.1 — Global hotkey photo input. P key triggers .click()
             on this hidden input; uploadPhoto reads activeItemId. */}
         <input
@@ -2428,6 +2433,9 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           attribute stamped on the editor root. */}
       <script type="module" src="/js/presence-client.js"></script>
       <script type="module" src="/js/roster-popover.js"></script>
+      {/* Design System 0520 subsystem B phase 6 — ProgressStrip factory.
+          Pulls completion / ETA / heat-map from progress-strip-helpers.js. */}
+      <script type="module" src="/js/progress-strip.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>
