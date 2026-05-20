@@ -5,13 +5,25 @@ import { Modal } from '../components/modal';
 import { PageHeader } from '../components/page-header';
 import { CustomizeColumnsModal } from '../components/customize-columns-modal';
 import { InspectionRow } from '../components/inspection-row';
+import { SeatBanner } from '../../features/seat-quota/seat-banner';
+import type { SeatUsage } from '../../features/seat-quota/usage';
 
-export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
+interface DashboardPageProps {
+    branding?: BrandingConfig | undefined;
+    seatUsage?: SeatUsage;
+    billingPortalUrl?: string | null;
+}
+
+export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: DashboardPageProps = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
 
     return (
         <MainLayout title={`${siteName} | Dashboard`} branding={branding}>
             <div class="space-y-6 animate-fade-in">
+
+                {seatUsage !== undefined && billingPortalUrl !== undefined ? (
+                    <SeatBanner usage={seatUsage} billingPortalUrl={billingPortalUrl} />
+                ) : null}
 
                 {/* Sprint 1 Sub-spec B Task 3 — canonical PageHeader.
                     Meta is wired to dashboardMeta Alpine data (see dashboard.js)
