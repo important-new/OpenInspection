@@ -206,6 +206,8 @@ export interface AppServices {
     qbo: import('../services/qbo.service').QBOService;
     // Design System 0520 subsystem C — apprentice review queue
     apprentice: import('../services/apprentice.service').ApprenticeService;
+    // Design System 0520 subsystem C — guest invite tokens (anonymous claim)
+    guestInvite: import('../services/guest-invite.service').GuestInviteService;
 }
 
 /**

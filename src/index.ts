@@ -92,6 +92,7 @@ import { agreementSignPath } from './lib/public-urls';
 
 
 import coreAuthRoutes from './api/auth';
+import guestRoutes from './api/guest';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
@@ -248,7 +249,7 @@ app.use('*', async (c, next) => {
     // Agent Accounts A3 — concierge magic-link entry points (client-facing,
     // no JWT). The token in the URL is the secret.
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
     if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
@@ -429,6 +430,8 @@ app.use('/api/*', requireActiveSubscription);
 // Mount auth routes at canonical API path AND at root so that /setup, /login (POST), /join (POST) work without redirects
 app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
+// Design System 0520 subsystem C P6 — anonymous guest claim (JWT-exempt above).
+app.route('/api/guest', guestRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 // Design System 0520 subsystem B phase 2 — tenant-level presence channel
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
