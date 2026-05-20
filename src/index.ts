@@ -83,6 +83,8 @@ import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { SettingsIntegrationsPage } from './templates/pages/settings-integrations';
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
+import { GuestJoinPage } from './templates/pages/guest-join';
+import { SettingsBillingPage } from './templates/pages/settings-billing';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
@@ -92,6 +94,8 @@ import { agreementSignPath } from './lib/public-urls';
 
 
 import coreAuthRoutes from './api/auth';
+import guestRoutes from './api/guest';
+import billingRoutes from './api/billing';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
@@ -248,9 +252,9 @@ app.use('*', async (c, next) => {
     // Agent Accounts A3 — concierge magic-link entry points (client-facing,
     // no JWT). The token in the URL is the secret.
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
-    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path === '/guest-join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     // (gated on `hasSetupWizard` — only the standalone profile enables it).
@@ -429,6 +433,10 @@ app.use('/api/*', requireActiveSubscription);
 // Mount auth routes at canonical API path AND at root so that /setup, /login (POST), /join (POST) work without redirects
 app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
+// Design System 0520 subsystem C P6 — anonymous guest claim (JWT-exempt above).
+app.route('/api/guest', guestRoutes);
+// Design System 0520 subsystem C P9 — seat-quota summary (read-only, JWT-guarded).
+app.route('/api/billing', billingRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 // Design System 0520 subsystem B phase 2 — tenant-level presence channel
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
@@ -567,6 +575,14 @@ app.get('/login', async (c) => {
     issueCsrfCookie(c);
     const branding = c.get('branding');
     return c.html(LoginPage({ branding }));
+});
+
+// Design System 0520 subsystem C P6.3 — anonymous guest join landing.
+// JWT-exempt above. Renders the form that POSTs to /api/guest/claim.
+app.get('/guest-join', (c) => {
+    const branding = c.get('branding');
+    const token = c.req.query('token') ?? '';
+    return c.html(GuestJoinPage({ token, ...(branding ? { branding } : {}) }));
 });
 
 // Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
@@ -2169,6 +2185,13 @@ app.get('/settings/account/security', htmlAuthGuard(), (c) => {
     return c.html(SettingsSecurityPage(b ? { branding: b } : {}));
 });
 app.get('/settings/account/bot-protection', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAccountPage({ branding: c.get('branding'), subPage: 'bot-protection' })));
+
+// Design System 0520 subsystem C P9 — read-only seat-quota + billing
+// portal CTA. Owner/admin only — non-admins don't see billing UI.
+app.get('/settings/billing', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsBillingPage(b ? { branding: b } : {}));
+});
 
 // Advanced group
 app.get('/settings/advanced', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/advanced/payments'));

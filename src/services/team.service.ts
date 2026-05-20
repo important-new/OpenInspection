@@ -34,8 +34,26 @@ export class TeamService {
         tenantId: string;
         email: string;
         role: UserRole;
+        /** Required when `role === 'apprentice'`. Must be a user in the
+         *  same tenant. Replayed onto users.mentor_id at accept time. */
+        mentorId?: string;
+        /** Used when `role === 'specialist'`. Stored as JSON; replayed
+         *  onto users.assigned_section_ids at accept time. Defaults to
+         *  an empty array for non-specialist roles. */
+        assignedSectionIds?: string[];
     }) {
         const db = this.getDB();
+
+        // Subsystem C P5 — apprentice MUST have a mentor in the same
+        // tenant; the queue routing in InspectionService.patchItem
+        // refuses to enqueue without it.
+        if (params.role === 'apprentice') {
+            if (!params.mentorId) throw Errors.BadRequest('Mentor required for apprentice invites');
+            const mentor = await db.select({ id: users.id }).from(users)
+                .where(and(eq(users.id, params.mentorId), eq(users.tenantId, params.tenantId)))
+                .limit(1);
+            if (mentor.length === 0) throw Errors.BadRequest('Mentor must be a member of the same team');
+        }
 
         // Seat-quota enforcement now lives in features/seat-quota/middleware
         // (mounted on POST /api/team/invite). The service only needs to
@@ -56,6 +74,8 @@ export class TeamService {
             role: params.role,
             status: 'pending',
             expiresAt,
+            ...(params.mentorId ? { mentorId: params.mentorId } : {}),
+            assignedSectionIds: JSON.stringify(params.assignedSectionIds ?? []),
         });
 
         return { token: inviteToken, expiresAt };

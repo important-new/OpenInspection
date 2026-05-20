@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { tenants, users } from '../../lib/db/schema';
+import { computeSeatsUsed } from '../../lib/middleware/seat-guard';
 
 /**
  * Tenant seat-quota usage snapshot.
@@ -53,11 +54,15 @@ export async function getSeatUsage(
     const rawMax = tenantRow[0]?.maxUsers;
     const max: number | null = rawMax == null || rawMax <= 0 ? null : rawMax;
 
-    const countRow = await drizzleDb
-        .select({ value: sql<number>`count(*)` })
+    // Subsystem C P5 — expired guests must NOT count against the cap.
+    // Fetch the (id, expiresAt) projection and defer to the shared
+    // pure helper so guest-claim, settings-billing, and the invite
+    // middleware all agree on what "used" means.
+    const rows = await drizzleDb
+        .select({ id: users.id, expiresAt: users.expiresAt })
         .from(users)
         .where(eq(users.tenantId, tenantId));
-    const used = countRow[0]?.value ?? 0;
+    const used = computeSeatsUsed(rows, Math.floor(Date.now() / 1000));
 
     const remaining = max === null ? Number.POSITIVE_INFINITY : Math.max(0, max - used);
     return { used, max, remaining };

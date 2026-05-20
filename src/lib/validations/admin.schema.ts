@@ -41,7 +41,14 @@ export const UpdateBrandingSchema = z.object({
  */
 export const InviteMemberSchema = z.object({
     email: z.string().email('Invalid email address').openapi({ example: 'new-user@example.com' }),
-    role: z.enum(['admin', 'inspector', 'agent', 'owner']).default('inspector').openapi({ example: 'inspector' }),
+    role: z.enum(['admin', 'inspector', 'agent', 'owner', 'lead', 'specialist', 'apprentice', 'office'])
+        .default('inspector').openapi({ example: 'lead' }),
+    /** Required when role === 'apprentice'. Must be a user id from the
+     *  inviting tenant. Carried through to users.mentor_id at accept. */
+    mentorId: z.string().uuid().optional().openapi({ example: '6e9b6b1c-4a3f-4ae3-9c10-1f1c3f4d5e6a' }),
+    /** Used when role === 'specialist'. Section ids from the active
+     *  template. Carried through to users.assigned_section_ids JSON. */
+    assignedSectionIds: z.array(z.string().min(1)).optional().openapi({ example: ['s-roof', 's-elec'] }),
 }).openapi('InviteMember');
 
 /**
