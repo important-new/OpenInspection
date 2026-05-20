@@ -963,6 +963,7 @@ function inspectionEditor(inspectionId) {
     setRating(itemId, levelId) {
       if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
       this.results[itemId].rating = levelId;
+      this._stampUnitId(itemId);
       this.debounceSave();
     },
 
@@ -972,7 +973,18 @@ function inspectionEditor(inspectionId) {
     setItemValue(itemId, value) {
       if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
       this.results[itemId].value = value;
+      this._stampUnitId(itemId);
       this.debounceSave();
+    },
+
+    // Design System 0520 subsystem D P3 — stamp the active unit id onto
+    // newly-rated items. Once an item has a unitId we leave it alone so
+    // moving a unit doesn't silently reattribute past findings; the
+    // explicit unit-tree drag/move flow handles re-parenting deliberately.
+    _stampUnitId(itemId) {
+      if (this.selectedUnitId && !this.results[itemId].unitId) {
+        this.results[itemId].unitId = this.selectedUnitId;
+      }
     },
     getItemValue(itemId) {
       return this.results[itemId] && 'value' in this.results[itemId]
