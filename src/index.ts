@@ -23,6 +23,10 @@ import { UserRole } from './types/auth';
 import { logger } from './lib/logger';
 import { BUILD } from './generated/version';
 
+import { setupWizardRoutes } from './features/setup-wizard';
+import { reset as sandboxDemoReset } from './features/sandbox-demo';
+import { getDeploymentProfile } from './lib/deployment-profile';
+
 import { LoginPage } from './templates/pages/login';
 import { DashboardPage } from './templates/pages/dashboard';
 import { ReportsPage } from './templates/pages/reports';
@@ -52,7 +56,6 @@ import { ContactsPage } from './templates/pages/contacts';
 import { RecommendationsPage } from './templates/pages/recommendations';
 import { CommentsPage } from './templates/pages/comments';
 import { InvoicesPage } from './templates/pages/invoices';
-import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
 import { InspectionPhotosPage } from './templates/pages/inspection/photos';
@@ -544,9 +547,8 @@ app.get('/login', async (c) => {
     return c.html(LoginPage({ branding }));
 });
 
-app.get('/setup', (c) => {
-    return c.html(SetupPage({ branding: c.get('branding') }));
-});
+// Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
+app.route('/setup', setupWizardRoutes());
 
 // Agent Accounts A1 — public invite acceptance landing.
 // Lifecycle: missing/unknown/expired/used token -> friendly recovery page (410).
@@ -2386,9 +2388,17 @@ app.notFound((c) => {
 // Named exports of `scheduled` aren't recognized by the runtime —
 // without this `Handler does not export a scheduled() function` fires
 // on every cron tick and the automation flush never runs.
-import { scheduled } from './scheduled';
+import { scheduled as baseScheduled } from './scheduled';
 export default {
     fetch: app.fetch.bind(app),
-    scheduled,
+    scheduled: async (event: ScheduledEvent, env: HonoConfig['Bindings'], ctx: ExecutionContext) => {
+        // Profile-gated sandbox reset — only the sandbox deployment sets
+        // demoResetCron; standalone / saas profiles leave it null and skip.
+        const profile = getDeploymentProfile(env);
+        if (profile.demoResetCron && event.cron === profile.demoResetCron) {
+            await sandboxDemoReset(env);
+        }
+        await baseScheduled(event, env, ctx);
+    },
 };
 export { SignCompletionWorkflow } from './workflows/sign-completion-workflow';
