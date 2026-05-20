@@ -23,6 +23,10 @@ import { UserRole } from './types/auth';
 import { logger } from './lib/logger';
 import { BUILD } from './generated/version';
 
+import { setupWizardRoutes } from './features/setup-wizard';
+import { reset as sandboxDemoReset } from './features/sandbox-demo';
+import { getDeploymentProfile } from './lib/deployment-profile';
+
 import { LoginPage } from './templates/pages/login';
 import { DashboardPage } from './templates/pages/dashboard';
 import { ReportsPage } from './templates/pages/reports';
@@ -52,7 +56,6 @@ import { ContactsPage } from './templates/pages/contacts';
 import { RecommendationsPage } from './templates/pages/recommendations';
 import { CommentsPage } from './templates/pages/comments';
 import { InvoicesPage } from './templates/pages/invoices';
-import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
 import { InspectionPhotosPage } from './templates/pages/inspection/photos';
@@ -84,6 +87,7 @@ import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
 import { InspectorNotFoundPage } from './templates/pages/inspector-not-found';
 import { BookingEmbedPage } from './templates/pages/booking-embed';
+import { agreementSignPath } from './lib/public-urls';
 
 
 import coreAuthRoutes from './api/auth';
@@ -544,9 +548,8 @@ app.get('/login', async (c) => {
     return c.html(LoginPage({ branding }));
 });
 
-app.get('/setup', (c) => {
-    return c.html(SetupPage({ branding: c.get('branding') }));
-});
+// Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
+app.route('/setup', setupWizardRoutes());
 
 // Agent Accounts A1 — public invite acceptance landing.
 // Lifecycle: missing/unknown/expired/used token -> friendly recovery page (410).
@@ -672,11 +675,15 @@ app.get('/book', (c) => {
 // Booking #7 Sprint C-1 — public editorial profile page. Served before
 // /book/:slug so an inspector can share /inspector/<slug> as the SEO surface
 // and the customer falls through to /book/<slug> via the page CTA.
-app.get('/inspector/:slug', async (c) => {
+app.get('/inspector/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
-    if (!tenantId) {
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
         return c.html(InspectorNotFoundPage({ slug, companyName: branding?.siteName }), 404);
     }
     const profile = await c.var.services.user.getProfileBySlug(tenantId, slug);
@@ -690,7 +697,7 @@ app.get('/inspector/:slug', async (c) => {
         price: s.price,
     }));
     const host = (c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')) || c.req.header('host') || '';
-    return c.html(InspectorProfilePage({ profile, services: catalog, host }));
+    return c.html(InspectorProfilePage({ profile, services: catalog, host, tenantSlug: tenantSlugFromPath }));
 });
 
 // Booking #7 Sprint C-4 — iframe-friendly booking widget at /embed/book/<slug>.
@@ -699,10 +706,16 @@ app.get('/inspector/:slug', async (c) => {
 // the iframe loads on any host page. The actual booking submit at
 // POST /api/public/book still enforces the per-tenant origin allowlist
 // configured in Settings → Embed Widget.
-app.get('/embed/book/:slug', async (c) => {
+app.get('/embed/book/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
     const inspector = await c.var.services.user.findBySlug(tenantId, slug);
     if (!inspector) return c.text('Not found', 404);
     const branding = c.get('branding');
@@ -726,10 +739,22 @@ app.get('/embed/book/:slug', async (c) => {
 // the inspector's own personal calendar) see opaque "Busy" blocks with no
 // addresses, client names, or emails. Cancelled inspections drop out so
 // freed slots become bookable again.
-app.get('/inspector/:slug/calendar.ics', async (c) => {
+//
+// PR 2 T9: path carries the tenant slug because the path-tenant resolver
+// (T1) eats the first segment after /inspector/. Without :tenant the
+// resolver would treat the inspector slug as the tenant in shared/silo
+// modes. Standalone deploys would still work via fixed-tenant fallback,
+// but the unified shape applies across all modes.
+app.get('/inspector/:tenant/:slug/calendar.ics', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
     const ics = await c.var.services.ics.busyFeedForInspector(tenantId, slug);
     return new Response(ics, {
         status: 200,
@@ -741,13 +766,18 @@ app.get('/inspector/:slug/calendar.ics', async (c) => {
     });
 });
 
-app.get('/book/:slug', async (c) => {
+app.get('/book/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
-    const inspector = tenantId
-        ? await c.var.services.user.findBySlug(tenantId, slug)
-        : null;
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
+    }
+    const inspector = await c.var.services.user.findBySlug(tenantId, slug);
     if (!inspector) {
         return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
     }
@@ -774,13 +804,30 @@ app.get('/book/:slug', async (c) => {
     }));
 });
 
-// Public agreement signing page (no auth required — token is the secret)
-app.get('/agreements/sign/:token', async (c) => {
+// Public agreement signing page (no auth required — token is the secret).
+// :tenant in the path is defense-in-depth — the token alone is the cryptographic
+// gate, but the URL-level slug lets tenant-router populate branding / audit /
+// rate-limiting context BEFORE this handler runs. Slug-vs-agreement mismatch
+// 404s the same way as a bad token.
+app.get('/agreements/sign/:tenant/:token', async (c) => {
     const token = c.req.param('token') as string;
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
+    // Tenant slug from path must match what tenant-router resolved.
+    // An unresolved path tenant manifests as a 404 here — reuse the
+    // styled not-found redirect to match the catch handler below.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.redirect('/not-found?from=agreement-sign', 302);
+    }
     try {
         const svc = c.var.services.agreement;
         const { request, agreement } = await svc.getAgreementByToken(token);
+        // Cross-tenant token probe: the token resolves but to a different tenant.
+        // Treat as not-found so this URL is indistinguishable from a bad token.
+        if (request.tenantId !== tenantId) {
+            return c.redirect('/not-found?from=agreement-sign', 302);
+        }
         await svc.markViewed(token);
 
         // Spec 5H P0 — append request.viewed to the audit chain (best-effort).
@@ -872,15 +919,23 @@ app.get('/agreements/sign', (c) => c.redirect('/not-found?from=agreement-sign', 
 // Public — no JWT required. tenantId resolves from the subdomain via
 // tenantRouter middleware (`resolvedTenantId`), the same way the public
 // `/report/:id` viewer is scoped.
-app.get('/sign/:id', async (c) => {
+app.get('/sign/:tenant/:id', async (c) => {
     const id = c.req.param('id') as string;
-    const tenantId = c.get('tenantId') || c.get('resolvedTenantId');
-    if (!tenantId) return c.redirect('/not-found?from=agreement-sign', 302);
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here. Use the
+    // friendly not-found page to match the rest of this handler's
+    // failure modes (token miss / no live request).
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.redirect('/not-found?from=agreement-sign', 302);
+    }
 
     try {
         const pending = await c.var.services.agreement.findPendingByInspectionId(tenantId as string, id);
         if (pending) {
-            return c.redirect(`/agreements/sign/${pending.token}`, 302);
+            return c.redirect(agreementSignPath(tenantSlugFromPath as string, pending.token), 302);
         }
     } catch (e) {
         logger.warn('sign-redirect: lookup failed', { inspectionId: id.slice(0, 8), error: (e as Error).message });
@@ -894,10 +949,22 @@ app.get('/sign/:id', async (c) => {
 // doesn't forward custom Authorization headers reliably -> 404. The token
 // itself is unguessable, so its secrecy is sufficient (same model as the
 // public /agreements/sign/{token} route).
-app.get('/m2m/agreement-render/:token', async (c) => {
+//
+// :tenant in the path is the same defense-in-depth as on /agreements/sign:
+// tenant-router resolves the slug into branding / context before the handler
+// runs, and a slug↔token tenant mismatch 404s.
+app.get('/m2m/agreement-render/:tenant/:token', async (c) => {
     const token = c.req.param('token') as string;
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.notFound();
+    }
     try {
         const { request, agreement } = await c.var.services.agreement.getAgreementByToken(token);
+        if (request.tenantId !== tenantId) {
+            return c.notFound();
+        }
 
         // Substitute placeholders the same way agreement-sign does
         const vars: Record<string, string> = {
@@ -1044,7 +1111,12 @@ async function loadVerifyData(c: Context<HonoConfig>, envelopeId: string) {
         .all();
     const verify = await c.var.services.auditLog.verifyChain(reqRow.tenantId, envelopeId);
     const pubKey = await c.var.services.signingKey.getPublicKey(reqRow.tenantId);
-    return { reqRow, agreement, auditRows, verify, pubKey };
+    const tenantRow = await db.select({ subdomain: schema.tenants.subdomain })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, reqRow.tenantId))
+        .get();
+    const tenantSubdomain = tenantRow?.subdomain ?? '';
+    return { reqRow, agreement, auditRows, verify, pubKey, tenantSubdomain };
 }
 
 app.get('/verify/:envelopeId', async (c) => {
@@ -1121,7 +1193,7 @@ app.get('/api/public/verify/:envelopeId/document', async (c) => {
     const envelopeId = c.req.param('envelopeId') as string;
     const data = await loadVerifyData(c, envelopeId);
     if (!data) return c.text('Not found', 404);
-    return c.redirect(`/agreements/sign/${data.reqRow.token}`, 302);
+    return c.redirect(agreementSignPath(data.tenantSubdomain, data.reqRow.token), 302);
 });
 
 app.get('/api/public/verify/:envelopeId/audit-trail', async (c) => {
@@ -1151,10 +1223,17 @@ app.get('/api/public/verify/:envelopeId/audit-trail', async (c) => {
 // also fires on the public /report/:id route; previously only the
 // authenticated /api/inspections/:id/report enforced it, which left the
 // public link bypassable.
-app.get('/report/:id', async (c) => {
+app.get('/report/:tenant/:id', async (c) => {
     const id = c.req.param('id') as string;
-    const tenantId = c.get('tenantId') || c.get('resolvedTenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here. Plain-text
+    // 404 matches the existing minimal failure mode of this handler.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
 
     // Spec 5A.3 — ?summary=1 filters to defects-only (used by PDF Summary
     // renderer). ?print=1 already supported by main-layout (hides nav).
@@ -1299,7 +1378,7 @@ app.get('/report/:id', async (c) => {
                         reason:           'agreement',
                         companyName,
                         primaryColor,
-                        actionUrl:        `${baseUrl}/sign/${id}`,
+                        actionUrl:        `${baseUrl}/sign/${tenantSlugFromPath}/${id}`,
                         actionLabel:      'Sign agreement',
                         propertyAddress:  insp.propertyAddress ?? null,
                         inspectorName,
@@ -1585,7 +1664,7 @@ app.get('/r/:id/repair-request', async (c) => {
                         reason:          'agreement',
                         companyName,
                         primaryColor,
-                        actionUrl:       `${baseUrl}/sign/${id}`,
+                        actionUrl:       `${baseUrl}/sign/${c.get('requestedSubdomain') ?? ''}/${id}`,
                         actionLabel:     'Sign agreement',
                         propertyAddress: insp.propertyAddress ?? null,
                         inspectorName,
@@ -1652,14 +1731,6 @@ app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));
 });
-// Agent surfaces all need the same host-suffix derivation for ⌘K palette
-// "Copy booking link" actions. Centralized here to keep the three handlers
-// in lockstep with /agent-inspectors.
-function deriveAgentHostSuffix(c: Context<HonoConfig>): string {
-    const rawBase = (c.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    return rawBase.split('.').slice(rawBase.split('.').length > 2 ? 1 : 0).join('.') || 'inspectorhub.io';
-}
-
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     const branding = c.get('branding');
     const user = c.get('user');
@@ -1703,7 +1774,7 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
         unreadReports,
         sparklineCreated: sparkline.created,
         inspectors,
-        bookingHost: deriveAgentHostSuffix(c),
+        bookingHost: c.req.header('host') || 'localhost',
     }));
 });
 // UC-A-5 — agent recommendations export. Server renders the static shell;
@@ -1739,22 +1810,15 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         });
     }
     const inspectors = await c.var.services.agent.listInspectors(user.sub);
-    // Standalone single-tenant deployments don't have per-tenant subdomains —
-    // every booking link lives at `<currentHost>/book/<slug>`. Saas keeps the
-    // subdomain.hostSuffix split. Detect via APP_MODE so the agent's card
-    // shows a working URL in both topologies.
-    const isStandalone = (c.env.APP_MODE as string) !== 'saas';
-    const requestHost = c.req.header('host') || 'localhost';
-    const hostSuffix = deriveAgentHostSuffix(c);
+    // PR 2 — booking links are uniformly `/<host>/book/<tenant>/<slug>` across
+    // every deploy mode. The agent dashboard's host is the only host the agent
+    // is signed in on; the path-tenant prefix carries the tenant context.
+    const host = c.req.header('host') || 'localhost';
     return c.html(AgentInspectorsPage({
         ...(branding ? { branding } : {}),
         agent: { name: agentName, slug: agentSlug },
         inspectors,
-        hostSuffix,
-        // When set, the page uses this exact host for booking links instead of
-        // splicing tenantSubdomain.hostSuffix. Standalone deployments share the
-        // single deploy host across every row.
-        ...(isStandalone ? { fixedHost: requestHost } : {}),
+        host,
     }));
 });
 // Agent Accounts A3 — Book on Behalf form. Lives under /agent-inspectors so the
@@ -1874,7 +1938,7 @@ app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
             notifyOnPaid:     row.notifyOnPaid,
         },
         inspectors,
-        bookingHost: deriveAgentHostSuffix(c),
+        bookingHost: c.req.header('host') || 'localhost',
     }));
 });
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
@@ -2023,6 +2087,7 @@ app.get('/settings/catalog/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
         ...(b ? { branding: b } : {}),
         currentUserSlug: b?.currentUserSlug ?? null,
         bookingHost: b?.bookingHost ?? '',
+        tenantSubdomain: c.get('requestedSubdomain') ?? null,
     }));
 });
 // Agent Accounts A3 — concierge toggle.
@@ -2243,6 +2308,7 @@ app.get('/inspections/:id/signatures', htmlAuthGuard(['owner', 'admin', 'inspect
     return c.html(InspectionSignaturesPage({
         inspectionId: id,
         propertyAddress: shell?.propertyAddress ?? 'Inspection',
+        tenantSlug: c.get('requestedSubdomain') ?? '',
         branding: c.get('branding'),
         enableRepairList: !!shell?.enableRepairList,
         ...(shell?.requestId ? { requestId: shell.requestId } : {}),
@@ -2327,9 +2393,17 @@ app.notFound((c) => {
 // Named exports of `scheduled` aren't recognized by the runtime —
 // without this `Handler does not export a scheduled() function` fires
 // on every cron tick and the automation flush never runs.
-import { scheduled } from './scheduled';
+import { scheduled as baseScheduled } from './scheduled';
 export default {
     fetch: app.fetch.bind(app),
-    scheduled,
+    scheduled: async (event: ScheduledEvent, env: HonoConfig['Bindings'], ctx: ExecutionContext) => {
+        // Profile-gated sandbox reset — only the sandbox deployment sets
+        // demoResetCron; standalone / saas profiles leave it null and skip.
+        const profile = getDeploymentProfile(env);
+        if (profile.demoResetCron && event.cron === profile.demoResetCron) {
+            await sandboxDemoReset(env);
+        }
+        await baseScheduled(event, env, ctx);
+    },
 };
 export { SignCompletionWorkflow } from './workflows/sign-completion-workflow';

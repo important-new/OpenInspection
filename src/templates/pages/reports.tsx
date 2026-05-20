@@ -4,9 +4,10 @@ import { PageHeader } from '../components/page-header';
 
 export const ReportsPage = ({ branding }: { branding?: BrandingConfig }) => {
     const siteName = branding?.siteName || 'OpenInspection';
+    const tenantSubdomain = branding?.tenantSubdomain ?? '';
     return (
         <MainLayout title={`${siteName} | Reports`} branding={branding}>
-            <div class="space-y-6 animate-fade-in">
+            <div class="space-y-6 animate-fade-in" data-tenant-subdomain={tenantSubdomain}>
                 <div x-data="reportsMeta">
                     <PageHeader
                         eyebrow="REPORTS"

@@ -15,8 +15,9 @@ describe('Booking — slug-based routing', () => {
     const indexSrc = fs.readFileSync(path.join(repoRoot, 'src/index.ts'), 'utf8');
     const bookingsSrc = fs.readFileSync(path.join(repoRoot, 'src/api/bookings.ts'), 'utf8');
 
-    it('mounts /book/:slug route', () => {
-        expect(indexSrc).toMatch(/['"`]\/book\/:slug['"`]/);
+    it('mounts /book/:tenant/:slug route', () => {
+        // PR 2 T2 — path-param tenant routing replaced the host-only signature.
+        expect(indexSrc).toMatch(/['"`]\/book\/:tenant\/:slug['"`]/);
     });
 
     it('imports BookingNotFoundPage and BookingNoSlugLandingPage', () => {

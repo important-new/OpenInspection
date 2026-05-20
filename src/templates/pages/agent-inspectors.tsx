@@ -1,19 +1,18 @@
 import type { BrandingConfig } from '../../types/auth';
 import type { AgentInspectorRow } from '../../services/agent.service';
 import { AgentCommandPalette } from '../components/agent-command-palette';
+import { bookingUrl as buildBookingUrl } from '../../lib/public-urls';
 
 export interface AgentInspectorsProps {
     branding?: BrandingConfig | undefined;
     agent: { name?: string | null; slug?: string | null };
     inspectors: AgentInspectorRow[];
-    /** Host suffix appended to tenant subdomain — e.g. "inspectorhub.io". */
-    hostSuffix: string;
     /**
-     * When set, the page uses this exact host for every booking link instead
-     * of splicing `tenantSubdomain.hostSuffix`. Standalone single-tenant
-     * deployments use the request host directly.
+     * Host the agent dashboard is served on (e.g. `app.inspectorhub.io` or
+     * the standalone domain). The new path-tenant URL shape works
+     * uniformly across all deploy modes from a single host.
      */
-    fixedHost?: string;
+    host: string;
 }
 
 function initials(name: string | null | undefined): string {
@@ -24,9 +23,8 @@ function initials(name: string | null | undefined): string {
     return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
 }
 
-function bookingUrl(subdomain: string, slug: string, hostSuffix: string, ref: string | null, fixedHost?: string): string {
-    const host = fixedHost || `${subdomain}.${hostSuffix}`;
-    const base = `https://${host}/book/${slug}`;
+function makeBookingUrl(host: string, tenantSubdomain: string, slug: string, ref: string | null): string {
+    const base = buildBookingUrl(host, tenantSubdomain, slug);
     return ref ? `${base}?ref=${encodeURIComponent(ref)}` : base;
 }
 
@@ -46,8 +44,7 @@ export const AgentInspectorsPage = ({
     branding,
     agent,
     inspectors,
-    hostSuffix,
-    fixedHost,
+    host,
 }: AgentInspectorsProps): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
     const primaryColor = branding?.primaryColor || '#4f46e5';
@@ -296,7 +293,7 @@ export const AgentInspectorsPage = ({
                                     );
                                 }
 
-                                const url = bookingUrl(subdomain, slug, hostSuffix, refSlug, fixedHost);
+                                const url = makeBookingUrl(host, subdomain, slug, refSlug);
                                 return (
                                     <article class="card" data-testid={`inspector-card-${slug}`}>
                                         <div class="card-header">
@@ -353,7 +350,7 @@ export const AgentInspectorsPage = ({
                         tenantSubdomain: row.tenantSubdomain,
                     }))}
                     agentSlug={refSlug}
-                    bookingHost={hostSuffix}
+                    bookingHost={host}
                 />
             </body>
         </html>

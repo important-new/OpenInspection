@@ -83,8 +83,9 @@
         const root = document.querySelector('[x-data="commandPalette"]');
         const slug = root?.getAttribute('data-current-user-slug');
         const host = root?.getAttribute('data-booking-host');
-        if (!slug || !host) return [];
-        const url = 'https://' + host + '/book/' + slug;
+        const tenant = root?.getAttribute('data-booking-tenant');
+        if (!slug || !host || !tenant) return [];
+        const url = 'https://' + host + '/book/' + tenant + '/' + slug;
         return [{
             label: 'Copy my booking link',
             hint: 'share',

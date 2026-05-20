@@ -51,13 +51,14 @@ interface Props {
 export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, currentUser, currentProfile }: Props): JSX.Element => {
     const slug = currentSlug ?? null;
     const subdomain = tenantSubdomain ?? '';
+    // PR 2 — uniform path-tenant booking URL shape: `<host>/book/<tenant>/<slug>`.
+    const sigHost = branding?.bookingHost || 'inspectorhub.io';
     const bookingLink = slug && subdomain
-        ? `${subdomain}.inspectorhub.io/book/${slug}`
+        ? `${sigHost}/book/${subdomain}/${slug}`
         : null;
     // Sprint B-4b — signature card data. Only renders when the user has a
     // slug (no rebooking link to point at otherwise).
-    const sigHost = subdomain ? `${subdomain}.inspectorhub.io` : '';
-    const showSignatureCard = !!slug && !!sigHost;
+    const showSignatureCard = !!slug && !!sigHost && !!subdomain;
     // Sprint C-1 — public profile section state.
     const profileBio = currentProfile?.bio ?? '';
     const profilePhotoUrl = currentProfile?.photoUrl ?? '';
@@ -334,6 +335,7 @@ export const SettingsProfilePage = ({ branding, currentSlug, tenantSubdomain, cu
                     data-sig-license={currentUser?.licenseNumber ?? ''}
                     data-sig-slug={slug ?? ''}
                     data-sig-host={sigHost}
+                    data-sig-tenant={subdomain}
                 >
                     <header class="space-y-1">
                         <h3 class="text-[11px] font-bold text-ink-500 uppercase tracking-[0.2em]">My email signature</h3>

@@ -3,6 +3,7 @@ import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
+import { agreementSignPath } from '../lib/public-urls';
 
 const conciergeRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -63,7 +64,7 @@ conciergeRoutes.openapi(confirmRoute, async (c) => {
                     view.inspection.tenantId,
                     view.inspection.id,
                 );
-                redirect = `/agreements/sign/${agr.token}`;
+                redirect = agreementSignPath(view.inspection.tenantSubdomain, agr.token);
             } catch (err) {
                 // No template configured — surface a generic thank-you page.
                 logger.warn('concierge.findOrCreate.failed', {
@@ -71,12 +72,12 @@ conciergeRoutes.openapi(confirmRoute, async (c) => {
                     inspectionId: view.inspection.id,
                     error: err instanceof Error ? err.message : String(err),
                 });
-                redirect = `/report/${view.inspection.id}`;
+                redirect = `/report/${view.inspection.tenantSubdomain}/${view.inspection.id}`;
             }
         } else {
             // Optimistically redirect to the report viewer; the gate will lock
             // it down if the inspection is still pending.
-            redirect = `/report/${view.inspection.id}`;
+            redirect = `/report/${view.inspection.tenantSubdomain}/${view.inspection.id}`;
         }
     }
 

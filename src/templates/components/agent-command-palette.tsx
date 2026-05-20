@@ -31,9 +31,9 @@ export interface AgentCommandPaletteProps {
     inspectors: AgentCommandPaletteInspector[];
     agentSlug: string | null;
     /**
-     * Host suffix used to compose booking URLs. The full URL per
-     * inspector is `https://${inspector.tenantSubdomain}.${bookingHost}/book/${inspector.slug}?ref=${agentSlug}`.
-     * Mirrors the `hostSuffix` already plumbed into AgentInspectorsPage.
+     * Host the agent dashboard is served on. Combined with each inspector's
+     * `tenantSubdomain` as `https://${bookingHost}/book/${tenantSubdomain}/${slug}`
+     * (path-tenant URL shape introduced by PR 2).
      */
     bookingHost: string;
 }
@@ -61,8 +61,7 @@ function buildItems(props: AgentCommandPaletteProps): PaletteItem[] {
     const ref = props.agentSlug ? `?ref=${encodeURIComponent(props.agentSlug)}` : '';
     for (const insp of props.inspectors) {
         if (!insp.slug) continue;
-        const host = `${insp.tenantSubdomain}.${props.bookingHost}`;
-        const url = `https://${host}/book/${insp.slug}${ref}`;
+        const url = `https://${props.bookingHost}/book/${insp.tenantSubdomain}/${insp.slug}${ref}`;
         const displayName = insp.name?.trim() || insp.slug;
         items.push({
             id: `copy-${insp.tenantSubdomain}-${insp.slug}`,

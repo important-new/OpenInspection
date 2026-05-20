@@ -2,10 +2,12 @@ import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:work
 import type { AppEnv } from '../types/hono';
 import { SigningKeyService } from '../services/signing-key.service';
 import { AuditLogService } from '../services/audit-log.service';
+import { m2mAgreementRenderUrl } from '../lib/public-urls';
 
 export interface SignCompletionParams {
     requestId: string;
     tenantId: string;
+    tenantSlug: string;       // tenant subdomain, required for /m2m/agreement-render/<tenant>/<token>
     token: string;            // public agreement-request token (used for /m2m/* render routes)
 }
 
@@ -30,7 +32,7 @@ export interface SignCompletionParams {
  */
 export class SignCompletionWorkflow extends WorkflowEntrypoint<AppEnv, SignCompletionParams> {
     async run(event: WorkflowEvent<SignCompletionParams>, step: WorkflowStep) {
-        const { requestId, tenantId, token } = event.payload;
+        const { requestId, tenantId, tenantSlug, token } = event.payload;
         const env = this.env;
 
         // Step 1 — render canonical signed PDF (best-effort; if BR is not
@@ -41,7 +43,7 @@ export class SignCompletionWorkflow extends WorkflowEntrypoint<AppEnv, SignCompl
         }, async () => {
             try {
                 return await renderPdfToR2(env, {
-                    renderUrl: `${baseUrl(env)}/m2m/agreement-render/${token}`,
+                    renderUrl: m2mAgreementRenderUrl(baseHost(env), tenantSlug, token),
                     r2Key: `tenants/${tenantId}/agreements/${requestId}/signed.pdf`,
                 });
             } catch (e) {
@@ -122,4 +124,9 @@ async function renderPdfToR2(env: AppEnv, opts: { renderUrl: string; r2Key: stri
 
 function baseUrl(env: AppEnv): string {
     return env.APP_BASE_URL || 'https://openinspection-standalone.important-new.workers.dev';
+}
+
+function baseHost(env: AppEnv): string {
+    const raw = baseUrl(env);
+    try { return new URL(raw).host; } catch { return raw.replace(/^https?:\/\//, '').replace(/\/$/, ''); }
 }

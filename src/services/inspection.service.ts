@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, or, lt, gte, lte, sql, inArray } from 'drizzle-orm';
-import { inspections, inspectionResults, templates, inspectionAgreements, users, services, inspectionServices, tenantConfigs, invoices, inspectionMediaPool } from '../lib/db/schema';
+import { inspections, inspectionResults, templates, inspectionAgreements, users, services, inspectionServices, tenantConfigs, invoices, inspectionMediaPool, tenants } from '../lib/db/schema';
 import { contacts } from '../lib/db/schema/contact';
 import { Errors } from '../lib/errors';
 import { computeReportStats, getRatingColor, getRatingBucket, type RatingLevel } from '../lib/report-utils';
@@ -1645,8 +1645,11 @@ export class InspectionService {
         // below — all four paths now block on trigger).
         await fireAutomation(this.db, tenantId, inspectionId, 'report.published');
 
+        const tenantRow = await db.select({ subdomain: tenants.subdomain })
+            .from(tenants).where(eq(tenants.id, tenantId)).get();
+        const tenantSlug = tenantRow?.subdomain ?? '';
         return {
-            reportUrl: `/report/${inspectionId}`,
+            reportUrl: `/report/${tenantSlug}/${inspectionId}`,
             status: 'delivered',
         };
     }

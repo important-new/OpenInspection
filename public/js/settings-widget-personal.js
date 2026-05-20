@@ -6,13 +6,14 @@
 
     function $(id) { return document.getElementById(id); }
 
-    function buildSnippet(slug, host, compact) {
+    function buildSnippet(slug, host, tenant, compact) {
         const styleQs = compact ? '?style=compact' : '';
         const initialHeight = compact ? 80 : 600;
+        const embedPath = '/embed/book/' + tenant + '/' + slug;
         return [
             '<!-- OpenInspection booking widget -->',
             '<iframe',
-            '    src="https://' + host + '/embed/book/' + slug + styleQs + '"',
+            '    src="https://' + host + embedPath + styleQs + '"',
             '    style="width:100%;border:0;display:block;"',
             '    height="' + initialHeight + '"',
             '    title="Book an inspection"',
@@ -23,7 +24,7 @@
             '    window.addEventListener("message", function (e) {',
             '        if (!e.data || e.data.type !== "oi-embed") return;',
             '        if (e.data.kind === "resize") {',
-            '            var f = document.querySelector(\'iframe[src*="/embed/book/' + slug + '"]\');',
+            '            var f = document.querySelector(\'iframe[src*="' + embedPath + '"]\');',
             '            if (f) f.height = e.data.height;',
             '        }',
             '    });',
@@ -37,7 +38,8 @@
         if (!root) return;
         const slug = root.dataset.slug;
         const host = root.dataset.host;
-        if (!slug || !host) return;
+        const tenant = root.dataset.tenant;
+        if (!slug || !host || !tenant) return;
 
         const codeEl = $('personalSnippet');
         const compactBox = $('personalSnippetCompact');
@@ -45,7 +47,7 @@
 
         function render() {
             const compact = !!(compactBox && compactBox.checked);
-            if (codeEl) codeEl.textContent = buildSnippet(slug, host, compact);
+            if (codeEl) codeEl.textContent = buildSnippet(slug, host, tenant, compact);
         }
 
         if (compactBox) compactBox.addEventListener('change', render);

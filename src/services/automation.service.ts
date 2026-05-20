@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, lte, sql, desc } from 'drizzle-orm';
-import { automations, automationLogs, inspections } from '../lib/db/schema';
+import { automations, automationLogs, inspections, tenants } from '../lib/db/schema';
+import { reportUrl } from '../lib/public-urls';
 import { AUTOMATION_SEEDS } from '../data/automation-seeds';
 import { nanoid } from 'nanoid';
 import { Errors } from '../lib/errors';
@@ -205,25 +206,30 @@ export class AutomationService {
         const now = new Date().toISOString();
 
         const pending = await db.select({
-            log: automationLogs, automation: automations, inspection: inspections,
+            log: automationLogs, automation: automations, inspection: inspections, tenant: tenants,
         })
             .from(automationLogs)
             .innerJoin(automations, eq(automationLogs.automationId, automations.id))
             .innerJoin(inspections, eq(automationLogs.inspectionId, inspections.id))
+            .innerJoin(tenants, eq(tenants.id, inspections.tenantId))
             .where(and(eq(automationLogs.status, 'pending'), lte(automationLogs.sendAt, now)))
             .limit(batchSize);
 
         if (pending.length === 0) return;
         logger.info('AutomationService.flush: processing', { count: pending.length });
 
-        for (const { log, automation, inspection } of pending) {
+        const appHost = (() => {
+            try { return new URL(appBaseUrl).host; } catch { return appBaseUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''); }
+        })();
+
+        for (const { log, automation, inspection, tenant } of pending) {
             try {
                 const vars: Record<string, string> = {
                     client_name:      inspection.clientName ?? '',
                     property_address: inspection.propertyAddress,
                     scheduled_date:   inspection.date,
                     inspector_name:   '',
-                    report_url:       `${appBaseUrl}/report/${inspection.id}`,
+                    report_url:       reportUrl(appHost, tenant.subdomain, inspection.id),
                     invoice_url:      `${appBaseUrl}/invoices`,
                     payment_url:      `${appBaseUrl}/invoices`,
                     company_name:     appName,

@@ -29,6 +29,9 @@ export interface BrandingConfig {
     /** Sprint B-1 — host portion of the booking URL (e.g. "acme.inspectorhub.io").
      *  Used by the ⌘K palette action and any other slug-aware UI. */
     bookingHost?: string | undefined;
+    /** PR 2 — tenant subdomain (path segment). Needed for path-tenant booking
+     *  URLs (`<host>/book/<tenant>/<slug>`). Populated by inspectorPaletteMiddleware. */
+    tenantSubdomain?: string | null | undefined;
 }
 
 import { ScopedDB } from '../lib/db/scoped';

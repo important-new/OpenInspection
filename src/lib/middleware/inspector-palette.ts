@@ -36,6 +36,7 @@ export const inspectorPaletteMiddleware: MiddlewareHandler<HonoConfig> = async (
             ...branding,
             currentUserSlug: row?.slug ?? null,
             bookingHost:     getBookingHost(c),
+            tenantSubdomain: c.get('requestedSubdomain') ?? null,
         };
         c.set('branding', enriched);
     } catch (e) {

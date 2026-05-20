@@ -580,11 +580,12 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
     // + Certificate of Completion + appends 'workflow.complete' to audit chain).
     // Fire-and-forget: client doesn't wait. Workflow has its own retry policy.
     if (request && c.env.SIGN_COMPLETION_WORKFLOW) {
+        const tenantSlug = c.get('requestedSubdomain') ?? '';
         c.executionCtx.waitUntil((async () => {
             try {
                 await c.env.SIGN_COMPLETION_WORKFLOW!.create({
                     id: request.id, // workflow id = requestId for idempotency / re-run
-                    params: { requestId: request.id, tenantId: request.tenantId, token },
+                    params: { requestId: request.id, tenantId: request.tenantId, tenantSlug, token },
                 });
             } catch (e) {
                 logger.warn('sign-workflow.create.failed', { requestId: request.id, error: (e as Error).message });

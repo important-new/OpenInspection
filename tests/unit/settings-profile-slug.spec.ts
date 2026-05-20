@@ -21,7 +21,7 @@ describe('SettingsProfilePage — slug card', () => {
         expect(html).toMatch(/data-testid="settings-slug-input"/);
         expect(html).toMatch(/value="john"/);
         // The booking link copy + the live link itself should both render.
-        expect(html).toMatch(/\/book\/john/);
+        expect(html).toMatch(/\/book\/acme\/john/);
         expect(html).toMatch(/data-testid="settings-slug-link"/);
         expect(html).toMatch(/data-testid="settings-slug-copy"/);
     });

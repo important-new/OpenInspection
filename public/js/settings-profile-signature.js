@@ -13,7 +13,8 @@
         phone:   card.getAttribute('data-sig-phone')   || '',
         license: card.getAttribute('data-sig-license') || '',
         slug:    card.getAttribute('data-sig-slug')    || '',
-        host:    card.getAttribute('data-sig-host')    || ''
+        host:    card.getAttribute('data-sig-host')    || '',
+        tenant:  card.getAttribute('data-sig-tenant')  || ''
     };
 
     function escapeHtml(s) {
@@ -41,8 +42,8 @@
         if (data.phone && tel) contactBits.push('📞 <a href="tel:' + tel + '">' + escapeHtml(data.phone) + '</a>');
         if (data.email)        contactBits.push('✉️ <a href="mailto:' + escapeHtml(data.email) + '">' + escapeHtml(data.email) + '</a>');
         if (contactBits.length) lines.push(contactBits.join(' '));
-        if (data.slug && data.host) {
-            var link = 'https://' + data.host + '/book/' + escapeHtml(data.slug);
+        if (data.slug && data.host && data.tenant) {
+            var link = 'https://' + data.host + '/book/' + escapeHtml(data.tenant) + '/' + escapeHtml(data.slug);
             lines.push('Book again: <a href="' + link + '">' + link + '</a>');
         }
         return '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;font-family:-apple-system,Segoe UI,sans-serif;font-size:13px;line-height:1.5;color:#0f172a">' + lines.join('<br>') + '</div>';
@@ -56,7 +57,7 @@
         if (data.phone) cb.push(data.phone);
         if (data.email) cb.push(data.email);
         if (cb.length) lines.push(cb.join(' · '));
-        if (data.slug && data.host) lines.push('Book again: https://' + data.host + '/book/' + data.slug);
+        if (data.slug && data.host && data.tenant) lines.push('Book again: https://' + data.host + '/book/' + data.tenant + '/' + data.slug);
         return lines.join('\n');
     }
 

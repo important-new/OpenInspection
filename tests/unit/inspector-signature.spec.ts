@@ -7,9 +7,10 @@ const FULL_USER = {
     phone: '(303) 555-0142',
     licenseNumber: 'TX-INSP-9001',
     slug: 'mike',
+    tenantSubdomain: 'acme',
 } as const;
 
-const HOST = 'acme.inspectorhub.io';
+const HOST = 'app.inspectorhub.io';
 
 describe('inspectorSignature — Sprint B-4', () => {
     it('renders both HTML and plain-text variants', () => {
@@ -18,9 +19,9 @@ describe('inspectorSignature — Sprint B-4', () => {
         expect(sig.html).toContain('TX-INSP-9001');
         expect(sig.html).toContain('mailto:mike@acme.test');
         expect(sig.html).toContain('tel:+13035550142'); // E.164-ish, helper strips non-digits
-        expect(sig.html).toContain('https://acme.inspectorhub.io/book/mike');
+        expect(sig.html).toContain('https://app.inspectorhub.io/book/acme/mike');
         expect(sig.text).toContain('Mike Reynolds');
-        expect(sig.text).toContain('Book again: https://acme.inspectorhub.io/book/mike');
+        expect(sig.text).toContain('Book again: https://app.inspectorhub.io/book/acme/mike');
         expect(sig.text).not.toContain('<a');
     });
 
@@ -53,12 +54,12 @@ describe('inspectorSignature — Sprint B-4', () => {
         const sig = inspectorSignature(FULL_USER, HOST);
         expect(sig).toMatchInlineSnapshot(`
           {
-            "html": "<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;font-family:-apple-system,Segoe UI,sans-serif;font-size:13px;line-height:1.5;color:#0f172a"><strong>— Mike Reynolds</strong><br><span style="color:#475569">Licensed home inspector · TX-INSP-9001</span><br>📞 <a href="tel:+13035550142">(303) 555-0142</a> ✉️ <a href="mailto:mike@acme.test">mike@acme.test</a><br>Book again: <a href="https://acme.inspectorhub.io/book/mike">https://acme.inspectorhub.io/book/mike</a></div>",
+            "html": "<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;font-family:-apple-system,Segoe UI,sans-serif;font-size:13px;line-height:1.5;color:#0f172a"><strong>— Mike Reynolds</strong><br><span style="color:#475569">Licensed home inspector · TX-INSP-9001</span><br>📞 <a href="tel:+13035550142">(303) 555-0142</a> ✉️ <a href="mailto:mike@acme.test">mike@acme.test</a><br>Book again: <a href="https://app.inspectorhub.io/book/acme/mike">https://app.inspectorhub.io/book/acme/mike</a></div>",
             "text": "--
           — Mike Reynolds
           Licensed home inspector · TX-INSP-9001
           (303) 555-0142 · mike@acme.test
-          Book again: https://acme.inspectorhub.io/book/mike",
+          Book again: https://app.inspectorhub.io/book/acme/mike",
           }
         `);
     });

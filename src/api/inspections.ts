@@ -4,6 +4,7 @@ import { renderProfessionalReport } from '../templates/pages/report.template';
 import { ReportGatePage } from '../templates/pages/report-gate';
 import { auditFromContext } from '../lib/audit';
 import { getBaseUrl, getBookingHost } from '../lib/url';
+import { reportUrl as buildReportUrl } from '../lib/public-urls';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -59,13 +60,15 @@ async function resolveSignatureInspector(
     try {
         const db = drizzle(c.env.DB);
         const row = await db.select({
-            name:          users.name,
-            email:         users.email,
-            phone:         users.phone,
-            licenseNumber: users.licenseNumber,
-            slug:          users.slug,
+            name:            users.name,
+            email:           users.email,
+            phone:           users.phone,
+            licenseNumber:   users.licenseNumber,
+            slug:            users.slug,
         }).from(users).where(and(eq(users.id, inspectorId), eq(users.tenantId, tenantId))).get();
-        return row ?? undefined;
+        if (!row) return undefined;
+        const tenantSubdomain = c.get('requestedSubdomain') ?? null;
+        return { ...row, tenantSubdomain };
     } catch (err) {
         logger.error('[email-signature] inspector lookup failed', { inspectorId }, err instanceof Error ? err : undefined);
         return undefined;
@@ -1300,7 +1303,7 @@ inspectionsRoutes.get('/:id/report', async (c) => {
             return c.html(ReportGatePage({
                 reason: 'agreement',
                 companyName, primaryColor,
-                actionUrl: `${baseUrl}/sign/${id}`,
+                actionUrl: `${baseUrl}/sign/${c.get('requestedSubdomain') ?? ''}/${id}`,
                 actionLabel: 'Sign Agreement',
                 propertyAddress: inspection.propertyAddress ?? null,
                 inspectorName,
@@ -1462,8 +1465,8 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     await db.update(inspectionTable).set({ status: 'completed' }).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (inspection.clientEmail) {
-        const baseUrl = getBaseUrl(c);
-        const reportUrl = `${baseUrl}/report/${id}`;
+        const tenantSlug = c.get('requestedSubdomain') ?? '';
+        const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
         const clientEmail = inspection.clientEmail;
         const address = inspection.propertyAddress as string;
 
@@ -1549,8 +1552,8 @@ inspectionsRoutes.openapi(sendReportPdfRoute, async (c) => {
         throw Errors.BadRequest('No recipient email — set inspection.clientEmail or pass toEmail.');
     }
 
-    const baseUrl = getBaseUrl(c);
-    const reportUrl = `${baseUrl}/report/${id}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
     const address = inspection.propertyAddress as string;
 
     // Sprint B-4a — append rebooking signature for the assigned inspector.
@@ -1820,8 +1823,8 @@ inspectionsRoutes.openapi(publishRoute, async (c) => {
     // remains the universal fallback.
     const reportPdf = c.var.services.reportPdf;
     if (await reportPdf.isPipelineEnabled(tenantId)) {
-        const baseUrl = getBaseUrl(c);
-        const reportUrl = `${baseUrl}/report/${id}`;
+        const tenantSlug = c.get('requestedSubdomain') ?? '';
+        const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
         const sourceVersion = Date.now();
         const renderBoth = async () => {
             try {
@@ -1869,8 +1872,8 @@ inspectionsRoutes.openapi(createRoute({
     if (!(await reportPdf.isPipelineEnabled(tenantId))) {
         throw Errors.Forbidden('PDF pipeline is disabled for this workspace. Enable it in Settings → Reports.');
     }
-    const baseUrl = getBaseUrl(c);
-    const reportUrl = `${baseUrl}/report/${id}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
     const sourceVersion = Date.now();
 
     await Promise.all([
@@ -1963,8 +1966,9 @@ inspectionsRoutes.openapi(createRoute({
     const tenantId = c.get('tenantId') as string;
     const { id } = c.req.valid('param');
     const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
-    const baseUrl = getBaseUrl(c);
-    return c.json({ success: true, data: { token, url: `${baseUrl}/report/${id}?view=agent&token=${token}` } });
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const url = `${buildReportUrl(getBookingHost(c), tenantSlug, id)}?view=agent&token=${token}`;
+    return c.json({ success: true, data: { token, url } });
 });
 
 // ── Sprint 1 Sub-spec D Task 3 (D-3) — POST /api/inspections/:id/share-agent ────
@@ -2010,8 +2014,8 @@ inspectionsRoutes.openapi(createRoute({
     }
 
     const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
-    const baseUrl = getBaseUrl(c);
-    const url = `${baseUrl}/report/${id}?view=agent&token=${token}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const url = `${buildReportUrl(getBookingHost(c), tenantSlug, id)}?view=agent&token=${token}`;
 
     // Sprint B-4c — append the inspector's signature so the receiving agent
     // can rebook with the same inspector for future referrals.

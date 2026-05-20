@@ -14,6 +14,7 @@ import type { BrandingConfig } from '../../../types/auth';
 export interface InspectionSignaturesPageProps {
     inspectionId:     string;
     propertyAddress:  string;
+    tenantSlug:       string;
     branding?:        BrandingConfig | undefined;
     requestId?:       string | undefined;
     siblings?:        Array<{ id: string; templateName: string; status: string }> | undefined;
@@ -23,6 +24,7 @@ export interface InspectionSignaturesPageProps {
 export const InspectionSignaturesPage = ({
     inspectionId,
     propertyAddress,
+    tenantSlug,
     branding,
     requestId,
     siblings,
@@ -71,7 +73,7 @@ export const InspectionSignaturesPage = ({
 
                             <div class="flex flex-wrap gap-2 text-[12px]">
                                 <a
-                                    x-bind:href={"'/agreements/sign/' + env.token"}
+                                    x-bind:href={`'/agreements/sign/${tenantSlug}/' + env.token`}
                                     target="_blank"
                                     rel="noopener"
                                     class="inline-flex items-center gap-1 px-2.5 h-7 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"

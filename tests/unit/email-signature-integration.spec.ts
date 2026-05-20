@@ -7,10 +7,11 @@ const STUB_INSPECTOR = {
     phone: '(303) 555-0142',
     licenseNumber: 'TX-INSP-9001',
     slug: 'mike',
+    tenantSubdomain: 'acme',
 };
 
-const HOST = 'acme.inspectorhub.io';
-const SIGNATURE_LINK = 'https://acme.inspectorhub.io/book/mike';
+const HOST = 'app.inspectorhub.io';
+const SIGNATURE_LINK = 'https://app.inspectorhub.io/book/acme/mike';
 
 interface SentCall {
     to: string[];
