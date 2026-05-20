@@ -1875,6 +1875,32 @@ inspectionsRoutes.openapi(publishRoute, async (c) => {
     const service = c.var.services.inspection;
     const result = await service.publishInspection(id, tenantId, body);
 
+    // Design System 0520 subsystem D phase 9 — Republish snapshot.
+    // After the inspection's status flips to published, persist a frozen
+    // snapshot into report_versions so the customer-facing viewer can
+    // browse history + diff. Best-effort: failures log but do NOT block
+    // the publish response. snapshot-too-large (> 1 MB) downgrades to a
+    // warning audit entry rather than a 5xx — the report itself remains
+    // viewable through the existing /reports/:id path.
+    const user = c.get('user') as { sub?: string } | undefined;
+    const userId = user?.sub;
+    if (userId) {
+        try {
+            const out = await c.var.services.reportVersion.snapshotOnPublish(
+                tenantId, id, userId, body.summary,
+            );
+            logger.info('report-version snapshot saved', {
+                inspectionId: id,
+                versionNumber: out.versionNumber,
+            });
+        } catch (err) {
+            logger.warn('report-version snapshot failed (non-fatal)', {
+                inspectionId: id,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+
     // Spec 5A.5 — enqueue + background-render Summary + Full PDFs after
     // publish. Best-effort: failures log but never block the publish
     // response. Persistent record in report_pdfs lets the client UI poll

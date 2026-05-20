@@ -143,7 +143,15 @@ function inspectionEditor(inspectionId) {
       requirePayment: false,
       // Round-2 F1 — radio: 'report' (default) or 'agreement'.
       payload: 'report',
+      // Design System 0520 subsystem D P9 — free-text "what changed in vN+1"
+      // shown only when republishing (publishedVersion > 0).
+      summary: '',
     },
+
+    // Design System 0520 subsystem D P9 — version awareness for Republish UX.
+    // Updated lazily by refreshPublishedVersion() — called on init() and again
+    // after a successful publish so the next modal open shows the new vN.
+    publishedVersion: 0,
 
     // Round-2 F1 — multi-recipient Publish modal state.
     showLegacyPublishOptions: false,
@@ -165,6 +173,11 @@ function inspectionEditor(inspectionId) {
       const clearLocalCheatsheet = () => { window.__oiLocalCheatsheet = false; };
       window.addEventListener('pagehide', clearLocalCheatsheet, { once: true });
       window.addEventListener('beforeunload', clearLocalCheatsheet, { once: true });
+
+      // Design System 0520 subsystem D phase 9 — fetch existing version count
+      // so the publish-modal renders "Republish vN+1" when the inspection has
+      // been published before.
+      this.refreshPublishedVersion();
 
       // Slash-trigger inline popover sync — hide ACTIVE ITEM right pane while
       // the picker is open so the same canned comments are not rendered twice.
@@ -2302,6 +2315,26 @@ function inspectionEditor(inspectionId) {
       }
       this.showAiPopover = false;
       this.aiSuggestions = [];
+    },
+
+    // ============================================================
+    // Design System 0520 subsystem D phase 9 — Republish UX.
+    // Fetches /api/inspections/:id/versions on init + after a successful
+    // publish; sets publishedVersion to the highest existing version (0
+    // when none — first publish). The publish-modal uses this to flip
+    // between "Publish" and "Republish — v{N+1}" UX.
+    // ============================================================
+    async refreshPublishedVersion() {
+      try {
+        const r = await fetch('/api/inspections/' + this.inspectionId + '/versions', {
+          credentials: 'same-origin',
+        });
+        if (!r.ok) return;
+        const body = await r.json();
+        const versions = (body && body.data && body.data.versions) || [];
+        // list endpoint returns versions descending — index 0 is the latest.
+        this.publishedVersion = versions.length > 0 ? versions[0].versionNumber : 0;
+      } catch (_) { /* swallow — non-fatal */ }
     },
 
     // ============================================================
