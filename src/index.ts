@@ -1,7 +1,8 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Context } from 'hono';
 import { serveStatic } from 'hono/cloudflare-workers';
-import { deleteCookie, getCookie } from 'hono/cookie';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { signObserverCookie } from './lib/observer-cookie';
 import { verifyJwt } from './lib/jwt-keyring';
 import { classifyJwtPayload } from './lib/auth/jwt-claims';
 import { drizzle } from 'drizzle-orm/d1';
@@ -83,6 +84,9 @@ import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { SettingsIntegrationsPage } from './templates/pages/settings-integrations';
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
+import { ObservePage, ObserverExpiredPage } from './templates/pages/observe';
+import { VersionDiffPage } from './templates/pages/version-diff';
+import { observerCookieGuard, OBSERVER_EXPIRED_PATH } from './lib/middleware/observer-cookie';
 import { GuestJoinPage } from './templates/pages/guest-join';
 import { SettingsBillingPage } from './templates/pages/settings-billing';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
@@ -254,7 +258,11 @@ app.use('*', async (c, next) => {
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
-    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path === '/guest-join' || path.startsWith('/agreements/sign/')) return next();
+    // Design System 0520 subsystem D P5 — observer surfaces are gated by
+    // the dedicated observer-cookie middleware, not JWT.
+    const isObserverPublic = path.startsWith('/observe/') || path === OBSERVER_EXPIRED_PATH;
+
+    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || isObserverPublic || path === '/setup' || path === '/login' || path === '/join' || path === '/guest-join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     // (gated on `hasSetupWizard` — only the standalone profile enables it).
@@ -442,6 +450,37 @@ app.route('/api/inspections', inspectionsRoutes);
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
 // inspectionsRoutes above as /api/inspections/:id/presence/ws.
 app.route('/api/tenant', tenantPresenceRoutes);
+
+// Design System 0520 subsystem D phase 4/5 — anonymous observer claim.
+// Public route — exchanges a one-time token for a __Host-observer_session
+// cookie (HMAC-signed scope = inspection id + expiresAt). Subsequent
+// /observe/inspections/:id loads carry the cookie; the middleware in
+// src/lib/middleware/observer-cookie.ts verifies + scopes per-request.
+app.get('/observe/:token', async (c) => {
+    const token = c.req.param('token');
+    if (!token) return c.text('Missing token', 400);
+
+    const out = await c.var.services.observerLink.claim(token);
+    if (out.kind === 'not_found' || out.kind === 'revoked') {
+        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Invalid link</h1><p>This observer link has been revoked or does not exist.</p></body></html>', 404);
+    }
+    if (out.kind === 'expired') {
+        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Link expired</h1><p>This observer link has expired. Ask your inspector for a fresh one.</p></body></html>', 410);
+    }
+
+    const cookie = await signObserverCookie(
+        { linkId: out.linkId, inspectionId: out.inspectionId, exp: out.exp },
+        c.env.JWT_SECRET,
+    );
+    setCookie(c, '__Host-observer_session', cookie, {
+        httpOnly: true,
+        secure:   true,
+        sameSite: 'Strict',
+        path:     '/observe',
+        maxAge:   Math.max(out.exp - Math.floor(Date.now() / 1000), 60),
+    });
+    return c.redirect(`/observe/inspections/${out.inspectionId}`);
+});
 app.route('/api/inspections', inspectionSyncRoutes);
 // Sprint 3 S3-3 — tag link/unlink endpoints share the /api/inspections root
 // so the URL carries inspection id + item id directly. Mounted before the
@@ -577,8 +616,33 @@ app.get('/login', async (c) => {
     return c.html(LoginPage({ branding }));
 });
 
+// Design System 0520 subsystem D P5.1 — observer viewer (cookie-gated).
+app.get('/observe/inspections/:id', observerCookieGuard, (c) => {
+    const id = c.req.param('id');
+    const b  = c.get('branding');
+    return c.html(ObservePage({ inspectionId: id, ...(b ? { branding: b } : {}) }));
+});
+app.get(OBSERVER_EXPIRED_PATH, (c) => {
+    const b = c.get('branding');
+    return c.html(ObserverExpiredPage(b ? { branding: b } : {}));
+});
+
+// Design System 0520 subsystem D P8 — version diff viewer.
+app.get('/inspections/:id/versions/:n/diff', htmlAuthGuard(), (c) => {
+    const id = c.req.param('id');
+    const n  = parseInt(c.req.param('n') ?? '1', 10);
+    if (!id || Number.isNaN(n) || n < 1) {
+        return c.html(NotFoundPage({ branding: c.get('branding') }), 404);
+    }
+    const b = c.get('branding');
+    return c.html(VersionDiffPage({
+        inspectionId: id,
+        toVersion:    n,
+        ...(b ? { branding: b } : {}),
+    }));
+});
+
 // Design System 0520 subsystem C P6.3 — anonymous guest join landing.
-// JWT-exempt above. Renders the form that POSTs to /api/guest/claim.
 app.get('/guest-join', (c) => {
     const branding = c.get('branding');
     const token = c.req.query('token') ?? '';

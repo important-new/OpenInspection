@@ -100,6 +100,23 @@ export const PublishModal = (): JSX.Element => (
                     ></div>
                 </div>
 
+                {/* Design System 0520 subsystem D phase 9 — Republish summary.
+                    Shown only when the inspection has already been published once
+                    (publishedVersion > 0 — derived in the page factory). Free-
+                    text "what changed" stored on the new report_versions row. */}
+                <div class="space-y-2" x-show="publishedVersion > 0" x-cloak>
+                    <label class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 block">
+                        What changed in v<span x-text="publishedVersion + 1"></span>?
+                    </label>
+                    <textarea
+                        rows={3}
+                        maxlength={500}
+                        x-model="publishOptions.summary"
+                        placeholder="Optional — visible to the customer in the version-history dropdown"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
+                    ></textarea>
+                </div>
+
                 {/* Send a copy of … radio */}
                 <div class="space-y-2">
                     <div class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">

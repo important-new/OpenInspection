@@ -228,6 +228,11 @@ export const PublishInspectionSchema = z.object({
   // Stored only for audit/notification fan-out — does not change how the
   // report itself is built.
   sendAgreementCopy: z.boolean().default(false),
+  // Design System 0520 subsystem D phase 9 — Republish summary.
+  // Free-text "what changed" note attached to the new report_versions row
+  // created by ReportVersionService.snapshotOnPublish during this publish.
+  // Optional; max 500 chars. NULL on first publish.
+  summary: z.string().max(500).optional(),
 }).openapi('PublishInspection');
 
 // Round-2 F1 — recipient list returned by GET /api/inspections/:id/recipients.

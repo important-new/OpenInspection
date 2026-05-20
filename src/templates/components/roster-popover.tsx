@@ -46,12 +46,21 @@ export function RosterPopover(): JSX.Element {
                     <template x-for="u in roster" x-bind:key="u.userId">
                         <li class="flex items-center gap-3">
                             <div class="relative">
+                                {/* Design System 0520 subsystem D P6 — observers
+                                    render the 👁 glyph instead of initials so they
+                                    visually separate from inspectors in the live
+                                    roster. The amber halo + bg distinguishes
+                                    "watching" from "working". */}
                                 <div
-                                    class="w-7 h-7 rounded-full bg-slate-300 flex items-center justify-center text-xs font-bold text-slate-700"
-                                    x-text="(u.name || u.userId || '?').slice(0,2).toUpperCase()"
+                                    class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                                    {...{
+                                        ':class': "u.role === 'observer' ? 'bg-amber-100 text-amber-700' : 'bg-slate-300 text-slate-700'",
+                                        'x-text': "u.role === 'observer' ? '👁' : (u.name || u.userId || '?').slice(0,2).toUpperCase()",
+                                    }}
                                 ></div>
                                 <span
-                                    class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white bg-emerald-500"
+                                    class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white"
+                                    {...{ ':class': "u.role === 'observer' ? 'bg-amber-400' : 'bg-emerald-500'" }}
                                     aria-hidden="true"
                                 ></span>
                             </div>

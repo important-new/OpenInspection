@@ -204,6 +204,12 @@ export interface AppServices {
     concierge: ConciergeService;
     // QuickBooks Online integration
     qbo: import('../services/qbo.service').QBOService;
+    // Design System 0520 subsystem D — UnitTree hierarchy
+    unit: import('../services/unit.service').UnitService;
+    // Design System 0520 subsystem D — ObserverLink (no-account read-only)
+    observerLink: import('../services/observer-link.service').ObserverLinkService;
+    // Design System 0520 subsystem D — ReportVersions (snapshot-on-publish)
+    reportVersion: import('../services/report-version.service').ReportVersionService;
     // Design System 0520 subsystem C — apprentice review queue
     apprentice: import('../services/apprentice.service').ApprenticeService;
     // Design System 0520 subsystem C — guest invite tokens (anonymous claim)
