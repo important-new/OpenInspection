@@ -3,6 +3,7 @@ import { BrandingConfig } from '../../types/auth';
 import { ReportSidebar, type ReportSidebarSection } from '../components/report-sidebar';
 import { ReportTabBar } from '../components/report-tab-bar';
 import { TeamCredit, type TeamCreditMember } from '../components/team-credit';
+import { ReportUnitsSummary, type ReportUnit } from '../components/report-units-summary';
 import { ShareDropdown } from '../components/share-dropdown';
 import { PdfDropdown } from '../components/pdf-dropdown';
 import { ReportStatusPill } from '../components/report-status-pill';
@@ -33,9 +34,10 @@ export function renderProfessionalReport(data: {
     isAuthenticated?: boolean | undefined,
     resolvedTheme?: 'modern' | 'classic' | 'minimal' | undefined,
     // Design System 0520 subsystem E P8 — TeamCredit footer block.
-    // Both optional so existing callers keep rendering unchanged.
     team?: TeamCreditMember[],
     nachiNumber?: string | null,
+    // Design System 0520 subsystem D P3 — UnitTree summary on the report.
+    units?: ReportUnit[],
 }): JSX.Element {
     const { inspection, template, results, branding } = data;
     const isAuthenticated = data.isAuthenticated ?? false;
@@ -310,6 +312,26 @@ export function renderProfessionalReport(data: {
                    </div>
                 </div>
             </div>
+
+            {/* Design System 0520 subsystem D P3 — UnitTree summary card.
+                Only renders when the inspection has any inspection_units
+                rows; otherwise returns empty fragment and the section
+                list below is the entire body, unchanged. */}
+            {(data.units?.length ?? 0) > 0
+                ? (() => {
+                    // Compute per-unit defect counts from the items that
+                    // carry a unitId (stamped by the editor at rate time).
+                    const counts: Record<string, number> = {};
+                    for (const [, res] of Object.entries(resultData)) {
+                        const uid = (res as { unitId?: string }).unitId;
+                        if (!uid) continue;
+                        if (resolveSeverity((res.rating ?? res.status) as string | undefined) === 'defect') {
+                            counts[uid] = (counts[uid] ?? 0) + 1;
+                        }
+                    }
+                    return <ReportUnitsSummary units={data.units ?? []} defectCountsByUnit={counts} />;
+                })()
+                : null}
 
             {/* Inspection Details */}
             <div class="px-6 py-10 md:px-10 md:py-12 space-y-10 bg-white">

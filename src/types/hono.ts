@@ -204,11 +204,13 @@ export interface AppServices {
     concierge: ConciergeService;
     // QuickBooks Online integration
     qbo: import('../services/qbo.service').QBOService;
-    // Design System 0520 subsystem E P4 — IdentitySwitcher (M20)
+    unit: import('../services/unit.service').UnitService;
+    observerLink: import('../services/observer-link.service').ObserverLinkService;
+    reportVersion: import('../services/report-version.service').ReportVersionService;
+    apprentice: import('../services/apprentice.service').ApprenticeService;
+    guestInvite: import('../services/guest-invite.service').GuestInviteService;
     identity: import('../services/identity.service').IdentityService;
-    // Design System 0520 subsystem E P6 — IntegrationsService (M22)
     integrations: import('../services/integrations.service').IntegrationsService;
-    // Design System 0520 subsystem E P7 — AnalyticsService (M22)
     analytics: import('../services/analytics.service').AnalyticsService;
 }
 

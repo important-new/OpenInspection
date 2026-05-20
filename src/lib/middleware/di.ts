@@ -1,6 +1,11 @@
 import { Context, Next } from 'hono';
 import { HonoConfig, AppServices } from '../../types/hono';
 import { AdminService } from '../../services/admin.service';
+import { UnitService } from '../../services/unit.service';
+import { ObserverLinkService } from '../../services/observer-link.service';
+import { ReportVersionService } from '../../services/report-version.service';
+import { ApprenticeService } from '../../services/apprentice.service';
+import { GuestInviteService } from '../../services/guest-invite.service';
 import { AIService } from '../../services/ai.service';
 import { AuthService } from '../../services/auth.service';
 import { BookingService } from '../../services/booking.service';
@@ -269,16 +274,28 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         c.env.JWT_SECRET,
                     );
                     break;
+                case 'unit':
+                    target.unit = new UnitService(c.env.DB);
+                    break;
+                case 'observerLink':
+                    target.observerLink = new ObserverLinkService(c.env.DB);
+                    break;
+                case 'reportVersion':
+                    target.reportVersion = new ReportVersionService(c.env.DB);
+                    break;
+                case 'apprentice':
+                    target.apprentice = new ApprenticeService(c.env.DB);
+                    break;
+                case 'guestInvite':
+                    target.guestInvite = new GuestInviteService(c.env.DB);
+                    break;
                 case 'identity':
-                    // Design System 0520 subsystem E P4 — IdentitySwitcher (M20)
                     target.identity = new IdentityService(c.env.DB);
                     break;
                 case 'integrations':
-                    // Design System 0520 subsystem E P6 — IntegrationGrid (M22)
                     target.integrations = new IntegrationsService(c.env.DB, c.env);
                     break;
                 case 'analytics':
-                    // Design System 0520 subsystem E P7 — AnalyticsPanel (M22)
                     target.analytics = new AnalyticsService(c.env.DB);
                     break;
             }
