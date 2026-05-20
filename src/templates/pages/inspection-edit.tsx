@@ -50,6 +50,122 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           .hide-scrollbar::-webkit-scrollbar { display: none; }
           .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
           [x-cloak] { display: none !important; }
+
+          /* Dark mode — inline-style elements that Tailwind cannot reach */
+          .editor-canvas {
+            background: #f8fafc;
+            background-image: radial-gradient(circle, #cbd5e1 0.6px, transparent 0.6px);
+            background-size: 20px 20px;
+          }
+          [data-color-scheme="dark"] .editor-canvas {
+            background: #0f172a;
+            background-image: radial-gradient(circle, #334155 0.6px, transparent 0.6px);
+            background-size: 20px 20px;
+          }
+          .mobile-sticky-hdr {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px) saturate(1.5);
+            border-bottom: 1px solid rgba(226,232,240,0.6);
+          }
+          [data-color-scheme="dark"] .mobile-sticky-hdr {
+            background: rgba(15,23,42,0.92);
+            border-bottom-color: rgba(51,65,85,0.6);
+          }
+          .item-card {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px) saturate(1.5);
+            border: 1px solid rgba(255,255,255,0.7);
+            border-left: 3px solid transparent;
+            touch-action: manipulation;
+          }
+          [data-color-scheme="dark"] .item-card {
+            background: rgba(30,41,59,0.85);
+            border-color: rgba(51,65,85,0.7);
+          }
+          .mobile-bottom-bar {
+            background: rgba(255,255,255,0.90);
+            backdrop-filter: blur(16px);
+            border-top: 1px solid rgba(226,232,240,0.6);
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+          }
+          [data-color-scheme="dark"] .mobile-bottom-bar {
+            background: rgba(15,23,42,0.92);
+            border-top-color: rgba(51,65,85,0.6);
+          }
+          .sidebar-glass {
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(12px);
+            border-color: rgba(226,232,240,0.6);
+          }
+          [data-color-scheme="dark"] .sidebar-glass {
+            background: rgba(15,23,42,0.80);
+            border-color: rgba(51,65,85,0.6);
+          }
+          .toolbar-glass {
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(16px) saturate(1.5);
+            border-bottom: 1px solid rgba(226,232,240,0.6);
+          }
+          [data-color-scheme="dark"] .toolbar-glass {
+            background: rgba(15,23,42,0.92);
+            border-bottom-color: rgba(51,65,85,0.6);
+          }
+          .quick-rating-sheet {
+            background: #ffffff;
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.15);
+          }
+          [data-color-scheme="dark"] .quick-rating-sheet {
+            background: #1e293b;
+            box-shadow: 0 -8px 32px rgba(0,0,0,0.40);
+          }
+          .item-notes-textarea {
+            background: #f1f5f9;
+            border-color: #e2e8f0;
+            color: #0f172a;
+          }
+          [data-color-scheme="dark"] .item-notes-textarea {
+            background: #1e293b;
+            border-color: #475569;
+            color: #e2e8f0;
+          }
+          .canned-comments-wrap {
+            border-color: #e2e8f0;
+            background: rgba(255,255,255,0.6);
+          }
+          [data-color-scheme="dark"] .canned-comments-wrap {
+            border-color: #475569;
+            background: rgba(30,41,59,0.6);
+          }
+          .canned-tab-border {
+            border-color: #e2e8f0;
+          }
+          [data-color-scheme="dark"] .canned-tab-border {
+            border-color: #475569;
+          }
+          .inline-input {
+            border-color: #e2e8f0;
+          }
+          [data-color-scheme="dark"] .inline-input {
+            background: #1e293b;
+            border-color: #475569;
+            color: #e2e8f0;
+          }
+          .inline-select {
+            border-color: #e2e8f0;
+            color: #475569;
+          }
+          [data-color-scheme="dark"] .inline-select {
+            background: #1e293b;
+            border-color: #475569;
+            color: #e2e8f0;
+          }
+          .status-bar {
+            border-color: rgba(226,232,240,0.6);
+          }
+          [data-color-scheme="dark"] .status-bar {
+            background: #1e293b;
+            border-color: rgba(51,65,85,0.6);
+          }
         ` }} />
       </>
     ),
@@ -63,7 +179,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       <nav
         role="tablist"
         aria-label="Inspection sections"
-        class="sticky top-0 z-[60] bg-white border-b border-slate-200 print:hidden"
+        class="sticky top-0 z-[60] bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 print:hidden"
       >
         <div class="max-w-full mx-auto px-4 flex items-center gap-1 overflow-x-auto hide-scrollbar">
           <a
@@ -71,19 +187,19 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             role="tab"
             aria-current="page"
             aria-selected="true"
-            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-indigo-500 text-slate-900 whitespace-nowrap"
+            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-indigo-500 text-slate-900 dark:text-slate-100 whitespace-nowrap"
           >Report</a>
           <a
             href={`/inspections/${inspectionId}/photos`}
             role="tab"
             aria-selected="false"
-            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 whitespace-nowrap transition-colors"
+            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 whitespace-nowrap transition-colors"
           >Photos</a>
           <a
             href={`/inspections/${inspectionId}/summary`}
             role="tab"
             aria-selected="false"
-            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 whitespace-nowrap transition-colors"
+            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 whitespace-nowrap transition-colors"
           >Summary</a>
           {/* Track E1 (ITB §11) — opt-in 6th tab. */}
           {enableRepairList && (
@@ -92,20 +208,20 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               role="tab"
               aria-selected="false"
               data-testid="inspection-edit-repair-list-tab"
-              class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 whitespace-nowrap transition-colors"
+              class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 whitespace-nowrap transition-colors"
             >Repair List</a>
           )}
           <a
             href={`/inspections/${inspectionId}/signatures`}
             role="tab"
             aria-selected="false"
-            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 whitespace-nowrap transition-colors"
+            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 whitespace-nowrap transition-colors"
           >Signatures</a>
           <a
             href={`/inspections/${inspectionId}/settings`}
             role="tab"
             aria-selected="false"
-            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300 whitespace-nowrap transition-colors"
+            class="px-4 py-2.5 text-[13px] font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 whitespace-nowrap transition-colors"
           >Settings</a>
           {/* PDF download dropdown — ml-auto pushes it to the right edge */}
           <div class="ml-auto flex-shrink-0 pl-2 py-1.5" x-data={`pdfDownloader('${inspectionId}')`} {...{'x-on:click.outside': 'open = false'}}>
@@ -115,7 +231,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 x-on:click="open = !open"
                 x-bind:disabled="loading"
                 aria-label="Download PDF"
-                class="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-300 transition-all disabled:opacity-60"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all disabled:opacity-60"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -134,12 +250,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 x-transition:leave="transition ease-in duration-75"
                 x-transition:leave-start="opacity-100 scale-100"
                 x-transition:leave-end="opacity-0 scale-95"
-                class="absolute right-0 top-full mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-[80] py-1"
+                class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-[80] py-1"
               >
                 <button
                   type="button"
                   x-on:click="download('summary')"
-                  class="w-full text-left px-4 py-2 text-[12px] text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
+                  class="w-full text-left px-4 py-2 text-[12px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 font-medium"
                 >
                   <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -149,7 +265,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 <button
                   type="button"
                   x-on:click="download('full')"
-                  class="w-full text-left px-4 py-2 text-[12px] text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
+                  class="w-full text-left px-4 py-2 text-[12px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 font-medium"
                 >
                   <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v14a2 2 0 01-2 2z" />
@@ -164,8 +280,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       </nav>
       <div
         x-data={`inspectionEditor('${inspectionId}')`}
-        class="min-h-screen"
-        style="background: #f8fafc; background-image: radial-gradient(circle, #cbd5e1 0.6px, transparent 0.6px); background-size: 20px 20px;"
+        class="min-h-screen editor-canvas"
       >
         {/* Spec 5G M1.1 — Global hotkey photo input. P key triggers .click()
             on this hidden input; uploadPhoto reads activeItemId. */}
@@ -189,8 +304,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 <button
                     type="button"
                     x-on:click="showAiPopover = false"
-                    class="h-10 px-6 rounded-xl border bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all"
-                    style="border-color: #e2e8f0"
+                    class="h-10 px-6 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
                 >
                     Cancel
                 </button>
@@ -198,7 +312,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         >
             <div class="space-y-2">
                 <template x-for="(s, idx) in aiSuggestions" x-bind:key="idx">
-                    <button type="button" x-on:click="insertSuggestion(s)" class="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all text-sm text-slate-700">
+                    <button type="button" x-on:click="insertSuggestion(s)" class="w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-400 dark:hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all text-sm text-slate-700 dark:text-slate-200">
                         <span x-text="s"></span>
                     </button>
                 </template>
@@ -208,15 +322,15 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         {/* ===== Mobile View ===== */}
         <div x-show="!isDesktop" class="lg:hidden">
           {/* Sticky Header */}
-          <div class="sticky top-0 z-50" style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border-bottom: 1px solid rgba(226,232,240,0.6);">
+          <div class="sticky top-0 z-50 mobile-sticky-hdr">
             <div class="px-4 py-3 flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <a href="/dashboard" class="w-8 h-8 rounded-xl bg-white/60 flex items-center justify-center">
+                <a href="/dashboard" class="w-8 h-8 rounded-xl bg-white/60 dark:bg-slate-800/60 flex items-center justify-center">
                   <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 </a>
                 <div>
-                  <h1 class="text-sm font-bold leading-tight" style="color: #0f172a" x-text="inspection.propertyAddress || 'Loading...'"></h1>
-                  <p class="text-[10px] font-mono" style="color: #cbd5e1" x-text="formattedDate"></p>
+                  <h1 class="text-sm font-bold leading-tight text-slate-900 dark:text-slate-100" x-text="inspection.propertyAddress || 'Loading...'"></h1>
+                  <p class="text-[10px] font-mono text-slate-300 dark:text-slate-500" x-text="formattedDate"></p>
                 </div>
               </div>
               <div class="flex items-center gap-2">
@@ -224,7 +338,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 <span x-show="saveState === 'saved'" x-cloak class="text-[10px] font-semibold text-emerald-500">Saved</span>
                 <span x-show="saveState === 'error'" x-cloak class="text-[10px] font-semibold text-red-500">Error</span>
                 <span class="text-xs font-mono font-semibold px-2 py-1 rounded-lg" style="background: #eef2ff; color: var(--ih-primary, #6366f1)" x-text="completionPercent + '%'"></span>
-                <button x-on:click="toggleCheatsheet()" class="w-8 h-8 rounded-xl bg-white/60 flex items-center justify-center" aria-label="Gesture help">
+                <button x-on:click="toggleCheatsheet()" class="w-8 h-8 rounded-xl bg-white/60 dark:bg-slate-800/60 flex items-center justify-center" aria-label="Gesture help">
                   <svg class="w-4 h-4" style="color: #64748b" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093M12 17h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </button>
               </div>
@@ -237,7 +351,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   x-on:click="selectSection(idx)"
                   x-show="sectionMatchesSearch(sec)"
                   class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap"
-                  x-bind:class="currentSectionIdx === idx ? 'text-white' : 'bg-white/60 text-gray-600'"
+                  x-bind:class="currentSectionIdx === idx ? 'text-white' : 'bg-white/60 dark:bg-slate-800/60 text-gray-600 dark:text-slate-300'"
                   x-bind:style="currentSectionIdx === idx ? 'background: var(--ih-primary, #6366f1)' : ''"
                 >
                   <span x-show="getSectionIconSvg(sec.icon)" x-html="getSectionIconSvg(sec.icon, 'w-3.5 h-3.5')"></span>
@@ -259,10 +373,10 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             style="display:none"
             class="mx-4 mt-3 flex flex-wrap items-center gap-1.5 px-3 py-2 bg-indigo-50 rounded-md border border-indigo-200"
           >
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white ring-1 ring-inset ring-indigo-200 text-[10px] font-bold text-indigo-700">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-700 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">
               Part <span x-text="partIndex"></span> of <span x-text="partTotal"></span>
             </span>
-            <span class="text-[10px] text-slate-500" x-text="'request ' + requestIdShort"></span>
+            <span class="text-[10px] text-slate-500 dark:text-slate-400" x-text="'request ' + requestIdShort"></span>
             <div class="flex flex-wrap gap-1 mt-1 w-full">
               <template x-for="s in siblings" {...{ 'x-bind:key': 's.id' }}>
                 <a
@@ -301,8 +415,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               <div
                 x-bind:data-item-id="item.id"
                 x-show="itemMatchesSearch(currentSection, item)"
-                class="rounded-md p-4 transition-all cursor-pointer"
-                style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border: 1px solid rgba(255,255,255,0.7); border-left: 3px solid transparent; touch-action: manipulation;"
+                class="rounded-md p-4 transition-all cursor-pointer item-card"
                 x-bind:style="(activeItemId === item.id ? 'border-color: #6366f1; ' : '') + 'border-left-color: ' + getRatingColor(getItemRating(item.id))"
                 x-bind:class="activeItemId === item.id ? 'ring-2 ring-indigo-100' : ''"
                 x-on:click="setActiveItem(item.id)"
@@ -312,8 +425,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               >
                 <div class="flex items-start justify-between mb-3">
                   <div>
-                    <h3 class="font-bold text-sm" style="color: #0f172a" x-html="highlightSearchMatch(item.label)"></h3>
-                    <span class="text-[10px] font-mono" style="color: #cbd5e1" x-text="item.number"></span>
+                    <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100" x-html="highlightSearchMatch(item.label)"></h3>
+                    <span class="text-[10px] font-mono text-slate-300 dark:text-slate-500" x-text="item.number"></span>
                   </div>
                   <span class="w-3 h-3 rounded-full" x-bind:style="'background:' + getRatingColor(getItemRating(item.id))"></span>
                 </div>
@@ -374,7 +487,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 </div>
 
                 {/* Expand Toggle */}
-                <div class="flex items-center gap-3 text-xs" style="color: #94a3b8">
+                <div class="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500">
                   <button x-on:click="toggleExpand(item.id)" class="flex items-center gap-1 hover:text-gray-700">
                     <svg class="w-3 h-3 transition-transform" x-bind:class="expanded[item.id] ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                     <span x-text="expanded[item.id] ? 'Collapse' : 'Expand'"></span>
@@ -384,9 +497,9 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 </div>
 
                 {/* Expanded Detail */}
-                <div x-show="expanded[item.id]" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(226,232,240,0.6)">
+                <div x-show="expanded[item.id]" x-collapse="" class="mt-3 pt-3 border-t border-slate-200/60 dark:border-slate-700/60">
                   {/* Sprint 1 A-10: simple-notes fallback hint when item has no tabs */}
-                  <div x-show="!item.tabs || (!item.tabs.information && !item.tabs.limitations && !item.tabs.defects)" class="mb-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
+                  <div x-show="!item.tabs || (!item.tabs.information && !item.tabs.limitations && !item.tabs.defects)" class="mb-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span>Simple notes mode.</span>
                     <a href="/templates" class="text-indigo-600 hover:underline">Upgrade to tabs →</a>
@@ -398,14 +511,13 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       x-on:input="debounceSave()"
                       data-slash-trigger="true"
                       placeholder="Add notes — type / for snippets"
-                      class="w-full p-3 text-sm rounded-xl border resize-none"
-                      style="background: #f1f5f9; border-color: #e2e8f0; color: #0f172a"
+                      class="w-full p-3 text-sm rounded-xl border resize-none item-notes-textarea"
                       rows={3}
                     ></textarea>
                     <button type="button"
                       x-bind:data-mic-target="'notes-mob-' + item.id"
                       x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
-                      class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-white"
+                      class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 dark:bg-slate-700/90 border border-slate-200 dark:border-slate-600 flex items-center justify-center hover:bg-white dark:hover:bg-slate-700"
                       title="Dictate (Web Speech)"
                       aria-label="Dictate notes">
                       <svg class="w-3.5 h-3.5 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
@@ -421,28 +533,26 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                         the native <input capture> picker. */}
                     <button type="button"
                       x-on:click="openBurstCamera(item.id)"
-                      class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-                      style="background: #eef2ff; color: var(--ih-primary, #6366f1)"
+                      class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
                       aria-label="Open burst camera">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       Camera
                     </button>
-                    <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
+                    <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                       Library
                     </button>
                     <button type="button"
                       x-on:click="suggestComment(item.label, currentSection?.title || '', document.getElementById('notes-mob-' + item.id), $event)"
-                      class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                      style="background: #fef3c7; color: #b45309">
+                      class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                       Suggest
                     </button>
                   </div>
 
                   {/* Spec 5B mobile — Canned Comment Tabs (compact). */}
-                  <div x-show="item.tabs && (item.tabs.information || item.tabs.limitations || item.tabs.defects)" class="mt-4 rounded-xl border" style="border-color: #e2e8f0; background: rgba(255,255,255,0.6);">
-                    <div class="flex items-center gap-1 px-2 py-1.5 border-b overflow-x-auto" style="border-color: #e2e8f0;">
+                  <div x-show="item.tabs && (item.tabs.information || item.tabs.limitations || item.tabs.defects)" class="mt-4 rounded-xl border canned-comments-wrap">
+                    <div class="flex items-center gap-1 px-2 py-1.5 border-b overflow-x-auto canned-tab-border">
                       <template x-for="tabName in ['information','limitations','defects']" x-bind:key="tabName">
                         <button type="button"
                           x-on:click="setActiveItemTab(tabName); activeItemId = item.id"
@@ -457,21 +567,20 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     <div class="p-2 space-y-2">
                       <template x-for="entry in getTabEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information'))" x-bind:key="entry.cannedId">
                         <div class="rounded-lg border p-2"
-                          x-bind:class="entry.included ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'">
+                          x-bind:class="entry.included ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'">
                           <label class="flex items-start gap-2 cursor-pointer">
                             <input type="checkbox"
                               x-bind:checked="entry.included"
                               x-on:change="toggleCannedComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId)"
                               class="mt-1 rounded text-indigo-600" />
                             <div class="flex-1 min-w-0">
-                              <span class="text-xs font-bold text-slate-900" x-text="entry.title"></span>
-                              <p x-show="!entry.included" class="text-[11px] italic text-slate-500 line-clamp-2 mt-0.5" x-text="entry.comment"></p>
+                              <span class="text-xs font-bold text-slate-900 dark:text-slate-100" x-text="entry.title"></span>
+                              <p x-show="!entry.included" class="text-[11px] italic text-slate-500 dark:text-slate-400 line-clamp-2 mt-0.5" x-text="entry.comment"></p>
                               <textarea x-show="entry.included"
                                 x-bind:value="entry.effectiveComment"
                                 x-on:input="setCannedCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId, $event.target.value)"
                                 rows={2}
-                                class="mt-1 w-full px-2 py-1.5 text-[12px] rounded border bg-white resize-y"
-                                style="border-color: #e2e8f0"></textarea>
+                                class="mt-1 w-full px-2 py-1.5 text-[12px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 resize-y inline-input"></textarea>
                               {/* Spec 5B P2B — AI Rewrite (mobile). */}
                               <div x-show="entry.included" class="mt-1 flex justify-end">
                                 <button type="button"
@@ -498,14 +607,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                 x-bind:value="custom.title"
                                 x-on:input="setCustomCommentTitle(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
                                 placeholder="Title"
-                                class="w-full px-1.5 py-0.5 text-[11px] font-bold rounded border bg-white"
-                                style="border-color: #e2e8f0" />
+                                class="w-full px-1.5 py-0.5 text-[11px] font-bold rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input" />
                               <textarea
                                 x-bind:value="custom.comment"
                                 x-on:input="setCustomCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
                                 rows={2}
-                                class="w-full px-1.5 py-1 text-[11px] rounded border bg-white resize-y"
-                                style="border-color: #e2e8f0"
+                                class="w-full px-1.5 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 resize-y inline-input"
                                 placeholder="Comment..."></textarea>
                               <template x-if="(activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
                                 <div class="grid grid-cols-2 gap-1.5">
@@ -513,13 +620,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                     x-bind:value="custom.location || ''"
                                     x-on:input="setCustomCommentLocation(item.id, custom.id, $event.target.value)"
                                     placeholder="Location"
-                                    class="w-full px-1.5 py-0.5 text-[10px] rounded border bg-white"
-                                    style="border-color: #e2e8f0" />
+                                    class="w-full px-1.5 py-0.5 text-[10px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input" />
                                   <select
                                     x-bind:value="custom.category || 'maintenance'"
                                     x-on:change="setCustomCommentCategory(item.id, custom.id, $event.target.value)"
-                                    class="w-full px-1.5 py-0.5 text-[10px] rounded border bg-white"
-                                    style="border-color: #e2e8f0">
+                                    class="w-full px-1.5 py-0.5 text-[10px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input">
                                     <option value="maintenance">Maintenance</option>
                                     <option value="recommendation">Recommendation</option>
                                     <option value="safety">Safety</option>
@@ -545,8 +650,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       </template>
                       <button type="button"
                         x-on:click="addCustomComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'))"
-                        class="w-full mt-1 py-1 text-[10px] font-bold rounded-lg border-2 border-dashed text-slate-500 hover:bg-white/60"
-                        style="border-color: #e2e8f0">
+                        class="w-full mt-1 py-1 text-[10px] font-bold rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-white/60 dark:hover:bg-slate-700/60"
+                      >
                         + Add custom comment
                       </button>
                     </div>
@@ -555,7 +660,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
                   <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-3 gap-2">
                     <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
-                      <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e2e8f0;">
+                      <div class="relative group aspect-square overflow-hidden rounded-lg bg-slate-200 dark:bg-slate-700">
                         <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
                           class="w-full h-full object-cover" alt="Photo" />
                         <button type="button"
@@ -575,28 +680,28 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               x-show="hasSearchQuery && searchMatchCount === 0"
               style="display:none"
               data-testid="editor-search-empty"
-              class="mt-4 rounded-md bg-white border border-dashed border-slate-200 p-6 text-center"
+              class="mt-4 rounded-md bg-white dark:bg-slate-800 border border-dashed border-slate-200 dark:border-slate-700 p-6 text-center"
             >
-              <p class="text-sm text-slate-500">No matches for &ldquo;<span class="font-semibold text-slate-700" x-text="searchQuery"></span>&rdquo;.</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">No matches for &ldquo;<span class="font-semibold text-slate-700 dark:text-slate-200" x-text="searchQuery"></span>&rdquo;.</p>
               <button x-on:click="clearSearch()" class="mt-2 text-xs font-semibold text-indigo-600 hover:underline">Clear search</button>
             </div>
           </div>
 
           {/* Spec 4D mobile — Inspection Events compact list */}
-          <section x-data={`inspectionEventsSection('${inspectionId}')`} x-init="load()" class="mx-4 mb-24 mt-3 rounded-md bg-white p-4 ring-1 ring-slate-200">
+          <section x-data={`inspectionEventsSection('${inspectionId}')`} x-init="load()" class="mx-4 mb-24 mt-3 rounded-md bg-white dark:bg-slate-800 p-4 ring-1 ring-slate-200 dark:ring-slate-700">
             <header class="flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
-                <h2 class="text-sm font-bold text-slate-900">Events</h2>
-                <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500" x-show="events.length > 0" x-text="events.length"></span>
+                <h2 class="text-sm font-bold text-slate-900 dark:text-slate-100">Events</h2>
+                <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400" x-show="events.length > 0" x-text="events.length"></span>
               </div>
               <button type="button" x-on:click="openCreate()" class="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[11px] font-bold">+ Add</button>
             </header>
             <ul class="mt-2 space-y-1.5">
               <template x-for="ev in events" {...{ 'x-bind:key': 'ev.id' }}>
-                <li class="flex items-center gap-2 p-2 bg-slate-50 rounded-lg text-xs">
+                <li class="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-xs">
                   <span class="w-2 h-2 rounded-full flex-shrink-0" {...{ 'x-bind:style': "'background:' + eventTypeColor(ev.eventTypeId)" }}></span>
-                  <span class="font-bold text-slate-900 truncate" x-text="eventTypeName(ev.eventTypeId)"></span>
-                  <span class="text-slate-500 text-[10px]" x-text="formatDate(ev.scheduledAt)"></span>
+                  <span class="font-bold text-slate-900 dark:text-slate-100 truncate" x-text="eventTypeName(ev.eventTypeId)"></span>
+                  <span class="text-slate-500 dark:text-slate-400 text-[10px]" x-text="formatDate(ev.scheduledAt)"></span>
                   <span class="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" x-text="(ev.status || '').replace('_', ' ')" {...{ 'x-bind:class': 'statusBadgeClass(ev.status)' }}></span>
                   <button type="button" x-show="ev.status === 'scheduled'" x-on:click="markComplete(ev.id)" class="text-emerald-600 text-xs font-bold" title="Done">&#10003;</button>
                   <button type="button" x-on:click="del(ev.id)" class="text-rose-600 text-xs font-bold" title="Delete">&times;</button>
@@ -609,8 +714,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           {/* Bottom Bar */}
           {/* Spec 5G mobile field-flow (Round 12) — pad-bottom honors iOS
               safe-area (home indicator) so Publish never sits under it. */}
-          <div class="fixed bottom-0 left-0 right-0 z-40 px-4 pt-3 flex gap-3" style="background: rgba(255,255,255,0.90); backdrop-filter: blur(16px); border-top: 1px solid rgba(226,232,240,0.6); padding-bottom: max(12px, env(safe-area-inset-bottom));">
-            <button x-on:click="previewReport()" class="flex-1 min-h-[44px] py-3 text-sm font-semibold rounded-xl border" style="border-color: #e2e8f0; color: #475569">Preview</button>
+          <div class="fixed bottom-0 left-0 right-0 z-40 px-4 pt-3 flex gap-3 mobile-bottom-bar">
+            <button x-on:click="previewReport()" class="flex-1 min-h-[44px] py-3 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">Preview</button>
             <button
               x-on:click="showPublishModal = true"
               x-bind:disabled="completionPercent < 100"
@@ -629,10 +734,10 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             {...{ 'x-on:click.self': 'closeQuickRating()' }}
             style="background: rgba(0,0,0,0.4)"
           >
-            <div class="w-full rounded-t-3xl p-5 pb-8" style="background: #ffffff; box-shadow: 0 -8px 32px rgba(0,0,0,0.15)">
+            <div class="w-full rounded-t-3xl p-5 pb-8 quick-rating-sheet">
               <div class="flex items-center justify-between mb-4">
-                <h3 class="text-base font-bold" style="color: #0f172a">Quick Rate</h3>
-                <button x-on:click="closeQuickRating()" class="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center" aria-label="Close">
+                <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">Quick Rate</h3>
+                <button x-on:click="closeQuickRating()" class="w-8 h-8 rounded-xl bg-gray-100 dark:bg-slate-700 flex items-center justify-center" aria-label="Close">
                   <svg class="w-4 h-4" style="color: #64748b" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
@@ -648,8 +753,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 </template>
                 <button
                   x-on:click="setQuickRating(null)"
-                  class="col-span-2 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 border"
-                  style="background: #f1f5f9; border-color: #e2e8f0"
+                  class="col-span-2 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 dark:text-slate-400 border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-800"
                 >
                   Clear rating
                 </button>
@@ -661,26 +765,26 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         {/* ===== Desktop View ===== */}
         <div x-show="isDesktop" class="hidden lg:flex min-h-screen">
           {/* Left Sidebar — hidden in focus mode (⌘2) */}
-          <aside x-show="viewMode !== 'focus'" class="w-[220px] sticky top-0 h-screen flex-shrink-0 flex flex-col border-r overflow-y-auto" style="background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6);">
+          <aside x-show="viewMode !== 'focus'" class="w-[220px] sticky top-0 h-screen flex-shrink-0 flex flex-col border-r overflow-y-auto sidebar-glass">
             <div class="px-5 pt-6 pb-4 border-b" style="border-color: rgba(226,232,240,0.5)">
-              <a href="/dashboard" class="flex items-center gap-2 text-xs mb-3 hover:text-indigo-600 transition-colors" style="color: #94a3b8">
+              <a href="/dashboard" class="flex items-center gap-2 text-xs mb-3 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 Dashboard
               </a>
-              <h2 class="text-sm font-bold" style="color: #0f172a" x-text="inspection.propertyAddress || 'Loading...'"></h2>
-              <p class="text-[10px] font-mono mt-1" style="color: #cbd5e1" x-text="formattedDate"></p>
+              <h2 class="text-sm font-bold text-slate-900 dark:text-slate-100" x-text="inspection.propertyAddress || 'Loading...'"></h2>
+              <p class="text-[10px] font-mono mt-1 text-slate-300 dark:text-slate-500" x-text="formattedDate"></p>
             </div>
             {/* R7-20: surface what the progress bar measures so inspectors
                 stop wondering how it's computed. */}
             <div class="px-5 py-3" title="Percent of inspection items that have a rating set (Sat / Mon / Defect / NI / NP).">
-              <div class="flex justify-between text-[10px] font-mono mb-1" style="color: #94a3b8">
+              <div class="flex justify-between text-[10px] font-mono mb-1 text-slate-400 dark:text-slate-500">
                 <span>Progress · items rated</span>
                 <span x-text="completionPercent + '%'"></span>
               </div>
-              <div class="h-1.5 rounded-full" style="background: #e2e8f0">
+              <div class="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700">
                 <div class="h-full rounded-full transition-all duration-500" x-bind:style="'width:' + completionPercent + '%; background: var(--ih-primary, #6366f1)'"></div>
               </div>
-              <div class="mt-2 text-[10px] font-mono" style="color: #94a3b8">
+              <div class="mt-2 text-[10px] font-mono text-slate-400 dark:text-slate-500">
                 <span x-show="saveState === 'saving'" x-cloak class="text-amber-500">Saving...</span>
                 <span x-show="saveState === 'saved'" x-cloak class="text-emerald-500">All changes saved</span>
                 <span x-show="saveState === 'error'" x-cloak class="text-red-500">Save failed</span>
@@ -688,9 +792,9 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             </div>
             {/* Report Access */}
             <div class="px-4 py-3 border-t space-y-2" style="border-color: rgba(226,232,240,0.5)">
-              <div class="text-[10px] font-mono font-semibold uppercase tracking-wide mb-2" style="color: #94a3b8">Report Access</div>
+              <div class="text-[10px] font-mono font-semibold uppercase tracking-wide mb-2 text-slate-400 dark:text-slate-500">Report Access</div>
               <label class="flex items-center justify-between cursor-pointer">
-                <span class="text-xs" style="color: #475569">Require Payment</span>
+                <span class="text-xs text-slate-600 dark:text-slate-300">Require Payment</span>
                 <button
                   x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentRequired:!inspection.paymentRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.paymentRequired=!inspection.paymentRequired; })`}
                   x-bind:class="inspection.paymentRequired ? 'bg-indigo-500' : 'bg-slate-200'"
@@ -700,7 +804,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 </button>
               </label>
               <label class="flex items-center justify-between cursor-pointer">
-                <span class="text-xs" style="color: #475569">Require Agreement</span>
+                <span class="text-xs text-slate-600 dark:text-slate-300">Require Agreement</span>
                 <button
                   x-on:click={`authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({agreementRequired:!inspection.agreementRequired})}).then(r=>r.json()).then(d=>{ if(d.success) inspection.agreementRequired=!inspection.agreementRequired; })`}
                   x-bind:class="inspection.agreementRequired ? 'bg-indigo-500' : 'bg-slate-200'"
@@ -751,8 +855,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   <select
                     x-bind:value="inspection.reportThemeOverride || ''"
                     x-on:change={`const v=$event.target.value||null;authFetch('/api/inspections/${inspectionId}', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({reportThemeOverride:v})}).then(r=>r.json()).then(d=>{if(d.success)inspection.reportThemeOverride=v;});`}
-                    class="w-full px-2 py-1 text-xs border rounded bg-white"
-                    style="border-color: rgba(226,232,240,0.6); color: #475569"
+                    class="w-full px-2 py-1 text-xs border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                   >
                     <option value="">Use tenant default</option>
                     <option value="modern">Modern</option>
@@ -772,11 +875,10 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   x-on:click={`copying=true; authFetch('/api/inspections/'+inspectionId+'/agent-token',{method:'POST'}).then(r=>r.json()).then(j=>{agentUrl=j.data?.url||'';copying=false;}).catch(()=>{agentErr='Failed to generate link';copying=false;});`}
                   x-bind:disabled="copying"
                   x-text="copying ? 'Generating...' : 'Share with Agent'"
-                  class="text-xs px-3 py-1.5 rounded-lg font-semibold w-full text-left"
-                  style="background: #f1f5f9; color: #475569"
+                  class="text-xs px-3 py-1.5 rounded-lg font-semibold w-full text-left bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                 />
                 <div x-show="agentUrl" class="flex items-center gap-1 mt-1">
-                  <input x-bind:value="agentUrl" readonly class="flex-1 text-[10px] border rounded px-2 py-1 bg-white" style="border-color: rgba(226,232,240,0.6)" />
+                  <input x-bind:value="agentUrl" readonly class="flex-1 text-[10px] border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                   <button x-on:click="navigator.clipboard.writeText(agentUrl)" class="text-[10px] px-2 py-1 rounded font-bold" style="background: #4f46e5; color: white">Copy</button>
                 </div>
                 <div x-show="agentErr" x-text="agentErr" class="text-[10px] mt-1" style="color: #dc2626" />
@@ -800,7 +902,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 style="border-color: rgba(226,232,240,0.5)"
             >
                 <div class="flex items-center justify-between">
-                    <div class="text-[10px] font-mono font-semibold uppercase tracking-wide" style="color: #94a3b8">Property Info</div>
+                    <div class="text-[10px] font-mono font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Property Info</div>
                     <button x-show="!editing" x-on:click="editing=true" class="text-[10px] text-indigo-600 font-semibold">Edit</button>
                     <div x-show="editing" class="flex gap-1">
                         <button
@@ -821,16 +923,16 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     ].map(({ key, label, type }) => (
                         <div key={key}>
                             <div class="text-[9px] font-mono uppercase text-slate-400">{label}</div>
-                            <div x-show="!editing" class="font-semibold" style="color: #0f172a" x-text={`fields.${key} || '—'`} />
+                            <div x-show="!editing" class="font-semibold text-slate-900 dark:text-slate-100" x-text={`fields.${key} || '—'`} />
                             <input x-show="editing" x-model={`fields.${key}`} type={type}
-                                   class="w-full text-[11px] border border-slate-200 rounded px-1.5 py-0.5 bg-white" />
+                                   class="w-full text-[11px] border border-slate-200 dark:border-slate-600 rounded px-1.5 py-0.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                         </div>
                     ))}
                     <div class="col-span-2">
                         <div class="text-[9px] font-mono uppercase text-slate-400">Foundation</div>
-                        <div x-show="!editing" class="font-semibold" style="color: #0f172a" x-text="fields.foundationType || '—'" />
+                        <div x-show="!editing" class="font-semibold text-slate-900 dark:text-slate-100" x-text="fields.foundationType || '—'" />
                         <select x-show="editing" x-model="fields.foundationType"
-                                class="w-full text-[11px] border border-slate-200 rounded px-1 py-0.5 bg-white">
+                                class="w-full text-[11px] border border-slate-200 dark:border-slate-600 rounded px-1 py-0.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                             <option value="">—</option>
                             <option value="basement">Basement</option>
                             <option value="slab">Slab</option>
@@ -846,10 +948,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   x-on:click="selectSection(idx)"
                   x-show="sectionMatchesSearch(sec)"
                   class="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all"
-                  x-bind:style="currentSectionIdx === idx ? 'background: #eef2ff; color: var(--ih-primary, #6366f1)' : 'color: #64748b'"
+                  x-bind:class="currentSectionIdx === idx ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-500 dark:text-slate-400'"
+                  x-bind:style="currentSectionIdx === idx ? 'color: var(--ih-primary, #6366f1)' : ''"
                 >
                   <span class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                    x-bind:style="currentSectionIdx === idx ? 'background: rgba(99,102,241,0.12)' : 'background: #f1f5f9'">
+                    x-bind:class="currentSectionIdx === idx ? 'bg-indigo-100/80 dark:bg-indigo-800/40' : 'bg-slate-100 dark:bg-slate-700/50'"
+                  >
                     <template x-if="getSectionIconSvg(sec.icon)">
                       <span x-html="getSectionIconSvg(sec.icon)"></span>
                     </template>
@@ -885,11 +989,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               role="region"
               aria-label="Inspection request siblings"
             >
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white ring-1 ring-inset ring-indigo-200 text-[11px] font-bold text-indigo-700">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-700 text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
                 Part <span x-text="partIndex"></span> of <span x-text="partTotal"></span>
               </span>
-              <span class="text-[11px] text-slate-500">
-                in request <span class="font-mono font-semibold text-slate-700" x-text="requestIdShort"></span>
+              <span class="text-[11px] text-slate-500 dark:text-slate-400">
+                in request <span class="font-mono font-semibold text-slate-700 dark:text-slate-200" x-text="requestIdShort"></span>
               </span>
               <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ml-2">Switch:</span>
               <template x-for="s in siblings" {...{ 'x-bind:key': 's.id' }}>
@@ -901,16 +1005,16 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               </template>
             </div>
             {/* Toolbar */}
-            <div class="sticky top-0 z-40 px-3 py-2 flex items-center justify-between" style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border-bottom: 1px solid rgba(226,232,240,0.6);">
+            <div class="sticky top-0 z-40 px-3 py-2 flex items-center justify-between toolbar-glass">
               <div class="flex items-center gap-3">
-                <h2 class="text-2xl font-bold" style="color: #0f172a" x-text="currentSection?.title || ''"></h2>
-                <span class="text-xs font-mono px-2 py-1 rounded-lg" style="background: #f1f5f9; color: #94a3b8" x-text="'SECTION ' + (currentSectionIdx + 1) + '/' + sections.length"></span>
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100" x-text="currentSection?.title || ''"></h2>
+                <span class="text-xs font-mono px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-400" x-text="'SECTION ' + (currentSectionIdx + 1) + '/' + sections.length"></span>
                 {/* Spec 5G M1 — keyboard hints inline next to section title (Mockup 01) */}
                 <span class="hidden lg:flex items-center gap-1.5 text-[10px] text-slate-400 ml-2" title="Keyboard shortcuts (press ? for full HUD)">
-                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">↑↓</kbd> nav
-                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">1-5</kbd> rate
-                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">/</kbd> lib
-                  <kbd class="px-1.5 py-0.5 bg-white/80 border border-slate-200 rounded font-mono">⏎</kbd> next
+                  <kbd class="px-1.5 py-0.5 bg-white/80 dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 rounded font-mono text-slate-600 dark:text-slate-300">↑↓</kbd> nav
+                  <kbd class="px-1.5 py-0.5 bg-white/80 dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 rounded font-mono text-slate-600 dark:text-slate-300">1-5</kbd> rate
+                  <kbd class="px-1.5 py-0.5 bg-white/80 dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 rounded font-mono text-slate-600 dark:text-slate-300">/</kbd> lib
+                  <kbd class="px-1.5 py-0.5 bg-white/80 dark:bg-slate-700/80 border border-slate-200 dark:border-slate-600 rounded font-mono text-slate-600 dark:text-slate-300">⏎</kbd> next
                 </span>
                 <button
                   x-on:click="batchMode = !batchMode"
@@ -934,8 +1038,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     placeholder="Search entire report…"
                     aria-label="Search the entire report"
                     data-testid="editor-search-input"
-                    class="w-56 pl-8 pr-7 py-1.5 text-xs rounded-lg border bg-white text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition-all"
-                    style="border-color: #e2e8f0"
+                    class="w-56 pl-8 pr-7 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-700 focus:border-indigo-400 transition-all"
                   />
                   <button
                     type="button"
@@ -968,13 +1071,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   x-on:click="tabletInspectorOpen = !tabletInspectorOpen"
                   data-testid="tablet-active-item-toggle"
                   aria-label="Toggle active item inspector"
-                  class="hidden lg:inline-flex xl:hidden items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
-                  style="color: #475569"
+                  class="hidden lg:inline-flex xl:hidden items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
                 >
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" /></svg>
                   Inspector
                 </button>
-                <button x-on:click="previewReport()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl" style="color: #64748b">
+                <button x-on:click="previewReport()" class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl text-slate-500 dark:text-slate-400">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                   Preview
                 </button>
@@ -990,31 +1092,29 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             </div>
 
             {/* Batch Mode Toolbar */}
-            <div x-show="batchMode" class="px-6 py-2 flex items-center gap-3 text-sm" style="background: #eef2ff; border-bottom: 1px solid #c7d2fe">
+            <div x-show="batchMode" class="px-6 py-2 flex items-center gap-3 text-sm bg-indigo-50 dark:bg-indigo-900/30 border-b border-indigo-200 dark:border-indigo-800">
               <span class="font-semibold" style="color: var(--ih-primary, #6366f1)" x-text="'Selected ' + selectedBatchCount + '/' + currentSectionItems.length"></span>
-              <button x-on:click="batchSelectAll()" class="px-3 py-1 rounded-lg text-xs font-semibold" style="background: white; color: var(--ih-primary, #6366f1)">Select All</button>
+              <button x-on:click="batchSelectAll()" class="px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800" style="color: var(--ih-primary, #6366f1)">Select All</button>
               <template x-for="level in ratingLevels" x-bind:key="level.id">
                 <button
                     x-on:click="batchSetRating(level.id)"
                     x-bind:aria-label="'Set ' + level.label"
-                    class="px-3 py-1 rounded-lg text-xs font-semibold"
-                    style="background: white; color: #475569"
+                    class="px-3 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                 >
                   <span class="hidden sm:inline" x-text="'Set ' + level.label"></span>
                   <span class="sm:hidden" x-text="'Set ' + level.abbreviation"></span>
                 </button>
               </template>
-              <button x-on:click="batchMode = false; batchSelected = {}" class="ml-auto px-3 py-1 rounded-lg text-xs font-semibold" style="color: #64748b">Exit</button>
+              <button x-on:click="batchMode = false; batchSelected = {}" class="ml-auto px-3 py-1 rounded-lg text-xs font-semibold text-slate-500 dark:text-slate-400">Exit</button>
             </div>
 
             {/* Status Machine Bar */}
             <div
                 x-data="{ showCancelModal: false, cancelReason: 'client_cancelled', cancelNotes: '' }"
-                class="mx-6 mt-3 bg-white border rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
-                style="border-color: rgba(226,232,240,0.6)"
+                class="mx-6 mt-3 bg-white dark:bg-slate-800 border rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 status-bar"
             >
                 <div class="flex items-center gap-2">
-                    <span class="text-[10px] font-mono uppercase" style="color: #94a3b8">Status</span>
+                    <span class="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500">Status</span>
                     <span
                         x-text="(inspection.status||'').replace('_',' ').toUpperCase()"
                         x-bind:class={`{
@@ -1036,14 +1136,13 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     <button
                         x-show="inspection.status !== 'cancelled' && inspection.status !== 'completed'"
                         x-on:click="showCancelModal=true"
-                        class="text-[11px] border text-red-600 px-3 py-1 rounded-lg font-bold"
-                        style="border-color: #fecaca; background: #fef2f2"
+                        class="text-[11px] border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1 rounded-lg font-bold"
                         title="Cancel this inspection — you'll be asked for a reason and refund handling"
                     >Cancel</button>
                     <button
                         x-show="inspection.status === 'cancelled'"
                         x-on:click={`authFetch('/api/inspections/${inspectionId}/uncancel',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success)inspection.status='scheduled'})`}
-                        class="text-[11px] bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-bold"
+                        class="text-[11px] bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1 rounded-lg font-bold"
                         title="Restore this cancelled inspection back to scheduled state"
                     >Restore</button>
                 </div>
@@ -1062,34 +1161,34 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                         />
                     }
                 >
-                    <label class="block text-xs font-bold text-slate-600 mb-1">Reason</label>
-                    <select x-model="cancelReason" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 bg-white">
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Reason</label>
+                    <select x-model="cancelReason" class="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm mb-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                         <option value="client_cancelled">Client Cancelled</option>
                         <option value="scheduling_conflict">Scheduling Conflict</option>
                         <option value="weather">Weather</option>
                         <option value="other">Other</option>
                     </select>
-                    <label class="block text-xs font-bold text-slate-600 mb-1">Notes (optional)</label>
-                    <textarea x-model="cancelNotes" rows={3} class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" />
+                    <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Notes (optional)</label>
+                    <textarea x-model="cancelNotes" rows={3} class="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                 </Modal>
             </div>
 
             {/* Inspection Events (Spec 4D.T9) */}
-            <section x-data={`inspectionEventsSection('${inspectionId}')`} x-init="load()" class="mx-6 mt-3 rounded-md bg-white p-5 ring-1 ring-slate-200">
+            <section x-data={`inspectionEventsSection('${inspectionId}')`} x-init="load()" class="mx-6 mt-3 rounded-md bg-white dark:bg-slate-800 p-5 ring-1 ring-slate-200 dark:ring-slate-700">
                 <header class="flex items-center justify-between gap-3">
                     <div class="flex items-center gap-2">
-                        <h2 class="text-base font-bold text-slate-900">Events</h2>
-                        <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-500" x-show="events.length > 0" x-text="events.length + ' total'"></span>
+                        <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Events</h2>
+                        <span class="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400" x-show="events.length > 0" x-text="events.length + ' total'"></span>
                     </div>
                     <button type="button" x-on:click="openCreate()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">+ Add event</button>
                 </header>
                 <ul class="mt-3 space-y-2">
                     <template x-for="ev in events" {...{ 'x-bind:key': 'ev.id' }}>
-                        <li class="flex items-center gap-3 p-3 bg-slate-50 rounded-lg text-sm">
+                        <li class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg text-sm">
                             <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" {...{ 'x-bind:style': "'background:' + eventTypeColor(ev.eventTypeId)" }}></span>
-                            <span class="font-bold text-slate-900" x-text="eventTypeName(ev.eventTypeId)"></span>
-                            <span class="text-slate-500 text-xs" x-text="formatDate(ev.scheduledAt)"></span>
-                            <span class="text-slate-400 text-xs" x-show="ev.durationMin" x-text="(ev.durationMin || 0) + ' min'"></span>
+                            <span class="font-bold text-slate-900 dark:text-slate-100" x-text="eventTypeName(ev.eventTypeId)"></span>
+                            <span class="text-slate-500 dark:text-slate-400 text-xs" x-text="formatDate(ev.scheduledAt)"></span>
+                            <span class="text-slate-400 dark:text-slate-500 text-xs" x-show="ev.durationMin" x-text="(ev.durationMin || 0) + ' min'"></span>
                             <span class="ml-auto text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" x-text="(ev.status || '').replace('_', ' ')" {...{ 'x-bind:class': 'statusBadgeClass(ev.status)' }}></span>
                             <button type="button" x-show="ev.status === 'scheduled'" x-on:click="markComplete(ev.id)" class="text-emerald-600 text-xs font-bold hover:underline" title="Mark complete">&#10003;</button>
                             <button type="button" x-on:click="del(ev.id)" class="text-rose-600 text-xs font-bold hover:underline" title="Delete">&times;</button>
@@ -1114,8 +1213,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 >
                     <div class="space-y-3">
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Type</label>
-                            <select x-model="form.eventTypeId" x-on:change="onTypeChange()" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Type</label>
+                            <select x-model="form.eventTypeId" x-on:change="onTypeChange()" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                                 <option value="">— Select —</option>
                                 <template x-for="t in types" {...{ 'x-bind:key': 't.id' }}>
                                     <option {...{ 'x-bind:value': 't.id' }} x-text="t.name"></option>
@@ -1124,22 +1223,22 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                             <p x-show="!types.length" class="text-[10px] text-amber-600 mt-1">No event types defined. <a href="/settings/event-types" class="underline">Create one</a> first.</p>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Date &amp; time</label>
-                            <input type="datetime-local" x-model="form.scheduledAt" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Date &amp; time</label>
+                            <input type="datetime-local" x-model="form.scheduledAt" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Duration (min)</label>
-                                <input type="number" {...{ 'x-model.number': 'form.durationMin' }} min="1" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Duration (min)</label>
+                                <input type="number" {...{ 'x-model.number': 'form.durationMin' }} min="1" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Price (cents)</label>
-                                <input type="number" {...{ 'x-model.number': 'form.priceCents' }} min="0" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                                <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Price (cents)</label>
+                                <input type="number" {...{ 'x-model.number': 'form.priceCents' }} min="0" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Inspector (optional)</label>
-                            <select x-model="form.inspectorId" class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Inspector (optional)</label>
+                            <select x-model="form.inspectorId" class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                                 <option value="">Unassigned</option>
                                 <template x-for="i in inspectors" {...{ 'x-bind:key': 'i.id' }}>
                                     <option {...{ 'x-bind:value': 'i.id' }} x-text="i.name || i.email"></option>
@@ -1147,8 +1246,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">Notes (optional)</label>
-                            <textarea x-model="form.notes" rows={2} class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"></textarea>
+                            <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">Notes (optional)</label>
+                            <textarea x-model="form.notes" rows={2} class="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"></textarea>
                         </div>
                     </div>
                 </Modal>
@@ -1160,8 +1259,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 <div
                   x-bind:data-item-id="item.id"
                   x-show="itemMatchesSearch(currentSection, item)"
-                  class="rounded-md p-4 transition-all cursor-pointer group"
-                  style="background: rgba(255,255,255,0.85); backdrop-filter: blur(16px) saturate(1.5); border: 1px solid rgba(255,255,255,0.7);"
+                  class="rounded-md p-4 transition-all cursor-pointer group item-card"
                   x-bind:style="(activeItemId === item.id ? 'border-color: #6366f1; ' : '') + 'border-top: 4px solid ' + getRatingColor(getItemRating(item.id))"
                   x-bind:class="activeItemId === item.id ? 'ring-2 ring-indigo-100' : ''"
                   x-on:click="batchMode ? toggleBatchSelect(item.id) : (setActiveItem(item.id), toggleExpand(item.id))"
@@ -1171,8 +1269,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   </div>
                   <div class="flex items-start justify-between mb-3">
                     <div>
-                      <h3 class="font-bold text-sm group-hover:text-indigo-600 transition-colors" style="color: #0f172a" x-html="highlightSearchMatch(item.label)"></h3>
-                      <span class="text-[10px] font-mono" style="color: #cbd5e1" x-text="item.number"></span>
+                      <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" x-html="highlightSearchMatch(item.label)"></h3>
+                      <span class="text-[10px] font-mono text-slate-300 dark:text-slate-500" x-text="item.number"></span>
                     </div>
                     <span
                       class="ih-pill"
@@ -1205,7 +1303,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       <input> still opens the picker via native click); the
                       rest of the row falls through to the parent's expand
                       handler, and a chevron hints the card is expandable. */}
-                  <div class="flex items-center gap-3 text-[10px] font-mono" style="color: #cbd5e1">
+                  <div class="flex items-center gap-3 text-[10px] font-mono text-slate-300 dark:text-slate-500">
                     <label
                       x-on:click="$event.stopPropagation()"
                       class="flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 transition"
@@ -1224,9 +1322,9 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   </div>
 
                   {/* Expanded Detail (desktop) */}
-                  <div x-show="expanded[item.id] && !batchMode" x-collapse="" class="mt-3 pt-3" style="border-top: 1px solid rgba(226,232,240,0.6)" x-on:click="$event.stopPropagation()">
+                  <div x-show="expanded[item.id] && !batchMode" x-collapse="" class="mt-3 pt-3 border-t border-slate-200/60 dark:border-slate-700/60" x-on:click="$event.stopPropagation()">
                     {/* Sprint 1 A-10: simple-notes fallback hint when item has no tabs */}
-                    <div x-show="!item.tabs || (!item.tabs.information && !item.tabs.limitations && !item.tabs.defects)" class="mb-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
+                    <div x-show="!item.tabs || (!item.tabs.information && !item.tabs.limitations && !item.tabs.defects)" class="mb-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500 dark:text-slate-400">
                       <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                       <span>Simple notes mode.</span>
                       <a href="/templates" class="text-indigo-600 hover:underline">Upgrade to tabs →</a>
@@ -1238,14 +1336,13 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                         x-on:input="debounceSave()"
                         data-slash-trigger="true"
                         placeholder="Add notes — type / for snippets"
-                        class="w-full p-3 text-sm rounded-xl border resize-none"
-                        style="background: #f1f5f9; border-color: #e2e8f0; color: #0f172a"
+                        class="w-full p-3 text-sm rounded-xl border resize-none item-notes-textarea"
                         rows={3}
                       ></textarea>
                       <button type="button"
                         x-bind:data-mic-target="'notes-dsk-' + item.id"
                         x-init="window.__rebindMicButtons && window.__rebindMicButtons()"
-                        class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 border border-slate-200 flex items-center justify-center hover:bg-white"
+                        class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/90 dark:bg-slate-700/90 border border-slate-200 dark:border-slate-600 flex items-center justify-center hover:bg-white dark:hover:bg-slate-700"
                         title="Dictate (Web Speech)"
                         aria-label="Dictate notes">
                         <svg class="w-3.5 h-3.5 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
@@ -1261,20 +1358,18 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                           the browser blocks getUserMedia. */}
                       <button type="button"
                         x-on:click="openBurstCamera(item.id)"
-                        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer"
-                        style="background: #eef2ff; color: var(--ih-primary, #6366f1)"
+                        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
                         aria-label="Open burst camera">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         Camera
                       </button>
-                      <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors" style="background: #f0fdf4; color: #16a34a">
+                      <button type="button" onclick="openCommentPicker(this)" class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"></path></svg>
                         Library
                       </button>
                       <button type="button"
                         x-on:click="suggestComment(item.label, currentSection?.title || '', document.getElementById('notes-dsk-' + item.id), $event)"
-                        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                        style="background: #fef3c7; color: #b45309">
+                        class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                         Suggest
                       </button>
@@ -1282,8 +1377,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
 
                     {/* Spec 5B — Canned Comment Tabs (Information / Limitations / Defects).
                         Only render for v2 'rich' items that ship template-side canned tabs. */}
-                    <div x-show="item.tabs && (item.tabs.information || item.tabs.limitations || item.tabs.defects)" class="mt-4 rounded-xl border" style="border-color: #e2e8f0; background: rgba(255,255,255,0.6);">
-                      <div class="flex items-center gap-1 px-2 py-1.5 border-b" style="border-color: #e2e8f0;">
+                    <div x-show="item.tabs && (item.tabs.information || item.tabs.limitations || item.tabs.defects)" class="mt-4 rounded-xl border canned-comments-wrap">
+                      <div class="flex items-center gap-1 px-2 py-1.5 border-b canned-tab-border">
                         <template x-for="tabName in ['information','limitations','defects']" x-bind:key="tabName">
                           <button type="button"
                             x-on:click="setActiveItemTab(tabName); activeItemId = item.id"
@@ -1298,7 +1393,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       <div class="p-3 space-y-2">
                         <template x-for="entry in getTabEntries(item.id, (activeItemId === item.id ? activeItemTab : 'information'))" x-bind:key="entry.cannedId">
                           <div class="rounded-lg border p-2.5"
-                            x-bind:class="entry.included ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'">
+                            x-bind:class="entry.included ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'">
                             <div class="flex items-start gap-2">
                               <input type="checkbox"
                                 x-bind:checked="entry.included"
@@ -1307,7 +1402,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                 aria-label="Include this comment" />
                               <div class="flex-1 min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                  <span class="text-xs font-bold text-slate-900" x-text="entry.title"></span>
+                                  <span class="text-xs font-bold text-slate-900 dark:text-slate-100" x-text="entry.title"></span>
                                   {/* Defect-only category pill */}
                                   <template x-if="(activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
                                     <span class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded text-white"
@@ -1321,8 +1416,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                   x-bind:value="entry.effectiveComment"
                                   x-on:input="setCannedCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), entry.cannedId, $event.target.value)"
                                   rows={2}
-                                  class="mt-1.5 w-full px-2 py-1.5 text-[12px] rounded border bg-white resize-y"
-                                  style="border-color: #e2e8f0; color: #1e293b"
+                                  class="mt-1.5 w-full px-2 py-1.5 text-[12px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 resize-y inline-input"
                                   placeholder="Edit comment text..."></textarea>
                                 {/* Spec 5B P2B — AI Rewrite button (canned). */}
                                 <div x-show="entry.included" class="mt-1 flex items-center justify-end">
@@ -1335,7 +1429,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                   </button>
                                 </div>
                                 {/* Read-only preview when not included */}
-                                <p x-show="!entry.included" class="mt-1 text-[11px] italic text-slate-500 line-clamp-2" x-text="entry.comment"></p>
+                                <p x-show="!entry.included" class="mt-1 text-[11px] italic text-slate-500 dark:text-slate-400 line-clamp-2" x-text="entry.comment"></p>
                                 {/* Defect-only location + category override */}
                                 <template x-if="entry.included && (activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
                                   <div class="mt-2 space-y-2">
@@ -1346,16 +1440,14 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                           x-bind:value="entry.location"
                                           x-on:input="setDefectLocation(item.id, entry.cannedId, $event.target.value)"
                                           placeholder="Northwest corner"
-                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white"
-                                          style="border-color: #e2e8f0" />
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input" />
                                       </div>
                                       <div>
                                         <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Category</label>
                                         <select
                                           x-bind:value="entry.category"
                                           x-on:change="setDefectCategory(item.id, entry.cannedId, $event.target.value)"
-                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white"
-                                          style="border-color: #e2e8f0">
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input">
                                           <option value="maintenance">Maintenance</option>
                                           <option value="recommendation">Recommendation</option>
                                           <option value="safety">Safety</option>
@@ -1371,8 +1463,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                       <select
                                         x-bind:value="entry.recommendationId || ''"
                                         x-on:change="setDefectRecommendation(item.id, entry.cannedId, $event.target.value)"
-                                        class="w-full px-2 py-1 text-[11px] rounded border bg-white"
-                                        style="border-color: #e2e8f0"
+                                        class="w-full px-2 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input"
                                         data-testid="defect-recommendation">
                                         <option value="">No recommendation</option>
                                         <template x-for="grp in window.__OI_RECO_GROUPS || []" x-bind:key="grp.group">
@@ -1394,8 +1485,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                           x-bind:value="entry.estimateLow != null ? Math.round(entry.estimateLow / 100) : ''"
                                           x-on:input="setDefectEstimate(item.id, entry.cannedId, 'low', $event.target.value)"
                                           placeholder="500"
-                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white tabular-nums"
-                                          style="border-color: #e2e8f0"
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 tabular-nums inline-input"
                                           data-testid="defect-estimate-low" />
                                       </div>
                                       <div>
@@ -1404,8 +1494,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                           x-bind:value="entry.estimateHigh != null ? Math.round(entry.estimateHigh / 100) : ''"
                                           x-on:input="setDefectEstimate(item.id, entry.cannedId, 'high', $event.target.value)"
                                           placeholder="1500"
-                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white tabular-nums"
-                                          style="border-color: #e2e8f0"
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 tabular-nums inline-input"
                                           data-testid="defect-estimate-high" />
                                       </div>
                                     </div>
@@ -1430,14 +1519,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                   x-bind:value="custom.title"
                                   x-on:input="setCustomCommentTitle(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
                                   placeholder="Title (e.g. Vegetation overgrowth)"
-                                  class="w-full px-2 py-1 text-xs font-bold rounded border bg-white"
-                                  style="border-color: #e2e8f0; color: #1e293b" />
+                                  class="w-full px-2 py-1 text-xs font-bold rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input" />
                                 <textarea
                                   x-bind:value="custom.comment"
                                   x-on:input="setCustomCommentText(item.id, (activeItemId === item.id ? activeItemTab : 'information'), custom.id, $event.target.value)"
                                   rows={2}
-                                  class="w-full px-2 py-1.5 text-[12px] rounded border bg-white resize-y"
-                                  style="border-color: #e2e8f0; color: #1e293b"
+                                  class="w-full px-2 py-1.5 text-[12px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 resize-y inline-input"
                                   placeholder="Comment text..."></textarea>
                                 <template x-if="(activeItemId === item.id ? activeItemTab : 'information') === 'defects'">
                                   <div class="space-y-2">
@@ -1448,16 +1535,14 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                                           x-bind:value="custom.location || ''"
                                           x-on:input="setCustomCommentLocation(item.id, custom.id, $event.target.value)"
                                           placeholder="Northwest corner"
-                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white"
-                                          style="border-color: #e2e8f0" />
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input" />
                                       </div>
                                       <div>
                                         <label class="block text-[9px] font-bold uppercase text-slate-400 mb-0.5">Category</label>
                                         <select
                                           x-bind:value="custom.category || 'maintenance'"
                                           x-on:change="setCustomCommentCategory(item.id, custom.id, $event.target.value)"
-                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white"
-                                          style="border-color: #e2e8f0">
+                                          class="w-full px-2 py-1 text-[11px] rounded border bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 inline-input">
                                           <option value="maintenance">Maintenance</option>
                                           <option value="recommendation">Recommendation</option>
                                           <option value="safety">Safety</option>
@@ -1510,8 +1595,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                         </template>
                         <button type="button"
                           x-on:click="addCustomComment(item.id, (activeItemId === item.id ? activeItemTab : 'information'))"
-                          class="w-full mt-1 py-1.5 text-[11px] font-bold rounded-lg border-2 border-dashed text-slate-500 hover:text-slate-800 hover:bg-white/60 transition"
-                          style="border-color: #e2e8f0">
+                          class="w-full mt-1 py-1.5 text-[11px] font-bold rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/60 transition"
+                        >
                           + Add custom comment
                         </button>
                       </div>
@@ -1520,7 +1605,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     {/* Phase T (T15) — photo thumbnails with Annotate overlay */}
                     <div x-show="(results[item.id]?.photos || []).length > 0" class="mt-3 grid grid-cols-4 gap-2">
                       <template x-for="(photo, pi) in (results[item.id]?.photos || [])" x-bind:key="pi">
-                        <div class="relative group aspect-square overflow-hidden rounded-lg" style="background:#e2e8f0;">
+                        <div class="relative group aspect-square overflow-hidden rounded-lg bg-slate-200 dark:bg-slate-700">
                           <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)"
                             class="w-full h-full object-cover" alt="Photo" />
                           <button type="button"
@@ -1539,9 +1624,9 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 x-show="hasSearchQuery && searchMatchCount === 0"
                 style="display:none"
                 data-testid="editor-search-empty-desktop"
-                class="col-span-2 xl:col-span-3 rounded-md bg-white border border-dashed border-slate-200 p-8 text-center"
+                class="col-span-2 xl:col-span-3 rounded-md bg-white dark:bg-slate-800 border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center"
               >
-                <p class="text-sm text-slate-500">No matches for &ldquo;<span class="font-semibold text-slate-700" x-text="searchQuery"></span>&rdquo;.</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">No matches for &ldquo;<span class="font-semibold text-slate-700 dark:text-slate-200" x-text="searchQuery"></span>&rdquo;.</p>
                 <button x-on:click="clearSearch()" class="mt-2 text-xs font-semibold text-indigo-600 hover:underline">Clear search</button>
               </div>
             </div>
@@ -1553,17 +1638,17 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               instead — see tablet-active-item-drawer below), and while the
               Comment Library drawer is open (Sprint 1 A-1: avoids the
               slash-trigger popover overlapping ACTIVE ITEM). */}
-          <aside x-show="viewMode !== 'focus' && activeItem && !showCommentLibrary && !slashPickerOpen" class="hidden xl:flex w-[280px] sticky top-0 h-screen flex-shrink-0 flex-col border-l overflow-hidden" style="background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6);">
-            <header class="px-4 py-3 border-b" style="border-color: rgba(226,232,240,0.5);">
-              <h3 class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Active Item</h3>
-              <p class="text-sm font-bold text-slate-900 mt-0.5 leading-tight" x-text="activeItem?.label || activeItem?.name || ''"></p>
-              <p class="text-[10px] font-mono text-slate-400 mt-0.5" x-text="activeItem?.number || ''"></p>
+          <aside x-show="viewMode !== 'focus' && activeItem && !showCommentLibrary && !slashPickerOpen" class="hidden xl:flex w-[280px] sticky top-0 h-screen flex-shrink-0 flex-col border-l overflow-hidden sidebar-glass">
+            <header class="px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/50">
+              <h3 class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active Item</h3>
+              <p class="text-sm font-bold text-slate-900 dark:text-slate-100 mt-0.5 leading-tight" x-text="activeItem?.label || activeItem?.name || ''"></p>
+              <p class="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5" x-text="activeItem?.number || ''"></p>
             </header>
 
             {/* Photos */}
-            <section class="px-4 py-3 border-b" style="border-color: rgba(226,232,240,0.5);">
+            <section class="px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/50">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Photos · <span x-text="(results[activeItemId]?.photos || []).length"></span></span>
+                <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Photos · <span x-text="(results[activeItemId]?.photos || []).length"></span></span>
                 <label class="text-[10px] text-indigo-500 hover:underline cursor-pointer">
                   + Add
                   <input type="file" accept="image/*" capture="environment" class="hidden" x-on:change="if (activeItemId) { uploadPhoto(activeItemId, $event); $event.target.value = ''; }" />
@@ -1571,30 +1656,30 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               </div>
               <div class="grid grid-cols-2 gap-1.5" x-show="(results[activeItemId]?.photos || []).length > 0">
                 <template x-for="(photo, pi) in (results[activeItemId]?.photos || []).slice(0, 8)" x-bind:key="pi">
-                  <div class="aspect-[4/3] rounded overflow-hidden bg-slate-100 relative group">
+                  <div class="aspect-[4/3] rounded overflow-hidden bg-slate-100 dark:bg-slate-700 relative group">
                     <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)" class="w-full h-full object-cover" alt="Photo" />
                     <button
                       x-on:click="window.dispatchEvent(new CustomEvent('annotate', { detail: { inspectionId, itemId: activeItemId, photoIndex: pi, imageUrl: '/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.key), existingNodesJson: photo.annotationsJson || null } }))"
-                      class="absolute bottom-0.5 right-0.5 px-1.5 py-0.5 rounded bg-white/90 text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                      class="absolute bottom-0.5 right-0.5 px-1.5 py-0.5 rounded bg-white/90 dark:bg-slate-800/90 text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Annotate"
                     >✎</button>
                   </div>
                 </template>
               </div>
-              <p x-show="(results[activeItemId]?.photos || []).length === 0" class="text-[11px] italic text-slate-400 py-2">
-                No photos. Press <kbd class="px-1 bg-slate-100 border rounded font-mono">P</kbd> to add.
+              <p x-show="(results[activeItemId]?.photos || []).length === 0" class="text-[11px] italic text-slate-400 dark:text-slate-500 py-2">
+                No photos. Press <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">P</kbd> to add.
               </p>
             </section>
 
             {/* Quick comments */}
             <section class="px-4 py-3 flex-1 overflow-y-auto">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Quick Comments</span>
+                <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Quick Comments</span>
                 <button x-on:click="openCommentLibrary()" class="text-[10px] text-indigo-500 hover:underline">Browse all</button>
               </div>
               <div class="space-y-1">
                 <template x-for="(c, i) in quickCommentsForActive" x-bind:key="i">
-                  <button x-on:click="insertComment(c.text)" class="w-full text-left p-2 rounded text-[11px] text-slate-700 leading-snug border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+                  <button x-on:click="insertComment(c.text)" class="w-full text-left p-2 rounded text-[11px] text-slate-700 dark:text-slate-200 leading-snug border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all">
                     <div class="flex items-start gap-1.5">
                       <span class="px-1 py-0.5 text-[8px] font-bold uppercase rounded text-white shrink-0 mt-0.5"
                         x-bind:style="c.rating === 'satisfactory' ? 'background:#10b981' : (c.rating === 'monitor' ? 'background:#f59e0b' : (c.rating === 'defect' ? 'background:#ef4444' : 'background:#64748b'))"
@@ -1604,18 +1689,18 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   </button>
                 </template>
               </div>
-              <p class="text-[10px] text-slate-400 italic mt-3">
-                Press <kbd class="px-1 bg-slate-100 border rounded font-mono">/</kbd> for full library
+              <p class="text-[10px] text-slate-400 dark:text-slate-500 italic mt-3">
+                Press <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">/</kbd> for full library
               </p>
             </section>
 
             {/* Keyboard hint footer */}
-            <footer class="px-4 py-2 border-t text-[10px] text-slate-400" style="border-color: rgba(226,232,240,0.5);">
+            <footer class="px-4 py-2 border-t border-slate-200/50 dark:border-slate-700/50 text-[10px] text-slate-400 dark:text-slate-500">
               <div class="flex items-center gap-1.5 flex-wrap">
-                <kbd class="px-1 bg-slate-100 border rounded font-mono">↑↓</kbd> nav
-                <kbd class="px-1 bg-slate-100 border rounded font-mono">1-5</kbd> rate
-                <kbd class="px-1 bg-slate-100 border rounded font-mono">/</kbd> lib
-                <kbd class="px-1 bg-slate-100 border rounded font-mono">?</kbd> all
+                <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">↑↓</kbd> nav
+                <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">1-5</kbd> rate
+                <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">/</kbd> lib
+                <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">?</kbd> all
               </div>
             </footer>
           </aside>
@@ -1637,20 +1722,20 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             x-transition:leave="transition ease-in duration-150"
             x-transition:leave-start="translate-x-0 opacity-100"
             x-transition:leave-end="translate-x-full opacity-0"
-            class="hidden lg:flex xl:hidden fixed inset-y-0 right-0 z-30 w-[320px] flex-col border-l shadow-xl overflow-y-auto"
-            style="background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); border-color: rgba(226,232,240,0.6); display: none;"
+            class="hidden lg:flex xl:hidden fixed inset-y-0 right-0 z-30 w-[320px] flex-col border-l shadow-xl overflow-y-auto sidebar-glass"
+            style="display: none;"
           >
-            <header class="px-4 py-3 border-b flex items-center justify-between" style="border-color: rgba(226,232,240,0.5);">
+            <header class="px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between">
               <div class="flex-1 min-w-0">
-                <h3 class="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Active Item</h3>
-                <p class="text-sm font-bold text-slate-900 mt-0.5 leading-tight" x-text="activeItem?.label || activeItem?.name || ''"></p>
-                <p class="text-[10px] font-mono text-slate-400 mt-0.5" x-text="activeItem?.number || ''"></p>
+                <h3 class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active Item</h3>
+                <p class="text-sm font-bold text-slate-900 dark:text-slate-100 mt-0.5 leading-tight" x-text="activeItem?.label || activeItem?.name || ''"></p>
+                <p class="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5" x-text="activeItem?.number || ''"></p>
               </div>
               <button
                 type="button"
                 x-on:click="tabletInspectorOpen = false"
                 aria-label="Close inspector drawer"
-                class="ml-2 w-8 h-8 rounded-md flex items-center justify-center text-slate-500 hover:bg-slate-100"
+                class="ml-2 w-8 h-8 rounded-md flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -1659,9 +1744,9 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             </header>
 
             {/* Photos */}
-            <section class="px-4 py-3 border-b" style="border-color: rgba(226,232,240,0.5);">
+            <section class="px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/50">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
+                <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                   Photos &middot; <span x-text="(results[activeItemId]?.photos || []).length"></span>
                 </span>
                 <label class="text-[10px] text-indigo-500 hover:underline cursor-pointer">
@@ -1671,25 +1756,25 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
               </div>
               <div class="grid grid-cols-2 gap-1.5" x-show="(results[activeItemId]?.photos || []).length > 0">
                 <template x-for="(photo, pi) in (results[activeItemId]?.photos || []).slice(0, 8)" x-bind:key="pi">
-                  <div class="aspect-[4/3] rounded overflow-hidden bg-slate-100">
+                  <div class="aspect-[4/3] rounded overflow-hidden bg-slate-100 dark:bg-slate-700">
                     <img x-bind:src="'/api/inspections/' + inspectionId + '/photos/' + encodeURIComponent(photo.annotatedKey || photo.key)" class="w-full h-full object-cover" alt="Photo" />
                   </div>
                 </template>
               </div>
-              <p x-show="(results[activeItemId]?.photos || []).length === 0" class="text-[11px] italic text-slate-400 py-2">
-                No photos. Press <kbd class="px-1 bg-slate-100 border rounded font-mono">P</kbd> to add.
+              <p x-show="(results[activeItemId]?.photos || []).length === 0" class="text-[11px] italic text-slate-400 dark:text-slate-500 py-2">
+                No photos. Press <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">P</kbd> to add.
               </p>
             </section>
 
             {/* Quick comments */}
             <section class="px-4 py-3 flex-1">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Quick Comments</span>
+                <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Quick Comments</span>
                 <button x-on:click="openCommentLibrary()" class="text-[10px] text-indigo-500 hover:underline">Browse all</button>
               </div>
               <div class="space-y-1">
                 <template x-for="(c, i) in quickCommentsForActive" x-bind:key="i">
-                  <button x-on:click="insertComment(c.text)" class="w-full text-left p-2 rounded text-[11px] text-slate-700 leading-snug border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+                  <button x-on:click="insertComment(c.text)" class="w-full text-left p-2 rounded text-[11px] text-slate-700 dark:text-slate-200 leading-snug border border-slate-200 dark:border-slate-700 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all">
                     <div class="flex items-start gap-1.5">
                       <span class="px-1 py-0.5 text-[8px] font-bold uppercase rounded text-white shrink-0 mt-0.5"
                         x-bind:style="c.rating === 'satisfactory' ? 'background:#10b981' : (c.rating === 'monitor' ? 'background:#f59e0b' : (c.rating === 'defect' ? 'background:#ef4444' : 'background:#64748b'))"
@@ -1699,8 +1784,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   </button>
                 </template>
               </div>
-              <p class="text-[10px] text-slate-400 italic mt-3">
-                Press <kbd class="px-1 bg-slate-100 border rounded font-mono">/</kbd> for full library
+              <p class="text-[10px] text-slate-400 dark:text-slate-500 italic mt-3">
+                Press <kbd class="px-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded font-mono">/</kbd> for full library
               </p>
             </section>
           </aside>
@@ -1743,8 +1828,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     <button
                         type="button"
                         x-on:click="showLegacyPublishOptions = false"
-                        class="flex-1 h-10 px-4 text-sm font-semibold rounded-xl border bg-white hover:bg-slate-50 transition-all"
-                        style="border-color: #e2e8f0; color: #475569"
+                        class="flex-1 h-10 px-4 text-sm font-semibold rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
                     >
                         Done
                     </button>
@@ -1753,11 +1837,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         >
             <div class="space-y-3">
                 <label class="flex items-center justify-between">
-                    <span class="text-sm" style="color: #475569">Require signature</span>
+                    <span class="text-sm text-slate-600 dark:text-slate-300">Require signature</span>
                     <input type="checkbox" x-model="publishOptions.requireSignature" class="rounded" />
                 </label>
                 <label class="flex items-center justify-between">
-                    <span class="text-sm" style="color: #475569">Require payment</span>
+                    <span class="text-sm text-slate-600 dark:text-slate-300">Require payment</span>
                     <input type="checkbox" x-model="publishOptions.requirePayment" class="rounded" />
                 </label>
                 <div>
@@ -1875,7 +1959,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         </div>
 
         {/* Photo Annotator Modal (T13) */}
-        <div x-data="photoAnnotator()" {...{'x-on:annotate.window': 'openPhoto($event.detail)'}} x-show="open" x-cloak class="fixed inset-0 z-50 flex flex-col" style="background:rgba(15,23,42,0.92);">
+        <div x-data="photoAnnotator()" {...{'x-on:annotate.window': 'openPhoto($event.detail)'}} x-show="open" x-cloak class="fixed inset-0 z-[70] flex flex-col" style="background:rgba(15,23,42,0.92);">
             {/* Toolbar */}
             <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-white" style="background:#1e293b;">
                 <div class="flex items-center gap-1 flex-wrap">

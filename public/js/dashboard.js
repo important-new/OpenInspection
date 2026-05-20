@@ -111,13 +111,13 @@ function renderServicesSection() {
     if (!list) return;
     list.innerHTML = availableServices.map(svc => `
         <div onclick="toggleService('${svc.id}')" id="svc-card-${svc.id}"
-             class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all border-slate-200 bg-white">
-            <div id="svc-check-${svc.id}" class="w-5 h-5 rounded-md border-2 border-slate-300 flex items-center justify-center text-xs font-bold text-white flex-shrink-0"></div>
+             class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700">
+            <div id="svc-check-${svc.id}" class="w-5 h-5 rounded-md border-2 border-slate-300 dark:border-slate-500 flex items-center justify-center text-xs font-bold text-white flex-shrink-0"></div>
             <div class="flex-1 min-w-0">
-                <div class="text-sm font-bold text-slate-900">${svc.name}</div>
-                ${svc.durationMinutes ? `<div class="text-xs text-slate-400">&#x23F1; ${svc.durationMinutes} min</div>` : ''}
+                <div class="text-sm font-bold text-slate-900 dark:text-slate-100">${svc.name}</div>
+                ${svc.durationMinutes ? `<div class="text-xs text-slate-400 dark:text-slate-400">&#x23F1; ${svc.durationMinutes} min</div>` : ''}
             </div>
-            <div class="text-sm font-bold text-slate-900">${formatCents(svc.price)}</div>
+            <div class="text-sm font-bold text-slate-900 dark:text-slate-100">${formatCents(svc.price)}</div>
         </div>
     `).join('');
     updateTotalBar();
@@ -132,7 +132,7 @@ function toggleService(id) {
     const check = document.getElementById('svc-check-' + id);
     const selected = selectedServiceIds.includes(id);
     if (card) {
-        card.className = `flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selected ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white'}`;
+        card.className = `flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${selected ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30' : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700'}`;
     }
     if (check) {
         check.className = `w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 ${selected ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300'}`;
@@ -235,14 +235,40 @@ function dashboardMeta() {
         total:      0,
         inProgress: 0,
         syncedAt:   '',
+        userName:        '',     // first-name fallback derived from email local-part
+        nextInspection:  null,   // { time: 'HH:mm', address: '...' } if any today/upcoming
+        // Design 0520 — time-aware greeting. Falls back to "Welcome back" when
+        // userName is empty (still loading or anon).
+        get dashTitle() {
+            const hr = new Date().getHours();
+            const tod = hr < 5 ? 'evening' : hr < 12 ? 'morning' : hr < 18 ? 'afternoon' : 'evening';
+            const who = this.userName || '';
+            return who ? `Good ${tod}, ${who}` : 'Dashboard';
+        },
         get metaText() {
             const parts = [];
             if (this.total > 0) parts.push(this.total + ' inspection' + (this.total === 1 ? '' : 's'));
             if (this.inProgress > 0) parts.push(this.inProgress + ' in progress');
+            if (this.nextInspection) parts.push('next: ' + this.nextInspection.time + ' · ' + this.nextInspection.address);
             if (this.syncedAt) parts.push('last sync ' + this.syncedAt);
             return parts.length ? parts.join(' · ') : 'No inspections yet';
         },
         async init() {
+            // Pull user identity once for greeting. Same endpoint the outer
+            // dashboard.js init() hits — small payload, second cached fetch.
+            try {
+                const meRes = await fetch('/api/auth/me', { credentials: 'include' });
+                if (meRes.ok) {
+                    const me = await meRes.json();
+                    const email = me?.data?.user?.email || '';
+                    if (email) {
+                        const local = email.split('@')[0];
+                        // Capitalize first letter, strip common separators
+                        const cleaned = local.replace(/[._-].*$/, '');
+                        this.userName = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+                    }
+                }
+            } catch {}
             await this.reload();
             window.addEventListener('inspection-updated', () => this.reload());
         },
@@ -264,6 +290,21 @@ function dashboardMeta() {
                     : all.length;
                 this.inProgress = all.filter(i => i.status === 'in_progress').length;
                 this.syncedAt = relativeTime(new Date());
+
+                // Find next inspection — earliest scheduledAt across today + thisWeek
+                // that is in the future. Skip cancelled / completed.
+                const candidates = [
+                    ...(d.today || []),
+                    ...(d.thisWeek || []),
+                ].filter(i => i.scheduledAt || i.date)
+                 .map(i => ({ ...i, when: new Date(i.scheduledAt || i.date) }))
+                 .filter(i => i.when.getTime() > Date.now())
+                 .sort((a, b) => a.when - b.when);
+                const next = candidates[0];
+                this.nextInspection = next ? {
+                    time: next.when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+                    address: (next.propertyAddress || next.address || '').split(',')[0],
+                } : null;
             } catch {}
         },
     };
@@ -470,9 +511,9 @@ function renderPlacesDropdown(results) {
     }
     dropdown.innerHTML = results.slice(0, 6).map(r => `
         <button type="button" data-place-id="${r.placeId}" data-place-text="${(r.description || '').replace(/"/g, '&quot;')}"
-                class="w-full text-left px-5 py-3 hover:bg-emerald-50 border-b border-slate-100 last:border-b-0 transition">
-          <div class="font-bold text-sm text-slate-900">${r.mainText || r.description}</div>
-          ${r.secondaryText ? `<div class="text-xs text-slate-500 mt-0.5">${r.secondaryText}</div>` : ''}
+                class="w-full text-left px-5 py-3 hover:bg-emerald-50 dark:hover:bg-slate-600 border-b border-slate-100 dark:border-slate-600 last:border-b-0 transition">
+          <div class="font-bold text-sm text-slate-900 dark:text-slate-100">${r.mainText || r.description}</div>
+          ${r.secondaryText ? `<div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${r.secondaryText}</div>` : ''}
         </button>
     `).join('');
     dropdown.classList.remove('hidden');
@@ -1037,7 +1078,7 @@ const DASHBOARD_COLUMN_REGISTRY = [
     { id: 'defectChips',     label: 'Defect Counts',    defaultOn: true                    },
     { id: 'agent',           label: 'Agent',            defaultOn: true                    },
     { id: 'price',           label: 'Price',            defaultOn: true                    },
-    { id: 'closingDate',     label: 'Closing Date',     defaultOn: false                   },
+    { id: 'closingDate',     label: 'Closing Date',     defaultOn: true                    },
     { id: 'orderId',         label: 'Order ID',         defaultOn: false                   },
     { id: 'referralSource',  label: 'Referral Source',  defaultOn: false                   },
     { id: 'propertyFacts',   label: 'Property Facts',   defaultOn: false                   },

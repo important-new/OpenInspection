@@ -117,28 +117,28 @@ export const Modal = ({
             {...alpineAttrs}
         >
             <div
-                class={`bg-white rounded-md shadow-xl w-full ${SIZE_CLASS[size]} p-6 max-h-[90vh] overflow-y-auto`}
+                class={`bg-white dark:bg-slate-800 rounded-md shadow-xl w-full ${SIZE_CLASS[size]} p-6 max-h-[90vh] overflow-y-auto`}
                 {...(name ? { 'x-on:click.stop': '' } : { onclick: 'event.stopPropagation()' })}
             >
                 {!hideHeader && (
                     <header class="flex items-start justify-between gap-3 mb-4">
                         <div class="min-w-0 flex-1">
                             {titleExpr ? (
-                                <h2 class="text-lg font-bold text-slate-900 truncate" x-text={titleExpr} />
+                                <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 truncate" x-text={titleExpr} />
                             ) : title ? (
-                                <h2 class="text-lg font-bold text-slate-900 truncate">{title}</h2>
+                                <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{title}</h2>
                             ) : null}
                             {subtitleExpr ? (
-                                <p class="text-sm text-slate-500 mt-0.5" x-text={subtitleExpr} />
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5" x-text={subtitleExpr} />
                             ) : subtitle ? (
-                                <p class="text-sm text-slate-500 mt-0.5">{subtitle}</p>
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>
                             ) : null}
                         </div>
                         {!hideClose && (
                             <button
                                 type="button"
                                 aria-label="Close dialog"
-                                class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0"
+                                class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-400 flex-shrink-0"
                                 {...(name ? { 'x-on:click': close } : { onclick: close })}
                             >
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,8 +214,7 @@ export const ModalFooter = ({
         <>
             <button
                 type="button"
-                class="flex-1 h-10 px-4 rounded-xl border bg-white text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-all"
-                style="border-color: #e2e8f0"
+                class="flex-1 h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-600 transition-all"
                 {...cancelAttrs}
             >
                 {cancelText}
