@@ -887,10 +887,18 @@ app.get('/agreements/sign', (c) => c.redirect('/not-found?from=agreement-sign', 
 // Public — no JWT required. tenantId resolves from the subdomain via
 // tenantRouter middleware (`resolvedTenantId`), the same way the public
 // `/report/:id` viewer is scoped.
-app.get('/sign/:id', async (c) => {
+app.get('/sign/:tenant/:id', async (c) => {
     const id = c.req.param('id') as string;
-    const tenantId = c.get('tenantId') || c.get('resolvedTenantId');
-    if (!tenantId) return c.redirect('/not-found?from=agreement-sign', 302);
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here. Use the
+    // friendly not-found page to match the rest of this handler's
+    // failure modes (token miss / no live request).
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.redirect('/not-found?from=agreement-sign', 302);
+    }
 
     try {
         const pending = await c.var.services.agreement.findPendingByInspectionId(tenantId as string, id);
@@ -1166,10 +1174,17 @@ app.get('/api/public/verify/:envelopeId/audit-trail', async (c) => {
 // also fires on the public /report/:id route; previously only the
 // authenticated /api/inspections/:id/report enforced it, which left the
 // public link bypassable.
-app.get('/report/:id', async (c) => {
+app.get('/report/:tenant/:id', async (c) => {
     const id = c.req.param('id') as string;
-    const tenantId = c.get('tenantId') || c.get('resolvedTenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here. Plain-text
+    // 404 matches the existing minimal failure mode of this handler.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
 
     // Spec 5A.3 — ?summary=1 filters to defects-only (used by PDF Summary
     // renderer). ?print=1 already supported by main-layout (hides nav).
