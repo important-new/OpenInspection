@@ -6,6 +6,12 @@ import { BurstCamera } from '../components/burst-camera';
 import { SpeedMode } from '../components/speed-mode';
 import { PhotoStudio } from '../components/photo-studio';
 import { InspectorToolsDock } from '../components/inspector-tools-dock';
+import { LiveConflictModal } from '../components/live-conflict-modal';
+import { RosterPopover } from '../components/roster-popover';
+import { ProgressStrip } from '../components/progress-strip';
+import { TeamBanner } from '../components/team-banner';
+import { FooterBar } from '../components/footer-bar';
+import { ReconnectBanner } from '../components/reconnect-banner';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -283,8 +289,22 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       </nav>
       <div
         x-data={`inspectionEditor('${inspectionId}')`}
+        data-inspection-id={inspectionId}
         class="min-h-screen editor-canvas"
       >
+        {/* Design System 0520 subsystem B phase 4 task 4.5 — ReconnectBanner.
+            Sticky amber strip at top showing offline-queue status when
+            pending writes are queued or conflicts have surfaced. */}
+        <ReconnectBanner />
+        {/* Design System 0520 subsystem B phase 6 task 6.5 — TeamBanner.
+            Auto-hidden when inspection.team_mode is false; otherwise shows
+            stacked avatars of lead + helpers and a Manage button that
+            dispatches `open-roster-popover` to summon the live roster. */}
+        <TeamBanner />
+        {/* Design System 0520 subsystem B phase 6 — ProgressStrip donut
+            + ETA + section heat-map. Auto-hides when no items yet. */}
+        <ProgressStrip />
+
         {/* Spec 5G M1.1 — Global hotkey photo input. P key triggers .click()
             on this hidden input; uploadPhoto reads activeItemId. */}
         <input
@@ -1933,6 +1953,21 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             mouse-driven discovery only. Auto-hidden while either overlay is
             active to avoid float overlap. */}
         <InspectorToolsDock />
+        {/* Design System 0520 subsystem B phase 4 task 4.4 — FooterBar.
+            Sticky bottom sync chip surfacing OfflineQueue state. */}
+        <FooterBar />
+        {/* Design System 0520 subsystem B phase 3 — live (online) conflict
+            modal. Distinct from the existing conflict-modal.tsx which
+            handles OFFLINE-replay conflicts surfaced by the Dexie sync
+            queue. This one fires when an online PATCH returns 409 because
+            another inspector saved the same field concurrently. */}
+        <LiveConflictModal />
+        {/* Design System 0520 subsystem B phase 7 — RosterPopover. Opens
+            via `open-roster-popover` window event; subscribes to the
+            current inspection's PresenceClient to show who is editing
+            (and which item). Add/Invite buttons are stubs that activate
+            when subsystem C M9 InviteSeatModal ships. */}
+        <RosterPopover />
         <Modal
             name="showLegacyPublishOptions"
             title="Publish options"
@@ -2403,6 +2438,27 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           `open-photo-studio` window event after the factory's init() has
           subscribed. */}
       <script type="module" src="/js/photo-studio.js"></script>
+      {/* Design System 0520 subsystem B phase 3 — live conflict modal factory.
+          Loaded as a module so it can `import` the conflict-resolver-helpers
+          ESM bundle alongside its companion components. */}
+      <script type="module" src="/js/live-conflict-modal.js"></script>
+      {/* Design System 0520 subsystem B phase 7 — RosterPopover + its
+          PresenceClient dependency. Both modules — PresenceClient self-
+          registers on window, RosterPopover reads from the data-inspection-id
+          attribute stamped on the editor root. */}
+      <script type="module" src="/js/presence-client.js"></script>
+      <script type="module" src="/js/roster-popover.js"></script>
+      {/* Design System 0520 subsystem B phase 6 — ProgressStrip factory.
+          Pulls completion / ETA / heat-map from progress-strip-helpers.js. */}
+      <script type="module" src="/js/progress-strip.js"></script>
+      {/* Design System 0520 subsystem B phase 6 — TeamBanner factory. */}
+      <script src="/js/team-banner.js"></script>
+      {/* Design System 0520 subsystem B phase 4 — OfflineQueue adapter +
+          its FooterBar / ReconnectBanner consumers. Loaded as modules so
+          the adapter can import from /js/sync-engine.js + /js/db.js. */}
+      <script type="module" src="/js/offline-queue.js"></script>
+      <script type="module" src="/js/footer-bar.js"></script>
+      <script type="module" src="/js/reconnect-banner.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>

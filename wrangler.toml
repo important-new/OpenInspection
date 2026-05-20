@@ -67,6 +67,16 @@ binding = "BROWSER"
 binding = "SIGN_COMPLETION_WORKFLOW"
 name = "sign-completion-workflow-sandbox"
 class_name = "SignCompletionWorkflow"
+# Design System 0520 subsystem B — presence DOs mirrored into sandbox env.
+[[env.sandbox.durable_objects.bindings]]
+name       = "INSPECTION_PRESENCE"
+class_name = "InspectionPresenceDO"
+[[env.sandbox.durable_objects.bindings]]
+name       = "TENANT_PRESENCE"
+class_name = "TenantPresenceDO"
+[[env.sandbox.migrations]]
+tag = "v1"
+new_classes = ["InspectionPresenceDO", "TenantPresenceDO"]
 
 # ── SaaS environment override ──────────────────────────────────────────────
 # Deploy with `wrangler deploy --env saas` to bring up a multi-tenant
@@ -112,6 +122,16 @@ binding = "BROWSER"
 binding = "SIGN_COMPLETION_WORKFLOW"
 name = "sign-completion-workflow-saas"
 class_name = "SignCompletionWorkflow"
+# Design System 0520 subsystem B — presence DOs mirrored into saas env.
+[[env.saas.durable_objects.bindings]]
+name       = "INSPECTION_PRESENCE"
+class_name = "InspectionPresenceDO"
+[[env.saas.durable_objects.bindings]]
+name       = "TENANT_PRESENCE"
+class_name = "TenantPresenceDO"
+[[env.saas.migrations]]
+tag = "v1"
+new_classes = ["InspectionPresenceDO", "TenantPresenceDO"]
 
 # ── Secrets — set via: wrangler secret put SECRET_NAME ──────────────────────
 # Run `npm run setup:cloudflare` to be prompted for each one interactively.
@@ -186,3 +206,20 @@ binding = "BROWSER"
 binding = "SIGN_COMPLETION_WORKFLOW"
 name = "sign-completion-workflow"
 class_name = "SignCompletionWorkflow"
+
+# ── Design System 0520 subsystem B — multi-inspector presence (phase 2) ───
+# Two Durable Object classes, both using the WebSocket Hibernation API.
+# InspectionPresenceDO scopes per inspection id; TenantPresenceDO aggregates
+# rosters across the tenant for the dashboard TeamStrip. Standalone single-
+# inspector profiles can leave the bindings absent — routes feature-detect.
+[[durable_objects.bindings]]
+name       = "INSPECTION_PRESENCE"
+class_name = "InspectionPresenceDO"
+
+[[durable_objects.bindings]]
+name       = "TENANT_PRESENCE"
+class_name = "TenantPresenceDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["InspectionPresenceDO", "TenantPresenceDO"]

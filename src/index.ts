@@ -11,6 +11,7 @@ import * as schema from './lib/db/schema';
 
 import { brandingMiddleware } from './lib/middleware/branding';
 import { inspectorPaletteMiddleware } from './lib/middleware/inspector-palette';
+import { touchLastActiveMiddleware } from './lib/middleware/touch-last-active';
 import { tenantRouter } from './features/tenant-routing';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
@@ -93,6 +94,7 @@ import { agreementSignPath } from './lib/public-urls';
 import coreAuthRoutes from './api/auth';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
+import tenantPresenceRoutes from './api/tenant-presence';
 import aiRoutes from './api/ai';
 import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
@@ -414,6 +416,12 @@ app.use('*', async (c, next) => {
 // the slug through manually.
 app.use('*', inspectorPaletteMiddleware);
 
+// Design System 0520 subsystem B phase 1 — debounced last-active touch. Runs
+// after every authenticated request (30 s window per user / worker isolate)
+// so TeamStrip's "last active Nm ago" pill stays accurate without hammering
+// D1 on every fetch.
+app.use('/api/*', touchLastActiveMiddleware);
+
 // API Routes
 app.use('/api/*', requireActiveSubscription);
 
@@ -422,6 +430,10 @@ app.use('/api/*', requireActiveSubscription);
 app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
 app.route('/api/inspections', inspectionsRoutes);
+// Design System 0520 subsystem B phase 2 — tenant-level presence channel
+// (one WS per dashboard tab). Per-inspection presence is mounted inline on
+// inspectionsRoutes above as /api/inspections/:id/presence/ws.
+app.route('/api/tenant', tenantPresenceRoutes);
 app.route('/api/inspections', inspectionSyncRoutes);
 // Sprint 3 S3-3 — tag link/unlink endpoints share the /api/inspections root
 // so the URL carries inspection id + item id directly. Mounted before the
@@ -2443,3 +2455,9 @@ export default {
     },
 };
 export { SignCompletionWorkflow } from './workflows/sign-completion-workflow';
+
+// Design System 0520 subsystem B phase 2 — presence Durable Objects.
+// wrangler needs them re-exported from the entrypoint so it can discover
+// the class names referenced by [[durable_objects.bindings]] in wrangler.toml.
+export { InspectionPresenceDO } from './durable-objects/inspection-presence';
+export { TenantPresenceDO     } from './durable-objects/tenant-presence';

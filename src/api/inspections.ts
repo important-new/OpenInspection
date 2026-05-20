@@ -37,6 +37,8 @@ import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/t
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
+import { PatchItemFieldSchema } from '../lib/validations/inspection-patch.schema';
+import { CreateInspectionFromWizardSchema } from '../lib/validations/wizard.schema';
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
@@ -2171,6 +2173,158 @@ inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
     const tenantId = c.get('tenantId');
     await c.var.services.concierge.approveByInspector(id, tenantId);
     return c.json({ success: true as const, data: { success: true as const } }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 5 task 5.3 — NewInspectionWizard create.
+// -----------------------------------------------------------------------------
+// Sibling endpoint to POST /api/inspections (the legacy single-step create).
+// 4-step wizard payload validated by CreateInspectionFromWizardSchema.
+// Returns the new inspection id so the wizard factory redirects to
+// /inspections/:id/edit on success.
+const createFromWizardRoute = createRoute({
+    method:     'post',
+    path:       '/wizard',
+    tags:       ['Inspections'],
+    summary:    'Create an inspection from the 4-step NewInspectionWizard',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        body: { content: { 'application/json': { schema: CreateInspectionFromWizardSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Created',
+            content: { 'application/json': { schema: z.object({
+                success: z.literal(true),
+                data:    z.object({ id: z.string() }),
+            }) } },
+        },
+        400: { description: 'Validation error' },
+    },
+});
+
+inspectionsRoutes.openapi(createFromWizardRoute, async (c) => {
+    const input    = c.req.valid('json');
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+    const out = await c.var.services.inspection.createFromWizard(tenantId, userId, input);
+    return c.json({ success: true as const, data: out }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 3 task 3.4 — field-version PATCH item.
+// -----------------------------------------------------------------------------
+// Optimistic concurrency on individual item fields. Body carries the
+// expectedVersion the client thinks it has; server returns 200 + newVersion
+// on match, 409 + current/yours on stale write. The ConflictModal
+// (phase 3 task 3.6) consumes the 409 payload.
+const patchItemFieldRoute = createRoute({
+    method:     'patch',
+    path:       '/{id}/items/{itemId}',
+    tags:       ['Inspections'],
+    summary:    'Patch a single item field with optimistic-concurrency version check',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), itemId: z.string().min(1) }),
+        body: { content: { 'application/json': { schema: PatchItemFieldSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'ok',
+            content: { 'application/json': { schema: z.object({
+                success: z.literal(true),
+                data:    z.object({ newVersion: z.number(), by: z.string(), at: z.number() }),
+            }) } },
+        },
+        404: { description: 'Inspection or item not found in this tenant' },
+        409: { description: 'expectedVersion stale — body contains current/yours' },
+    },
+});
+
+inspectionsRoutes.openapi(patchItemFieldRoute, async (c) => {
+    const { id, itemId } = c.req.valid('param');
+    const { field, value, expectedVersion, force } = c.req.valid('json');
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+    const out = await c.var.services.inspection.patchItem(
+        id, tenantId, itemId, field, value, expectedVersion, userId, { force: force ?? false },
+    );
+
+    if (out.kind === 'not_found') {
+        throw Errors.NotFound('Inspection not found');
+    }
+    if (out.kind === 'conflict') {
+        return c.json({ success: false as const, error: { code: 'CONFLICT', current: out.current, yours: out.yours } }, 409);
+    }
+    return c.json({ success: true as const, data: { newVersion: out.newVersion, by: out.by, at: out.at } }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 2 task 2.5 — presence WebSocket upgrade.
+// -----------------------------------------------------------------------------
+// Verifies the caller has edit access to the inspection, then forwards the
+// upgrade request to InspectionPresenceDO with user identity stamped in
+// headers. The DO consumes these headers verbatim — the worker is the
+// trust boundary.
+//
+// 404 (not 403) on tenant mismatch — no inspection-existence enumeration leak.
+// 501 when the binding is absent (standalone deployments may opt out of
+// presence to skip the Durable Objects line on their bill).
+inspectionsRoutes.get('/:id/presence/ws', async (c) => {
+    if (c.req.header('Upgrade') !== 'websocket') {
+        return new Response('expected websocket', { status: 426 });
+    }
+    if (!c.env.INSPECTION_PRESENCE) {
+        return new Response('presence unavailable', { status: 501 });
+    }
+
+    const id = c.req.param('id');
+    if (!id) return new Response('not found', { status: 404 });
+
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId || !tenantId) return new Response('unauthorized', { status: 401 });
+
+    let ins;
+    try {
+        const out = await c.var.services.inspection.getInspection(id, tenantId);
+        ins = out.inspection;
+    } catch {
+        return new Response('not found', { status: 404 });
+    }
+
+    const helpers = (() => {
+        try {
+            const parsed = JSON.parse(ins.helperInspectorIds ?? '[]');
+            return Array.isArray(parsed) ? parsed as string[] : [];
+        } catch { return []; }
+    })();
+    const allowed = ins.inspectorId === userId
+                 || ins.leadInspectorId === userId
+                 || helpers.includes(userId);
+    if (!allowed) return new Response('forbidden', { status: 403 });
+
+    const doId = c.env.INSPECTION_PRESENCE.idFromName(id);
+    const stub = c.env.INSPECTION_PRESENCE.get(doId);
+
+    const fwd = new Request('https://do.local/ws', {
+        method:  'GET',
+        headers: {
+            'Upgrade':          'websocket',
+            'x-user-id':        userId,
+            'x-user-name':      ins.inspectorId === userId ? 'Inspector' : 'Helper',
+            'x-user-photo-url': '',
+            'x-user-role':      'inspector',
+        },
+    });
+    return stub.fetch(fwd);
 });
 
 export default inspectionsRoutes;

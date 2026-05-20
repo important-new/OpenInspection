@@ -2427,6 +2427,82 @@ function inspectionEditor(inspectionId) {
       var el = document.getElementById('item-' + item.id);
       if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
+
+    // ============================================================
+    // Design System 0520 subsystem B phase 3 task 3.7 / phase 4 task 4.6
+    // — additive field-level PATCH save path.
+    //
+    // Coexists with the legacy debounceSave() coarse-PUT loop without
+    // touching its callers. New consumers (Subsystem D version-diff,
+    // live conflict UX, multi-select bulk-rate) opt in by calling these
+    // helpers; legacy setRating / setItemValue keep working unchanged.
+    //
+    // On 409 → dispatches `present-live-conflict` so LiveConflictModal
+    // (subsystem B P3 T3.6) surfaces the diff. On other network errors
+    // → enqueues via window.OfflineQueue so the existing sync-engine's
+    // drain loop retries.
+    // ============================================================
+    _expectedVersions: {},   // itemId → { rating, notes, value } version counters
+
+    _trackVersion(itemId, field, v) {
+      if (!this._expectedVersions[itemId]) this._expectedVersions[itemId] = {};
+      this._expectedVersions[itemId][field] = v;
+    },
+
+    _expectedVersion(itemId, field) {
+      return (this._expectedVersions[itemId] && this._expectedVersions[itemId][field]) || 0;
+    },
+
+    async patchItemField(itemId, field, value) {
+      var url  = '/api/inspections/' + this.inspectionId + '/items/' + encodeURIComponent(itemId);
+      var body = { field: field, value: value, expectedVersion: this._expectedVersion(itemId, field) };
+      try {
+        var r = await fetch(url, {
+          method:  'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body:    JSON.stringify(body),
+          credentials: 'same-origin',
+        });
+        if (r.status === 409) {
+          var conflict = await r.json().catch(function () { return null; });
+          if (conflict && conflict.error) {
+            window.dispatchEvent(new CustomEvent('present-live-conflict', {
+              detail: {
+                inspectionId: this.inspectionId,
+                itemId:       itemId,
+                field:        field,
+                yours:        { value: value, expectedVersion: body.expectedVersion },
+                theirs:       conflict.error.current,
+              },
+            }));
+          }
+          return { ok: false, kind: 'conflict' };
+        }
+        if (!r.ok) {
+          // Network-ish — queue via existing sync-engine so the next
+          // drainQueue replays it.
+          window.OfflineQueue && window.OfflineQueue.enqueue && window.OfflineQueue.enqueue({
+            url: url, method: 'PATCH', body: JSON.stringify(body), inspectionId: this.inspectionId,
+          });
+          return { ok: false, kind: 'queued' };
+        }
+        var out = await r.json();
+        var data = (out && out.data) || {};
+        if (typeof data.newVersion === 'number') {
+          this._trackVersion(itemId, field, data.newVersion);
+        }
+        // Mirror into local results so UI reflects without a re-fetch.
+        if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
+        this.results[itemId][field] = value;
+        return { ok: true, newVersion: data.newVersion };
+      } catch (err) {
+        // Offline / fetch error — enqueue.
+        window.OfflineQueue && window.OfflineQueue.enqueue && window.OfflineQueue.enqueue({
+          url: url, method: 'PATCH', body: JSON.stringify(body), inspectionId: this.inspectionId,
+        });
+        return { ok: false, kind: 'queued' };
+      }
+    },
   };
 }
 

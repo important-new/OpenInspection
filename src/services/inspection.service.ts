@@ -413,6 +413,62 @@ export class InspectionService {
     }
 
     /**
+     * Design System 0520 subsystem B phase 5 — NewInspectionWizard creation
+     * path. Thin wrapper around createInspection that maps the wizard's
+     * 4-step payload onto the existing column set + the new team_mode /
+     * lead_inspector_id / helper_inspector_ids columns added in subsystem
+     * B phase 1.
+     *
+     * Returns the freshly-inserted inspection id so the wizard factory can
+     * redirect to /inspections/:id/edit.
+     *
+     * Services array (wizard step 2) is stored informational-only on this
+     * MVP — wiring to the inspectionServices catalog needs slug→id
+     * lookup which is a separate follow-up.
+     */
+    async createFromWizard(
+        tenantId: string,
+        creatorUserId: string,
+        input: import('../lib/validations/wizard.schema').CreateInspectionFromWizardInput,
+    ): Promise<{ id: string }> {
+        // Build the base CreateInspectionData shape consumed by createInspection.
+        // The wizard's schedule.startTime is appended to the ISO date so the
+        // existing `date` column carries both — the editor's calendar pane
+        // already round-trips this format.
+        const dateTime = `${input.schedule.date}T${input.schedule.startTime}:00`;
+
+        const created = await this.createInspection(tenantId, {
+            inspectorId:     creatorUserId,
+            propertyAddress: input.property.address,
+            clientName:      'Private Client',  // wizard MVP — client picker is step-extension follow-up
+            clientEmail:     null,
+            clientPhone:     null,
+            templateId:      null,
+            date:            dateTime,
+            yearBuilt:       input.property.yearBuilt ?? null,
+            sqft:            input.property.sqft ?? null,
+            foundationType:  null,
+            bedrooms:        null,
+            bathrooms:       null,
+        } as unknown as CreateInspectionData & { inspectorId?: string });
+
+        // Set team_mode / lead / helpers via direct UPDATE — createInspection
+        // doesn't know about subsystem B's new columns yet.
+        if (input.teamMode || input.leadInspectorId || (input.helperInspectorIds?.length ?? 0) > 0) {
+            const db = this.getDrizzle();
+            await db.update(inspections)
+                .set({
+                    teamMode:           input.teamMode,
+                    leadInspectorId:    input.teamMode ? (input.leadInspectorId ?? creatorUserId) : null,
+                    helperInspectorIds: JSON.stringify(input.teamMode ? (input.helperInspectorIds ?? []) : []),
+                })
+                .where(and(eq(inspections.id, created.id), eq(inspections.tenantId, tenantId)));
+        }
+
+        return { id: created.id };
+    }
+
+    /**
      * Clones an existing inspection.
      */
     async cloneInspection(id: string, tenantId: string): Promise<Inspection> {
@@ -890,6 +946,81 @@ export class InspectionService {
             caption,
             updatedAt:   Date.now(),
         };
+    }
+
+    /**
+     * Design System 0520 subsystem B phase 3 — field-version-aware item patch.
+     *
+     * Reads inspection_results.data, runs the field through the version-
+     * arithmetic helper (decideFieldWrite), persists on match, returns a
+     * conflict payload otherwise. Bumps inspections.dataVersion on every
+     * successful write so the offline-queue can detect staleness without
+     * fetching the full results blob.
+     *
+     * Tenant isolation enforced via getInspection ownership check before
+     * any read/write touches inspection_results.
+     */
+    async patchItem(
+        inspectionId: string,
+        tenantId: string,
+        itemId: string,
+        field: 'rating' | 'notes' | 'value',
+        value: unknown,
+        expectedVersion: number,
+        userId: string,
+        opts?: { force?: boolean },
+    ): Promise<
+        | { kind: 'ok'; newVersion: number; by: string; at: number }
+        | { kind: 'conflict'; current: { value: unknown; by?: string; at?: number; v: number }; yours: { value: unknown; expectedVersion: number } }
+        | { kind: 'not_found' }
+    > {
+        // Verify ownership — throws if foreign tenant.
+        try {
+            await this.getInspection(inspectionId, tenantId);
+        } catch {
+            return { kind: 'not_found' };
+        }
+
+        const { decideFieldWrite, applyFieldWrite } = await import('../lib/field-version');
+        const db = this.getDrizzle();
+
+        const existing = await db.select().from(inspectionResults)
+            .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
+            .get();
+        const data: Record<string, Record<string, unknown>> = existing?.data
+            ? (typeof existing.data === 'string' ? JSON.parse(existing.data) : existing.data) as Record<string, Record<string, unknown>>
+            : {};
+
+        const cur = data[itemId];
+        const decision = decideFieldWrite(cur, field, value, expectedVersion, { force: opts?.force ?? false });
+        if (decision.kind === 'conflict') return decision;
+
+        const now = Math.floor(Date.now() / 1000);
+        const { entry, newVersion } = applyFieldWrite(cur, field, value, userId, now);
+        data[itemId] = entry;
+
+        if (existing) {
+            await db.update(inspectionResults)
+                .set({ data: data as unknown as object, lastSyncedAt: new Date() })
+                .where(eq(inspectionResults.id, existing.id));
+        } else {
+            await db.insert(inspectionResults).values({
+                id:           crypto.randomUUID(),
+                tenantId,
+                inspectionId,
+                data:         data as unknown as object,
+                lastSyncedAt: new Date(),
+            });
+        }
+
+        // Bump inspections.dataVersion — offline queue uses this counter
+        // to detect "the rest of the world moved" without re-fetching the
+        // entire results JSON.
+        await db.update(inspections)
+            .set({ dataVersion: sql`${inspections.dataVersion} + 1` })
+            .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)));
+
+        return { kind: 'ok', newVersion, by: userId, at: now };
     }
 
     /**
