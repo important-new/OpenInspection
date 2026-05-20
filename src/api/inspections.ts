@@ -37,6 +37,7 @@ import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/t
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
+import { PatchItemFieldSchema } from '../lib/validations/inspection-patch.schema';
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
@@ -2171,6 +2172,57 @@ inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
     const tenantId = c.get('tenantId');
     await c.var.services.concierge.approveByInspector(id, tenantId);
     return c.json({ success: true as const, data: { success: true as const } }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 3 task 3.4 — field-version PATCH item.
+// -----------------------------------------------------------------------------
+// Optimistic concurrency on individual item fields. Body carries the
+// expectedVersion the client thinks it has; server returns 200 + newVersion
+// on match, 409 + current/yours on stale write. The ConflictModal
+// (phase 3 task 3.6) consumes the 409 payload.
+const patchItemFieldRoute = createRoute({
+    method:     'patch',
+    path:       '/{id}/items/{itemId}',
+    tags:       ['Inspections'],
+    summary:    'Patch a single item field with optimistic-concurrency version check',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), itemId: z.string().min(1) }),
+        body: { content: { 'application/json': { schema: PatchItemFieldSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'ok',
+            content: { 'application/json': { schema: z.object({
+                success: z.literal(true),
+                data:    z.object({ newVersion: z.number(), by: z.string(), at: z.number() }),
+            }) } },
+        },
+        404: { description: 'Inspection or item not found in this tenant' },
+        409: { description: 'expectedVersion stale — body contains current/yours' },
+    },
+});
+
+inspectionsRoutes.openapi(patchItemFieldRoute, async (c) => {
+    const { id, itemId } = c.req.valid('param');
+    const { field, value, expectedVersion, force } = c.req.valid('json');
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+    const out = await c.var.services.inspection.patchItem(
+        id, tenantId, itemId, field, value, expectedVersion, userId, { force: force ?? false },
+    );
+
+    if (out.kind === 'not_found') {
+        throw Errors.NotFound('Inspection not found');
+    }
+    if (out.kind === 'conflict') {
+        return c.json({ success: false as const, error: { code: 'CONFLICT', current: out.current, yours: out.yours } }, 409);
+    }
+    return c.json({ success: true as const, data: { newVersion: out.newVersion, by: out.by, at: out.at } }, 200);
 });
 
 // -----------------------------------------------------------------------------

@@ -893,6 +893,81 @@ export class InspectionService {
     }
 
     /**
+     * Design System 0520 subsystem B phase 3 — field-version-aware item patch.
+     *
+     * Reads inspection_results.data, runs the field through the version-
+     * arithmetic helper (decideFieldWrite), persists on match, returns a
+     * conflict payload otherwise. Bumps inspections.dataVersion on every
+     * successful write so the offline-queue can detect staleness without
+     * fetching the full results blob.
+     *
+     * Tenant isolation enforced via getInspection ownership check before
+     * any read/write touches inspection_results.
+     */
+    async patchItem(
+        inspectionId: string,
+        tenantId: string,
+        itemId: string,
+        field: 'rating' | 'notes' | 'value',
+        value: unknown,
+        expectedVersion: number,
+        userId: string,
+        opts?: { force?: boolean },
+    ): Promise<
+        | { kind: 'ok'; newVersion: number; by: string; at: number }
+        | { kind: 'conflict'; current: { value: unknown; by?: string; at?: number; v: number }; yours: { value: unknown; expectedVersion: number } }
+        | { kind: 'not_found' }
+    > {
+        // Verify ownership — throws if foreign tenant.
+        try {
+            await this.getInspection(inspectionId, tenantId);
+        } catch {
+            return { kind: 'not_found' };
+        }
+
+        const { decideFieldWrite, applyFieldWrite } = await import('../lib/field-version');
+        const db = this.getDrizzle();
+
+        const existing = await db.select().from(inspectionResults)
+            .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
+            .get();
+        const data: Record<string, Record<string, unknown>> = existing?.data
+            ? (typeof existing.data === 'string' ? JSON.parse(existing.data) : existing.data) as Record<string, Record<string, unknown>>
+            : {};
+
+        const cur = data[itemId];
+        const decision = decideFieldWrite(cur, field, value, expectedVersion, { force: opts?.force ?? false });
+        if (decision.kind === 'conflict') return decision;
+
+        const now = Math.floor(Date.now() / 1000);
+        const { entry, newVersion } = applyFieldWrite(cur, field, value, userId, now);
+        data[itemId] = entry;
+
+        if (existing) {
+            await db.update(inspectionResults)
+                .set({ data: data as unknown as object, lastSyncedAt: new Date() })
+                .where(eq(inspectionResults.id, existing.id));
+        } else {
+            await db.insert(inspectionResults).values({
+                id:           crypto.randomUUID(),
+                tenantId,
+                inspectionId,
+                data:         data as unknown as object,
+                lastSyncedAt: new Date(),
+            });
+        }
+
+        // Bump inspections.dataVersion — offline queue uses this counter
+        // to detect "the rest of the world moved" without re-fetching the
+        // entire results JSON.
+        await db.update(inspections)
+            .set({ dataVersion: sql`${inspections.dataVersion} + 1` })
+            .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)));
+
+        return { kind: 'ok', newVersion, by: userId, at: now };
+    }
+
+    /**
      * Round-2 backlog #9 — delete a loose pool photo (drag cancel / cleanup).
      * Hard-deletes both the DB row and the R2 object.
      */

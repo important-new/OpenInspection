@@ -56,13 +56,15 @@ export function decideFieldWrite(
     const curV = (cur?.[`${field}_v`] as number | undefined) ?? 0;
     if (curV === expectedVersion) return { kind: 'ok' };
 
+    const by = cur?.[`${field}_by`] as string | undefined;
+    const at = cur?.[`${field}_at`] as number | undefined;
     return {
         kind: 'conflict',
         current: {
             value: cur?.[field],
-            by:    cur?.[`${field}_by`] as string | undefined,
-            at:    cur?.[`${field}_at`] as number | undefined,
             v:     curV,
+            ...(by !== undefined ? { by } : {}),
+            ...(at !== undefined ? { at } : {}),
         },
         yours: { value, expectedVersion },
     };
