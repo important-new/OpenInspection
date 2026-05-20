@@ -90,7 +90,9 @@ teamRoutes.openapi(inviteTeamMemberRoute, async (c) => {
     const { token, expiresAt } = await teamService.createInvite({
         tenantId,
         email: body.email,
-        role: body.role,
+        role:  body.role,
+        ...(body.mentorId           ? { mentorId: body.mentorId }                   : {}),
+        ...(body.assignedSectionIds ? { assignedSectionIds: body.assignedSectionIds } : {}),
     });
 
     const inviteLink = `${getBaseUrl(c)}/join?token=${token}`;
@@ -222,6 +224,52 @@ teamRoutes.openapi(decideApprenticeReviewRoute, async (c) => {
     }
 
     return c.json({ success: true as const, data: { reviewId: id, action } }, 200);
+});
+
+// Subsystem C P5 — admin-only guest invite minting. Returns the one-time
+// `/guest-join?token=…` URL the admin can paste into chat/email. Active
+// guests count against the same seat quota as permanent members, so the
+// seat-guard middleware runs first.
+
+const mintGuestInviteRoute = createRoute({
+    method:     'post',
+    path:       '/guests',
+    tags:       ['Team'],
+    summary:    'Mint a one-time guest invite link',
+    middleware: [requireRole(['admin', 'owner']), requireSeatAvailable] as const,
+    request: {
+        body: { content: { 'application/json': { schema: z.object({
+            role:            z.enum(['lead', 'specialist', 'apprentice', 'office']),
+            durationSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).default(86_400),
+        }) } } },
+    },
+    responses: {
+        201: { description: 'Invite minted' },
+        402: { description: 'Tenant at seat cap' },
+    },
+});
+
+teamRoutes.openapi(mintGuestInviteRoute, async (c) => {
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    if (!user?.sub) throw Errors.Unauthorized('Missing user identity');
+    const body     = c.req.valid('json');
+
+    const { token, url, expiresAt } = await c.var.services.guestInvite.mint(tenantId, {
+        role:            body.role,
+        durationSeconds: body.durationSeconds,
+        createdBy:       user.sub,
+    });
+
+    const baseUrl = getBaseUrl(c);
+    return c.json({
+        success: true as const,
+        data: {
+            token,
+            url:       url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/guest-join?token=${token}`,
+            expiresAt,
+        },
+    }, 201);
 });
 
 export default teamRoutes;
