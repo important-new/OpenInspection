@@ -1,7 +1,8 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Context } from 'hono';
 import { serveStatic } from 'hono/cloudflare-workers';
-import { deleteCookie, getCookie } from 'hono/cookie';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { signObserverCookie } from './lib/observer-cookie';
 import { verifyJwt } from './lib/jwt-keyring';
 import { classifyJwtPayload } from './lib/auth/jwt-claims';
 import { drizzle } from 'drizzle-orm/d1';
@@ -434,6 +435,37 @@ app.route('/api/inspections', inspectionsRoutes);
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
 // inspectionsRoutes above as /api/inspections/:id/presence/ws.
 app.route('/api/tenant', tenantPresenceRoutes);
+
+// Design System 0520 subsystem D phase 4/5 — anonymous observer claim.
+// Public route — exchanges a one-time token for a __Host-observer_session
+// cookie (HMAC-signed scope = inspection id + expiresAt). Subsequent
+// /observe/inspections/:id loads carry the cookie; the middleware in
+// src/lib/middleware/observer-cookie.ts verifies + scopes per-request.
+app.get('/observe/:token', async (c) => {
+    const token = c.req.param('token');
+    if (!token) return c.text('Missing token', 400);
+
+    const out = await c.var.services.observerLink.claim(token);
+    if (out.kind === 'not_found' || out.kind === 'revoked') {
+        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Invalid link</h1><p>This observer link has been revoked or does not exist.</p></body></html>', 404);
+    }
+    if (out.kind === 'expired') {
+        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Link expired</h1><p>This observer link has expired. Ask your inspector for a fresh one.</p></body></html>', 410);
+    }
+
+    const cookie = await signObserverCookie(
+        { linkId: out.linkId, inspectionId: out.inspectionId, exp: out.exp },
+        c.env.JWT_SECRET,
+    );
+    setCookie(c, '__Host-observer_session', cookie, {
+        httpOnly: true,
+        secure:   true,
+        sameSite: 'Strict',
+        path:     '/observe',
+        maxAge:   Math.max(out.exp - Math.floor(Date.now() / 1000), 60),
+    });
+    return c.redirect(`/observe/inspections/${out.inspectionId}`);
+});
 app.route('/api/inspections', inspectionSyncRoutes);
 // Sprint 3 S3-3 — tag link/unlink endpoints share the /api/inspections root
 // so the URL carries inspection id + item id directly. Mounted before the

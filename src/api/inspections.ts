@@ -2440,4 +2440,71 @@ inspectionsRoutes.openapi(moveUnitRoute, async (c) => {
     }
 });
 
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem D phase 4 task 4.3 — ObserverLink routes.
+// -----------------------------------------------------------------------------
+// Mint / list / revoke for the no-account read-only viewer flow. The
+// anonymous /observe/:token claim handler is mounted at the top level
+// in src/index.ts because it does not sit under /api/inspections/:id.
+
+const mintObserverLinkRoute = createRoute({
+    method:     'post',
+    path:       '/{id}/observer-links',
+    tags:       ['ObserverLink'],
+    summary:    'Mint a no-account read-only viewer link',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: z.object({
+            durationSeconds: z.number().int().min(60).max(30 * 86400).optional(),
+        }) } } },
+    },
+    responses: { 200: { description: 'ok' } },
+});
+inspectionsRoutes.openapi(mintObserverLinkRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const body   = c.req.valid('json');
+    const user   = c.get('user') as { sub?: string } | undefined;
+    if (!user?.sub) throw Errors.Unauthorized('Missing user identity');
+
+    const mintInput: { inspectionId: string; createdBy: string; durationSeconds?: number } = {
+        inspectionId: id,
+        createdBy:    user.sub,
+    };
+    if (body.durationSeconds !== undefined) mintInput.durationSeconds = body.durationSeconds;
+
+    const out = await c.var.services.observerLink.mint(c.get('tenantId'), mintInput);
+    return c.json({ success: true as const, data: out }, 200);
+});
+
+const listObserverLinksRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/observer-links',
+    tags:       ['ObserverLink'],
+    summary:    'List active observer links for an inspection',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request:    { params: z.object({ id: z.string().uuid() }) },
+    responses:  { 200: { description: 'ok' } },
+});
+inspectionsRoutes.openapi(listObserverLinksRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const links  = await c.var.services.observerLink.list(c.get('tenantId'), id);
+    return c.json({ success: true as const, data: { links } }, 200);
+});
+
+const revokeObserverLinkRoute = createRoute({
+    method:     'delete',
+    path:       '/{id}/observer-links/{linkId}',
+    tags:       ['ObserverLink'],
+    summary:    'Revoke an observer link',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request:    { params: z.object({ id: z.string().uuid(), linkId: z.string().min(1) }) },
+    responses:  { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
+});
+inspectionsRoutes.openapi(revokeObserverLinkRoute, async (c) => {
+    const { linkId } = c.req.valid('param');
+    await c.var.services.observerLink.revoke(c.get('tenantId'), linkId);
+    return c.json({ success: true as const }, 200);
+});
+
 export default inspectionsRoutes;
