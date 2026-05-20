@@ -38,6 +38,60 @@
     --ih-shadow-card: 0 1px 3px rgba(15,23,42,0.08);
     --ih-shadow-modal: 0 8px 32px rgba(15,23,42,0.12);
     --ih-shadow-cta:   0 0 16px rgba(99,102,241,0.30);
+
+    /* === Design System 0520 additions (subsystem A — token sync) === */
+    /* Font families */
+    --ih-font-sans:    'Inter', system-ui, -apple-system, sans-serif;
+    --ih-font-display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+    --ih-font-body:    'DM Sans', 'Inter', system-ui, sans-serif;
+    --ih-font-serif:   'Fraunces', 'Instrument Serif', Georgia, serif;
+    --ih-font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    /* Type size additions */
+    --ih-text-meta:    12px;
+    --ih-text-eyebrow: 10px;
+    /* Line heights */
+    --ih-leading-hero: 1.1; --ih-leading-section: 1.25;
+    --ih-leading-tight: 1.35; --ih-leading-body: 1.55;
+    /* Font weights additions */
+    --ih-weight-medium: 500; --ih-weight-semi: 600; --ih-weight-black: 800;
+    /* Letter spacing */
+    --ih-letter-eyebrow: 0.2em;
+    /* Spacing scale additions */
+    --ih-space-1: 4px; --ih-space-2: 8px; --ih-space-3: 12px; --ih-space-4: 16px;
+    --ih-space-5: 20px; --ih-space-6: 24px; --ih-space-8: 32px; --ih-space-10: 40px;
+    --ih-space-12: 48px; --ih-space-16: 64px;
+    /* Radii addition */
+    --ih-radius-input: 8px;
+    /* Shadows additions */
+    --ih-shadow-card-hover: 0 4px 12px rgba(15,23,42,0.10);
+    --ih-shadow-popover:    0 10px 25px -5px rgba(15,23,42,0.15), 0 8px 10px -6px rgba(15,23,42,0.08);
+    --ih-shadow-focus:      0 0 0 3px var(--ih-primary-glow);
+    /* Borders */
+    --ih-border:        1px solid var(--ih-slate-200);
+    --ih-border-strong: 1px solid var(--ih-slate-300);
+    --ih-border-focus:  1px solid var(--ih-primary);
+    /* Motion */
+    --ih-ease: cubic-bezier(0.4, 0, 0.2, 1);
+    --ih-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ih-dur-fast: 150ms; --ih-dur: 200ms; --ih-dur-slow: 300ms;
+    /* Status: info (sky) */
+    --ih-status-info:    #0284c7;
+    --ih-status-info-bg: #eff6ff;
+    --ih-status-info-fg: #1d4ed8;
+    /* Stone scale (warm neutrals) */
+    --ih-stone-50:#fafaf9; --ih-stone-100:#f5f5f4; --ih-stone-200:#e7e5e4;
+    --ih-stone-300:#d6d3d1; --ih-stone-400:#a8a29e; --ih-stone-500:#78716c;
+    --ih-stone-600:#57534e; --ih-stone-700:#44403c; --ih-stone-800:#292524;
+    --ih-stone-900:#1c1917;
+    /* Customer portal tokens (light) */
+    --cp-bg:#fdfbf6; --cp-bg-card:#ffffff; --cp-bg-muted:#f7f3eb; --cp-bg-input:#ffffff;
+    --cp-fg-1:#1c1917; --cp-fg-2:#44403c; --cp-fg-3:#78716c;
+    --cp-fg-4:#a8a29e; --cp-fg-5:#d6d3d1;
+    --cp-border-color:#e7e5e4; --cp-border:1px solid var(--cp-border-color); --cp-border-strong:1px solid #d6d3d1;
+    --cp-divider:#f5f5f4;
+    --cp-action:#1c1917; --cp-action-fg:#fdfbf6; --cp-accent:#a16207; --cp-checkbox:#1c1917;
+    --cp-shadow-card:0 1px 3px rgba(28,25,23,0.06);
+    --cp-hero-bg:#292524; --cp-hero-fg:#fafaf9;
 }
 
 @tailwind base;
@@ -90,6 +144,7 @@ textarea {
 .ih-pill--ni      { background:#e2e8f0; color:#475569; }
 .ih-pill--np      { background:#f1f5f9; color:#64748b; }
 .ih-pill--gen     { background:#f1f5f9; color:#475569; }
+.ih-pill--info    { background:var(--ih-status-info-bg); color:var(--ih-status-info-fg); }
 
 /* Phase T — voice input mic button active state */
 .mic-recording {
@@ -578,6 +633,25 @@ html[data-color-scheme="dark"] {
     --ih-shadow-card:  0 1px 3px rgba(0, 0, 0, 0.3);
     --ih-shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
     --ih-shadow-cta:   0 0 16px rgba(129, 140, 248, 0.30);
+
+    /* === Design System 0520 dark-mode additions === */
+    --ih-status-info:    #38bdf8;
+    --ih-status-info-bg: #0c1d3a;
+    --ih-status-info-fg: #38bdf8;
+    --ih-border:        1px solid rgba(255,255,255,0.08);
+    --ih-border-strong: 1px solid rgba(255,255,255,0.14);
+    --ih-shadow-card-hover: 0 4px 12px rgba(0,0,0,0.32);
+    --ih-shadow-popover:    0 10px 25px -5px rgba(0,0,0,0.40), 0 8px 10px -6px rgba(0,0,0,0.25);
+    --ih-shadow-focus:      0 0 0 3px rgba(99,102,241,0.45);
+    /* Customer portal — dark */
+    --cp-bg:#1c1917; --cp-bg-card:#292524; --cp-bg-muted:#1c1917; --cp-bg-input:#292524;
+    --cp-fg-1:#fafaf9; --cp-fg-2:#d6d3d1; --cp-fg-3:#a8a29e;
+    --cp-fg-4:#78716c; --cp-fg-5:#44403c;
+    --cp-border-color:#44403c; --cp-border:1px solid var(--cp-border-color); --cp-border-strong:1px solid #57534e;
+    --cp-divider:#292524;
+    --cp-action:#fafaf9; --cp-action-fg:#1c1917; --cp-accent:#fbbf24; --cp-checkbox:#fafaf9;
+    --cp-shadow-card:0 1px 3px rgba(0,0,0,0.40);
+    --cp-hero-bg:#0c0a09; --cp-hero-fg:#fafaf9;
 }
 
 html[data-color-scheme="light"] {
@@ -616,6 +690,7 @@ html[data-color-scheme="dark"] .ih-pill--defect  { background:#3b0000; color:#f8
 html[data-color-scheme="dark"] .ih-pill--ni      { background:#1e293b; color:#94a3b8; }
 html[data-color-scheme="dark"] .ih-pill--np      { background:#162032; color:#94a3b8; }
 html[data-color-scheme="dark"] .ih-pill--gen     { background:#162032; color:#94a3b8; }
+html[data-color-scheme="dark"] .ih-pill--info    { background:#0c1d3a; color:#38bdf8; }
 
 /* ── Form inputs ─────────────────────────────────────────── */
 html[data-color-scheme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
