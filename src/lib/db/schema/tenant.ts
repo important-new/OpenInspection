@@ -91,6 +91,11 @@ export const tenantInvites = sqliteTable('tenant_invites', {
     role: text('role').notNull().default('inspector'),
     status: text('status').notNull().default('pending'),
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    // Design System 0520 subsystem C P5 — carry apprentice mentor +
+    // specialist section assignment from the InviteSeatModal into the
+    // eventual users row at accept time. NULL/empty for lead/office.
+    mentorId:           text('mentor_id'),
+    assignedSectionIds: text('assigned_section_ids').notNull().default('[]'),
 });
 
 export const tenantConfigs = sqliteTable('tenant_configs', {

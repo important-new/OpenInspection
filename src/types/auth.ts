@@ -1,6 +1,14 @@
 export interface User {
     sub: string;
-    role: 'owner' | 'admin' | 'inspector' | 'agent';
+    /**
+     * Subsystem C P5 extended the role surface from the legacy 3-role
+     * model (owner/admin/inspector) to a 4-role inspector hierarchy
+     * (lead/specialist/apprentice/office). `inspector` is retained as a
+     * legacy alias for `lead` and is normalised by ROLE_ALIASES in
+     * src/lib/middleware/rbac.ts so existing tokens keep verifying.
+     */
+    role: 'owner' | 'admin' | 'inspector' | 'agent'
+        | 'lead' | 'specialist' | 'apprentice' | 'office';
     // Agent Accounts A1 — tenantId is undefined for global agent accounts
     // (role='agent'). Each agent route resolves the active tenant per-request
     // via `resolveAgentTenant()`.
