@@ -28,7 +28,11 @@ export interface ReportUnitsSummaryProps {
     defectCountsByUnit?: Record<string, number>;
 }
 
-function childrenOf(units: ReportUnit[], parentId: string | null): ReportUnit[] {
+/** Pure helper exported for unit testing — returns the direct children
+ *  of `parentId` (use `null` for top-level buildings), sorted by
+ *  `sortOrder`. Missing sortOrder treated as 0 so legacy rows render
+ *  in insertion order. */
+export function childrenOf(units: ReportUnit[], parentId: string | null): ReportUnit[] {
     return units
         .filter(u => u.parentUnitId === parentId)
         .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
