@@ -36,6 +36,7 @@ import {
 import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
+import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
@@ -1227,6 +1228,65 @@ inspectionsRoutes.openapi(mediaPoolDeleteRoute, async (c) => {
     const { id, poolId } = c.req.valid('param');
     await c.var.services.inspection.deletePoolPhoto(id, c.get('tenantId'), poolId);
     return c.json({ success: true as const }, 200);
+});
+
+// Design System 0520 M14 — PhotoStudio annotation save (subsystem A, phase 4).
+// Opaque JSON-encoded shape array (≤8 KB) + caption (≤200 chars). Tenant-
+// isolated via ScopedDB; 404 on cross-tenant access (no enumeration leak).
+const updateMediaAnnotationsRoute = createRoute({
+    method:     'put',
+    path:       '/{id}/media/{mediaId}/annotations',
+    tags:       ['Inspections'],
+    summary:    'Save PhotoStudio annotation overlay + caption',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), mediaId: z.string().min(1) }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: UpdateMediaAnnotationsSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Annotations saved',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(true),
+                        data: z.object({
+                            id:          z.string(),
+                            annotations: z.string().nullable(),
+                            caption:     z.string().nullable(),
+                            updatedAt:   z.number(),
+                        }),
+                    }),
+                },
+            },
+        },
+        404: { description: 'Media not found in this tenant' },
+    },
+});
+
+inspectionsRoutes.openapi(updateMediaAnnotationsRoute, async (c) => {
+    const { id, mediaId } = c.req.valid('param');
+    const { annotations, caption } = c.req.valid('json');
+
+    const out = await c.var.services.inspection.updateMediaAnnotations(
+        id,
+        mediaId,
+        c.get('tenantId'),
+        annotations,
+        caption,
+    );
+
+    if (!out) {
+        throw Errors.NotFound('Media not found');
+    }
+
+    return c.json({ success: true as const, data: out }, 200);
 });
 
 /**
