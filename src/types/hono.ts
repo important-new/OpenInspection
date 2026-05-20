@@ -75,6 +75,12 @@ export interface AppEnv {
     // Spec 5H P1 — async sign-completion pipeline (signed.pdf + cert.pdf + audit append)
     SIGN_COMPLETION_WORKFLOW?: Workflow;
 
+    // Design System 0520 subsystem B — presence Durable Objects (phase 2).
+    // Optional in non-saas profiles where presence is disabled (standalone
+    // single-inspector deployments). Routes that touch presence feature-detect.
+    INSPECTION_PRESENCE?: DurableObjectNamespace;
+    TENANT_PRESENCE?: DurableObjectNamespace;
+
     // Spec 5H — Public verifier base URL embedded in Certificate of Completion
     ESIGN_PUBLIC_VERIFY_BASE?: string;
 
