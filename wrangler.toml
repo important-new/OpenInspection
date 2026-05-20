@@ -36,6 +36,21 @@ APP_MODE = "standalone"
 SANDBOX_MODE = "true"
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 
+# ── SaaS environment override ──────────────────────────────────────────────
+# Deploy with `wrangler deploy --env saas` to bring up the multi-tenant
+# control-plane-fronted worker at app.inspectorhub.io. Pairs with
+# apps/portal for billing + onboarding. PORTAL_API_URL points at the
+# portal worker that owns Stripe + onboarding workflows.
+[env.saas]
+name = "openinspection-saas"
+[env.saas.vars]
+ENVIRONMENT = "production"
+APP_MODE = "saas"
+SAAS_TOPOLOGY = "shared"
+PORTAL_API_URL = "https://portal.inspectorhub.io"
+SANDBOX_MODE = ""
+TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+
 # ── Secrets — set via: wrangler secret put SECRET_NAME ──────────────────────
 # Run `npm run setup:cloudflare` to be prompted for each one interactively.
 #
