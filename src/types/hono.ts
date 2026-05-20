@@ -204,6 +204,8 @@ export interface AppServices {
     concierge: ConciergeService;
     // QuickBooks Online integration
     qbo: import('../services/qbo.service').QBOService;
+    // Design System 0520 subsystem E P4 — IdentitySwitcher (M20)
+    identity: import('../services/identity.service').IdentityService;
 }
 
 /**

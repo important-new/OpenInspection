@@ -38,6 +38,7 @@ import { IcsService } from '../../services/ics.service';
 import { AgentService } from '../../services/agent.service';
 import { ConciergeService } from '../../services/concierge.service';
 import { QBOService } from '../../services/qbo.service';
+import { IdentityService } from '../../services/identity.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -265,6 +266,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         c.env.QBO_WEBHOOK_SECRET ?? '',
                         c.env.JWT_SECRET,
                     );
+                    break;
+                case 'identity':
+                    // Design System 0520 subsystem E P4 — IdentitySwitcher (M20)
+                    target.identity = new IdentityService(c.env.DB);
                     break;
             }
             return target[prop];

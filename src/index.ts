@@ -92,6 +92,7 @@ import { agreementSignPath } from './lib/public-urls';
 
 
 import coreAuthRoutes from './api/auth';
+import identityRoutes from './api/identity';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
@@ -429,6 +430,8 @@ app.use('/api/*', requireActiveSubscription);
 // Mount auth routes at canonical API path AND at root so that /setup, /login (POST), /join (POST) work without redirects
 app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
+// Design System 0520 subsystem E P4 — IdentitySwitcher routes (M20).
+app.route('/api/identities', identityRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 // Design System 0520 subsystem B phase 2 — tenant-level presence channel
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
