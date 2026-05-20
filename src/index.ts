@@ -11,7 +11,7 @@ import * as schema from './lib/db/schema';
 
 import { brandingMiddleware } from './lib/middleware/branding';
 import { inspectorPaletteMiddleware } from './lib/middleware/inspector-palette';
-import { tenantRouter } from './lib/middleware/tenant-router';
+import { tenantRouter } from './features/tenant-routing';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
 import { securityHeaders } from './lib/middleware/security-headers';

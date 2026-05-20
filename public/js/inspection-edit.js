@@ -361,15 +361,49 @@ function inspectionEditor(inspectionId) {
           return;
         }
         // Navigation: ArrowUp / ArrowDown move active item up/down,
+        // J / K Vim-style aliases (Design 0520 M11.2),
         // Enter advances to next, Shift+Enter goes to previous.
-        if (e.key === 'ArrowDown' || (e.key === 'Enter' && !e.shiftKey)) {
+        if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J' || (e.key === 'Enter' && !e.shiftKey)) {
           e.preventDefault();
           this.navigateItem(1);
           return;
         }
-        if (e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)) {
+        if (e.key === 'ArrowUp' || e.key === 'k' || (e.key === 'Enter' && e.shiftKey)) {
+          // Note: capital K is already used by an earlier handler (block toggle
+          // around line 261). Only lowercase k aliases ArrowUp to avoid a clash.
           e.preventDefault();
           this.navigateItem(-1);
+          return;
+        }
+        // R = repeat the previous item's rating + notes (Design 0520 M11.1).
+        // "Previous" = the nearest earlier item in the current section that
+        // already carries a rating, so an inspector can chain similar items
+        // without re-typing. Skips if no prior item has a rating yet.
+        if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          if (!this.activeItem) {
+            if (typeof showToast === 'function') showToast('Select an item first to repeat the previous rating');
+            return;
+          }
+          var section = (this.template?.sections || []).find(s => (s.items || []).some(it => it.id === this.activeItem.id));
+          var sectionItems = section ? section.items : (this.template?.sections?.[0]?.items || []);
+          var activeIdx = sectionItems.findIndex(it => it.id === this.activeItem.id);
+          var prior = null;
+          for (var pi = activeIdx - 1; pi >= 0; pi--) {
+            var candidate = sectionItems[pi];
+            var res = this.results?.[candidate.id];
+            if (res && res.ratingLevelId) { prior = { id: candidate.id, res: res }; break; }
+          }
+          if (!prior) {
+            if (typeof showToast === 'function') showToast('No earlier rated item to repeat from');
+            return;
+          }
+          // Copy rating + canned/custom comment payload to the active item.
+          // Existing comments on the active item are replaced — `R` is the
+          // explicit "clone above" gesture, not an accumulator.
+          this.results[this.activeItem.id] = JSON.parse(JSON.stringify(prior.res));
+          this.debounceSave();
+          if (typeof showToast === 'function') showToast('Cloned rating + notes from previous item');
           return;
         }
         // P = add photo to active item (triggers global hidden file input)
@@ -593,15 +627,26 @@ function inspectionEditor(inspectionId) {
     },
 
     get completionPercent() {
-      var total = 0, rated = 0;
+      var total = 0, completed = 0;
       for (var s = 0; s < this.sections.length; s++) {
         var items = this.sections[s].items;
         for (var i = 0; i < items.length; i++) {
           total++;
-          if (this.results[items[i].id]?.rating) rated++;
+          var r = this.results[items[i].id];
+          if (!r) continue;
+          // rich items count when a rating is picked; non-rich item types
+          // (boolean / number / text / textarea / date / select /
+          // multi_select / photo_only) capture their value on res.value
+          // and should also advance the progress bar.
+          if (r.rating) { completed++; continue; }
+          var v = r.value;
+          if (v !== undefined && v !== null && v !== ''
+              && !(Array.isArray(v) && v.length === 0)) {
+            completed++;
+          }
         }
       }
-      return total > 0 ? Math.round((rated / total) * 100) : 0;
+      return total > 0 ? Math.round((completed / total) * 100) : 0;
     },
 
     // Live-computed report summary used by the Publish modal "Report Summary"
@@ -855,6 +900,35 @@ function inspectionEditor(inspectionId) {
       if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
       this.results[itemId].rating = levelId;
       this.debounceSave();
+    },
+
+    // Non-rich item types (boolean / number / text / textarea / date)
+    // store their captured value here. Rich items continue to use `rating`
+    // exclusively. Same debounced PATCH path as setRating.
+    setItemValue(itemId, value) {
+      if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
+      this.results[itemId].value = value;
+      this.debounceSave();
+    },
+    getItemValue(itemId) {
+      return this.results[itemId] && 'value' in this.results[itemId]
+        ? this.results[itemId].value
+        : '';
+    },
+    // multi_select helper — toggles `choice` in the value array.
+    toggleMultiValue(itemId, choice, checked) {
+      const cur = Array.isArray(this.getItemValue(itemId))
+        ? this.getItemValue(itemId).slice()
+        : [];
+      const idx = cur.indexOf(choice);
+      if (checked && idx === -1) cur.push(choice);
+      else if (!checked && idx !== -1) cur.splice(idx, 1);
+      this.setItemValue(itemId, cur);
+    },
+    // photo_only helper — reads the photos array from the per-item result.
+    getItemPhotos(itemId) {
+      const r = this.results[itemId];
+      return r && Array.isArray(r.photos) ? r.photos : [];
     },
 
     // Spec 5B — Defect Model + Canned Comment Library (v2 schema).

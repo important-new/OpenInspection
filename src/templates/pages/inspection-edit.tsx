@@ -431,16 +431,17 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   <span class="w-3 h-3 rounded-full" x-bind:style="'background:' + getRatingColor(getItemRating(item.id))"></span>
                 </div>
 
-                {/* Rating Buttons — `data-rating-row` is the anchor target the
-                    onboarding overlay (T6 / step 0) highlights so the user
-                    knows which buttons the tour is talking about. */}
+                {/* Rating Buttons — only meaningful for `rich` items.
+                    `data-rating-row` is the anchor target the onboarding
+                    overlay (T6 / step 0) highlights so the user knows which
+                    buttons the tour is talking about. */}
                 {/* Spec 5G mobile field-flow (Round 12) — 44px+ tap target on
                     mobile per Apple HIG; desktop keeps compact 28px height.
                     R7-16 — show the full rating label on tablet+ (≥640px) so
                     new inspectors can read "Satisfactory" instead of decoding
                     "Sat". Mobile keeps the abbreviation to fit 5 buttons in
                     one row. aria-label still provides the full name to AT. */}
-                <div data-rating-row class="flex flex-wrap gap-1.5 mb-3">
+                <div data-rating-row class="flex flex-wrap gap-1.5 mb-3" x-show="!item.type || item.type === 'rich'">
                   <template x-for="level in ratingLevels" x-bind:key="level.id">
                     <button
                       x-on:click="setRating(item.id, level.id)"
@@ -454,6 +455,101 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       <span class="sm:hidden" x-text="level.abbreviation"></span>
                     </button>
                   </template>
+                </div>
+
+                {/* Non-rich item type inputs — write to results[item.id].value.
+                    All 9 types have a dedicated control: boolean (Yes/No),
+                    number (with options.min/max/step + unit chip), text,
+                    textarea, date, select (dropdown from options.choices),
+                    multi_select (checkbox list, toggleMultiValue helper),
+                    photo_only (photo count + minPhotos threshold; upload
+                    rides the existing per-item photo-attach button below). */}
+                <div x-show="item.type === 'boolean'" class="mb-3 flex gap-2">
+                  <button type="button"
+                    x-on:click="setItemValue(item.id, true)"
+                    x-bind:class="getItemValue(item.id) === true ? 'bg-emerald-600 text-white border-transparent' : 'text-gray-500 hover:text-gray-700 border-surface-200'"
+                    class="px-5 py-2 text-sm font-semibold rounded-lg border transition-all">Yes</button>
+                  <button type="button"
+                    x-on:click="setItemValue(item.id, false)"
+                    x-bind:class="getItemValue(item.id) === false ? 'bg-rose-600 text-white border-transparent' : 'text-gray-500 hover:text-gray-700 border-surface-200'"
+                    class="px-5 py-2 text-sm font-semibold rounded-lg border transition-all">No</button>
+                </div>
+
+                <div x-show="item.type === 'number'" class="mb-3 flex items-center gap-2">
+                  <input type="number"
+                    x-bind:value="getItemValue(item.id)"
+                    x-on:input="setItemValue(item.id, $event.target.value === '' ? '' : Number($event.target.value))"
+                    x-bind:min="item.options && item.options.min != null ? item.options.min : null"
+                    x-bind:max="item.options && item.options.max != null ? item.options.max : null"
+                    x-bind:step="item.options && item.options.step != null ? item.options.step : null"
+                    class="w-40 px-3 py-2 text-sm rounded-lg border border-surface-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 focus:border-blueprint-500 focus:outline-none transition-colors" />
+                  <span x-show="item.options && item.options.unit" class="text-[11px] font-mono text-ink-400" x-text="item.options ? item.options.unit : ''"></span>
+                </div>
+
+                <div x-show="item.type === 'text'" class="mb-3">
+                  <input type="text"
+                    x-bind:value="getItemValue(item.id)"
+                    x-on:input="setItemValue(item.id, $event.target.value)"
+                    x-bind:placeholder="item.options && item.options.placeholder ? item.options.placeholder : ''"
+                    x-bind:maxlength="item.options && item.options.maxLength != null ? item.options.maxLength : null"
+                    class="w-full px-3 py-2 text-sm rounded-lg border border-surface-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 focus:border-blueprint-500 focus:outline-none transition-colors" />
+                </div>
+
+                <div x-show="item.type === 'textarea'" class="mb-3">
+                  <textarea rows={3}
+                    x-bind:value="getItemValue(item.id)"
+                    x-on:input="setItemValue(item.id, $event.target.value)"
+                    x-bind:placeholder="item.options && item.options.placeholder ? item.options.placeholder : ''"
+                    x-bind:maxlength="item.options && item.options.maxLength != null ? item.options.maxLength : null"
+                    class="w-full px-3 py-2 text-sm rounded-lg border border-surface-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 focus:border-blueprint-500 focus:outline-none resize-y transition-colors"></textarea>
+                </div>
+
+                <div x-show="item.type === 'date'" class="mb-3">
+                  <input type="date"
+                    x-bind:value="getItemValue(item.id)"
+                    x-on:input="setItemValue(item.id, $event.target.value)"
+                    class="px-3 py-2 text-sm rounded-lg border border-surface-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 focus:border-blueprint-500 focus:outline-none transition-colors" />
+                </div>
+
+                <div x-show="item.type === 'select'" class="mb-3">
+                  <select
+                    x-bind:value="getItemValue(item.id)"
+                    x-on:change="setItemValue(item.id, $event.target.value)"
+                    class="w-full max-w-sm px-3 py-2 text-sm rounded-lg border border-surface-200 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 focus:border-blueprint-500 focus:outline-none transition-colors">
+                    <option value="">— Select —</option>
+                    <template x-for="choice in (item.options && item.options.choices) || []" x-bind:key="choice">
+                      <option x-bind:value="choice" x-text="choice"></option>
+                    </template>
+                  </select>
+                </div>
+
+                <div x-show="item.type === 'multi_select'" class="mb-3 space-y-1.5">
+                  <template x-for="choice in (item.options && item.options.choices) || []" x-bind:key="choice">
+                    <label class="flex items-center gap-2 text-sm text-ink-700 cursor-pointer hover:text-ink-900 transition-colors">
+                      <input type="checkbox"
+                        x-bind:value="choice"
+                        x-bind:checked="(Array.isArray(getItemValue(item.id)) ? getItemValue(item.id) : []).indexOf(choice) !== -1"
+                        x-on:change="toggleMultiValue(item.id, choice, $event.target.checked)"
+                        class="w-4 h-4 rounded border-surface-200 text-blueprint-600 focus:ring-blueprint-500" />
+                      <span x-text="choice"></span>
+                    </label>
+                  </template>
+                </div>
+
+                {/* photo_only — the existing per-item photo-attach button
+                    (further down the card) remains the upload path; this
+                    strip just surfaces the min-photo requirement so the
+                    inspector knows when they're below threshold. */}
+                <div x-show="item.type === 'photo_only'" class="mb-3 px-3 py-2 rounded-lg border border-surface-200 text-[12px] text-ink-600 flex items-center justify-between gap-2">
+                  <span>
+                    <span x-text="(getItemPhotos(item.id) || []).length"></span>
+                    <span> photo(s) attached</span>
+                    <template x-if="item.options && item.options.minPhotos">
+                      <span class="ml-1 text-ink-400">(minimum <span x-text="item.options.minPhotos"></span>)</span>
+                    </template>
+                  </span>
+                  <span x-show="item.options && item.options.minPhotos && (getItemPhotos(item.id) || []).length < item.options.minPhotos"
+                        class="text-[10px] font-700 uppercase tracking-widest text-amber-600">below min</span>
                 </div>
 
                 {/* Sprint 3 S3-3 — Tag chips. Internal labels only (never on
@@ -1959,7 +2055,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         </div>
 
         {/* Photo Annotator Modal (T13) */}
-        <div x-data="photoAnnotator()" {...{'x-on:annotate.window': 'openPhoto($event.detail)'}} x-show="open" x-cloak class="fixed inset-0 z-50 flex flex-col" style="background:rgba(15,23,42,0.92);">
+        <div x-data="photoAnnotator()" {...{'x-on:annotate.window': 'openPhoto($event.detail)'}} x-show="open" x-cloak class="fixed inset-0 z-[70] flex flex-col" style="background:rgba(15,23,42,0.92);">
             {/* Toolbar */}
             <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-white" style="background:#1e293b;">
                 <div class="flex items-center gap-1 flex-wrap">

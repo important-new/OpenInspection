@@ -113,12 +113,12 @@ function renderTemplates() {
           <tr class="table-row-hover group">
             <td class="py-6 pl-10 pr-3">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-all">
                   <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                 </div>
                 <div>
                   <div class="flex items-center gap-2">
-                    <a href="/templates/${t.id}/edit" class="text-sm font-bold text-slate-900 hover:text-indigo-600 transition-colors">${t.name}</a>
+                    <a href="/templates/${t.id}/edit" class="text-sm font-bold text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">${t.name}</a>
                     ${t.source === 'marketplace' ? '<span class="text-[9px] font-bold uppercase tracking-widest text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded">Marketplace</span>' : ''}
                   </div>
                   <p class="text-[10px] text-slate-400 font-medium" title="${t.id}">${itemCount} items · v${t.version}.0${t.source === 'marketplace' ? ' · Imported from Marketplace' : ''}</p>
@@ -126,7 +126,7 @@ function renderTemplates() {
               </div>
             </td>
             <td class="px-6 py-6">
-              <span class="inline-flex items-center rounded-lg border border-indigo-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest bg-indigo-50/50 text-indigo-600">v${t.version}.0</span>
+              <span class="inline-flex items-center rounded-lg border border-indigo-100 dark:border-indigo-800 px-3 py-1 text-[10px] font-bold uppercase tracking-widest bg-indigo-50/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">v${t.version}.0</span>
             </td>
             <td class="px-6 py-6 text-sm text-slate-500 font-bold">${itemCount} items</td>
             <td class="py-6 pl-3 pr-10 text-right">
@@ -152,8 +152,9 @@ async function deleteTemplate(id) {
         allTemplates = allTemplates.filter(t => t.id !== id);
         renderTemplates();
     } else {
-        const err = await res.json();
-        modalAlert('Error: ' + (err.error || 'Failed to delete'), 'Error');
+        const err = await res.json().catch(() => ({}));
+        const msg = err?.error?.message || err?.error || err?.message || 'Failed to delete';
+        modalAlert('Error: ' + msg, 'Error');
     }
 }
 
@@ -164,6 +165,127 @@ function showCreateModal() {
 function closeModal() {
     document.getElementById('createModal').classList.add('hidden');
     document.getElementById('tplName').value = '';
+}
+
+// A small Spectora-style fixture surfaced via the "Try with sample" link.
+// Hits every code path the converter handles (4 comment kinds, an unknown
+// kind to demonstrate the fall-through, rating_levels with is_defect +
+// default, section disclaimer, item description) so an inspector can see
+// what a clean import looks like without needing a real export on hand.
+const SPECTORA_SAMPLE = {
+    id: 'sample_spectora_template',
+    name: 'Spectora Sample Residential',
+    rating_levels: [
+        { id: 'S', label: 'Satisfactory',  abbreviation: 'S', color: '#22c55e', default: true,  description: 'Item is functioning as intended.' },
+        { id: 'M', label: 'Monitor',       abbreviation: 'M', color: '#f59e0b',                description: 'Functional but warrants periodic re-inspection.' },
+        { id: 'D', label: 'Defect',        abbreviation: 'D', color: '#ef4444', is_defect: true, description: 'Broken or unsafe; recommend repair.' }
+    ],
+    sections: [
+        {
+            id: 'sec_roof', name: 'Roof', identifier: '4.0',
+            disclaimer: 'Roof inspected from ground level and accessible eaves. Areas not safely accessible were excluded.',
+            items: [
+                {
+                    id: 'item_cover', name: 'Roof Covering',
+                    description: 'Outer waterproof barrier of the roof system.',
+                    comments: [
+                        { type: 'INFORMATIONAL', title: 'Material',   text: 'Asphalt composition shingles observed.',                                  default: true },
+                        { type: 'SATISFACTORY',                       text: 'No active leaks at the time of inspection.' },
+                        { type: 'MONITOR',       title: 'Granule loss', text: 'Mild granule loss observed; monitor and plan for replacement within 3-5 years.' },
+                        { type: 'DEFECT',        title: 'Lifted shingles', text: 'Several shingles lifted at the southeast corner; recommend repair by a qualified roofer.', location: 'Southeast corner' }
+                    ]
+                },
+                {
+                    id: 'item_flashings', name: 'Flashings',
+                    description: 'Metal transitions at chimneys, vents, and roof intersections.',
+                    comments: [
+                        { type: 'INFORMATIONAL', text: 'Galvanised steel flashings observed.' }
+                    ]
+                }
+            ]
+        },
+        {
+            id: 'sec_plumbing', name: 'Plumbing',
+            items: [
+                {
+                    id: 'item_wh', name: 'Water Heater',
+                    description: 'Tank or tankless water-heating appliance.',
+                    comments: [
+                        // Intentionally unknown kind — should land under information
+                        // with the bucket preserved in the title so the inspector
+                        // can re-categorise inside the editor.
+                        { type: 'NOTE_FOR_BUILDER', text: 'Builder confirmed unit was installed in 2022.' }
+                    ]
+                }
+            ]
+        }
+    ]
+};
+
+function injectSpectoraSample() {
+    document.getElementById('importName').value = 'Spectora Sample Residential';
+    document.getElementById('importPayload').value = JSON.stringify(SPECTORA_SAMPLE, null, 2);
+}
+
+function showImportSpectoraModal() {
+    document.getElementById('importSpectoraModal').classList.remove('hidden');
+}
+
+function closeImportSpectoraModal() {
+    document.getElementById('importSpectoraModal').classList.add('hidden');
+    document.getElementById('importName').value = '';
+    document.getElementById('importPayload').value = '';
+    const result = document.getElementById('importResult');
+    if (result) { result.classList.add('hidden'); result.textContent = ''; }
+}
+
+async function submitImportSpectora() {
+    const name = document.getElementById('importName').value.trim();
+    const raw  = document.getElementById('importPayload').value.trim();
+    if (!name) { modalAlert('Please enter a template name.', 'Validation'); return; }
+    if (!raw)  { modalAlert('Please paste a Spectora export JSON.', 'Validation'); return; }
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (e) { modalAlert('Invalid JSON: ' + e.message, 'Validation'); return; }
+
+    const btn = document.getElementById('submitImportBtn');
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+
+    try {
+        const res = await authFetch('/api/inspections/templates/import-spectora', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, spectora: parsed })
+        });
+        if (res.ok) {
+            const result = await res.json();
+            const newId = result?.data?.template?.id;
+            const stats = result?.data?.stats;
+            if (stats) {
+                const note = document.getElementById('importResult');
+                if (note) {
+                    note.textContent = 'Imported · ' + stats.sections + ' sections, ' + stats.items + ' items, ' + (stats.information + stats.defects + stats.limitations) + ' comments mapped' + (stats.unknownCommentTypes?.length ? ' (unknown kinds: ' + stats.unknownCommentTypes.join(', ') + ')' : '');
+                    note.classList.remove('hidden');
+                }
+            }
+            if (newId) {
+                setTimeout(() => { window.location.href = '/templates/' + newId + '/edit'; }, 600);
+            } else {
+                loadTemplates();
+                closeImportSpectoraModal();
+            }
+        } else {
+            const err = await res.json().catch(() => ({}));
+            const msg = err?.error?.message || err?.error || err?.message || 'Import failed';
+            modalAlert('Error: ' + msg, 'Error');
+        }
+    } catch (e) {
+        modalAlert('Connection error: ' + e.message, 'Error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Import';
+    }
 }
 
 async function submitTemplate() {
@@ -178,7 +300,7 @@ async function submitTemplate() {
         const res = await authFetch('/api/inspections/templates', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, schema: { sections: [], ratingLevels: [] } })
+            body: JSON.stringify({ name, schema: { schemaVersion: 2, sections: [] } })
         });
         if (res.ok) {
             const result = await res.json();
@@ -190,8 +312,9 @@ async function submitTemplate() {
                 loadTemplates();
             }
         } else {
-            const err = await res.json();
-            modalAlert('Error: ' + (err.error || 'Failed to create'), 'Error');
+            const err = await res.json().catch(() => ({}));
+            const msg = err?.error?.message || err?.error || err?.message || 'Failed to create';
+            modalAlert('Error: ' + msg, 'Error');
         }
     } catch (e) {
         modalAlert('Connection error: ' + e.message, 'Error');

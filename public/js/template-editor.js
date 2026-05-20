@@ -102,7 +102,7 @@ function templateEditor() {
         selectItem(id) { this.selectedItemId = id; this.updateChoicesText(); },
 
         addSection() {
-            const id = 'sec_' + Date.now();
+            const id = 'sec_' + (crypto.randomUUID?.() ?? Date.now() + '_' + Math.random().toString(36).slice(2, 8));
             this.template.sections.push({ id, title: 'New Section', identifier: '', icon: '', priority: this.template.sections.length, isOverview: false, disclaimerText: '', source: null, items: [] });
             this.selectedSectionId = id;
             this.selectedItemId = null;
@@ -113,7 +113,7 @@ function templateEditor() {
         },
         addItem() {
             if (!this.selectedSection) return;
-            const id = 'item_' + Date.now();
+            const id = 'item_' + (crypto.randomUUID?.() ?? Date.now() + '_' + Math.random().toString(36).slice(2, 8));
             this.selectedSection.items.push({
                 id, label: 'New Item', description: '', type: 'rich',
                 ratingOptions: ['Inspected', 'Not Inspected', 'Not Present', 'Repair', 'Safety Hazard'],
@@ -134,7 +134,7 @@ function templateEditor() {
             if (!this.selectedItem) return;
             if (!this.selectedItem.attributes) this.selectedItem.attributes = [];
             this.selectedItem.attributes.push({
-                id: 'attr_' + Date.now(), name: '', type: 'boolean', choices: [], unit: '',
+                id: 'attr_' + (crypto.randomUUID?.() ?? Date.now() + '_' + Math.random().toString(36).slice(2, 8)), name: '', type: 'boolean', choices: [], unit: '',
                 required: false, isSafety: false, isDefect: false,
                 recommendation: null, estimateMin: null, estimateMax: null,
                 source: null, _choicesStr: ''
@@ -149,6 +149,28 @@ function templateEditor() {
             if (!this.selectedItem) return;
             if (!this.selectedItem.options) this.selectedItem.options = {};
             this.selectedItem.options.choices = this.choicesText.split('\n').map(s => s.trim()).filter(Boolean);
+        },
+        // Per-item canned-comment editor — manipulates selectedItem.tabs in place.
+        // The three tab arrays follow CannedInfoComment / CannedDefect shapes;
+        // toV2Payload picks only the schema-valid fields on save.
+        addCannedToItem(tab) {
+            if (!this.selectedItem || this.selectedItem.type !== 'rich') return;
+            if (!this.selectedItem.tabs) this.selectedItem.tabs = { information: [], limitations: [], defects: [] };
+            if (!Array.isArray(this.selectedItem.tabs[tab])) this.selectedItem.tabs[tab] = [];
+            const prefix = tab === 'defects' ? 'rd_' : (tab === 'limitations' ? 'rl_' : 'ri_');
+            const id = prefix + (crypto.randomUUID?.() ?? Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+            const entry = { id, title: 'New entry', comment: '', default: false };
+            if (tab === 'defects') {
+                entry.category = 'recommendation';
+                entry.location = '';
+                entry.photos = [];
+            }
+            this.selectedItem.tabs[tab].push(entry);
+        },
+        removeCannedFromItem(tab, index) {
+            if (!this.selectedItem || !this.selectedItem.tabs) return;
+            if (!Array.isArray(this.selectedItem.tabs[tab])) return;
+            this.selectedItem.tabs[tab].splice(index, 1);
         },
         async applyRatingPreset(preset) {
             // Guard against accidental overwrite of customised levels.
@@ -250,6 +272,118 @@ function templateEditor() {
             }
         },
 
+        // Normalize editor state to v2 schema shape before PUT. The
+        // schema accepts every field the editor surfaces, so this mostly
+        // drops UI-only scratch state (priority, _choicesStr, isOverview,
+        // _ratingOptionsText, ...) and clamps missing required values to
+        // safe defaults.
+        toV2Payload() {
+            const pickInfo = (c) => ({
+                id: c.id, title: c.title || '', comment: c.comment || '',
+                default: !!c.default,
+            });
+            const pickDefect = (c) => ({
+                id: c.id, title: c.title || '',
+                category: c.category || 'recommendation',
+                location: c.location || '',
+                comment: c.comment || '',
+                photos: Array.isArray(c.photos) ? c.photos : [],
+                default: !!c.default,
+            });
+            const pickAttribute = (a) => {
+                const out = {
+                    id: a.id, name: a.name || '',
+                    type: a.type || 'text',
+                };
+                if (a.choices && a.choices.length) out.choices = a.choices;
+                if (a.unit) out.unit = a.unit;
+                if (typeof a.required === 'boolean')      out.required = a.required;
+                if (typeof a.isSafety === 'boolean')      out.isSafety = a.isSafety;
+                if (typeof a.isDefect === 'boolean')      out.isDefect = a.isDefect;
+                if (a.recommendation != null)             out.recommendation = a.recommendation;
+                if (a.estimateMin != null)                out.estimateMin = a.estimateMin;
+                if (a.estimateMax != null)                out.estimateMax = a.estimateMax;
+                return out;
+            };
+            const pickOptions = (opts) => {
+                if (!opts || typeof opts !== 'object') return null;
+                const o = {};
+                if (opts.min != null)        o.min = opts.min;
+                if (opts.max != null)        o.max = opts.max;
+                if (opts.unit)               o.unit = opts.unit;
+                if (opts.step != null)       o.step = opts.step;
+                if (opts.placeholder)        o.placeholder = opts.placeholder;
+                if (opts.maxLength != null)  o.maxLength = opts.maxLength;
+                if (opts.choices && opts.choices.length) o.choices = opts.choices;
+                if (opts.minPhotos != null)  o.minPhotos = opts.minPhotos;
+                return Object.keys(o).length ? o : null;
+            };
+            const pickItem = (it) => {
+                const validTypes = ['rich', 'text', 'boolean', 'textarea', 'number', 'select', 'multi_select', 'date', 'photo_only'];
+                const type = validTypes.includes(it.type) ? it.type : 'rich';
+                const base = { id: it.id, label: it.label || '', type };
+                if (it.description)        base.description = it.description;
+                if (it.icon)               base.icon = it.icon;
+                if (it.number)             base.number = it.number;
+                if (typeof it.required === 'boolean') base.required = it.required;
+                if (typeof it.isSafety === 'boolean') base.isSafety = it.isSafety;
+                if (it.defaultRecommendation)            base.defaultRecommendation = it.defaultRecommendation;
+                if (it.defaultEstimateMin != null)       base.defaultEstimateMin = it.defaultEstimateMin;
+                if (it.defaultEstimateMax != null)       base.defaultEstimateMax = it.defaultEstimateMax;
+                if (it.attributes && it.attributes.length) base.attributes = it.attributes.map(pickAttribute);
+                if (it.source && it.source.platform && it.source.externalId) base.source = { platform: it.source.platform, externalId: it.source.externalId };
+                if (type === 'rich') {
+                    base.ratingOptions = Array.isArray(it.ratingOptions) && it.ratingOptions.length
+                        ? it.ratingOptions : ['Inspected'];
+                    const tabs = it.tabs || {};
+                    base.tabs = {
+                        information: (tabs.information || []).map(pickInfo),
+                        limitations: (tabs.limitations || []).map(pickInfo),
+                        defects:     (tabs.defects     || []).map(pickDefect),
+                    };
+                } else if (type !== 'boolean' && type !== 'date') {
+                    const o = pickOptions(it.options);
+                    if (o) base.options = o;
+                }
+                return base;
+            };
+            const pickSection = (s) => {
+                const out = {
+                    id: s.id, title: s.title || '',
+                    items: (s.items || []).map(pickItem),
+                };
+                if (s.icon)             out.icon = s.icon;
+                if (s.identifier)       out.identifier = s.identifier;
+                if (s.disclaimerText)   out.disclaimerText = s.disclaimerText;
+                if (s.alwaysPageBreak)  out.alwaysPageBreak = !!s.alwaysPageBreak;
+                if (s.source && s.source.platform && s.source.externalId) out.source = { platform: s.source.platform, externalId: s.source.externalId };
+                return out;
+            };
+            const payload = {
+                schemaVersion: 2,
+                sections: (this.template.sections || []).map(pickSection),
+            };
+            if (this.template.ratingSystem && Array.isArray(this.template.ratingSystem.levels)) {
+                const rs = {
+                    levels: this.template.ratingSystem.levels.map(l => {
+                        const lv = { id: l.id, label: l.label || '' };
+                        if (l.abbreviation) lv.abbreviation = l.abbreviation;
+                        if (l.color)        lv.color        = l.color;
+                        if (l.severity)     lv.severity     = l.severity;
+                        if (typeof l.isDefect === 'boolean') lv.isDefect = l.isDefect;
+                        if (typeof l.default  === 'boolean') lv.default  = l.default;
+                        if (l.description)  lv.description  = l.description;
+                        return lv;
+                    }),
+                };
+                if (this.template.ratingSystem.name)           rs.name = this.template.ratingSystem.name;
+                if (this.template.ratingSystem.defaultLevelId) rs.defaultLevelId = this.template.ratingSystem.defaultLevelId;
+                if (this.template.ratingSystem.source !== undefined) rs.source = this.template.ratingSystem.source;
+                payload.ratingSystem = rs;
+            }
+            return payload;
+        },
+
         async saveTemplate() {
             this.saving = true;
             this.saveError = '';
@@ -259,10 +393,7 @@ function templateEditor() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name: this.template.title,
-                        schema: {
-                            sections: this.template.sections,
-                            ratingSystem: this.template.ratingSystem
-                        }
+                        schema: this.toV2Payload(),
                     })
                 });
                 if (res.ok) {
@@ -347,6 +478,13 @@ function templateEditor() {
                 this.template.title = tpl.name || '';
                 this.template.version = tpl.version || 1;
                 const schema = typeof tpl.schema === 'string' ? JSON.parse(tpl.schema) : (tpl.schema || {});
+                // Legacy v1: flat array of items, no sections. Pre-launch we
+                // reject v1 in the validator — surface that explicitly here
+                // instead of rendering an empty editor.
+                if (Array.isArray(schema) || schema.schemaVersion !== 2) {
+                    this.loadError = 'This template uses a legacy schema and cannot be edited. Please delete it and create a new one.';
+                    return;
+                }
                 if (schema.sections && Array.isArray(schema.sections)) {
                     // Normalize field names: API may use "name" but editor uses "title"/"label"
                     this.template.sections = schema.sections.map(function(sec) {

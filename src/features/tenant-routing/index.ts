@@ -1,0 +1,74 @@
+import type { MiddlewareHandler } from 'hono';
+import type { HonoConfig } from '../../types/hono';
+import { logger } from '../../lib/logger';
+import { resolveByFixedTenant } from './resolve-by-fixed-tenant';
+import { resolveBySubdomain } from './resolve-by-subdomain';
+
+/**
+ * Tenant resolution middleware.
+ *
+ * Reads `c.var.profile` (injected by DI middleware) to pick the resolution
+ * strategy:
+ *
+ *   - profile.fixedTenantId       → resolveByFixedTenant   (standalone / sandbox)
+ *   - profile.saasTopology=silo   → resolveBySubdomain      (silo)
+ *   - profile.saasTopology=shared → leave unset; JWT mw fills it
+ *
+ * Replaces lib/middleware/tenant-router.ts. PR 1 keeps the exact same
+ * external behavior; PR 2 adds a path-param `:tenant` resolution branch
+ * once the new public URL shape (`/book/:tenant/:slug`) ships.
+ */
+export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
+    const url = new URL(c.req.url);
+    const path = url.pathname;
+
+    if (path === '/status') return next();
+
+    const profile = c.var.profile;
+    const host = c.req.header('host') || '';
+    let subdomain: string | null = null;
+
+    const hostParts = host.split('.');
+    if (hostParts.length > 2) {
+        const potentialSubdomain = hostParts[0];
+        if (potentialSubdomain !== 'www' && potentialSubdomain !== 'dev'
+            && potentialSubdomain !== 'localhost' && potentialSubdomain !== 'app') {
+            subdomain = potentialSubdomain;
+        }
+    }
+
+    const headerSubdomain = c.req.header('x-tenant-subdomain');
+    if (headerSubdomain && c.env.PORTAL_M2M_SECRET
+        && c.req.header('authorization') === `Bearer ${c.env.PORTAL_M2M_SECRET}`) {
+        subdomain = headerSubdomain;
+    }
+
+    if (profile.fixedTenantId) {
+        await resolveByFixedTenant(c, profile.fixedTenantId);
+    } else if (profile.saasTopology === 'silo' && subdomain) {
+        await resolveBySubdomain(c, subdomain);
+    } else if (profile.saasTopology === 'shared' && !subdomain) {
+        return next();
+    } else if (profile.saasTopology === 'shared' && subdomain) {
+        await resolveBySubdomain(c, subdomain);
+    }
+
+    if (!c.get('tenantId') || !c.get('requestedSubdomain')) {
+        const isBypassPath = path === '/setup' || path === '/login'
+            || path === '/api/auth/setup' || path === '/api/auth/login'
+            || path === '/status' || path.startsWith('/api/integration')
+            || path === '/api/agent-signup' || path === '/api/agents/accept'
+            || path === '/api/concierge/confirm'
+            || path.startsWith('/api/public/');
+        if (!isBypassPath && path.startsWith('/api')) {
+            logger.info('[TenantRouter] Tenant resolution failed', {
+                path,
+                tenantId: c.get('tenantId'),
+                subdomain: c.get('requestedSubdomain'),
+            });
+            return c.text('Tenant not found or system not initialized.', 503);
+        }
+    }
+
+    return next();
+};
