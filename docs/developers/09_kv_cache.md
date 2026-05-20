@@ -1,6 +1,6 @@
 ---
 domain: "Tenant Routing & KV Cache"
-related_code_paths: ["apps/core/src/lib/middleware/tenant-router.ts", "apps/core/src/index.ts", "apps/core/src/api/admin.ts"]
+related_code_paths: ["apps/core/src/features/tenant-routing/", "apps/core/src/index.ts", "apps/core/src/api/admin.ts"]
 ---
 
 # KV Cache — Why and How
@@ -13,7 +13,7 @@ related_code_paths: ["apps/core/src/lib/middleware/tenant-router.ts", "apps/core
 
 ### The problem
 
-Every request — page loads, API calls, assets — needs to know which tenant it belongs to. The tenant-router resolves this from the `Host` header subdomain. Without caching that means a D1 query on **every request**:
+Every request — page loads, API calls, assets — needs to know which tenant it belongs to. The tenant-routing middleware resolves this from the `Host` header subdomain (in the subdomain branch). Without caching that means a D1 query on **every request**:
 
 ```
 GET john.inspectorhub.com/api/inspections
@@ -103,5 +103,5 @@ The last point is the most important security reason: **tier and status must be 
 
 | Key pattern | Written by | Read by | TTL |
 |---|---|---|---|
-| `tenant:{subdomain}` | `subdomainRouter` on cache miss | `subdomainRouter` on every request | 300s |
+| `tenant:{subdomain}` | `tenantRouter` (subdomain branch) on cache miss | `tenantRouter` (subdomain branch) on every request | 300s |
 | `silo:{tenantId}` | `POST /api/admin/silo` (portal m2m) | Silo middleware in `index.ts` | None |
