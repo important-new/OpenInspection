@@ -157,6 +157,10 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     // PDF generation at publish time + the Refresh PDFs / Download PDF
     // dropdown in the report viewer.
     enablePdfPipeline: integer('enable_pdf_pipeline', { mode: 'boolean' }).notNull().default(false),
+    // Design System 0520 subsystem C P10 — /team Defaults section toggles.
+    teamModeDefault:          integer('team_mode_default',          { mode: 'boolean' }).notNull().default(false),
+    apprenticeReviewRequired: integer('apprentice_review_required', { mode: 'boolean' }).notNull().default(false),
+    guestInvitesEnabled:      integer('guest_invites_enabled',      { mode: 'boolean' }).notNull().default(true),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 

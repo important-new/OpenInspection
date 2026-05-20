@@ -272,4 +272,167 @@ teamRoutes.openapi(mintGuestInviteRoute, async (c) => {
     }, 201);
 });
 
+// ─── Design System 0520 subsystem C P10.2 — defaults / apprentices / guests ──
+
+import { drizzle } from 'drizzle-orm/d1';
+import { eq as eq2, and as and2, count as count2 } from 'drizzle-orm';
+import { tenantConfigs, users, apprenticeReviews } from '../lib/db/schema';
+
+const DefaultsSchema = z.object({
+    teamModeDefault:          z.boolean().optional(),
+    apprenticeReviewRequired: z.boolean().optional(),
+    guestInvitesEnabled:      z.boolean().optional(),
+});
+
+/** GET /api/team/defaults — read the three team-page toggles. */
+teamRoutes.openapi({
+    method: 'get', path: '/defaults', tags: ['Team'],
+    summary: "Get tenant's team-page default toggles",
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'lead'])] as const,
+    responses: { 200: { description: 'ok' } },
+}, async (c) => {
+    const tenantId = c.get('tenantId');
+    const db = drizzle(c.env.DB);
+    const row = await db.select({
+        teamModeDefault:          tenantConfigs.teamModeDefault,
+        apprenticeReviewRequired: tenantConfigs.apprenticeReviewRequired,
+        guestInvitesEnabled:      tenantConfigs.guestInvitesEnabled,
+    }).from(tenantConfigs).where(eq2(tenantConfigs.tenantId, tenantId)).get();
+    return c.json({
+        success: true as const,
+        data: row ?? {
+            teamModeDefault:          false,
+            apprenticeReviewRequired: false,
+            guestInvitesEnabled:      true,
+        },
+    }, 200);
+});
+
+/** PUT /api/team/defaults — patch any subset of the three toggles. */
+teamRoutes.openapi({
+    method: 'put', path: '/defaults', tags: ['Team'],
+    summary: "Update tenant's team-page default toggles",
+    middleware: [requireRole(['owner', 'admin'])] as const,
+    request: { body: { content: { 'application/json': { schema: DefaultsSchema } } } },
+    responses: { 200: { description: 'ok' } },
+}, async (c) => {
+    const tenantId = c.get('tenantId');
+    const body = c.req.valid('json');
+    const update: Partial<typeof tenantConfigs.$inferInsert> = {};
+    if (body.teamModeDefault          !== undefined) update.teamModeDefault          = body.teamModeDefault;
+    if (body.apprenticeReviewRequired !== undefined) update.apprenticeReviewRequired = body.apprenticeReviewRequired;
+    if (body.guestInvitesEnabled      !== undefined) update.guestInvitesEnabled      = body.guestInvitesEnabled;
+
+    if (Object.keys(update).length > 0) {
+        await c.var.services.branding.updateBranding(tenantId, update);
+    }
+    return c.json({ success: true as const, data: { ok: true as const } }, 200);
+});
+
+/**
+ * GET /api/team/apprentices — list every apprentice in the tenant
+ * with their mentor's name + a pending-review count. Drives the
+ * Apprentices section on /team.
+ */
+teamRoutes.openapi({
+    method: 'get', path: '/apprentices', tags: ['Team'],
+    summary: 'List apprentices with mentor + pending review count',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'lead'])] as const,
+    responses: { 200: { description: 'ok' } },
+}, async (c) => {
+    const tenantId = c.get('tenantId');
+    const db = drizzle(c.env.DB);
+
+    const apprentices = await db.select({
+        id:       users.id,
+        name:     users.name,
+        email:    users.email,
+        mentorId: users.mentorId,
+    }).from(users)
+        .where(and2(eq2(users.tenantId, tenantId), eq2(users.role, 'apprentice')))
+        .all();
+
+    // Hydrate mentor names + pending counts. N+1 is acceptable here —
+    // tenants typically have a handful of apprentices, not hundreds.
+    const items = await Promise.all(apprentices.map(async a => {
+        const mentor = a.mentorId
+            ? await db.select({ name: users.name, email: users.email })
+                .from(users).where(eq2(users.id, a.mentorId)).get()
+            : null;
+        const pending = await db.select({ value: count2() })
+            .from(apprenticeReviews)
+            .where(and2(
+                eq2(apprenticeReviews.tenantId, tenantId),
+                eq2(apprenticeReviews.apprenticeId, a.id),
+                eq2(apprenticeReviews.status, 'pending'),
+            )).get();
+        return {
+            id:          a.id,
+            name:        a.name ?? a.email,
+            mentorName:  mentor?.name ?? mentor?.email ?? null,
+            pendingCount: pending?.value ?? 0,
+        };
+    }));
+
+    return c.json({ success: true as const, data: { items } }, 200);
+});
+
+/** GET /api/team/guests — list active (non-expired) guest users. */
+teamRoutes.openapi({
+    method: 'get', path: '/guests', tags: ['Team'],
+    summary: 'List active guest accounts (expires_at IS NOT NULL AND > now)',
+    middleware: [requireRole(['owner', 'admin'])] as const,
+    responses: { 200: { description: 'ok' } },
+}, async (c) => {
+    const tenantId = c.get('tenantId');
+    const db = drizzle(c.env.DB);
+    const now = Math.floor(Date.now() / 1000);
+
+    const rows = await db.select({
+        id:        users.id,
+        name:      users.name,
+        email:     users.email,
+        role:      users.role,
+        expiresAt: users.expiresAt,
+    }).from(users).where(eq2(users.tenantId, tenantId)).all();
+
+    const guests = rows
+        .filter(u => u.expiresAt != null && u.expiresAt > now)
+        .map(u => ({
+            id:        u.id,
+            name:      u.name ?? u.email,
+            email:     u.email,
+            role:      u.role,
+            expiresAt: u.expiresAt,
+        }));
+
+    return c.json({ success: true as const, data: { items: guests } }, 200);
+});
+
+/**
+ * POST /api/team/guests/:id/revoke — set expires_at = now for a guest.
+ * Idempotent: revoking an already-expired guest is a no-op success.
+ */
+teamRoutes.openapi({
+    method: 'post', path: '/guests/{id}/revoke', tags: ['Team'],
+    summary: 'Revoke a guest immediately (sets expires_at = now)',
+    middleware: [requireRole(['owner', 'admin'])] as const,
+    request: { params: z.object({ id: z.string().min(1) }) },
+    responses: { 200: { description: 'ok' }, 404: { description: 'not found' } },
+}, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    const db = drizzle(c.env.DB);
+
+    const existing = await db.select({ id: users.id, expiresAt: users.expiresAt })
+        .from(users).where(and2(eq2(users.id, id), eq2(users.tenantId, tenantId))).get();
+    if (!existing) throw Errors.NotFound('Guest not found');
+    if (existing.expiresAt == null) throw Errors.BadRequest('User is not a guest (no expires_at)');
+
+    const now = Math.floor(Date.now() / 1000);
+    await db.update(users).set({ expiresAt: now })
+        .where(and2(eq2(users.id, id), eq2(users.tenantId, tenantId)));
+    return c.json({ success: true as const, data: { revokedAt: now } }, 200);
+});
+
 export default teamRoutes;
