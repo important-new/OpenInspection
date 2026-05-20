@@ -39,6 +39,7 @@ import { AggregatedRecommendationsResponseSchema } from '../lib/validations/reco
 import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
 import { PatchItemFieldSchema } from '../lib/validations/inspection-patch.schema';
 import { CreateInspectionFromWizardSchema } from '../lib/validations/wizard.schema';
+import { CreateUnitSchema, UpdateUnitSchema, MoveUnitSchema } from '../lib/validations/unit.schema';
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
@@ -2325,6 +2326,118 @@ inspectionsRoutes.get('/:id/presence/ws', async (c) => {
         },
     });
     return stub.fetch(fwd);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem D phase 1 task 1.3 — UnitTree CRUD routes.
+// -----------------------------------------------------------------------------
+// Building / Floor / Unit hierarchy under each inspection. Backend
+// validation in UnitService (depth ≤ 3, sibling-name uniqueness, cycle
+// detection on move). Routes guard with the standard inspector role.
+
+const createUnitRoute = createRoute({
+    method:     'post',
+    path:       '/{id}/units',
+    tags:       ['Units'],
+    summary:    'Create a unit (Building / Floor / Unit) under an inspection',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: CreateUnitSchema } } },
+    },
+    responses: {
+        200: { description: 'created', content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ id: z.string() }) }) } } },
+        400: { description: 'validation / depth / duplicate-name' },
+    },
+});
+inspectionsRoutes.openapi(createUnitRoute, async (c) => {
+    const { id }      = c.req.valid('param');
+    const input       = c.req.valid('json');
+    const tenantId    = c.get('tenantId');
+    try {
+        const out = await c.var.services.unit.create(tenantId, { inspectionId: id, ...input });
+        return c.json({ success: true as const, data: out }, 200);
+    } catch (err) {
+        throw Errors.BadRequest((err as Error).message);
+    }
+});
+
+const listUnitsRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/units',
+    tags:       ['Units'],
+    summary:    'List units for an inspection (flat — client builds tree)',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request:    { params: z.object({ id: z.string().uuid() }) },
+    responses:  {
+        200: { description: 'ok' },
+    },
+});
+inspectionsRoutes.openapi(listUnitsRoute, async (c) => {
+    const { id }   = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    const units    = await c.var.services.unit.list(tenantId, id);
+    return c.json({ success: true as const, data: { units } }, 200);
+});
+
+const updateUnitRoute = createRoute({
+    method:     'patch',
+    path:       '/{id}/units/{unitId}',
+    tags:       ['Units'],
+    summary:    'Rename or re-sort a unit',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), unitId: z.string().min(1) }),
+        body: { content: { 'application/json': { schema: UpdateUnitSchema } } },
+    },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
+});
+inspectionsRoutes.openapi(updateUnitRoute, async (c) => {
+    const { unitId } = c.req.valid('param');
+    const patch      = c.req.valid('json');
+    await c.var.services.unit.update(c.get('tenantId'), unitId, patch);
+    return c.json({ success: true as const }, 200);
+});
+
+const deleteUnitRoute = createRoute({
+    method:     'delete',
+    path:       '/{id}/units/{unitId}',
+    tags:       ['Units'],
+    summary:    'Delete a unit (cascades to children)',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request:    { params: z.object({ id: z.string().uuid(), unitId: z.string().min(1) }) },
+    responses:  { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
+});
+inspectionsRoutes.openapi(deleteUnitRoute, async (c) => {
+    const { unitId } = c.req.valid('param');
+    await c.var.services.unit.delete(c.get('tenantId'), unitId);
+    return c.json({ success: true as const }, 200);
+});
+
+const moveUnitRoute = createRoute({
+    method:     'post',
+    path:       '/{id}/units/{unitId}/move',
+    tags:       ['Units'],
+    summary:    'Reparent + reorder atomically (cycle-detected)',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), unitId: z.string().min(1) }),
+        body: { content: { 'application/json': { schema: MoveUnitSchema } } },
+    },
+    responses: {
+        200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } },
+        400: { description: 'cycle detected' },
+    },
+});
+inspectionsRoutes.openapi(moveUnitRoute, async (c) => {
+    const { unitId } = c.req.valid('param');
+    const { newParentUnitId, newSortOrder } = c.req.valid('json');
+    try {
+        await c.var.services.unit.move(c.get('tenantId'), unitId, newParentUnitId, newSortOrder);
+        return c.json({ success: true as const }, 200);
+    } catch (err) {
+        throw Errors.BadRequest((err as Error).message);
+    }
 });
 
 export default inspectionsRoutes;

@@ -204,6 +204,8 @@ export interface AppServices {
     concierge: ConciergeService;
     // QuickBooks Online integration
     qbo: import('../services/qbo.service').QBOService;
+    // Design System 0520 subsystem D — UnitTree hierarchy
+    unit: import('../services/unit.service').UnitService;
 }
 
 /**
