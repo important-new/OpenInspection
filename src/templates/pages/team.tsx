@@ -2,13 +2,24 @@ import { MainLayout } from '../layouts/main-layout';
 import { Modal } from '../components/modal';
 import { BrandingConfig } from '../../types/auth';
 import { PageHeader } from '../components/page-header';
+import { SeatBanner } from '../../features/seat-quota/seat-banner';
+import type { SeatUsage } from '../../features/seat-quota/usage';
 
-export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
+interface TeamPageProps {
+    branding?: BrandingConfig | undefined;
+    seatUsage?: SeatUsage;
+    billingPortalUrl?: string | null;
+}
+
+export const TeamPage = ({ branding, seatUsage, billingPortalUrl }: TeamPageProps = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
 
     return (
         <MainLayout title={`${siteName} | Team`} branding={branding}>
             <div class="space-y-6 animate-fade-in">
+                {seatUsage !== undefined && billingPortalUrl !== undefined ? (
+                    <SeatBanner usage={seatUsage} billingPortalUrl={billingPortalUrl} />
+                ) : null}
                 <div x-data="teamMeta">
                     <PageHeader
                         eyebrow="SETTINGS · TEAM"

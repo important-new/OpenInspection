@@ -134,6 +134,7 @@ import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
 import { ConciergeConfirmExpiredPage } from './templates/pages/concierge-confirm-expired';
 import { ConciergeBookPage } from './templates/pages/concierge-book';
 import { SettingsCatalogBookingPage } from './templates/pages/settings-catalog-booking';
+import { getSeatUsage } from './features/seat-quota';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -1726,7 +1727,21 @@ app.get('/messages/:token', (c) => {
 });
 
 // Pages with Auth
-app.get('/dashboard', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
+app.get('/dashboard', htmlAuthGuard(['owner', 'admin', 'inspector']), async (c) => {
+    const branding = c.get('branding');
+    const tenantId = c.get('tenantId');
+    // PR 3 Task 4 — surface a seat-quota status banner on the dashboard
+    // whenever the active deployment profile enforces seat quotas. When the
+    // profile carries no quota (standalone / sandbox / saas-silo) we skip
+    // the DB hit entirely and the page renders identically to before.
+    const seatProps = c.var.profile.hasSeatQuota && tenantId
+        ? {
+              seatUsage: await getSeatUsage(tenantId, c.env.DB),
+              billingPortalUrl: c.var.profile.billingPortalUrl,
+          }
+        : {};
+    return c.html(DashboardPage({ ...(branding ? { branding } : {}), ...seatProps }));
+});
 app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));
@@ -2152,7 +2167,20 @@ app.get('/settings/data', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('
 app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage({ branding: c.get('branding') })));
 // Sprint 1 Sub-spec B Task 2 — Team relocates under Settings.
 // Old /team URL kept as a 301 redirect so deep links from other tabs still work.
-app.get('/settings/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
+app.get('/settings/team', htmlAuthGuard(['owner', 'admin']), async (c) => {
+    const branding = c.get('branding');
+    const tenantId = c.get('tenantId');
+    // PR 3 Task 4 — seat-quota banner on team page mirrors the dashboard
+    // wiring. The team page is where invite blocks actually surface, so the
+    // banner is most actionable here.
+    const seatProps = c.var.profile.hasSeatQuota && tenantId
+        ? {
+              seatUsage: await getSeatUsage(tenantId, c.env.DB),
+              billingPortalUrl: c.var.profile.billingPortalUrl,
+          }
+        : {};
+    return c.html(TeamPage({ ...(branding ? { branding } : {}), ...seatProps }));
+});
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/team', 301));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
 app.get('/contacts', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));

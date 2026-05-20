@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { requireRole } from '../lib/middleware/rbac';
+import { requireSeatAvailable } from '../features/seat-quota';
 import { getBaseUrl } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import {
@@ -58,7 +59,7 @@ const inviteTeamMemberRoute = createRoute({
     path: '/invite',
     tags: ['Team'],
     summary: 'Invite a new team member',
-    middleware: [requireRole(['admin', 'owner'])],
+    middleware: [requireRole(['admin', 'owner']), requireSeatAvailable],
     request: {
         body: {
             content: {
