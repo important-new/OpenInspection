@@ -61,6 +61,18 @@ export const users = sqliteTable('users', {
     // per worker isolate). Powers TeamStrip "last active Nm ago" pill and the
     // soft-presence fallback when WebSocket cannot connect.
     lastActiveAt:     integer('last_active_at'),
+    // Design System 0520 subsystem C phase 1 — apprentice + specialist roles.
+    //   mentorId            = nullable FK → users.id; required for apprentices
+    //                          (apprentice writes route to mentor's review queue)
+    //   assignedSectionIds  = JSON array of section ids; non-empty restricts
+    //                          a specialist's edit scope. Empty = full access
+    //                          (lead / office) per canEdit() matrix.
+    //   expiresAt           = guest-invite expiry; non-null means the user
+    //                          was created via a guest token + auto-revokes
+    //                          past this epoch.
+    mentorId:             text('mentor_id'),
+    assignedSectionIds:   text('assigned_section_ids').notNull().default('[]'),
+    expiresAt:            integer('expires_at'),
 });
 
 // Booking #7 Sprint A — reserved/banned slug list. Seeded via migration 0052
