@@ -83,6 +83,7 @@ import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { SettingsIntegrationsPage } from './templates/pages/settings-integrations';
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
+import { GuestJoinPage } from './templates/pages/guest-join';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
@@ -251,7 +252,7 @@ app.use('*', async (c, next) => {
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
-    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path === '/guest-join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     // (gated on `hasSetupWizard` — only the standalone profile enables it).
@@ -570,6 +571,14 @@ app.get('/login', async (c) => {
     issueCsrfCookie(c);
     const branding = c.get('branding');
     return c.html(LoginPage({ branding }));
+});
+
+// Design System 0520 subsystem C P6.3 — anonymous guest join landing.
+// JWT-exempt above. Renders the form that POSTs to /api/guest/claim.
+app.get('/guest-join', (c) => {
+    const branding = c.get('branding');
+    const token = c.req.query('token') ?? '';
+    return c.html(GuestJoinPage({ token, ...(branding ? { branding } : {}) }));
 });
 
 // Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).

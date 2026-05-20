@@ -85,7 +85,7 @@ export class GuestInviteService {
             createdAt:       new Date().toISOString(),
         });
 
-        const url = `${globalThis.location?.origin ?? ''}/join?token=${token}`;
+        const url = `${globalThis.location?.origin ?? ''}/guest-join?token=${token}`;
         return { id, token, url, expiresAt };
     }
 
