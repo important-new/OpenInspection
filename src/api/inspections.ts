@@ -9,6 +9,9 @@ import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { generatePdfFromUrl } from '../lib/pdf';
+import { getCookie } from 'hono/cookie';
+import { verifyObserverCookie } from '../lib/observer-cookie';
+import { OBSERVER_COOKIE_NAME } from '../lib/middleware/observer-cookie';
 import {
     InspectionListQuerySchema,
     CreateInspectionSchema,
@@ -2317,26 +2320,52 @@ inspectionsRoutes.get('/:id/presence/ws', async (c) => {
     const tenantId = c.get('tenantId');
     const user     = c.get('user') as { sub?: string } | undefined;
     const userId   = user?.sub;
-    if (!userId || !tenantId) return new Response('unauthorized', { status: 401 });
 
-    let ins;
-    try {
-        const out = await c.var.services.inspection.getInspection(id, tenantId);
-        ins = out.inspection;
-    } catch {
-        return new Response('not found', { status: 404 });
-    }
+    // Design System 0520 subsystem D phase 6 — observer fallback.
+    // Inspector path uses JWT; observers carry the dedicated
+    // __Host-observer_session cookie. We try JWT first (the common
+    // case) then degrade to the observer cookie. Both produce a DO
+    // attach request with `x-user-role: inspector` or `observer`
+    // respectively — the DO already routes the two roles correctly
+    // (observers are read-only in the roster snapshot).
+    let attachUserId: string;
+    let attachName:   string;
+    let attachRole:   'inspector' | 'observer';
 
-    const helpers = (() => {
+    if (userId && tenantId) {
+        let ins;
         try {
-            const parsed = JSON.parse(ins.helperInspectorIds ?? '[]');
-            return Array.isArray(parsed) ? parsed as string[] : [];
-        } catch { return []; }
-    })();
-    const allowed = ins.inspectorId === userId
-                 || ins.leadInspectorId === userId
-                 || helpers.includes(userId);
-    if (!allowed) return new Response('forbidden', { status: 403 });
+            const out = await c.var.services.inspection.getInspection(id, tenantId);
+            ins = out.inspection;
+        } catch {
+            return new Response('not found', { status: 404 });
+        }
+
+        const helpers = (() => {
+            try {
+                const parsed = JSON.parse(ins.helperInspectorIds ?? '[]');
+                return Array.isArray(parsed) ? parsed as string[] : [];
+            } catch { return []; }
+        })();
+        const allowed = ins.inspectorId === userId
+                     || ins.leadInspectorId === userId
+                     || helpers.includes(userId);
+        if (!allowed) return new Response('forbidden', { status: 403 });
+
+        attachUserId = userId;
+        attachName   = ins.inspectorId === userId ? 'Inspector' : 'Helper';
+        attachRole   = 'inspector';
+    } else {
+        const cookie = getCookie(c, OBSERVER_COOKIE_NAME);
+        if (!cookie) return new Response('unauthorized', { status: 401 });
+        const payload = await verifyObserverCookie(cookie, c.env.JWT_SECRET);
+        if (!payload || payload.inspectionId !== id) {
+            return new Response('forbidden', { status: 403 });
+        }
+        attachUserId = `observer-${payload.linkId}`;
+        attachName   = 'Observer';
+        attachRole   = 'observer';
+    }
 
     const doId = c.env.INSPECTION_PRESENCE.idFromName(id);
     const stub = c.env.INSPECTION_PRESENCE.get(doId);
@@ -2345,10 +2374,10 @@ inspectionsRoutes.get('/:id/presence/ws', async (c) => {
         method:  'GET',
         headers: {
             'Upgrade':          'websocket',
-            'x-user-id':        userId,
-            'x-user-name':      ins.inspectorId === userId ? 'Inspector' : 'Helper',
+            'x-user-id':        attachUserId,
+            'x-user-name':      attachName,
             'x-user-photo-url': '',
-            'x-user-role':      'inspector',
+            'x-user-role':      attachRole,
         },
     });
     return stub.fetch(fwd);
