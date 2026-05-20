@@ -811,10 +811,25 @@ function dashboardFactory() {
         eventTypes: [],
         // Spec 4E — prefetch progress pill
         cacheProgress: null,
+        // Design System 0520 subsystem E P2 — workflow-state filter mirror.
+        // Set by the WorkflowTabs component via the `workflow-filter-changed`
+        // window event and ANDed into _passesAllActiveFilters.
+        workflowFilter: 'all',
 
         async init() {
             await this.reload();
             window.addEventListener('inspection-updated', () => this.reload());
+
+            // Design System 0520 subsystem E P2 — WorkflowTabs filter.
+            // The tab component broadcasts on every selection; the
+            // mirror state below is consumed by _passesAllActiveFilters.
+            // Also hydrate from URL on first paint so deep-links honour
+            // the selection.
+            const initial = new URLSearchParams(window.location.search).get('workflow');
+            if (initial) this.workflowFilter = initial;
+            window.addEventListener('workflow-filter-changed', (e) => {
+                this.workflowFilter = e?.detail?.workflow ?? 'all';
+            });
             // Sprint 3 S3-3 — populate the tag filter dropdown. Best-effort —
             // a 4xx response (no permission) leaves the dropdown empty.
             try {
@@ -850,7 +865,23 @@ function dashboardFactory() {
             if (this.tagFilterIds) {
                 if (!insp || !insp.id || !this.tagFilterIds.has(insp.id)) return false;
             }
+            // Design System 0520 subsystem E P2 — workflow tab AND-filter.
+            if (this.workflowFilter && this.workflowFilter !== 'all') {
+                if (!this._matchesWorkflow(insp, this.workflowFilter)) return false;
+            }
             return true;
+        },
+
+        _matchesWorkflow(i, tab) {
+            if (!i) return false;
+            switch (tab) {
+                case 'active':          return i.status === 'scheduled' || i.status === 'in_progress' || i.status === 'draft';
+                case 'drafts':          return i.status === 'draft';
+                case 'awaitingPayment': return (i.status === 'delivered' || i.status === 'published') && i.paymentStatus !== 'paid';
+                case 'published':       return i.status === 'delivered' || i.status === 'published';
+                case 'cancelled':       return i.status === 'cancelled';
+                default:                return true;
+            }
         },
 
         async reload() {
@@ -917,6 +948,14 @@ function dashboardFactory() {
                     this.sections.later = true;
                 }
                 this.computeStats();
+
+                // Design System 0520 subsystem E P2 — let WorkflowTabs
+                // recount per-state badges from the same payload.
+                try {
+                    window.dispatchEvent(new CustomEvent('inspections-loaded', {
+                        detail: { inspections: this._allInspections },
+                    }));
+                } catch (_e) { /* getter may throw if buckets shape changes */ }
             } catch (e) {
                 if (typeof window.showToast === 'function') {
                     window.showToast('Failed to load dashboard: ' + e.message, true);

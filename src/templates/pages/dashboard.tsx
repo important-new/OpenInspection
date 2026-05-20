@@ -5,6 +5,7 @@ import { Modal } from '../components/modal';
 import { NewInspectionWizard } from '../components/new-inspection-wizard';
 import { TeamStrip } from '../components/team-strip';
 import { PageHeader } from '../components/page-header';
+import { WorkflowTabs } from '../components/workflow-tabs';
 import { CustomizeColumnsModal } from '../components/customize-columns-modal';
 import { InspectionRow } from '../components/inspection-row';
 import { SeatBanner } from '../../features/seat-quota/seat-banner';
@@ -171,6 +172,14 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
 
                 {/* Collapsible Inspection Sections */}
                 <div x-data="dashboard()" x-init="init()" class="space-y-4 mt-8">
+
+                    {/* Design System 0520 subsystem E P2 — WorkflowTabs.
+                        Sits above the inspections list; recounts from the
+                        same `inspections-loaded` event the table consumes,
+                        broadcasts `workflow-filter-changed` for the list's
+                        visible-rows computer to AND-filter against the
+                        existing time + tag selectors. */}
+                    <WorkflowTabs />
 
                     {/* Spec 4E — offline cache progress pill */}
                     <div x-show="cacheProgress" {...{ 'x-cloak': true }} class="text-xs text-slate-500 inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-full">
@@ -607,6 +616,8 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
                 <script src="/js/auth.js"></script>
                 <script src="/js/action-menu.js"></script>
                 <script src="/js/dashboard.js"></script>
+                {/* Design System 0520 subsystem E P2 — WorkflowTabs factory. */}
+                <script src="/js/workflow-tabs.js"></script>
                 {/* contact-selector has no ESM imports — load as classic
                     script so its alpine:init listener attaches BEFORE the
                     deferred alpine.min.js fires that event. As a type=module
