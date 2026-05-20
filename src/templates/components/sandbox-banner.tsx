@@ -2,9 +2,10 @@
  * Sprint 1 CC-2 — Sandbox demo banner.
  *
  * Rendered at the top of every authenticated page when the worker is running
- * in sandbox mode (env.SANDBOX_MODE === 'true'). Lets visitors know they are
- * in a public demo, that data resets nightly, and that they should not enter
- * real customer information. Hidden from print so PDF reports stay clean.
+ * in sandbox mode (resolved from `c.var.profile.showSandboxBanner`). Lets
+ * visitors know they are in a public demo, that data resets nightly, and that
+ * they should not enter real customer information. Hidden from print so PDF
+ * reports stay clean.
  *
  * Design system: indigo-50 background + 12 px medium text + emoji icon to
  * keep visual weight low. The banner is sticky-top inside the layout so it

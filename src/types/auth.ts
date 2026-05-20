@@ -18,8 +18,9 @@ export interface BrandingConfig {
     gaMeasurementId?: string | null | undefined;
     reportTheme?: 'modern' | 'classic' | 'minimal' | undefined;
     /** Sprint 1 CC-2 — true when the worker runs as the public sandbox demo
-     *  (env.SANDBOX_MODE === 'true'). Plumbed through branding so every page
-     *  template that already accepts branding gets it for free. */
+     *  (resolved from `c.var.profile.showSandboxBanner`). Plumbed through
+     *  branding so every page template that already accepts branding gets it
+     *  for free. */
     sandboxMode?: boolean | undefined;
     /** Sprint B-1 — signed-in user's booking slug. Plumbed via the
      *  inspectorPaletteMiddleware so MainLayout can pass it to

@@ -12,7 +12,9 @@ import { logger } from '../logger';
  */
 export const brandingMiddleware: MiddlewareHandler<HonoConfig> = async (c, next) => {
     const tenantId = c.get('tenantId');
-    const sandboxMode = c.env.SANDBOX_MODE === 'true';
+    // Profile is injected by diMiddleware which runs before brandingMiddleware
+    // (see global middleware order in src/index.ts).
+    const sandboxMode = c.var.profile.showSandboxBanner;
 
     // Default system branding (fallback)
     const defaultBranding: BrandingConfig = {

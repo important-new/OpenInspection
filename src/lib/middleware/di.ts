@@ -81,10 +81,11 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.ai = new AIService(
                         c.env.DB,
                         c.env.GEMINI_API_KEY || dbSecrets.geminiApiKey || '',
-                        // Sprint 1 A-4: pass APP_MODE so the service can return
-                        // dev-mock suggestions in standalone (local) deployments
-                        // when no API key is set, instead of throwing 503.
-                        c.env.APP_MODE,
+                        // Sprint 1 A-4: pass effective deployment mode so the
+                        // service can return dev-mock suggestions when the
+                        // active profile permits it (standalone/sandbox) and
+                        // no API key is configured, instead of throwing 503.
+                        c.var.profile.aiDevMockFallback ? 'standalone' : 'saas',
                     );
                     break;
                 case 'auth':

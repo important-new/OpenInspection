@@ -251,7 +251,8 @@ app.use('*', async (c, next) => {
     if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
-    if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
+    // (gated on `hasSetupWizard` — only the standalone profile enables it).
+    if (c.var.profile.hasSetupWizard && c.env.TENANT_CACHE) {
         // Prefer explicit environment variable if set by user during deployment
         const storedCode = c.env.SETUP_CODE || await c.env.TENANT_CACHE.get('setup_verification_code');
 
@@ -373,7 +374,7 @@ app.use('*', async (c, next) => {
 
     // --- Tenant Isolation Guard (Fail-Fast) ---
     // In SaaS mode, strictly verify that the token's tenant matches the requested subdomain's tenant.
-    if (c.env.APP_MODE === 'saas') {
+    if (c.var.profile.mode === 'saas') {
         const tokenTenantId = c.get('tenantId');
         const resolvedTenantId = c.get('resolvedTenantId');
 
