@@ -41,15 +41,30 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
             {/* handoff §7 — unsaved-changes guard. Pages opt in by calling
                 window.OIDirty.set(true|false). beforeunload + a-click intercept. */}
             <script src="/js/unsaved-guard.js"></script>
+            {/* Stub Alpine.data registrations for ESM factories (networkPill,
+                conflictModal). The real factories live in /js/network-pill.js
+                and /js/conflict-modal.js which are <script type="module">
+                (auto-deferred to AFTER alpine.min.js), so without these stubs
+                Alpine's first x-data evaluation fires "is not defined" warnings
+                for every property referenced inside (online, pendingItems,
+                popoverOpen, etc.). registerB4Component in those modules calls
+                Alpine.data() again and re-inits trees once the module loads,
+                so the stubs are silently replaced by the real factories.
+                Loaded SYNC before alpine.min.js so the alpine:init listener
+                attaches before Alpine boots. */}
+            <script src="/js/alpine-stubs.js"></script>
             <script defer src="/vendor/alpine-collapse.min.js"></script>
             <script defer src="/vendor/alpine.min.js"></script>
-            {/* These two register Alpine.data factories. Loaded SYNC (no defer)
+            {/* These register Alpine.data factories. Loaded SYNC (no defer)
                 so their alpine:init listener attaches BEFORE the deferred
                 alpine.min.js fires that event. With defer they ran too late
-                and the factories never registered. */}
+                and the factories never registered. Factories with no ESM
+                imports go here; factories that require ESM imports
+                (network-pill, conflict-modal) use the stub pattern above. */}
             <script src="/js/slash-trigger.js"></script>
             <script src="/js/command-palette.js"></script>
             <script src="/js/inline-text-popover.js"></script>
+            <script src="/js/template-drift-banner.js"></script>
             <script defer src="/vendor/flatpickr.min.js"></script>
             <script defer src="/js/flatpickr-init.js"></script>
             {/* B4 — Dexie importmap: must precede every type="module" script that imports 'dexie' */}
@@ -61,7 +76,6 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
             />
             <script type="module" src="/js/network-pill.js"></script>
             <script type="module" src="/js/conflict-modal.js"></script>
-            <script type="module" src="/js/template-drift-banner.js"></script>
             <link rel="stylesheet" href="/styles.css" />
             <style dangerouslySetInnerHTML={{ __html: `
                 :root {

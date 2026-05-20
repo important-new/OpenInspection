@@ -578,7 +578,12 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
                 <script src="/js/auth.js"></script>
                 <script src="/js/action-menu.js"></script>
                 <script src="/js/dashboard.js"></script>
-                <script type="module" src="/js/contact-selector.js"></script>
+                {/* contact-selector has no ESM imports — load as classic
+                    script so its alpine:init listener attaches BEFORE the
+                    deferred alpine.min.js fires that event. As a type=module
+                    it auto-defers and Alpine warns "contactSelector is not
+                    defined" on first evaluation. */}
+                <script src="/js/contact-selector.js"></script>
                 <script type="module" src="/js/dashboard-prefetch.js"></script>
             </div>
         </MainLayout>
