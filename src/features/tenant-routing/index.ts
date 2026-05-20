@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import type { HonoConfig } from '../../types/hono';
 import { logger } from '../../lib/logger';
 import { resolveByFixedTenant } from './resolve-by-fixed-tenant';
+import { resolveByPathParam } from './resolve-by-path-param';
 import { resolveBySubdomain } from './resolve-by-subdomain';
 
 /**
@@ -23,6 +24,11 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     const path = url.pathname;
 
     if (path === '/status') return next();
+
+    // Try path-param resolution first. This makes /book/:tenant/:slug and
+    // similar public routes work uniformly across all deploy modes.
+    const pathParamResolved = await resolveByPathParam(c, path);
+    if (pathParamResolved) return next();
 
     const profile = c.var.profile;
     const host = c.req.header('host') || '';
