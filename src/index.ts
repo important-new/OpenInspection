@@ -84,6 +84,7 @@ import { SettingsIntegrationsPage } from './templates/pages/settings-integration
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
 import { GuestJoinPage } from './templates/pages/guest-join';
+import { SettingsBillingPage } from './templates/pages/settings-billing';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
@@ -94,6 +95,7 @@ import { agreementSignPath } from './lib/public-urls';
 
 import coreAuthRoutes from './api/auth';
 import guestRoutes from './api/guest';
+import billingRoutes from './api/billing';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
@@ -433,6 +435,8 @@ app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
 // Design System 0520 subsystem C P6 — anonymous guest claim (JWT-exempt above).
 app.route('/api/guest', guestRoutes);
+// Design System 0520 subsystem C P9 — seat-quota summary (read-only, JWT-guarded).
+app.route('/api/billing', billingRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 // Design System 0520 subsystem B phase 2 — tenant-level presence channel
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
@@ -2181,6 +2185,13 @@ app.get('/settings/account/security', htmlAuthGuard(), (c) => {
     return c.html(SettingsSecurityPage(b ? { branding: b } : {}));
 });
 app.get('/settings/account/bot-protection', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAccountPage({ branding: c.get('branding'), subPage: 'bot-protection' })));
+
+// Design System 0520 subsystem C P9 — read-only seat-quota + billing
+// portal CTA. Owner/admin only — non-admins don't see billing UI.
+app.get('/settings/billing', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsBillingPage(b ? { branding: b } : {}));
+});
 
 // Advanced group
 app.get('/settings/advanced', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/advanced/payments'));
