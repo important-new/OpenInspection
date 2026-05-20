@@ -13,6 +13,7 @@ export enum ErrorCode {
     CONFLICT = 'conflict',
     UNPROCESSABLE_ENTITY = 'unprocessable_entity',
     RATE_LIMITED = 'rate_limited',
+    SEAT_LIMIT_REACHED = 'seat_limit_reached',
     INTERNAL_ERROR = 'internal_error',
     SERVICE_UNAVAILABLE = 'service_unavailable',
     // Sprint 1 Sub-spec A Task 6 — distinct code for missing AI key so the
@@ -50,6 +51,13 @@ export const Errors = {
     UnprocessableEntity: (msg: string, details?: unknown) =>
         new AppError(422, ErrorCode.UNPROCESSABLE_ENTITY, msg, details),
     RateLimited: (msg: string = 'Too many attempts. Please try again later.') => new AppError(429, ErrorCode.RATE_LIMITED, msg),
+    SeatLimitReached: (details: { used: number; max: number; billingPortalUrl: string | null }) =>
+        new AppError(
+            402,
+            ErrorCode.SEAT_LIMIT_REACHED,
+            'Your team has reached its seat limit. Upgrade your plan to invite more members.',
+            details,
+        ),
     Internal: (msg: string = 'Internal server error') => new AppError(500, ErrorCode.INTERNAL_ERROR, msg),
     ServiceUnavailable: (msg: string, details?: unknown) => new AppError(503, ErrorCode.SERVICE_UNAVAILABLE, msg, details),
     AINotConfigured: (msg: string = 'AI is not configured. Set GEMINI_API_KEY in Settings.') =>
