@@ -87,6 +87,7 @@ import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
 import { InspectorNotFoundPage } from './templates/pages/inspector-not-found';
 import { BookingEmbedPage } from './templates/pages/booking-embed';
+import { agreementSignPath } from './lib/public-urls';
 
 
 import coreAuthRoutes from './api/auth';
@@ -696,7 +697,7 @@ app.get('/inspector/:tenant/:slug', async (c) => {
         price: s.price,
     }));
     const host = (c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')) || c.req.header('host') || '';
-    return c.html(InspectorProfilePage({ profile, services: catalog, host }));
+    return c.html(InspectorProfilePage({ profile, services: catalog, host, tenantSlug: tenantSlugFromPath }));
 });
 
 // Booking #7 Sprint C-4 — iframe-friendly booking widget at /embed/book/<slug>.
@@ -922,7 +923,7 @@ app.get('/sign/:tenant/:id', async (c) => {
     try {
         const pending = await c.var.services.agreement.findPendingByInspectionId(tenantId as string, id);
         if (pending) {
-            return c.redirect(`/agreements/sign/${tenantSlugFromPath}/${pending.token}`, 302);
+            return c.redirect(agreementSignPath(tenantSlugFromPath as string, pending.token), 302);
         }
     } catch (e) {
         logger.warn('sign-redirect: lookup failed', { inspectionId: id.slice(0, 8), error: (e as Error).message });
@@ -1098,7 +1099,12 @@ async function loadVerifyData(c: Context<HonoConfig>, envelopeId: string) {
         .all();
     const verify = await c.var.services.auditLog.verifyChain(reqRow.tenantId, envelopeId);
     const pubKey = await c.var.services.signingKey.getPublicKey(reqRow.tenantId);
-    return { reqRow, agreement, auditRows, verify, pubKey };
+    const tenantRow = await db.select({ subdomain: schema.tenants.subdomain })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, reqRow.tenantId))
+        .get();
+    const tenantSubdomain = tenantRow?.subdomain ?? '';
+    return { reqRow, agreement, auditRows, verify, pubKey, tenantSubdomain };
 }
 
 app.get('/verify/:envelopeId', async (c) => {
@@ -1175,7 +1181,7 @@ app.get('/api/public/verify/:envelopeId/document', async (c) => {
     const envelopeId = c.req.param('envelopeId') as string;
     const data = await loadVerifyData(c, envelopeId);
     if (!data) return c.text('Not found', 404);
-    return c.redirect(`/agreements/sign/${data.reqRow.token}`, 302);
+    return c.redirect(agreementSignPath(data.tenantSubdomain, data.reqRow.token), 302);
 });
 
 app.get('/api/public/verify/:envelopeId/audit-trail', async (c) => {
@@ -1360,7 +1366,7 @@ app.get('/report/:tenant/:id', async (c) => {
                         reason:           'agreement',
                         companyName,
                         primaryColor,
-                        actionUrl:        `${baseUrl}/sign/${id}`,
+                        actionUrl:        `${baseUrl}/sign/${tenantSlugFromPath}/${id}`,
                         actionLabel:      'Sign agreement',
                         propertyAddress:  insp.propertyAddress ?? null,
                         inspectorName,
@@ -1646,7 +1652,7 @@ app.get('/r/:id/repair-request', async (c) => {
                         reason:          'agreement',
                         companyName,
                         primaryColor,
-                        actionUrl:       `${baseUrl}/sign/${id}`,
+                        actionUrl:       `${baseUrl}/sign/${c.get('requestedSubdomain') ?? ''}/${id}`,
                         actionLabel:     'Sign agreement',
                         propertyAddress: insp.propertyAddress ?? null,
                         inspectorName,
@@ -1713,14 +1719,6 @@ app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));
 });
-// Agent surfaces all need the same host-suffix derivation for ⌘K palette
-// "Copy booking link" actions. Centralized here to keep the three handlers
-// in lockstep with /agent-inspectors.
-function deriveAgentHostSuffix(c: Context<HonoConfig>): string {
-    const rawBase = (c.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    return rawBase.split('.').slice(rawBase.split('.').length > 2 ? 1 : 0).join('.') || 'inspectorhub.io';
-}
-
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     const branding = c.get('branding');
     const user = c.get('user');
@@ -1764,7 +1762,7 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
         unreadReports,
         sparklineCreated: sparkline.created,
         inspectors,
-        bookingHost: deriveAgentHostSuffix(c),
+        bookingHost: c.req.header('host') || 'localhost',
     }));
 });
 // UC-A-5 — agent recommendations export. Server renders the static shell;
@@ -1800,22 +1798,15 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         });
     }
     const inspectors = await c.var.services.agent.listInspectors(user.sub);
-    // Standalone single-tenant deployments don't have per-tenant subdomains —
-    // every booking link lives at `<currentHost>/book/<slug>`. Saas keeps the
-    // subdomain.hostSuffix split. Detect via APP_MODE so the agent's card
-    // shows a working URL in both topologies.
-    const isStandalone = (c.env.APP_MODE as string) !== 'saas';
-    const requestHost = c.req.header('host') || 'localhost';
-    const hostSuffix = deriveAgentHostSuffix(c);
+    // PR 2 — booking links are uniformly `/<host>/book/<tenant>/<slug>` across
+    // every deploy mode. The agent dashboard's host is the only host the agent
+    // is signed in on; the path-tenant prefix carries the tenant context.
+    const host = c.req.header('host') || 'localhost';
     return c.html(AgentInspectorsPage({
         ...(branding ? { branding } : {}),
         agent: { name: agentName, slug: agentSlug },
         inspectors,
-        hostSuffix,
-        // When set, the page uses this exact host for booking links instead of
-        // splicing tenantSubdomain.hostSuffix. Standalone deployments share the
-        // single deploy host across every row.
-        ...(isStandalone ? { fixedHost: requestHost } : {}),
+        host,
     }));
 });
 // Agent Accounts A3 — Book on Behalf form. Lives under /agent-inspectors so the
@@ -1935,7 +1926,7 @@ app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
             notifyOnPaid:     row.notifyOnPaid,
         },
         inspectors,
-        bookingHost: deriveAgentHostSuffix(c),
+        bookingHost: c.req.header('host') || 'localhost',
     }));
 });
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
@@ -2084,6 +2075,7 @@ app.get('/settings/catalog/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
         ...(b ? { branding: b } : {}),
         currentUserSlug: b?.currentUserSlug ?? null,
         bookingHost: b?.bookingHost ?? '',
+        tenantSubdomain: c.get('requestedSubdomain') ?? null,
     }));
 });
 // Agent Accounts A3 — concierge toggle.
@@ -2304,6 +2296,7 @@ app.get('/inspections/:id/signatures', htmlAuthGuard(['owner', 'admin', 'inspect
     return c.html(InspectionSignaturesPage({
         inspectionId: id,
         propertyAddress: shell?.propertyAddress ?? 'Inspection',
+        tenantSlug: c.get('requestedSubdomain') ?? '',
         branding: c.get('branding'),
         enableRepairList: !!shell?.enableRepairList,
         ...(shell?.requestId ? { requestId: shell.requestId } : {}),

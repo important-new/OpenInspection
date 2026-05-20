@@ -158,6 +158,7 @@ export const MainLayout = (props: {
     // hydrated into branding so individual pages don't need to plumb it.
     const paletteSlug = props.currentUserSlug !== undefined ? props.currentUserSlug : (branding?.currentUserSlug ?? null);
     const paletteHost = props.bookingHost !== undefined ? props.bookingHost : (branding?.bookingHost ?? '');
+    const paletteTenant = branding?.tenantSubdomain ?? null;
 
     return (
         <html lang="en" class="scroll-smooth">
@@ -570,6 +571,7 @@ navigator.serviceWorker?.addEventListener('message', function(e) {
                 <CommandPalette
                     currentUserSlug={paletteSlug}
                     {...(paletteHost ? { bookingHost: paletteHost } : {})}
+                    {...(paletteTenant ? { tenantSubdomain: paletteTenant } : {})}
                 />
                 <InlineTextPopover />
             </body>

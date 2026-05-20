@@ -318,7 +318,8 @@ test.describe.serial('Standalone Browser Tests', () => {
     // ── Report Page (Public) ──────────────────────────────────────────────────
 
     test('UI-15: Report page renders for valid inspection', async ({ page }) => {
-        const res = await page.goto(`${BASE_URL}/report/${createdInspectionId}`, { timeout: NAV_TIMEOUT });
+        const tenantSlug = COMPANY_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const res = await page.goto(`${BASE_URL}/report/${tenantSlug}/${createdInspectionId}`, { timeout: NAV_TIMEOUT });
         expect(res?.status(), 'Report must return 200').toBe(200);
         const content = await page.content();
         expect(content).toContain('742 Evergreen Terrace');
@@ -341,7 +342,8 @@ test.describe.serial('Standalone Browser Tests', () => {
 
     test('UI-PDF: Public /report page exposes Download PDF button', async ({ page }) => {
         if (!createdInspectionId) test.skip();
-        await page.goto(`${BASE_URL}/report/${createdInspectionId}`, { timeout: NAV_TIMEOUT });
+        const tenantSlug = COMPANY_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        await page.goto(`${BASE_URL}/report/${tenantSlug}/${createdInspectionId}`, { timeout: NAV_TIMEOUT });
         const btn = page.locator('button[aria-label*="Download PDF"]');
         await expect(btn).toBeVisible();
     });

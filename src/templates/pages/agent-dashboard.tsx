@@ -536,8 +536,8 @@ export const AgentDashboardPage = ({
                                         // isPublic allowlist (no tenant cookie required); the report's
                                         // own gate decides what to show for unpublished/draft reports.
                                         const href = canViewReport
-                                            ? `/report/${r.id}?view=agent`
-                                            : `/report/${r.id}`;
+                                            ? `/report/${r.tenantSubdomain}/${r.id}?view=agent`
+                                            : `/report/${r.tenantSubdomain}/${r.id}`;
                                         return (
                                             <a
                                                 class="referral-row"

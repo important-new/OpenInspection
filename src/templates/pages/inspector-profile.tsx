@@ -24,6 +24,7 @@ interface Props {
     profile: InspectorProfile;
     services: CatalogService[];
     host: string;
+    tenantSlug: string;
 }
 
 const fmtPrice = (cents: number): string => '$' + Math.round(cents / 100).toLocaleString();
@@ -79,7 +80,7 @@ body { background: #fafaf7; font-family: 'Inter', -apple-system, BlinkMacSystemF
 }
 `;
 
-export const InspectorProfilePage = ({ profile, services, host }: Props): JSX.Element => {
+export const InspectorProfilePage = ({ profile, services, host, tenantSlug }: Props): JSX.Element => {
     const { name, bio, photoUrl, licenseNumber, email, phone, slug, serviceAreas } = profile;
     // Defensive fallback only — setup wizard requires a name for new accounts.
     // Legacy accounts without one fall back to a polite literal, never email.
@@ -106,7 +107,7 @@ export const InspectorProfilePage = ({ profile, services, host }: Props): JSX.El
 
     const title = `${displayName} · Home Inspector${cityList ? ' · ' + cityList : ''}`;
     const metaDescription = bio ? bio.slice(0, 160) : `Book a home inspection with ${displayName}${cityList ? ' in ' + cityList : ''}.`;
-    const canonicalUrl = `https://${host}/inspector/${slug ?? ''}`;
+    const canonicalUrl = `https://${host}/inspector/${tenantSlug}/${slug ?? ''}`;
 
     // The base64-encoded email + obfuscation script keep raw addresses out of
     // the rendered HTML so naïve scrapers can't harvest mailto targets.
@@ -184,7 +185,7 @@ export const InspectorProfilePage = ({ profile, services, host }: Props): JSX.El
 
                 <section class="cta-section">
                     {slug && (
-                        <a class="cta-button" href={`/book/${slug}`}>Book an inspection</a>
+                        <a class="cta-button" href={`/book/${tenantSlug}/${slug}`}>Book an inspection</a>
                     )}
                 </section>
 

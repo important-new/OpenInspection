@@ -26,13 +26,16 @@
 interface CommandPaletteProps {
     currentUserSlug?: string | null;
     bookingHost?: string;
+    /** Tenant subdomain — required for path-tenant booking URLs (`/book/<tenant>/<slug>`). */
+    tenantSubdomain?: string | null;
 }
 
 export function CommandPalette(props?: CommandPaletteProps): JSX.Element {
     const slug = props?.currentUserSlug ?? null;
     const host = props?.bookingHost ?? '';
-    const slugAttrs: Record<string, string> = (slug && host)
-        ? { 'data-current-user-slug': slug, 'data-booking-host': host }
+    const tenant = props?.tenantSubdomain ?? '';
+    const slugAttrs: Record<string, string> = (slug && host && tenant)
+        ? { 'data-current-user-slug': slug, 'data-booking-host': host, 'data-booking-tenant': tenant }
         : {};
     return (
         <div

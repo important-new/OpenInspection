@@ -7,6 +7,7 @@ import {
     agentTenantLinks,
     contacts,
     users,
+    tenants,
 } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -52,6 +53,7 @@ export interface ConciergeTokenView {
     inspection: {
         id: string;
         tenantId: string;
+        tenantSubdomain: string;
         propertyAddress: string;
         date: string;
         clientName: string | null;
@@ -365,6 +367,13 @@ export class ConciergeService {
             .get();
         if (!insp) return null;
 
+        const tenantRow = await db
+            .select({ subdomain: tenants.subdomain })
+            .from(tenants)
+            .where(eq(tenants.id, insp.tenantId))
+            .get();
+        const tenantSubdomain = tenantRow?.subdomain ?? '';
+
         let inspector: ConciergeTokenView['inspector'] = null;
         if (insp.inspectorId) {
             const u = await db
@@ -386,6 +395,7 @@ export class ConciergeService {
             inspection: {
                 id: insp.id,
                 tenantId: insp.tenantId,
+                tenantSubdomain,
                 propertyAddress: insp.propertyAddress,
                 date: insp.date,
                 clientName: insp.clientName ?? null,

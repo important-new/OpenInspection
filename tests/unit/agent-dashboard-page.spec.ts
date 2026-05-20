@@ -11,19 +11,19 @@ function render(node: unknown): string {
 
 const REFS_T1: AgentReferralRow[] = [
     {
-        id: 'i-1', tenantId: 't1', tenantName: 'Acme Inspections',
+        id: 'i-1', tenantId: 't1', tenantName: 'Acme Inspections', tenantSubdomain: 'acme',
         propertyAddress: '1 Main', clientName: 'Sarah', date: '2026-06-01',
         status: 'confirmed', paymentStatus: 'paid', inspectorName: 'Mike',
     },
     {
-        id: 'i-2', tenantId: 't1', tenantName: 'Acme Inspections',
+        id: 'i-2', tenantId: 't1', tenantName: 'Acme Inspections', tenantSubdomain: 'acme',
         propertyAddress: '2 Oak', clientName: 'Bob', date: '2026-06-02',
         status: 'delivered', paymentStatus: 'paid', inspectorName: 'Mike',
     },
 ];
 const REFS_T2: AgentReferralRow[] = [
     {
-        id: 'i-3', tenantId: 't2', tenantName: 'BobsInsp',
+        id: 'i-3', tenantId: 't2', tenantName: 'BobsInsp', tenantSubdomain: 'bobs',
         propertyAddress: '3 Elm', clientName: 'Tim', date: '2026-06-03',
         status: 'draft', paymentStatus: 'unpaid', inspectorName: 'Bob',
     },
@@ -108,7 +108,7 @@ describe('AgentDashboardPage — A2', () => {
             unreadReports: 1,
         }));
         // i-2 is delivered — should have a "View report" link.
-        expect(html).toMatch(/href="\/report\/i-2[^"]*"/);
+        expect(html).toMatch(/href="\/report\/acme\/i-2[^"]*"/);
     });
 
     it('renders empty-state when referrals array is empty', () => {

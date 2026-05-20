@@ -6,6 +6,7 @@ import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { safeISODate } from '../lib/date';
 import { getBaseUrl, getBookingHost } from '../lib/url';
+import { agreementSignUrl } from '../lib/public-urls';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
@@ -788,7 +789,8 @@ adminRoutes.openapi(sendAgreementRoute, async (c) => {
         ...(body.clientName !== undefined ? { clientName: body.clientName } : {}),
         ...(body.inspectionId !== undefined ? { inspectionId: body.inspectionId } : {}),
     });
-    const signUrl = `${getBaseUrl(c)}/agreements/sign/${request.token}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const signUrl = agreementSignUrl(getBookingHost(c), tenantSlug, request.token);
 
     // Spec 5H D-patch — fetch the agreement HTML at send-time to compute its
     // content hash. This is the "what was the client agreed to" anchor for
