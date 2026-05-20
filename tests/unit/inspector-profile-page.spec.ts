@@ -94,6 +94,6 @@ describe('InspectorProfilePage — Sprint C-1', () => {
     it('canonical link + alternate ICS link for SEO + calendar discovery', () => {
         const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         expect(html).toMatch(/<link rel="canonical" href="https:\/\/app\.inspectorhub\.io\/inspector\/acme\/mike"/);
-        expect(html).toMatch(/<link rel="alternate" type="text\/calendar"[^>]*href="\/inspector\/mike\/calendar\.ics"/);
+        expect(html).toMatch(/<link rel="alternate" type="text\/calendar"[^>]*href="\/inspector\/acme\/mike\/calendar\.ics"/);
     });
 });

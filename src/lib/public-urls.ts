@@ -27,6 +27,10 @@ export function inspectorProfileUrl(host: string, tenantSlug: string, inspectorS
     return joinUrl(host, `/inspector/${tenantSlug}/${inspectorSlug}`);
 }
 
+export function inspectorCalendarUrl(host: string, tenantSlug: string, inspectorSlug: string): string {
+    return joinUrl(host, `/inspector/${tenantSlug}/${inspectorSlug}/calendar.ics`);
+}
+
 export function reportUrl(host: string, tenantSlug: string, inspectionId: string): string {
     return joinUrl(host, `/report/${tenantSlug}/${inspectionId}`);
 }

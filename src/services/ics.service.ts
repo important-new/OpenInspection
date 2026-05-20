@@ -6,7 +6,7 @@ import { inspections } from '../lib/db/schema/inspection';
 /**
  * Booking #7 Sprint C-2 — Busy-only iCal feed service.
  *
- * Powers `GET /inspector/<slug>/calendar.ics` so partner agents can subscribe
+ * Powers `GET /inspector/<tenant>/<slug>/calendar.ics` so partner agents can subscribe
  * to an inspector's availability without ever seeing customer-facing PII
  * (no addresses, names, or emails). Confirmed-only events; cancellations
  * disappear from the feed so subscribers see the freed slot.

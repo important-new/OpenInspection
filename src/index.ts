@@ -739,10 +739,22 @@ app.get('/embed/book/:tenant/:slug', async (c) => {
 // the inspector's own personal calendar) see opaque "Busy" blocks with no
 // addresses, client names, or emails. Cancelled inspections drop out so
 // freed slots become bookable again.
-app.get('/inspector/:slug/calendar.ics', async (c) => {
+//
+// PR 2 T9: path carries the tenant slug because the path-tenant resolver
+// (T1) eats the first segment after /inspector/. Without :tenant the
+// resolver would treat the inspector slug as the tenant in shared/silo
+// modes. Standalone deploys would still work via fixed-tenant fallback,
+// but the unified shape applies across all modes.
+app.get('/inspector/:tenant/:slug/calendar.ics', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
     const ics = await c.var.services.ics.busyFeedForInspector(tenantId, slug);
     return new Response(ics, {
         status: 200,

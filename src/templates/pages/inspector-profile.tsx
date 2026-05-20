@@ -132,7 +132,7 @@ export const InspectorProfilePage = ({ profile, services, host, tenantSlug }: Pr
                         rel="alternate"
                         type="text/calendar"
                         title={`${displayName} availability`}
-                        href={`/inspector/${slug}/calendar.ics`}
+                        href={`/inspector/${tenantSlug}/${slug}/calendar.ics`}
                     />
                 )}
                 <link rel="stylesheet" href="/fonts.css" />
