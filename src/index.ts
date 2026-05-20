@@ -789,13 +789,30 @@ app.get('/book/:tenant/:slug', async (c) => {
     }));
 });
 
-// Public agreement signing page (no auth required — token is the secret)
-app.get('/agreements/sign/:token', async (c) => {
+// Public agreement signing page (no auth required — token is the secret).
+// :tenant in the path is defense-in-depth — the token alone is the cryptographic
+// gate, but the URL-level slug lets tenant-router populate branding / audit /
+// rate-limiting context BEFORE this handler runs. Slug-vs-agreement mismatch
+// 404s the same way as a bad token.
+app.get('/agreements/sign/:tenant/:token', async (c) => {
     const token = c.req.param('token') as string;
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
+    // Tenant slug from path must match what tenant-router resolved.
+    // An unresolved path tenant manifests as a 404 here — reuse the
+    // styled not-found redirect to match the catch handler below.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.redirect('/not-found?from=agreement-sign', 302);
+    }
     try {
         const svc = c.var.services.agreement;
         const { request, agreement } = await svc.getAgreementByToken(token);
+        // Cross-tenant token probe: the token resolves but to a different tenant.
+        // Treat as not-found so this URL is indistinguishable from a bad token.
+        if (request.tenantId !== tenantId) {
+            return c.redirect('/not-found?from=agreement-sign', 302);
+        }
         await svc.markViewed(token);
 
         // Spec 5H P0 — append request.viewed to the audit chain (best-effort).
@@ -903,7 +920,7 @@ app.get('/sign/:tenant/:id', async (c) => {
     try {
         const pending = await c.var.services.agreement.findPendingByInspectionId(tenantId as string, id);
         if (pending) {
-            return c.redirect(`/agreements/sign/${pending.token}`, 302);
+            return c.redirect(`/agreements/sign/${tenantSlugFromPath}/${pending.token}`, 302);
         }
     } catch (e) {
         logger.warn('sign-redirect: lookup failed', { inspectionId: id.slice(0, 8), error: (e as Error).message });
@@ -917,10 +934,22 @@ app.get('/sign/:tenant/:id', async (c) => {
 // doesn't forward custom Authorization headers reliably -> 404. The token
 // itself is unguessable, so its secrecy is sufficient (same model as the
 // public /agreements/sign/{token} route).
-app.get('/m2m/agreement-render/:token', async (c) => {
+//
+// :tenant in the path is the same defense-in-depth as on /agreements/sign:
+// tenant-router resolves the slug into branding / context before the handler
+// runs, and a slug↔token tenant mismatch 404s.
+app.get('/m2m/agreement-render/:tenant/:token', async (c) => {
     const token = c.req.param('token') as string;
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.notFound();
+    }
     try {
         const { request, agreement } = await c.var.services.agreement.getAgreementByToken(token);
+        if (request.tenantId !== tenantId) {
+            return c.notFound();
+        }
 
         // Substitute placeholders the same way agreement-sign does
         const vars: Record<string, string> = {
