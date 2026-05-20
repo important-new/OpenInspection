@@ -44,7 +44,7 @@ import { PatchItemFieldSchema } from '../lib/validations/inspection-patch.schema
 import { CreateInspectionFromWizardSchema } from '../lib/validations/wizard.schema';
 import { CreateUnitSchema, UpdateUnitSchema, MoveUnitSchema } from '../lib/validations/unit.schema';
 import { drizzle } from 'drizzle-orm/d1';
-import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
+import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts, inspectionUnits } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { SignatureUser } from '../lib/inspector-signature';
@@ -1381,6 +1381,24 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     const db = drizzle(c.env.DB);
     const results = await db.select().from(inspectionResults).where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, c.get('tenantId')))).get();
 
+    // Design System 0520 subsystem D P3 — load units for the report
+    // UnitTreeSummary card. Failure (e.g. legacy DB without migration
+    // 0065 yet) degrades to empty — the renderer's `units` prop is
+    // optional and the summary card is gated on length > 0.
+    let units: Array<{ id: string; parentUnitId: string | null; kind: 'building'|'floor'|'unit'; name: string; sortOrder: number }> = [];
+    try {
+        const rows = await db.select().from(inspectionUnits)
+            .where(and(eq(inspectionUnits.inspectionId, id), eq(inspectionUnits.tenantId, c.get('tenantId'))))
+            .all();
+        units = rows.map(r => ({
+            id:           r.id,
+            parentUnitId: r.parentUnitId,
+            kind:         r.kind as 'building'|'floor'|'unit',
+            name:         r.name,
+            sortOrder:    r.sortOrder ?? 0,
+        }));
+    } catch { /* no units / migration not applied — degrade silently */ }
+
     const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
     return c.html(renderProfessionalReport({
         inspection: inspection as never,
@@ -1389,6 +1407,7 @@ inspectionsRoutes.get('/:id/report', async (c) => {
         branding: c.get('branding'),
         isAuthenticated: true,
         resolvedTheme,
+        units,
     }));
 });
 
