@@ -270,6 +270,129 @@ textarea {
 }
 
 /* ============================================================
+   Design System 0520 — P2 semantic primitive classes (13)
+   Defined OUTSIDE @layer components so Tailwind doesn't purge them
+   when no consumer references the class yet — matches the existing
+   pattern for .ih-pill above. Pure additive — no callsite changes.
+   ============================================================ */
+.ih-h1 {
+        font-family: var(--ih-font-display);
+        font-size: 28px;
+        font-weight: var(--ih-weight-black);
+        line-height: var(--ih-leading-section);
+        color: var(--ih-fg-1);
+        letter-spacing: -0.015em;
+    }
+    .ih-h2 {
+        font-family: var(--ih-font-sans);
+        font-size: 22px;
+        font-weight: 700;
+        line-height: var(--ih-leading-tight);
+        color: var(--ih-fg-1);
+    }
+    .ih-h3 {
+        font-family: var(--ih-font-sans);
+        font-size: 17px;
+        font-weight: var(--ih-weight-semi);
+        line-height: var(--ih-leading-tight);
+        color: var(--ih-fg-1);
+    }
+    .ih-display {
+        font-family: var(--ih-font-display);
+        font-weight: var(--ih-weight-black);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+    }
+    .ih-serif { font-family: var(--ih-font-serif); }
+    .ih-mono  {
+        font-family: var(--ih-font-mono);
+        font-variant-numeric: tabular-nums;
+    }
+    .ih-body-lg { font-size: 15px; line-height: var(--ih-leading-body); color: var(--ih-fg-2); }
+    .ih-body-md { font-size: 13px; line-height: var(--ih-leading-body); color: var(--ih-fg-2); }
+    .ih-body-sm { font-size: 12px; line-height: var(--ih-leading-body); color: var(--ih-fg-2); }
+    .ih-meta {
+        font-size: var(--ih-text-meta);
+        color: var(--ih-fg-3);
+        line-height: var(--ih-leading-body);
+    }
+    .ih-eyebrow {
+        font-size: var(--ih-text-eyebrow);
+        font-weight: var(--ih-weight-semi);
+        text-transform: uppercase;
+        letter-spacing: var(--ih-letter-eyebrow);
+        color: var(--ih-fg-4);
+    }
+
+    .ih-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--ih-space-2);
+        padding: var(--ih-pad-button-y) var(--ih-pad-button-x);
+        border-radius: var(--ih-radius-button);
+        font-family: var(--ih-font-sans);
+        font-size: 13px;
+        font-weight: var(--ih-weight-semi);
+        line-height: 1;
+        cursor: pointer;
+        transition: background-color var(--ih-dur) var(--ih-ease),
+                    box-shadow var(--ih-dur) var(--ih-ease),
+                    border-color var(--ih-dur) var(--ih-ease);
+        border: 1px solid transparent;
+    }
+    .ih-btn:focus-visible { box-shadow: var(--ih-shadow-focus); outline: none; }
+    .ih-btn:disabled       { opacity: 0.5; cursor: not-allowed; }
+    .ih-btn--primary       { background: var(--ih-primary-600); color: var(--ih-fg-inverse); }
+    .ih-btn--primary:hover { background: var(--ih-primary-700); }
+    .ih-btn--secondary       { background: var(--ih-bg-card); color: var(--ih-fg-1); border-color: var(--ih-slate-300); }
+    .ih-btn--secondary:hover { background: var(--ih-bg-muted); }
+    .ih-btn--ghost       { background: transparent; color: var(--ih-fg-2); }
+    .ih-btn--ghost:hover { background: var(--ih-bg-muted); }
+    .ih-btn--danger { background: var(--ih-status-bad); color: var(--ih-fg-inverse); }
+    .ih-btn--sm     { padding: 4px 10px; font-size: 12px; }
+    .ih-btn--lg     { padding: 12px 20px; font-size: 15px; }
+
+    .ih-input {
+        display: block;
+        width: 100%;
+        padding: var(--ih-pad-input-y) var(--ih-pad-input-x);
+        border: var(--ih-border);
+        border-radius: var(--ih-radius-input);
+        font-family: var(--ih-font-sans);
+        font-size: 13px;
+        line-height: var(--ih-leading-body);
+        background: var(--ih-bg-card);
+        color: var(--ih-fg-1);
+        transition: border-color var(--ih-dur) var(--ih-ease),
+                    box-shadow var(--ih-dur) var(--ih-ease);
+    }
+    .ih-input:focus {
+        outline: none;
+        border-color: var(--ih-primary);
+        box-shadow: var(--ih-shadow-focus);
+    }
+
+    .ih-card {
+        background: var(--ih-bg-card);
+        border: var(--ih-border);
+        border-radius: var(--ih-radius-card);
+        box-shadow: var(--ih-shadow-card);
+    }
+
+    .ih-kbd {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: var(--ih-border);
+        background: var(--ih-bg-muted);
+        font-family: var(--ih-font-mono);
+        font-size: 11px;
+        color: var(--ih-fg-2);
+        line-height: 1;
+    }
+
+/* ============================================================
    Animations
    ============================================================ */
 
