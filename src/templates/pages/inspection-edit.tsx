@@ -3,6 +3,9 @@ import { BareLayout } from '../layouts/main-layout';
 import { Modal, ModalFooter } from '../components/modal';
 import { PublishModal } from '../components/publish-modal';
 import { BurstCamera } from '../components/burst-camera';
+import { SpeedMode } from '../components/speed-mode';
+import { PhotoStudio } from '../components/photo-studio';
+import { InspectorToolsDock } from '../components/inspector-tools-dock';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -1915,6 +1918,21 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             `burst-camera:open` window event when the user taps a Camera
             button; the modal's `init()` listens and opens for that item. */}
         <BurstCamera />
+        {/* Design System 0520 M10 — SpeedMode full-screen single-item rating
+            overlay. Triggered by `Z` keyboard shortcut. Mounts at page root
+            so the fixed-inset overlay stacks above all editor chrome. */}
+        <SpeedMode />
+        {/* Design System 0520 M14 — PhotoStudio MVP annotation overlay.
+            Opened via `open-photo-studio` window event dispatched from photo
+            thumbnails. EXIF reads server-extracted exifData (no client
+            parsing). Save → PUT /api/inspections/:id/media/:mediaId/annotations. */}
+        <PhotoStudio />
+        {/* Design System 0520 M15 — InspectorTools FAB dock. Bottom-right
+            discoverable entry for SpeedMode / BurstCamera / PhotoStudio /
+            keyboard cheatsheet. Hot keys remain authoritative; dock is
+            mouse-driven discovery only. Auto-hidden while either overlay is
+            active to avoid float overlap. */}
+        <InspectorToolsDock />
         <Modal
             name="showLegacyPublishOptions"
             title="Publish options"
@@ -2366,11 +2384,25 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           __html: `window.__OI_RECO_GROUPS = ${JSON.stringify(recoGroups)};`,
         }}
       ></script>
+      {/* Design System 0520 M10 — expose SpeedMode pure helpers on window.
+          Must load BEFORE inspection-edit.js so the Alpine factory finds them
+          (per feedback_alpine_register_timing). */}
+      <script type="module" dangerouslySetInnerHTML={{
+        __html: `
+          import { buildSpeedQueue, nextUnratedIndex, isQueueExhausted } from '/js/speed-mode-helpers.js';
+          window.SpeedMode = { buildSpeedQueue, nextUnratedIndex, isQueueExhausted };
+        `,
+      }}></script>
       <script src="/js/inspection-edit.js"></script>
       {/* S3-6 — burst-camera Alpine factory. Loads after inspection-edit.js
           so the editor's _uploadBlobAsPhoto helper is reachable at commit
           time. */}
       <script src="/js/burst-camera.js"></script>
+      {/* Design System 0520 M14 — PhotoStudio annotation overlay factory.
+          Loads after inspection-edit.js so the editor can dispatch the
+          `open-photo-studio` window event after the factory's init() has
+          subscribed. */}
+      <script type="module" src="/js/photo-studio.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>

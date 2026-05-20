@@ -846,6 +846,53 @@ export class InspectionService {
     }
 
     /**
+     * Design System 0520 M14 — PhotoStudio annotation save (subsystem A,
+     * phase 4). Server treats `annotations` as opaque text; only enforces
+     * the size bound via Zod at the route layer. Caption is user-supplied,
+     * displayed in published reports.
+     *
+     * Returns null when the media row does not belong to the caller's
+     * tenant (or the id is unknown) — the route surfaces this as 404 to
+     * avoid enumeration leaks.
+     */
+    async updateMediaAnnotations(
+        inspectionId: string,
+        mediaId: string,
+        tenantId: string,
+        annotations: string,
+        caption: string,
+    ): Promise<
+        | { id: string; annotations: string | null; caption: string | null; updatedAt: number }
+        | null
+    > {
+        await this.getInspection(inspectionId, tenantId); // ownership check
+        const db = this.getDrizzle();
+
+        const row = await db.select().from(inspectionMediaPool)
+            .where(and(
+                eq(inspectionMediaPool.id, mediaId),
+                eq(inspectionMediaPool.inspectionId, inspectionId),
+                eq(inspectionMediaPool.tenantId, tenantId),
+            ))
+            .get();
+        if (!row) return null;
+
+        await db.update(inspectionMediaPool)
+            .set({ annotations, caption })
+            .where(and(
+                eq(inspectionMediaPool.id, mediaId),
+                eq(inspectionMediaPool.tenantId, tenantId),
+            ));
+
+        return {
+            id:          mediaId,
+            annotations,
+            caption,
+            updatedAt:   Date.now(),
+        };
+    }
+
+    /**
      * Round-2 backlog #9 — delete a loose pool photo (drag cancel / cleanup).
      * Hard-deletes both the DB row and the R2 object.
      */
