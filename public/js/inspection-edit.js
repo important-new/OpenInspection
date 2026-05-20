@@ -73,6 +73,11 @@ function inspectionEditor(inspectionId) {
     showMenu: false,
     showPublishModal: false,
     publishing: false,
+    // Design System 0520 subsystem E P1.4 — pre-flight gate. The
+    // PreflightChecks component broadcasts `preflight-status` on every
+    // load/refresh; the Send All button reads this flag to disable
+    // until all 5 gates pass.
+    preflightAllPassed: false,
     sendingPdf: false,
     isDesktop: window.innerWidth >= 1024,
     // Sprint 3 S3-4 — drawer state for the 1024-1279 tablet zone. The
@@ -165,6 +170,20 @@ function inspectionEditor(inspectionId) {
       const clearLocalCheatsheet = () => { window.__oiLocalCheatsheet = false; };
       window.addEventListener('pagehide', clearLocalCheatsheet, { once: true });
       window.addEventListener('beforeunload', clearLocalCheatsheet, { once: true });
+
+      // Design System 0520 subsystem E P1.4 — pre-flight gate. The
+      // PreflightChecks panel inside publish-modal broadcasts its
+      // `allPassed` boolean on every load/refresh so the Send All
+      // button can read this Alpine state mirror.
+      window.addEventListener('preflight-status', (e) => {
+        this.preflightAllPassed = !!(e?.detail?.allPassed);
+      });
+
+      // Design System 0520 subsystem E P1.2 — pre-publish service
+      // wrapper requires inspectionId for the route call. Stash it on
+      // a global the PreflightChecks factory reads (matches the
+      // unit-tree factory pattern from subsystem D).
+      window.__inspectionEditorRoot = { inspectionId: this.inspectionId };
 
       // Slash-trigger inline popover sync — hide ACTIVE ITEM right pane while
       // the picker is open so the same canned comments are not rendered twice.
