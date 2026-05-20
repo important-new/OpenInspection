@@ -2,6 +2,7 @@ import { MainLayout } from '../layouts/main-layout';
 import { BrandingConfig } from '../../types/auth';
 import { CancelModal } from '../components/cancel-modal';
 import { Modal } from '../components/modal';
+import { NewInspectionWizard } from '../components/new-inspection-wizard';
 import { PageHeader } from '../components/page-header';
 import { CustomizeColumnsModal } from '../components/customize-columns-modal';
 import { InspectionRow } from '../components/inspection-row';
@@ -66,6 +67,21 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                                     </svg>
                                     New Inspection
+                                </button>
+                                {/* Design System 0520 subsystem B phase 5 — discoverable
+                                    wizard launcher. Coexists with the legacy quick-create
+                                    button above; wizard offers the 4-step flow with
+                                    team-mode + service picker + scheduled time + duration. */}
+                                <button
+                                    type="button"
+                                    onclick="window.dispatchEvent(new CustomEvent('open-new-inspection-wizard'))"
+                                    class="h-8 px-3 rounded-md ring-1 ring-indigo-300 text-indigo-700 text-[13px] font-semibold hover:bg-indigo-50 inline-flex items-center gap-1.5"
+                                    title="Open 4-step wizard"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                    </svg>
+                                    Wizard
                                 </button>
                             </>
                         }
@@ -418,6 +434,12 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
                     but the dashboard() factory's `isVisible(id)` reactive
                     helper is shared via `window.__dashboardColumns`). */}
                 <CustomizeColumnsModal />
+                {/* Design System 0520 subsystem B phase 5 — NewInspectionWizard.
+                    4-step modal opened via window 'open-new-inspection-wizard'
+                    event. Coexists with the legacy showCreateModal() flow so
+                    existing callers (inspection-row duplicate menu, agent
+                    submissions) remain functional. */}
+                <NewInspectionWizard />
 
                 {/* Create Inspection Modal — R7-11 fix: add overflow-x-hidden so
                     in-modal vertical scroll doesn't spill into page-level
@@ -584,6 +606,8 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
                     it auto-defers and Alpine warns "contactSelector is not
                     defined" on first evaluation. */}
                 <script src="/js/contact-selector.js"></script>
+                {/* Design System 0520 subsystem B phase 5 — NewInspectionWizard factory. */}
+                <script src="/js/new-inspection-wizard.js"></script>
                 <script type="module" src="/js/dashboard-prefetch.js"></script>
             </div>
         </MainLayout>
