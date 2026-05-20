@@ -40,6 +40,7 @@ import { ConciergeService } from '../../services/concierge.service';
 import { QBOService } from '../../services/qbo.service';
 import { IdentityService } from '../../services/identity.service';
 import { IntegrationsService } from '../../services/integrations.service';
+import { AnalyticsService } from '../../services/analytics.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
@@ -275,6 +276,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                 case 'integrations':
                     // Design System 0520 subsystem E P6 — IntegrationGrid (M22)
                     target.integrations = new IntegrationsService(c.env.DB, c.env);
+                    break;
+                case 'analytics':
+                    // Design System 0520 subsystem E P7 — AnalyticsPanel (M22)
+                    target.analytics = new AnalyticsService(c.env.DB);
                     break;
             }
             return target[prop];

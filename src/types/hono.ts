@@ -208,6 +208,8 @@ export interface AppServices {
     identity: import('../services/identity.service').IdentityService;
     // Design System 0520 subsystem E P6 — IntegrationsService (M22)
     integrations: import('../services/integrations.service').IntegrationsService;
+    // Design System 0520 subsystem E P7 — AnalyticsService (M22)
+    analytics: import('../services/analytics.service').AnalyticsService;
 }
 
 /**

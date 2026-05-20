@@ -95,6 +95,7 @@ import { agreementSignPath } from './lib/public-urls';
 import coreAuthRoutes from './api/auth';
 import identityRoutes from './api/identity';
 import integrationsApiRoutes from './api/integrations';
+import analyticsRoutes from './api/analytics';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
@@ -436,6 +437,8 @@ app.route('/', coreAuthRoutes);
 app.route('/api/identities', identityRoutes);
 // Design System 0520 subsystem E P6 — IntegrationGrid status (M22).
 app.route('/api/integrations', integrationsApiRoutes);
+// Design System 0520 subsystem E P7 — AnalyticsPanel data (M22).
+app.route('/api/analytics', analyticsRoutes);
 app.route('/api/inspections', inspectionsRoutes);
 // Design System 0520 subsystem B phase 2 — tenant-level presence channel
 // (one WS per dashboard tab). Per-inspection presence is mounted inline on
