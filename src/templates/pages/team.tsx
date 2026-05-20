@@ -29,11 +29,13 @@ export const TeamPage = ({ branding, seatUsage, billingPortalUrl }: TeamPageProp
                         meta={<span x-text="metaText"></span>}
                         actions={
                             <div class="flex items-center gap-2">
-                                <div id="quotaBadge" class="hidden sm:flex items-center gap-2 px-3 h-8 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                    <span class="w-1 h-1 rounded-full bg-indigo-500"></span>
-                                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">Seats:</span>
-                                    <span class="text-[12px] font-bold text-slate-900 dark:text-slate-100 leading-none">Loading...</span>
-                                </div>
+                                {seatUsage !== undefined ? (
+                                    <div id="quotaBadge" class="hidden sm:flex items-center gap-2 px-3 h-8 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                        <span class="w-1 h-1 rounded-full bg-indigo-500"></span>
+                                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">Seats:</span>
+                                        <span class="text-[12px] font-bold text-slate-900 dark:text-slate-100 leading-none">Loading...</span>
+                                    </div>
+                                ) : null}
                                 <button
                                     type="button"
                                     id="openInviteModalBtn"

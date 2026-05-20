@@ -49,7 +49,7 @@ window.teamMeta = teamMeta;
 
             const pending = invites.filter(i => i.status === 'pending');
             const total = members.length + pending.length;
-            quotaBadge.textContent = maxUsers ? `Seats used: ${total} / ${maxUsers}` : `Seats used: ${total}`;
+            if (quotaBadge) quotaBadge.textContent = maxUsers ? `Seats used: ${total} / ${maxUsers}` : `Seats used: ${total}`;
 
             renderMembers(members);
             renderInvites(pending);
