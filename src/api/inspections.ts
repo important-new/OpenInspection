@@ -2173,4 +2173,66 @@ inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
     return c.json({ success: true as const, data: { success: true as const } }, 200);
 });
 
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 2 task 2.5 — presence WebSocket upgrade.
+// -----------------------------------------------------------------------------
+// Verifies the caller has edit access to the inspection, then forwards the
+// upgrade request to InspectionPresenceDO with user identity stamped in
+// headers. The DO consumes these headers verbatim — the worker is the
+// trust boundary.
+//
+// 404 (not 403) on tenant mismatch — no inspection-existence enumeration leak.
+// 501 when the binding is absent (standalone deployments may opt out of
+// presence to skip the Durable Objects line on their bill).
+inspectionsRoutes.get('/:id/presence/ws', async (c) => {
+    if (c.req.header('Upgrade') !== 'websocket') {
+        return new Response('expected websocket', { status: 426 });
+    }
+    if (!c.env.INSPECTION_PRESENCE) {
+        return new Response('presence unavailable', { status: 501 });
+    }
+
+    const id = c.req.param('id');
+    if (!id) return new Response('not found', { status: 404 });
+
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId || !tenantId) return new Response('unauthorized', { status: 401 });
+
+    let ins;
+    try {
+        const out = await c.var.services.inspection.getInspection(id, tenantId);
+        ins = out.inspection;
+    } catch {
+        return new Response('not found', { status: 404 });
+    }
+
+    const helpers = (() => {
+        try {
+            const parsed = JSON.parse(ins.helperInspectorIds ?? '[]');
+            return Array.isArray(parsed) ? parsed as string[] : [];
+        } catch { return []; }
+    })();
+    const allowed = ins.inspectorId === userId
+                 || ins.leadInspectorId === userId
+                 || helpers.includes(userId);
+    if (!allowed) return new Response('forbidden', { status: 403 });
+
+    const doId = c.env.INSPECTION_PRESENCE.idFromName(id);
+    const stub = c.env.INSPECTION_PRESENCE.get(doId);
+
+    const fwd = new Request('https://do.local/ws', {
+        method:  'GET',
+        headers: {
+            'Upgrade':          'websocket',
+            'x-user-id':        userId,
+            'x-user-name':      ins.inspectorId === userId ? 'Inspector' : 'Helper',
+            'x-user-photo-url': '',
+            'x-user-role':      'inspector',
+        },
+    });
+    return stub.fetch(fwd);
+});
+
 export default inspectionsRoutes;

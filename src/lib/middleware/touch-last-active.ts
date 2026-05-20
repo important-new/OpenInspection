@@ -18,15 +18,16 @@ import { logger } from '../logger';
 const DEBOUNCE_MS = 30_000;
 const lastFlush = new Map<string, number>();
 
-interface CtxUser { id?: string }
+interface CtxUser { sub?: string; id?: string }
 
 export const touchLastActiveMiddleware: MiddlewareHandler = async (c, next) => {
     await next();
 
-    // Auth middleware sets `user` on the context for /api/* routes. When the
-    // request is anonymous (login, public booking, etc.) we skip silently.
+    // Auth middleware sets `user` on the context for /api/* routes — JWT
+    // subject (= users.id) lives in `user.sub`. When the request is
+    // anonymous (login, public booking, etc.) we skip silently.
     const user = c.get('user') as CtxUser | undefined;
-    const userId = user?.id;
+    const userId = user?.sub ?? user?.id;
     if (!userId) return;
 
     const now = Date.now();

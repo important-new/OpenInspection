@@ -94,6 +94,7 @@ import { agreementSignPath } from './lib/public-urls';
 import coreAuthRoutes from './api/auth';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
+import tenantPresenceRoutes from './api/tenant-presence';
 import aiRoutes from './api/ai';
 import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
@@ -429,6 +430,10 @@ app.use('/api/*', requireActiveSubscription);
 app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
 app.route('/api/inspections', inspectionsRoutes);
+// Design System 0520 subsystem B phase 2 — tenant-level presence channel
+// (one WS per dashboard tab). Per-inspection presence is mounted inline on
+// inspectionsRoutes above as /api/inspections/:id/presence/ws.
+app.route('/api/tenant', tenantPresenceRoutes);
 app.route('/api/inspections', inspectionSyncRoutes);
 // Sprint 3 S3-3 — tag link/unlink endpoints share the /api/inspections root
 // so the URL carries inspection id + item id directly. Mounted before the
