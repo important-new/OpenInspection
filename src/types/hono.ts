@@ -210,6 +210,10 @@ export interface AppServices {
     observerLink: import('../services/observer-link.service').ObserverLinkService;
     // Design System 0520 subsystem D — ReportVersions (snapshot-on-publish)
     reportVersion: import('../services/report-version.service').ReportVersionService;
+    // Design System 0520 subsystem C — apprentice review queue
+    apprentice: import('../services/apprentice.service').ApprenticeService;
+    // Design System 0520 subsystem C — guest invite tokens (anonymous claim)
+    guestInvite: import('../services/guest-invite.service').GuestInviteService;
 }
 
 /**

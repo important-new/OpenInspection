@@ -4,6 +4,8 @@ import { AdminService } from '../../services/admin.service';
 import { UnitService } from '../../services/unit.service';
 import { ObserverLinkService } from '../../services/observer-link.service';
 import { ReportVersionService } from '../../services/report-version.service';
+import { ApprenticeService } from '../../services/apprentice.service';
+import { GuestInviteService } from '../../services/guest-invite.service';
 import { AIService } from '../../services/ai.service';
 import { AuthService } from '../../services/auth.service';
 import { BookingService } from '../../services/booking.service';
@@ -280,6 +282,14 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                 case 'reportVersion':
                     // Design System 0520 subsystem D — ReportVersions snapshot
                     target.reportVersion = new ReportVersionService(c.env.DB);
+                    break;
+                case 'apprentice':
+                    // Design System 0520 subsystem C — apprentice review queue
+                    target.apprentice = new ApprenticeService(c.env.DB);
+                    break;
+                case 'guestInvite':
+                    // Design System 0520 subsystem C — anonymous guest claim
+                    target.guestInvite = new GuestInviteService(c.env.DB);
                     break;
             }
             return target[prop];

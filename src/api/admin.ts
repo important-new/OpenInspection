@@ -38,6 +38,7 @@ import {
     DashboardColumnPrefsResponseSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
+import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
 
 const adminRoutes = new OpenAPIHono<HonoConfig>();
@@ -1603,6 +1604,52 @@ adminRoutes.openapi(tenantConfigPatchRoute, async (c) => {
         metadata: update,
     });
     return c.json({ success: true as const, data: { ok: true as const } }, 200);
+});
+
+/**
+ * Design System 0520 subsystem C P8 T8.2 — portal → core seat-quota sync.
+ *
+ * Called by `apps/portal/src/services/billing.service.ts#syncSeatQuota`
+ * after a Stripe `customer.subscription.{created,updated,deleted}` event.
+ * Updates `tenants.max_users` so the seat-guard middleware + Guest-
+ * InviteService.claim see the new cap on the next request.
+ *
+ * Auth: `Authorization: Bearer <PORTAL_M2M_SECRET>` (or any active V<N>).
+ */
+adminRoutes.openapi({
+    method: 'post',
+    path: '/sync-quota',
+    tags: ['Admin'],
+    summary: 'M2M — set tenant seat quota (max_users)',
+    request: { body: { content: { 'application/json': { schema: SyncQuotaSchema } } } },
+    responses: {
+        200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'OK' },
+        401: { description: 'Unauthorized' },
+        404: { description: 'Tenant not found' },
+    },
+}, async (c) => {
+    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+        throw Errors.Unauthorized();
+    }
+
+    const { tenantId, maxUsers } = c.req.valid('json');
+    const { tenants } = await import('../lib/db/schema');
+    const db = drizzle(c.env.DB);
+
+    const result = await db.update(tenants)
+        .set({ maxUsers })
+        .where(eq(tenants.id, tenantId))
+        .returning({ id: tenants.id });
+    if (result.length === 0) throw Errors.NotFound('Tenant not found');
+
+    // Invalidate the per-tenant KV cache so the next request reads the
+    // fresh maxUsers value rather than the stale snapshot.
+    try {
+        await c.env.TENANT_CACHE.delete(`tenant:${tenantId}`);
+    } catch { /* cache miss is fine — read-through repopulates */ }
+
+    logger.info('sync-quota applied', { tenantId, maxUsers });
+    return c.json({ success: true as const, data: { success: true } }, 200);
 });
 
 export default adminRoutes;
