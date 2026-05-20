@@ -3,6 +3,7 @@ import { BrandingConfig } from '../../types/auth';
 import { CancelModal } from '../components/cancel-modal';
 import { Modal } from '../components/modal';
 import { NewInspectionWizard } from '../components/new-inspection-wizard';
+import { TeamStrip } from '../components/team-strip';
 import { PageHeader } from '../components/page-header';
 import { CustomizeColumnsModal } from '../components/customize-columns-modal';
 import { InspectionRow } from '../components/inspection-row';
@@ -87,6 +88,12 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
                         }
                     />
                 </div>
+
+                {/* Design System 0520 subsystem B phase 7 — TeamStrip. Auto-hides
+                    when the tenant has <2 inspectors; otherwise renders a roster
+                    with live online/offline indicators streamed from the
+                    TenantPresenceDO via TenantPresenceClient. */}
+                <TeamStrip />
 
                 {/* Statistics Grid — R7-04 fix: each card is now a button
                     that opens the matching bucket section + scrolls into
@@ -608,6 +615,12 @@ export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: Dashboa
                 <script src="/js/contact-selector.js"></script>
                 {/* Design System 0520 subsystem B phase 5 — NewInspectionWizard factory. */}
                 <script src="/js/new-inspection-wizard.js"></script>
+                {/* Design System 0520 subsystem B phase 7 — TeamStrip + its
+                    TenantPresenceClient dependency. Loaded as modules so
+                    they can `import` from /js/presence-protocol.js +
+                    /js/conflict-resolver-helpers.js. */}
+                <script type="module" src="/js/tenant-presence-client.js"></script>
+                <script type="module" src="/js/team-strip.js"></script>
                 <script type="module" src="/js/dashboard-prefetch.js"></script>
             </div>
         </MainLayout>
