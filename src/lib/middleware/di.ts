@@ -41,12 +41,14 @@ import { QBOService } from '../../services/qbo.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
+import { getDeploymentProfile } from '../deployment-profile';
 
 /**
  * Middleware that injects a lazy-loaded service registry into the Hono context.
  * When env vars for email/AI are absent, falls back to AES-GCM-decrypted DB secrets.
  */
 export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
+    c.set('profile', getDeploymentProfile(c.env));
     // Pre-load DB secrets only when env vars are absent and tenant is known.
     // Env vars always take priority over DB-stored config.
     let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
