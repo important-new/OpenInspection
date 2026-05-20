@@ -11,6 +11,7 @@ import * as schema from './lib/db/schema';
 
 import { brandingMiddleware } from './lib/middleware/branding';
 import { inspectorPaletteMiddleware } from './lib/middleware/inspector-palette';
+import { touchLastActiveMiddleware } from './lib/middleware/touch-last-active';
 import { tenantRouter } from './features/tenant-routing';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
@@ -413,6 +414,12 @@ app.use('*', async (c, next) => {
 // render the "Copy my booking link" action without each page having to plumb
 // the slug through manually.
 app.use('*', inspectorPaletteMiddleware);
+
+// Design System 0520 subsystem B phase 1 — debounced last-active touch. Runs
+// after every authenticated request (30 s window per user / worker isolate)
+// so TeamStrip's "last active Nm ago" pill stays accurate without hammering
+// D1 on every fetch.
+app.use('/api/*', touchLastActiveMiddleware);
 
 // API Routes
 app.use('/api/*', requireActiveSubscription);
