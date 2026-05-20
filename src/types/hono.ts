@@ -34,6 +34,7 @@ export interface AppEnv {
     CF_ACCOUNT_ID?: string;
     CF_API_TOKEN?: string;
     APP_MODE?: 'standalone' | 'saas';
+    SAAS_TOPOLOGY?: 'shared' | 'silo';
     SETUP_CODE?: string;
 
     /** Sprint 1 CC-2 — set to "true" on sandbox.inspectorhub.io demo deployment.
@@ -120,6 +121,7 @@ import { IcsService } from '../services/ics.service';
 import { AgentService } from '../services/agent.service';
 import { ConciergeService } from '../services/concierge.service';
 import { AuthVariables } from './auth';
+import { DeploymentProfile } from '../lib/deployment-profile';
 
 /**
  * Registry of all available services.
@@ -174,6 +176,7 @@ export interface AppServices {
  */
 export type AppVariables = AuthVariables & {
     services: AppServices;
+    profile: DeploymentProfile;
 };
 
 /**
