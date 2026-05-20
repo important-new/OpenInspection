@@ -10,6 +10,8 @@ import { LiveConflictModal } from '../components/live-conflict-modal';
 import { RosterPopover } from '../components/roster-popover';
 import { ProgressStrip } from '../components/progress-strip';
 import { TeamBanner } from '../components/team-banner';
+import { FooterBar } from '../components/footer-bar';
+import { ReconnectBanner } from '../components/reconnect-banner';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -290,6 +292,10 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         data-inspection-id={inspectionId}
         class="min-h-screen editor-canvas"
       >
+        {/* Design System 0520 subsystem B phase 4 task 4.5 — ReconnectBanner.
+            Sticky amber strip at top showing offline-queue status when
+            pending writes are queued or conflicts have surfaced. */}
+        <ReconnectBanner />
         {/* Design System 0520 subsystem B phase 6 task 6.5 — TeamBanner.
             Auto-hidden when inspection.team_mode is false; otherwise shows
             stacked avatars of lead + helpers and a Manage button that
@@ -1947,6 +1953,9 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             mouse-driven discovery only. Auto-hidden while either overlay is
             active to avoid float overlap. */}
         <InspectorToolsDock />
+        {/* Design System 0520 subsystem B phase 4 task 4.4 — FooterBar.
+            Sticky bottom sync chip surfacing OfflineQueue state. */}
+        <FooterBar />
         {/* Design System 0520 subsystem B phase 3 — live (online) conflict
             modal. Distinct from the existing conflict-modal.tsx which
             handles OFFLINE-replay conflicts surfaced by the Dexie sync
@@ -2444,6 +2453,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       <script type="module" src="/js/progress-strip.js"></script>
       {/* Design System 0520 subsystem B phase 6 — TeamBanner factory. */}
       <script src="/js/team-banner.js"></script>
+      {/* Design System 0520 subsystem B phase 4 — OfflineQueue adapter +
+          its FooterBar / ReconnectBanner consumers. Loaded as modules so
+          the adapter can import from /js/sync-engine.js + /js/db.js. */}
+      <script type="module" src="/js/offline-queue.js"></script>
+      <script type="module" src="/js/footer-bar.js"></script>
+      <script type="module" src="/js/reconnect-banner.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>
