@@ -27,7 +27,13 @@ SANDBOX_MODE = ""
 # ── Sandbox environment override ───────────────────────────────────────────
 # Deploy with `wrangler deploy --env sandbox` to flip SANDBOX_MODE on without
 # touching the production worker. Used by the openinspection-sandbox Worker
-# bound to sandbox.inspectorhub.io.
+# bound to sandbox.<your-domain>.
+#
+# IMPORTANT: wrangler does NOT inherit top-level resource bindings into
+# env-specific overrides. Every [env.X] block must redeclare the bindings
+# it needs. The placeholders below match the top-level structure; in a
+# real sandbox deployment, point them at separate sandbox-only resources
+# (so demo writes never touch prod data).
 [env.sandbox]
 name = "openinspection-sandbox"
 [env.sandbox.vars]
@@ -35,21 +41,77 @@ ENVIRONMENT = "sandbox"
 APP_MODE = "standalone"
 SANDBOX_MODE = "true"
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+[[env.sandbox.d1_databases]]
+binding = "DB"
+database_name = "openinspection-sandbox-db"
+# Placeholder — create a separate D1 for sandbox to keep demo data isolated
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+[[env.sandbox.kv_namespaces]]
+binding = "TENANT_CACHE"
+id = "00000000000000000000000000000000"
+[[env.sandbox.unsafe.bindings]]
+type = "ratelimit"
+name = "RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }
+[[env.sandbox.r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "openinspection-sandbox-photos"
+[[env.sandbox.r2_buckets]]
+binding = "REPORTS"
+bucket_name = "openinspection-sandbox-reports"
+[env.sandbox.browser]
+binding = "BROWSER"
+[[env.sandbox.workflows]]
+binding = "SIGN_COMPLETION_WORKFLOW"
+name = "sign-completion-workflow-sandbox"
+class_name = "SignCompletionWorkflow"
 
 # ── SaaS environment override ──────────────────────────────────────────────
-# Deploy with `wrangler deploy --env saas` to bring up the multi-tenant
-# control-plane-fronted worker at app.inspectorhub.io. Pairs with
-# apps/portal for billing + onboarding. PORTAL_API_URL points at the
-# portal worker that owns Stripe + onboarding workflows.
+# Deploy with `wrangler deploy --env saas` to bring up a multi-tenant
+# control-plane-fronted worker at app.<your-domain>. Pairs with
+# apps/portal for billing + onboarding. Replace PORTAL_API_URL with your
+# own portal worker that owns Stripe + onboarding workflows.
+#
+# Same inheritance caveat as [env.sandbox]: every binding must be
+# redeclared under env.saas.*. The SaaS topology typically uses a single
+# large D1 + a TENANT_CACHE KV partitioned by subdomain key prefix.
 [env.saas]
 name = "openinspection-saas"
 [env.saas.vars]
 ENVIRONMENT = "production"
 APP_MODE = "saas"
 SAAS_TOPOLOGY = "shared"
-PORTAL_API_URL = "https://portal.inspectorhub.io"
+PORTAL_API_URL = "https://portal.your-domain.com"
 SANDBOX_MODE = ""
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+[[env.saas.d1_databases]]
+binding = "DB"
+database_name = "openinspection-saas-db"
+# Placeholder — create a separate D1 for the SaaS multi-tenant deployment
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+[[env.saas.kv_namespaces]]
+binding = "TENANT_CACHE"
+id = "00000000000000000000000000000000"
+[[env.saas.unsafe.bindings]]
+type = "ratelimit"
+name = "RATE_LIMITER"
+namespace_id = "1003"
+simple = { limit = 10, period = 60 }
+[[env.saas.r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "openinspection-saas-photos"
+[[env.saas.r2_buckets]]
+binding = "REPORTS"
+bucket_name = "openinspection-saas-reports"
+[env.saas.browser]
+binding = "BROWSER"
+[[env.saas.workflows]]
+binding = "SIGN_COMPLETION_WORKFLOW"
+name = "sign-completion-workflow-saas"
+class_name = "SignCompletionWorkflow"
 
 # ── Secrets — set via: wrangler secret put SECRET_NAME ──────────────────────
 # Run `npm run setup:cloudflare` to be prompted for each one interactively.
@@ -75,13 +137,15 @@ TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "openinspection-standalone-db-v2"
-database_id = "6e3f968e-c08b-4c28-a2e9-5fac419ad394"
+database_name = "openinspection-standalone-db"
+# Placeholder — `npm run setup:cloudflare` substitutes your real D1 ID
+database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "TENANT_CACHE"
-id = "c5f659d3667d4fe2b2aeff5c124ccd27"
+# Placeholder — `npm run setup:cloudflare` substitutes your real KV namespace ID
+id = "00000000000000000000000000000000"
 
 [[unsafe.bindings]]
 type = "ratelimit"
@@ -94,7 +158,7 @@ enabled = true
 
 [[r2_buckets]]
 binding = "PHOTOS"
-bucket_name = "openinspection-standalone-photos-v2"
+bucket_name = "openinspection-standalone-photos"
 
 # Spec 5A — Report PDF Pipeline. Stores Summary + Full Report PDFs
 # pre-rendered at publish time, served via signed URLs to client viewer.
@@ -103,7 +167,7 @@ bucket_name = "openinspection-standalone-photos-v2"
 # below to render report HTML -> PDF.
 [[r2_buckets]]
 binding = "REPORTS"
-bucket_name = "openinspection-standalone-reports-v2"
+bucket_name = "openinspection-standalone-reports"
 
 # Cloudflare Browser Rendering API — used by src/lib/pdf.ts to render
 # /report/:id into a PDF for email delivery. Beta as of 2026-05; free tier
@@ -122,19 +186,3 @@ binding = "BROWSER"
 binding = "SIGN_COMPLETION_WORKFLOW"
 name = "sign-completion-workflow"
 class_name = "SignCompletionWorkflow"
-
-# Design System 0520 subsystem B — multi-inspector presence (phase 2).
-# Two Durable Object classes both use the WebSocket Hibernation API; the
-# inspection-level DO scopes per inspection id, the tenant-level DO
-# aggregates rosters across active inspections for the dashboard TeamStrip.
-[[durable_objects.bindings]]
-name       = "INSPECTION_PRESENCE"
-class_name = "InspectionPresenceDO"
-
-[[durable_objects.bindings]]
-name       = "TENANT_PRESENCE"
-class_name = "TenantPresenceDO"
-
-[[migrations]]
-tag = "v1"
-new_classes = ["InspectionPresenceDO", "TenantPresenceDO"]
