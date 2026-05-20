@@ -9,6 +9,7 @@ import { InspectorToolsDock } from '../components/inspector-tools-dock';
 import { LiveConflictModal } from '../components/live-conflict-modal';
 import { RosterPopover } from '../components/roster-popover';
 import { ProgressStrip } from '../components/progress-strip';
+import { TeamBanner } from '../components/team-banner';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -289,6 +290,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
         data-inspection-id={inspectionId}
         class="min-h-screen editor-canvas"
       >
+        {/* Design System 0520 subsystem B phase 6 task 6.5 — TeamBanner.
+            Auto-hidden when inspection.team_mode is false; otherwise shows
+            stacked avatars of lead + helpers and a Manage button that
+            dispatches `open-roster-popover` to summon the live roster. */}
+        <TeamBanner />
         {/* Design System 0520 subsystem B phase 6 — ProgressStrip donut
             + ETA + section heat-map. Auto-hides when no items yet. */}
         <ProgressStrip />
@@ -2436,6 +2442,8 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       {/* Design System 0520 subsystem B phase 6 — ProgressStrip factory.
           Pulls completion / ETA / heat-map from progress-strip-helpers.js. */}
       <script type="module" src="/js/progress-strip.js"></script>
+      {/* Design System 0520 subsystem B phase 6 — TeamBanner factory. */}
+      <script src="/js/team-banner.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>
