@@ -2500,7 +2500,13 @@ inspectionsRoutes.openapi(mintObserverLinkRoute, async (c) => {
     if (body.durationSeconds !== undefined) mintInput.durationSeconds = body.durationSeconds;
 
     const out = await c.var.services.observerLink.mint(c.get('tenantId'), mintInput);
-    return c.json({ success: true as const, data: out }, 200);
+
+    // Augment the bare service output with a fully-qualified claim URL
+    // so the InspectorToolsDock modal can render a copy-and-paste field
+    // without re-deriving the host or token path on the client.
+    const baseUrl = c.env.APP_BASE_URL || `https://${c.req.header('host') ?? ''}`;
+    const url = `${baseUrl}/observe/${out.token}`;
+    return c.json({ success: true as const, data: { ...out, url } }, 200);
 });
 
 const listObserverLinksRoute = createRoute({
