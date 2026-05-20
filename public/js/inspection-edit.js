@@ -130,6 +130,11 @@ function inspectionEditor(inspectionId) {
     speedQueue: [],     // flat indices into the materialised items list (see _flatItems)
     speedCurrent: 0,
 
+    // Design System 0520 M15 — InspectorTools FAB dock (subsystem A, phase 5).
+    // Right-bottom floating action button consolidating mouse entry points
+    // for speed mode / burst camera / photo studio / keyboard cheatsheet.
+    dockOpen: false,
+
     publishOptions: {
       theme: 'modern',
       notifyClient: true,

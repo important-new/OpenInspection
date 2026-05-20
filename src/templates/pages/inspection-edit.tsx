@@ -5,6 +5,7 @@ import { PublishModal } from '../components/publish-modal';
 import { BurstCamera } from '../components/burst-camera';
 import { SpeedMode } from '../components/speed-mode';
 import { PhotoStudio } from '../components/photo-studio';
+import { InspectorToolsDock } from '../components/inspector-tools-dock';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -1926,6 +1927,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             thumbnails. EXIF reads server-extracted exifData (no client
             parsing). Save → PUT /api/inspections/:id/media/:mediaId/annotations. */}
         <PhotoStudio />
+        {/* Design System 0520 M15 — InspectorTools FAB dock. Bottom-right
+            discoverable entry for SpeedMode / BurstCamera / PhotoStudio /
+            keyboard cheatsheet. Hot keys remain authoritative; dock is
+            mouse-driven discovery only. Auto-hidden while either overlay is
+            active to avoid float overlap. */}
+        <InspectorToolsDock />
         <Modal
             name="showLegacyPublishOptions"
             title="Publish options"

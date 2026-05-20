@@ -56,11 +56,15 @@ window.photoStudio = function () {
             this.showInfo = false;
             this.loadExif();
             this.open = true;
+            // Surface state to sibling components (InspectorToolsDock hides the
+            // FAB while the studio overlay is active to avoid overlap).
+            window.__oiPhotoStudioOpen = true;
         },
 
         close() {
             this.open = false;
             this.media = null;
+            window.__oiPhotoStudioOpen = false;
         },
 
         // --- tool selection ---
