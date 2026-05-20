@@ -84,6 +84,8 @@ import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { SettingsIntegrationsPage } from './templates/pages/settings-integrations';
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
+import { ObservePage, ObserverExpiredPage } from './templates/pages/observe';
+import { observerCookieGuard, OBSERVER_EXPIRED_PATH } from './lib/middleware/observer-cookie';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
@@ -251,7 +253,11 @@ app.use('*', async (c, next) => {
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
-    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    // Design System 0520 subsystem D P5 — observer surfaces are gated by
+    // the dedicated observer-cookie middleware, not JWT.
+    const isObserverPublic = path.startsWith('/observe/') || path === OBSERVER_EXPIRED_PATH;
+
+    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || isObserverPublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
     // (gated on `hasSetupWizard` — only the standalone profile enables it).
@@ -599,6 +605,20 @@ app.get('/login', async (c) => {
     issueCsrfCookie(c);
     const branding = c.get('branding');
     return c.html(LoginPage({ branding }));
+});
+
+// Design System 0520 subsystem D P5.1 — observer viewer (cookie-gated).
+// /observe/inspections/:id requires a verified __Host-observer_session
+// cookie that names the same inspection id. /observer/expired is the
+// public recovery landing the guard redirects to on any failure.
+app.get('/observe/inspections/:id', observerCookieGuard, (c) => {
+    const id = c.req.param('id');
+    const b  = c.get('branding');
+    return c.html(ObservePage({ inspectionId: id, ...(b ? { branding: b } : {}) }));
+});
+app.get(OBSERVER_EXPIRED_PATH, (c) => {
+    const b = c.get('branding');
+    return c.html(ObserverExpiredPage(b ? { branding: b } : {}));
 });
 
 // Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
