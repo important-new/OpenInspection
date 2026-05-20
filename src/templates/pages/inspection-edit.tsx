@@ -4,6 +4,7 @@ import { Modal, ModalFooter } from '../components/modal';
 import { PublishModal } from '../components/publish-modal';
 import { BurstCamera } from '../components/burst-camera';
 import { SpeedMode } from '../components/speed-mode';
+import { PhotoStudio } from '../components/photo-studio';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -1920,6 +1921,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             overlay. Triggered by `Z` keyboard shortcut. Mounts at page root
             so the fixed-inset overlay stacks above all editor chrome. */}
         <SpeedMode />
+        {/* Design System 0520 M14 — PhotoStudio MVP annotation overlay.
+            Opened via `open-photo-studio` window event dispatched from photo
+            thumbnails. EXIF reads server-extracted exifData (no client
+            parsing). Save → PUT /api/inspections/:id/media/:mediaId/annotations. */}
+        <PhotoStudio />
         <Modal
             name="showLegacyPublishOptions"
             title="Publish options"
@@ -2385,6 +2391,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           so the editor's _uploadBlobAsPhoto helper is reachable at commit
           time. */}
       <script src="/js/burst-camera.js"></script>
+      {/* Design System 0520 M14 — PhotoStudio annotation overlay factory.
+          Loads after inspection-edit.js so the editor can dispatch the
+          `open-photo-studio` window event after the factory's init() has
+          subscribed. */}
+      <script type="module" src="/js/photo-studio.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>

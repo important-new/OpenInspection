@@ -7,6 +7,7 @@ import {
     serialize,
     deserialize,
 } from '../../public/js/photo-studio-helpers.js';
+import type { Shape, UndoState } from '../../public/js/photo-studio-helpers.js';
 
 describe('PhotoStudio helpers', () => {
     it('addShape appends and clears redo stack', () => {
@@ -16,8 +17,11 @@ describe('PhotoStudio helpers', () => {
     });
 
     it('addShape after undo clears redo', () => {
-        let s = { shapes: [{ type: 'arrow' as const }], redo: [{ type: 'circle' as const }] };
-        s = addShape(s, { type: 'label', x: 1, y: 1, text: 'x' });
+        const initial: UndoState = {
+            shapes: [{ type: 'arrow' } as Shape],
+            redo:   [{ type: 'circle' } as Shape],
+        };
+        const s = addShape(initial, { type: 'label', x: 1, y: 1, text: 'x' });
         expect(s.redo).toEqual([]);
     });
 
