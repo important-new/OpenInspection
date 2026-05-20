@@ -189,6 +189,11 @@ export const inspectionMediaPool = sqliteTable('inspection_media_pool', {
         gps?:         { lat: number; lng: number };
         cameraModel?: string;
     }>(),
+    // Design System 0520 M14 — PhotoStudio annotation overlay (subsystem A,
+    // phase 4). `annotations` is opaque JSON-encoded shape array (≤8 KB)
+    // consumed exclusively client-side. `caption` is user-supplied, ≤200 chars.
+    annotations:   text('annotations'),
+    caption:       text('caption'),
 });
 
 export const inspectionResults = sqliteTable('inspection_results', {
