@@ -37,17 +37,17 @@ SANDBOX_MODE = "true"
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 
 # ── SaaS environment override ──────────────────────────────────────────────
-# Deploy with `wrangler deploy --env saas` to bring up the multi-tenant
-# control-plane-fronted worker at app.inspectorhub.io. Pairs with
-# apps/portal for billing + onboarding. PORTAL_API_URL points at the
-# portal worker that owns Stripe + onboarding workflows.
+# Deploy with `wrangler deploy --env saas` to bring up a multi-tenant
+# control-plane-fronted worker at app.<your-domain>. Pairs with
+# apps/portal for billing + onboarding. Replace PORTAL_API_URL with your
+# own portal worker that owns Stripe + onboarding workflows.
 [env.saas]
 name = "openinspection-saas"
 [env.saas.vars]
 ENVIRONMENT = "production"
 APP_MODE = "saas"
 SAAS_TOPOLOGY = "shared"
-PORTAL_API_URL = "https://portal.inspectorhub.io"
+PORTAL_API_URL = "https://portal.your-domain.com"
 SANDBOX_MODE = ""
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 
@@ -76,12 +76,14 @@ TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 [[d1_databases]]
 binding = "DB"
 database_name = "openinspection-standalone-db"
-database_id = "65aa4435-2387-4d9a-9a8b-0095194f2699"
+# Placeholder — `npm run setup:cloudflare` substitutes your real D1 ID
+database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "TENANT_CACHE"
-id = "c890ac2c34ea4f758970bfc0ef7d6d4b"
+# Placeholder — `npm run setup:cloudflare` substitutes your real KV namespace ID
+id = "00000000000000000000000000000000"
 
 [[unsafe.bindings]]
 type = "ratelimit"
