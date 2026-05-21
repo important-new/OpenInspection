@@ -2,9 +2,11 @@
 
 This guide walks you through deploying OpenInspection and completing the initial setup.
 
+> 💡 **Not ready to self-host yet?** Try the managed version first at [**inspectorhub.io/register**](https://inspectorhub.io/register) — 30-day free trial, magic-link signup, no credit card. Same codebase, same data shape, so you can move to a self-hosted deploy later without rewriting anything.
+
 ---
 
-## Option A: One-Click Deploy (Recommended)
+## Option A: One-Click Deploy (Recommended for self-host)
 
 Click the button below to deploy directly to your Cloudflare account. Cloudflare will automatically create a D1 database, R2 bucket, and KV namespace, then deploy the Worker.
 
