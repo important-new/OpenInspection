@@ -35,7 +35,6 @@ const SKIP_MODULES = new Set([
     '/api/agent-signup',
     '/api/ai',
     '/api/analytics',
-    '/api/auth',
     '/api/automations',
     '/api/availability',
     '/api/billing',
