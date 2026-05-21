@@ -43,7 +43,6 @@ const SKIP_MODULES = new Set([
     '/api/contacts',
     '/api/data',
     '/api/guest',
-    '/api/identities',
     '/api/inspection-requests',
     '/api/inspections',
     '/api/integration',
@@ -53,7 +52,6 @@ const SKIP_MODULES = new Set([
     '/api/metrics',
     '/api/notifications',
     '/api/places',
-    '/api/profile',
     '/api/public',
     '/api/recommendations',
     '/api/rating-systems',
@@ -62,7 +60,6 @@ const SKIP_MODULES = new Set([
     '/api/team',
     '/api/templates',
     '/api/tenant',
-    '/api/users',
     '/api/ics',
     // Root-mounted auth routes (mirror of /api/auth/*, see index.ts:444-445)
     '/login',

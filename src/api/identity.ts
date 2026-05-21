@@ -15,6 +15,7 @@ import type { Context } from 'hono';
 import { setCookie } from 'hono/cookie';
 import { Errors } from '../lib/errors';
 import type { HonoConfig } from '../types/hono';
+import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 const identityRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -24,26 +25,30 @@ function getCallerUserId(c: Context<HonoConfig>): string {
     return sub;
 }
 
-const listRoute = createRoute({
+const listRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/',
-    tags:    ['Identity'],
+    operationId: 'listMyLinkedIdentities',
+    tags:    ['identity'],
     summary: 'List linked identities for the caller',
+    description: 'Returns all identity seats linked to the caller, including the primary identity. Used by the identity switcher menu in the dashboard.',
     responses: { 200: { description: 'ok' } },
-});
+}, { scopes: ['read'], tier: 'extended' }));
 identityRoutes.openapi(listRoute, async (c) => {
     const items = await c.var.services.identity.list(getCallerUserId(c));
     return c.json({ success: true as const, data: { identities: items } }, 200);
 });
 
-const switchRoute = createRoute({
+const switchRoute = createRoute(withMcpMetadata({
     method:  'post',
     path:    '/switch',
-    tags:    ['Identity'],
-    summary: 'Switch active identity to a linked seat',
+    operationId: 'switchActiveIdentity',
+    tags:    ['identity'],
+    summary: 'Switch active identity to linked seat',
+    description: 'Issues a new JWT for the specified linked identity and replaces the session cookie. Caller must be linked to the target identity already.',
     request: {
         body: { content: { 'application/json': { schema: z.object({
-            linkedUserId: z.string().min(1),
+            linkedUserId: z.string().min(1).describe('UUID of the linked identity to switch into; must be one of the caller\'s linked seats.'),
         }) } } },
     },
     responses: {
@@ -51,7 +56,7 @@ const switchRoute = createRoute({
         403: { description: 'forbidden — not linked' },
         404: { description: 'linked user gone' },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 identityRoutes.openapi(switchRoute, async (c) => {
     const primaryUserId = getCallerUserId(c);
     const { linkedUserId } = c.req.valid('json');
@@ -71,21 +76,23 @@ identityRoutes.openapi(switchRoute, async (c) => {
     return c.json({ success: true as const, data: { redirectUrl: out.redirectUrl } }, 200);
 });
 
-const linkRoute = createRoute({
+const linkRoute = createRoute(withMcpMetadata({
     method:  'post',
     path:    '/link',
-    tags:    ['Identity'],
+    operationId: 'linkIdentityByEmail',
+    tags:    ['identity'],
     summary: 'Link another identity by email',
+    description: 'Admin-only: links the caller\'s primary user record to another existing user (looked up by email) so the second seat becomes available in the switcher menu.',
     request: {
         body: { content: { 'application/json': { schema: z.object({
-            targetEmail: z.string().email(),
+            targetEmail: z.string().email().describe('Email address of the other existing user account to link into the caller\'s identity set.'),
         }) } } },
     },
     responses: {
         200: { description: 'ok' },
         404: { description: 'target user not found' },
     },
-});
+}, { scopes: ['admin'], tier: 'extended' }));
 identityRoutes.openapi(linkRoute, async (c) => {
     const primaryUserId = getCallerUserId(c);
     const { targetEmail } = c.req.valid('json');
