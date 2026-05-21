@@ -28,6 +28,7 @@ import {
     Login2faResponseSchema
 } from '../lib/validations/auth.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
+import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 /**
  * Cookie attributes for the auth token. `__Host-` prefix demands Secure + path=/ + no Domain,
@@ -62,11 +63,13 @@ const coreAuthRoutes = new OpenAPIHono<HonoConfig>();
 
 // --- Routes ---
 
-const loginRoute = createRoute({
+const loginRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/login',
-    summary: 'User Login',
-    description: 'Validates credentials and sets a JWT cookie.',
+    operationId: 'loginWithPassword',
+    summary: 'Log in with email and password',
+    description: 'Validates email + password credentials and sets a JWT session cookie. Returns a short-lived 2FA challenge token instead of a session when the account has TOTP enabled.',
+    tags: ['auth', 'public'],
     middleware: [requireCsrfToken],
     request: {
         body: {
@@ -85,7 +88,7 @@ const loginRoute = createRoute({
         400: { description: 'Invalid input' },
         401: { description: 'Unauthorized' }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(loginRoute, async (c) => {
     await checkRateLimit(c, 'login');
@@ -136,11 +139,13 @@ coreAuthRoutes.openapi(loginRoute, async (c) => {
     }, 200);
 });
 
-const changePasswordRoute = createRoute({
+const changePasswordRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/change-password',
-    summary: 'Change Password',
-    description: 'Updates an authenticated user\'s password.',
+    operationId: 'changeMyPassword',
+    summary: 'Change current user password',
+    description: 'Updates the authenticated user\'s password after verifying the current one. Invalidates all outstanding session JWTs for this user on success.',
+    tags: ['auth'],
     request: {
         body: {
             content: {
@@ -157,7 +162,7 @@ const changePasswordRoute = createRoute({
         },
         401: { description: 'Unauthorized' }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(changePasswordRoute, async (c) => {
     // The global JWT middleware has already verified the token and populated c.var.user.
@@ -173,11 +178,13 @@ coreAuthRoutes.openapi(changePasswordRoute, async (c) => {
     }, 200);
 });
 
-const joinTeamRoute = createRoute({
+const joinTeamRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/join',
-    summary: 'Join Team',
-    description: 'Finalizes team invitation and account creation.',
+    operationId: 'joinTeamFromInvite',
+    summary: 'Join a team via invitation token',
+    description: 'Finalizes a team invitation: validates the invite token, sets the new user\'s password, creates the account, and issues a session cookie.',
+    tags: ['auth', 'public'],
     request: {
         body: {
             content: {
@@ -193,7 +200,7 @@ const joinTeamRoute = createRoute({
             description: 'Team joined successfully'
         }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(joinTeamRoute, async (c) => {
     const body = c.req.valid('json');
@@ -218,11 +225,13 @@ coreAuthRoutes.openapi(joinTeamRoute, async (c) => {
     }, 200);
 });
 
-const forgotPasswordRoute = createRoute({
+const forgotPasswordRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/forgot-password',
-    summary: 'Forgot Password',
-    description: 'Triggers a password reset email.',
+    operationId: 'requestPasswordReset',
+    summary: 'Request a password reset email',
+    description: 'Triggers a password reset email if the account exists. Always returns 200 even for unknown emails to avoid account enumeration.',
+    tags: ['auth', 'public'],
     request: {
         body: {
             content: {
@@ -238,7 +247,7 @@ const forgotPasswordRoute = createRoute({
             description: 'Reset email sent (if user exists)'
         }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
     await checkRateLimit(c, 'forgot');
@@ -257,11 +266,13 @@ coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
     return c.json({ success: true, data: { success: true } }, 200);
 });
 
-const resetPasswordRoute = createRoute({
+const resetPasswordRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/reset-password',
-    summary: 'Reset Password',
-    description: 'Processes a password reset request.',
+    operationId: 'resetPasswordWithToken',
+    summary: 'Reset password using a token',
+    description: 'Completes a password reset flow: validates the one-time reset token and updates the account password to the new value supplied.',
+    tags: ['auth', 'public'],
     request: {
         body: {
             content: {
@@ -277,7 +288,7 @@ const resetPasswordRoute = createRoute({
             description: 'Password reset successful'
         }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(resetPasswordRoute, async (c) => {
     const body = c.req.valid('json');
@@ -285,11 +296,13 @@ coreAuthRoutes.openapi(resetPasswordRoute, async (c) => {
     return c.json({ success: true, data: { success: true } }, 200);
 });
 
-const setupRoute = createRoute({
+const setupRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/setup',
-    summary: 'System Initialization',
-    description: 'Creates the initial tenant and admin account. Only active if no users exist.',
+    operationId: 'initializeFirstTenant',
+    summary: 'Initialize first tenant and admin',
+    description: 'Creates the initial tenant and the first admin user account. Only callable when no tenant-scoped users yet exist (system is uninitialized).',
+    tags: ['auth', 'public'],
     request: {
         body: {
             content: {
@@ -306,7 +319,7 @@ const setupRoute = createRoute({
         },
         403: { description: 'Forbidden: System already initialized' }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(setupRoute, async (c) => {
     // 1. Safety Check: Only allow if no tenant-scoped users exist.
@@ -391,11 +404,13 @@ coreAuthRoutes.openapi(setupRoute, async (c) => {
     }, 200);
 });
 
-const skipSetupRoute = createRoute({
+const skipSetupRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/setup/skip',
-    summary: 'Skip Onboarding Wizard',
-    description: 'Marks the onboarding wizard as skipped for the current user.',
+    operationId: 'skipOnboardingWizard',
+    summary: 'Skip the onboarding wizard',
+    description: 'Marks the in-app onboarding wizard as skipped for the current user. Does not affect tenant-level setup or any system configuration.',
+    tags: ['auth'],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: {
         200: {
@@ -406,7 +421,7 @@ const skipSetupRoute = createRoute({
         },
         401: { description: 'Unauthorized' }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(skipSetupRoute, async (c) => {
     const user = c.get('user');
@@ -422,11 +437,13 @@ coreAuthRoutes.openapi(skipSetupRoute, async (c) => {
     return c.json({ success: true, data: { skipped: true } }, 200);
 });
 
-const meRoute = createRoute({
+const meRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/me',
-    summary: 'Get Current User Profile',
-    description: 'Returns the current user session information.',
+    operationId: 'getMyAccount',
+    summary: 'Get the current user account',
+    description: 'Returns the authenticated user\'s profile: id, email, role, onboarding state, 2FA status, and remaining recovery code count.',
+    tags: ['auth'],
     responses: {
         200: {
             content: {
@@ -448,7 +465,7 @@ const meRoute = createRoute({
         },
         401: { description: 'Unauthorized' }
     }
-});
+}, { scopes: [], tier: 'primary' }));
 
 coreAuthRoutes.openapi(meRoute, async (c) => {
     const user = c.get('user');
@@ -492,19 +509,21 @@ coreAuthRoutes.openapi(meRoute, async (c) => {
 });
 
 // ── Profile update ──────────────────────────────────────────────────────────
-const updateProfileRoute = createRoute({
+const updateProfileRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/profile',
-    summary: 'Update Profile',
-    description: 'Update the current user\'s profile (name, phone, license number).',
+    operationId: 'updateMyProfile',
+    summary: 'Update current user profile fields',
+    description: 'Updates the authenticated user\'s display name, phone number, and inspector license number. Empty strings clear the field; missing keys leave existing values unchanged.',
+    tags: ['profile'],
     request: {
         body: {
             content: {
                 'application/json': {
                     schema: z.object({
-                        name: z.string().max(100).optional(),
-                        phone: z.string().max(30).optional(),
-                        licenseNumber: z.string().max(50).optional(),
+                        name: z.string().max(100).optional().describe('Display name shown on dashboards, reports, and booking pages.'),
+                        phone: z.string().max(30).optional().describe('Contact phone number; included on reports if set.'),
+                        licenseNumber: z.string().max(50).optional().describe('Inspector license number; printed on reports as a credential.'),
                     })
                 }
             }
@@ -517,7 +536,7 @@ const updateProfileRoute = createRoute({
         },
         401: { description: 'Unauthorized' }
     }
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 coreAuthRoutes.openapi(updateProfileRoute, async (c) => {
     const user = c.get('user');
@@ -537,11 +556,13 @@ coreAuthRoutes.openapi(updateProfileRoute, async (c) => {
     return c.json({ success: true, data: { updated: true } }, 200);
 });
 
-const logoutRoute = createRoute({
+const logoutRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/logout',
-    summary: 'Log Out',
-    description: 'Clears the auth cookie and revokes outstanding JWTs for this user.',
+    operationId: 'logOutCurrentUser',
+    summary: 'Log out the current user',
+    description: 'Clears the HttpOnly auth cookie and revokes all outstanding session JWTs for this user via the password-changed KV invalidation channel.',
+    tags: ['auth'],
     responses: {
         200: {
             content: {
@@ -550,7 +571,7 @@ const logoutRoute = createRoute({
             description: 'Logout successful'
         }
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(logoutRoute, async (c) => {
     // If the request carries a valid token, revoke all of this user's tokens server-side.
@@ -597,16 +618,18 @@ async function loadCurrentUser(c: Parameters<Parameters<typeof coreAuthRoutes.op
     return row;
 }
 
-const totpSetupRoute = createRoute({
+const totpSetupRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/2fa/setup',
+    operationId: 'beginTotpEnrollment',
     summary: 'Begin TOTP 2FA enrollment',
-    description: 'Generates a fresh secret + recovery codes and returns the QR data URI. Caller must POST /2fa/verify before 2FA is actually enabled.',
+    description: 'Generates a fresh TOTP secret plus recovery codes and returns the QR data URI. Caller must POST /2fa/verify before 2FA is actually enabled.',
+    tags: ['auth'],
     responses: {
         200: { content: { 'application/json': { schema: TotpSetupResponseSchema } }, description: 'Setup payload' },
         401: { description: 'Unauthorized' },
     }
-});
+}, { scopes: [], tier: 'extended' }));
 
 coreAuthRoutes.openapi(totpSetupRoute, async (c) => {
     const me = await loadCurrentUser(c);
@@ -635,18 +658,20 @@ coreAuthRoutes.openapi(totpSetupRoute, async (c) => {
     }, 200);
 });
 
-const totpVerifyRoute = createRoute({
+const totpVerifyRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/2fa/verify',
-    summary: 'Activate TOTP 2FA',
-    description: 'Verifies the supplied code against the pending secret. On success, sets totpEnabled=true.',
+    operationId: 'activateTotp',
+    summary: 'Activate TOTP two-factor authentication',
+    description: 'Verifies the supplied TOTP code against the pending secret generated by /2fa/setup. On success, flips totpEnabled to true on the user record.',
+    tags: ['auth'],
     request: { body: { content: { 'application/json': { schema: TotpVerifySchema } } } },
     responses: {
         200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: '2FA enabled' },
         400: { description: 'Invalid code or no pending secret' },
         401: { description: 'Unauthorized' },
     }
-});
+}, { scopes: [], tier: 'extended' }));
 
 coreAuthRoutes.openapi(totpVerifyRoute, async (c) => {
     const me = await loadCurrentUser(c);
@@ -665,18 +690,20 @@ coreAuthRoutes.openapi(totpVerifyRoute, async (c) => {
     return c.json({ success: true, data: { success: true } }, 200);
 });
 
-const totpDisableRoute = createRoute({
+const totpDisableRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/2fa/disable',
-    summary: 'Disable TOTP 2FA',
-    description: 'Requires both the current password and a valid TOTP / recovery code. Wipes all 2FA state.',
+    operationId: 'disableTotp',
+    summary: 'Disable TOTP two-factor authentication',
+    description: 'Requires both the current password and a valid TOTP or recovery code to disable 2FA. Wipes all 2FA state (secret, enabled flag, recovery codes).',
+    tags: ['auth'],
     request: { body: { content: { 'application/json': { schema: TotpDisableSchema } } } },
     responses: {
         200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: '2FA disabled' },
         400: { description: 'Invalid input' },
         401: { description: 'Unauthorized — wrong password or code' },
     }
-});
+}, { scopes: [], tier: 'extended' }));
 
 coreAuthRoutes.openapi(totpDisableRoute, async (c) => {
     const me = await loadCurrentUser(c);
@@ -711,17 +738,19 @@ coreAuthRoutes.openapi(totpDisableRoute, async (c) => {
     return c.json({ success: true, data: { success: true } }, 200);
 });
 
-const totpRegenRoute = createRoute({
+const totpRegenRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/2fa/recovery-codes/regenerate',
-    summary: 'Regenerate recovery codes',
-    description: 'Invalidates all existing recovery codes and returns a fresh set. Requires password + 2FA code.',
+    operationId: 'regenerateTotpRecoveryCodes',
+    summary: 'Regenerate 2FA recovery codes',
+    description: 'Invalidates all existing 2FA recovery codes and returns a fresh set of eight. Requires the current password plus a valid TOTP or recovery code.',
+    tags: ['auth'],
     request: { body: { content: { 'application/json': { schema: TotpRegenerateSchema } } } },
     responses: {
         200: { content: { 'application/json': { schema: TotpSetupResponseSchema } }, description: 'New recovery codes' },
         401: { description: 'Unauthorized' },
     }
-});
+}, { scopes: [], tier: 'extended' }));
 
 coreAuthRoutes.openapi(totpRegenRoute, async (c) => {
     const me = await loadCurrentUser(c);
@@ -758,18 +787,20 @@ coreAuthRoutes.openapi(totpRegenRoute, async (c) => {
     }, 200);
 });
 
-const login2faRoute = createRoute({
+const login2faRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/login/2fa',
-    summary: 'Complete 2FA login',
-    description: 'Exchanges a short-lived challenge token + TOTP code for a session cookie.',
+    operationId: 'completeTwoFactorLogin',
+    summary: 'Complete two-factor authentication login',
+    description: 'Exchanges a short-lived 2FA challenge token plus TOTP or recovery code for a full session cookie. The challenge token is issued by /login when 2FA is enabled.',
+    tags: ['auth', 'public'],
     middleware: [requireCsrfToken],
     request: { body: { content: { 'application/json': { schema: TotpLoginSchema } } } },
     responses: {
         200: { content: { 'application/json': { schema: Login2faResponseSchema } }, description: 'Login complete' },
         401: { description: 'Invalid or expired challenge / code' },
     }
-});
+}, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(login2faRoute, async (c) => {
     await checkRateLimit(c, 'login');
