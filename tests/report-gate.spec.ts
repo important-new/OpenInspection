@@ -19,6 +19,9 @@ const BASE_URL = 'http://127.0.0.1:8789';
 
 const ADMIN_EMAIL = 'admin@autotest.com';
 const ADMIN_PASSWORD = 'Password123!';
+// PR 2 — path-tenant URL shape: /report/<tenantSlug>/<id>. Matches the slug
+// the setup wizard derives from the standalone-browser COMPANY_NAME.
+const TENANT_SLUG = 'automation-test-corp';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -99,7 +102,7 @@ test.describe('Report gate (Sprint 1 C-7)', () => {
         // Visit the public share URL with NO auth cookie (clear any from
         // prior tests) — simulates a customer opening the share link.
         await page.context().clearCookies();
-        await page.goto(`${BASE_URL}/report/${id}`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${BASE_URL}/report/${TENANT_SLUG}/${id}`, { waitUntil: 'domcontentloaded' });
 
         const body = await page.textContent('body');
         expect(body).toContain('Pending payment');
@@ -117,7 +120,7 @@ test.describe('Report gate (Sprint 1 C-7)', () => {
         test.skip(id === null, 'Could not seed gated inspection');
 
         await page.context().clearCookies();
-        await page.goto(`${BASE_URL}/report/${id}`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${BASE_URL}/report/${TENANT_SLUG}/${id}`, { waitUntil: 'domcontentloaded' });
 
         const body = await page.textContent('body');
         expect(body).toContain('Pending agreement');
@@ -132,7 +135,7 @@ test.describe('Report gate (Sprint 1 C-7)', () => {
         test.skip(id === null, 'Could not seed gated inspection');
 
         // Visit with admin JWT — gate must be skipped.
-        await withAuth(page, `/report/${id}`, adminToken);
+        await withAuth(page, `/report/${TENANT_SLUG}/${id}`, adminToken);
         const body = await page.textContent('body');
         expect(body).not.toContain('Pending payment');
         expect(body).not.toContain('Pending agreement');

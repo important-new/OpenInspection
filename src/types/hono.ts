@@ -9,9 +9,26 @@ export interface AppEnv {
     PHOTOS: R2Bucket;
     
     // Security & Auth
+    /** Legacy HS256 signing secret. Still used as the KDF input for
+     *  tenant config encryption (config-crypto.ts), QBO token encryption
+     *  (qbo-crypto.ts), audit signing-key encryption (KEY_ENCRYPTION_SECRET
+     *  fallback), and M2M Bearer auth. Pre-launch JWT migration removed
+     *  it from sign()/verify() paths; rotation scripts will retire those
+     *  remaining usages. */
     JWT_SECRET: string;
     /** Spec 5H — AES-GCM key for encrypting tenant Ed25519 private keys. Falls back to JWT_SECRET. */
     KEY_ENCRYPTION_SECRET: string;
+    /** Multi-version ES256 keyring (see src/lib/jwt-keyring.ts). Every JWT
+     *  is signed/verified through this keyring; `JWT_CURRENT_KID` names the
+     *  active signer (e.g. "v1"). Versions are discovered dynamically by
+     *  pairing JWT_PRIVATE_KEY_V<N> with JWT_PUBLIC_KEY_V<N>. */
+    JWT_CURRENT_KID?: string;
+    JWT_PRIVATE_KEY_V1?: string;
+    JWT_PUBLIC_KEY_V1?:  string;
+    JWT_PRIVATE_KEY_V2?: string;
+    JWT_PUBLIC_KEY_V2?:  string;
+    JWT_PRIVATE_KEY_V3?: string;
+    JWT_PUBLIC_KEY_V3?:  string;
     TURNSTILE_SITE_KEY: string;
     TURNSTILE_SECRET_KEY: string;
     GOOGLE_CLIENT_ID: string;
@@ -34,11 +51,8 @@ export interface AppEnv {
     CF_ACCOUNT_ID?: string;
     CF_API_TOKEN?: string;
     APP_MODE?: 'standalone' | 'saas';
+    SAAS_TOPOLOGY?: 'shared' | 'silo';
     SETUP_CODE?: string;
-
-    /** Sprint 1 CC-2 — set to "true" on sandbox.inspectorhub.io demo deployment.
-     *  Causes MainLayout/BareLayout to render the SandboxBanner. */
-    SANDBOX_MODE?: string;
 
     // Payments
     STRIPE_SECRET_KEY?: string;
@@ -57,12 +71,30 @@ export interface AppEnv {
     // Spec 5H P1 — async sign-completion pipeline (signed.pdf + cert.pdf + audit append)
     SIGN_COMPLETION_WORKFLOW?: Workflow;
 
+    // Design System 0520 subsystem B — presence Durable Objects (phase 2).
+    // Optional in non-saas profiles where presence is disabled (standalone
+    // single-inspector deployments). Routes that touch presence feature-detect.
+    INSPECTION_PRESENCE?: DurableObjectNamespace;
+    TENANT_PRESENCE?: DurableObjectNamespace;
+
     // Spec 5H — Public verifier base URL embedded in Certificate of Completion
     ESIGN_PUBLIC_VERIFY_BASE?: string;
 
     // SaaS Portal Integration
     PORTAL_API_URL?: string;
+    /** Legacy single-secret M2M binding. Kept as a transitional fallback so
+     *  deployments that have not yet provisioned the V<N> keyring keep
+     *  working. New deployments populate PORTAL_M2M_SECRET_V<N> instead. */
     PORTAL_M2M_SECRET?: string;
+    /** Multi-version PORTAL_M2M_SECRET keyring (see src/lib/m2m-auth.ts).
+     *  Portal-> core M2M calls are verified against every active V<N> so
+     *  the shared bearer/HMAC secret can be rotated with an overlap window.
+     *  PORTAL_M2M_CURRENT_KID names the version Portal sends; core just
+     *  accepts any V<N> that matches. */
+    PORTAL_M2M_CURRENT_KID?: string;
+    PORTAL_M2M_SECRET_V1?: string;
+    PORTAL_M2M_SECRET_V2?: string;
+    PORTAL_M2M_SECRET_V3?: string;
 
     // Spec 5D — Address Autofill. Server-side proxy holds the API key so it
     // never leaks to the client. Optional: when absent, dashboard.tsx falls
@@ -120,6 +152,7 @@ import { IcsService } from '../services/ics.service';
 import { AgentService } from '../services/agent.service';
 import { ConciergeService } from '../services/concierge.service';
 import { AuthVariables } from './auth';
+import { DeploymentProfile } from '../lib/deployment-profile';
 
 /**
  * Registry of all available services.
@@ -167,6 +200,14 @@ export interface AppServices {
     concierge: ConciergeService;
     // QuickBooks Online integration
     qbo: import('../services/qbo.service').QBOService;
+    unit: import('../services/unit.service').UnitService;
+    observerLink: import('../services/observer-link.service').ObserverLinkService;
+    reportVersion: import('../services/report-version.service').ReportVersionService;
+    apprentice: import('../services/apprentice.service').ApprenticeService;
+    guestInvite: import('../services/guest-invite.service').GuestInviteService;
+    identity: import('../services/identity.service').IdentityService;
+    integrations: import('../services/integrations.service').IntegrationsService;
+    analytics: import('../services/analytics.service').AnalyticsService;
 }
 
 /**
@@ -174,6 +215,7 @@ export interface AppServices {
  */
 export type AppVariables = AuthVariables & {
     services: AppServices;
+    profile: DeploymentProfile;
 };
 
 /**

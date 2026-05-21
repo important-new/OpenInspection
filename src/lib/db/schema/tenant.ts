@@ -10,6 +10,9 @@ export const tenants = sqliteTable('tenants', {
     status: text('status').notNull().default('pending'),
     maxUsers: integer('max_users').notNull().default(3),
     deploymentMode: text('deployment_mode').notNull().default('shared'), // shared, silo
+    // Design System 0520 subsystem E P8 — optional InterNACHI inspector
+    // certification number, rendered in the TeamCredit report footer.
+    nachiNumber: text('nachi_number'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
@@ -56,6 +59,28 @@ export const users = sqliteTable('users', {
     notifyOnReferral: integer('notify_on_referral', { mode: 'boolean' }).notNull().default(true),
     notifyOnReport:   integer('notify_on_report',   { mode: 'boolean' }).notNull().default(true),
     notifyOnPaid:     integer('notify_on_paid',     { mode: 'boolean' }).notNull().default(false),
+    // Design System 0520 subsystem B phase 1 — debounced "user last active"
+    // timestamp updated by touch-last-active middleware (30s debounce window
+    // per worker isolate). Powers TeamStrip "last active Nm ago" pill and the
+    // soft-presence fallback when WebSocket cannot connect.
+    lastActiveAt:     integer('last_active_at'),
+    // Design System 0520 subsystem C phase 1 — apprentice + specialist roles.
+    //   mentorId            = nullable FK → users.id; required for apprentices
+    //                          (apprentice writes route to mentor's review queue)
+    //   assignedSectionIds  = JSON array of section ids; non-empty restricts
+    //                          a specialist's edit scope. Empty = full access
+    //                          (lead / office) per canEdit() matrix.
+    //   expiresAt           = guest-invite expiry; non-null means the user
+    //                          was created via a guest token + auto-revokes
+    //                          past this epoch.
+    mentorId:             text('mentor_id'),
+    assignedSectionIds:   text('assigned_section_ids').notNull().default('[]'),
+    expiresAt:            integer('expires_at'),
+    // Trial Sample-Data Mode spec (2026-05-20) — ICP signal captured at
+    // magic-link signup. Nullable: NULL for pre-migration users and for
+    // teammates who join via team invite (only the tenant owner answers
+    // the role survey at signup).
+    signupRole:           text('signup_role'),
 });
 
 // Booking #7 Sprint A — reserved/banned slug list. Seeded via migration 0052
@@ -74,6 +99,11 @@ export const tenantInvites = sqliteTable('tenant_invites', {
     role: text('role').notNull().default('inspector'),
     status: text('status').notNull().default('pending'),
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    // Design System 0520 subsystem C P5 — carry apprentice mentor +
+    // specialist section assignment from the InviteSeatModal into the
+    // eventual users row at accept time. NULL/empty for lead/office.
+    mentorId:           text('mentor_id'),
+    assignedSectionIds: text('assigned_section_ids').notNull().default('[]'),
 });
 
 export const tenantConfigs = sqliteTable('tenant_configs', {
@@ -135,6 +165,10 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     // PDF generation at publish time + the Refresh PDFs / Download PDF
     // dropdown in the report viewer.
     enablePdfPipeline: integer('enable_pdf_pipeline', { mode: 'boolean' }).notNull().default(false),
+    // Design System 0520 subsystem C P10 — /team Defaults section toggles.
+    teamModeDefault:          integer('team_mode_default',          { mode: 'boolean' }).notNull().default(false),
+    apprenticeReviewRequired: integer('apprentice_review_required', { mode: 'boolean' }).notNull().default(false),
+    guestInvitesEnabled:      integer('guest_invites_enabled',      { mode: 'boolean' }).notNull().default(true),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
 

@@ -1,13 +1,18 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { requireRole } from '../lib/middleware/rbac';
 import { renderProfessionalReport } from '../templates/pages/report.template';
+import type { ReportUnit } from '../templates/components/report-units-summary';
 import { ReportGatePage } from '../templates/pages/report-gate';
 import { auditFromContext } from '../lib/audit';
 import { getBaseUrl, getBookingHost } from '../lib/url';
+import { reportUrl as buildReportUrl } from '../lib/public-urls';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { generatePdfFromUrl } from '../lib/pdf';
+import { getCookie } from 'hono/cookie';
+import { verifyObserverCookie } from '../lib/observer-cookie';
+import { OBSERVER_COOKIE_NAME } from '../lib/middleware/observer-cookie';
 import {
     InspectionListQuerySchema,
     CreateInspectionSchema,
@@ -35,8 +40,12 @@ import {
 import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
+import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
+import { PatchItemFieldSchema } from '../lib/validations/inspection-patch.schema';
+import { CreateInspectionFromWizardSchema } from '../lib/validations/wizard.schema';
+import { CreateUnitSchema, UpdateUnitSchema, MoveUnitSchema } from '../lib/validations/unit.schema';
 import { drizzle } from 'drizzle-orm/d1';
-import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts } from '../lib/db/schema';
+import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts, inspectionUnits } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { SignatureUser } from '../lib/inspector-signature';
@@ -59,13 +68,15 @@ async function resolveSignatureInspector(
     try {
         const db = drizzle(c.env.DB);
         const row = await db.select({
-            name:          users.name,
-            email:         users.email,
-            phone:         users.phone,
-            licenseNumber: users.licenseNumber,
-            slug:          users.slug,
+            name:            users.name,
+            email:           users.email,
+            phone:           users.phone,
+            licenseNumber:   users.licenseNumber,
+            slug:            users.slug,
         }).from(users).where(and(eq(users.id, inspectorId), eq(users.tenantId, tenantId))).get();
-        return row ?? undefined;
+        if (!row) return undefined;
+        const tenantSubdomain = c.get('requestedSubdomain') ?? null;
+        return { ...row, tenantSubdomain };
     } catch (err) {
         logger.error('[email-signature] inspector lookup failed', { inspectorId }, err instanceof Error ? err : undefined);
         return undefined;
@@ -1226,6 +1237,65 @@ inspectionsRoutes.openapi(mediaPoolDeleteRoute, async (c) => {
     return c.json({ success: true as const }, 200);
 });
 
+// Design System 0520 M14 — PhotoStudio annotation save (subsystem A, phase 4).
+// Opaque JSON-encoded shape array (≤8 KB) + caption (≤200 chars). Tenant-
+// isolated via ScopedDB; 404 on cross-tenant access (no enumeration leak).
+const updateMediaAnnotationsRoute = createRoute({
+    method:     'put',
+    path:       '/{id}/media/{mediaId}/annotations',
+    tags:       ['Inspections'],
+    summary:    'Save PhotoStudio annotation overlay + caption',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), mediaId: z.string().min(1) }),
+        body: {
+            content: {
+                'application/json': {
+                    schema: UpdateMediaAnnotationsSchema,
+                },
+            },
+        },
+    },
+    responses: {
+        200: {
+            description: 'Annotations saved',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        success: z.literal(true),
+                        data: z.object({
+                            id:          z.string(),
+                            annotations: z.string().nullable(),
+                            caption:     z.string().nullable(),
+                            updatedAt:   z.number(),
+                        }),
+                    }),
+                },
+            },
+        },
+        404: { description: 'Media not found in this tenant' },
+    },
+});
+
+inspectionsRoutes.openapi(updateMediaAnnotationsRoute, async (c) => {
+    const { id, mediaId } = c.req.valid('param');
+    const { annotations, caption } = c.req.valid('json');
+
+    const out = await c.var.services.inspection.updateMediaAnnotations(
+        id,
+        mediaId,
+        c.get('tenantId'),
+        annotations,
+        caption,
+    );
+
+    if (!out) {
+        throw Errors.NotFound('Media not found');
+    }
+
+    return c.json({ success: true as const, data: out }, 200);
+});
+
 /**
  * Report View (HTML)
  */
@@ -1300,7 +1370,7 @@ inspectionsRoutes.get('/:id/report', async (c) => {
             return c.html(ReportGatePage({
                 reason: 'agreement',
                 companyName, primaryColor,
-                actionUrl: `${baseUrl}/sign/${id}`,
+                actionUrl: `${baseUrl}/sign/${c.get('requestedSubdomain') ?? ''}/${id}`,
                 actionLabel: 'Sign Agreement',
                 propertyAddress: inspection.propertyAddress ?? null,
                 inspectorName,
@@ -1312,6 +1382,24 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     const db = drizzle(c.env.DB);
     const results = await db.select().from(inspectionResults).where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, c.get('tenantId')))).get();
 
+    // Design System 0520 subsystem D P3 — load units for the report
+    // UnitTreeSummary card. Failure (e.g. legacy DB without migration
+    // 0065 yet) degrades to empty — the renderer's `units` prop is
+    // optional and the summary card is gated on length > 0.
+    let units: ReportUnit[] = [];
+    try {
+        const rows = await db.select().from(inspectionUnits)
+            .where(and(eq(inspectionUnits.inspectionId, id), eq(inspectionUnits.tenantId, c.get('tenantId'))))
+            .all();
+        units = rows.map(r => ({
+            id:           r.id,
+            parentUnitId: r.parentUnitId,
+            kind:         r.kind as ReportUnit['kind'],
+            name:         r.name,
+            sortOrder:    r.sortOrder ?? 0,
+        }));
+    } catch { /* no units / migration not applied — degrade silently */ }
+
     const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
     return c.html(renderProfessionalReport({
         inspection: inspection as never,
@@ -1320,6 +1408,7 @@ inspectionsRoutes.get('/:id/report', async (c) => {
         branding: c.get('branding'),
         isAuthenticated: true,
         resolvedTheme,
+        units,
     }));
 });
 
@@ -1462,8 +1551,8 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     await db.update(inspectionTable).set({ status: 'completed' }).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
 
     if (inspection.clientEmail) {
-        const baseUrl = getBaseUrl(c);
-        const reportUrl = `${baseUrl}/report/${id}`;
+        const tenantSlug = c.get('requestedSubdomain') ?? '';
+        const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
         const clientEmail = inspection.clientEmail;
         const address = inspection.propertyAddress as string;
 
@@ -1549,8 +1638,8 @@ inspectionsRoutes.openapi(sendReportPdfRoute, async (c) => {
         throw Errors.BadRequest('No recipient email — set inspection.clientEmail or pass toEmail.');
     }
 
-    const baseUrl = getBaseUrl(c);
-    const reportUrl = `${baseUrl}/report/${id}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
     const address = inspection.propertyAddress as string;
 
     // Sprint B-4a — append rebooking signature for the assigned inspector.
@@ -1809,6 +1898,31 @@ inspectionsRoutes.openapi(publishRoute, async (c) => {
     const service = c.var.services.inspection;
     const result = await service.publishInspection(id, tenantId, body);
 
+    // Design System 0520 subsystem D phase 9 — Republish snapshot.
+    // After the inspection's status flips to published, persist a frozen
+    // snapshot into report_versions so the customer-facing viewer can
+    // browse history + diff. Best-effort: failures log but do NOT block
+    // the publish response. snapshot-too-large (> 1 MB) downgrades to a
+    // warning audit entry rather than a 5xx — the report itself remains
+    // viewable through the existing /reports/:id path.
+    const userId = (c.get('user') as { sub?: string } | undefined)?.sub;
+    if (userId) {
+        try {
+            const out = await c.var.services.reportVersion.snapshotOnPublish(
+                tenantId, id, userId, body.summary,
+            );
+            logger.info('report-version snapshot saved', {
+                inspectionId:  id,
+                versionNumber: out.versionNumber,
+            });
+        } catch (err) {
+            logger.warn('report-version snapshot failed (non-fatal)', {
+                inspectionId: id,
+                error:        err instanceof Error ? err.message : String(err),
+            });
+        }
+    }
+
     // Spec 5A.5 — enqueue + background-render Summary + Full PDFs after
     // publish. Best-effort: failures log but never block the publish
     // response. Persistent record in report_pdfs lets the client UI poll
@@ -1820,8 +1934,8 @@ inspectionsRoutes.openapi(publishRoute, async (c) => {
     // remains the universal fallback.
     const reportPdf = c.var.services.reportPdf;
     if (await reportPdf.isPipelineEnabled(tenantId)) {
-        const baseUrl = getBaseUrl(c);
-        const reportUrl = `${baseUrl}/report/${id}`;
+        const tenantSlug = c.get('requestedSubdomain') ?? '';
+        const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
         const sourceVersion = Date.now();
         const renderBoth = async () => {
             try {
@@ -1869,8 +1983,8 @@ inspectionsRoutes.openapi(createRoute({
     if (!(await reportPdf.isPipelineEnabled(tenantId))) {
         throw Errors.Forbidden('PDF pipeline is disabled for this workspace. Enable it in Settings → Reports.');
     }
-    const baseUrl = getBaseUrl(c);
-    const reportUrl = `${baseUrl}/report/${id}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const reportUrl = buildReportUrl(getBookingHost(c), tenantSlug, id);
     const sourceVersion = Date.now();
 
     await Promise.all([
@@ -1963,8 +2077,9 @@ inspectionsRoutes.openapi(createRoute({
     const tenantId = c.get('tenantId') as string;
     const { id } = c.req.valid('param');
     const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
-    const baseUrl = getBaseUrl(c);
-    return c.json({ success: true, data: { token, url: `${baseUrl}/report/${id}?view=agent&token=${token}` } });
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const url = `${buildReportUrl(getBookingHost(c), tenantSlug, id)}?view=agent&token=${token}`;
+    return c.json({ success: true, data: { token, url } });
 });
 
 // ── Sprint 1 Sub-spec D Task 3 (D-3) — POST /api/inspections/:id/share-agent ────
@@ -2010,8 +2125,8 @@ inspectionsRoutes.openapi(createRoute({
     }
 
     const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
-    const baseUrl = getBaseUrl(c);
-    const url = `${baseUrl}/report/${id}?view=agent&token=${token}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const url = `${buildReportUrl(getBookingHost(c), tenantSlug, id)}?view=agent&token=${token}`;
 
     // Sprint B-4c — append the inspector's signature so the receiving agent
     // can rebook with the same inspector for future referrals.
@@ -2107,6 +2222,453 @@ inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
     const tenantId = c.get('tenantId');
     await c.var.services.concierge.approveByInspector(id, tenantId);
     return c.json({ success: true as const, data: { success: true as const } }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 5 task 5.3 — NewInspectionWizard create.
+// -----------------------------------------------------------------------------
+// Sibling endpoint to POST /api/inspections (the legacy single-step create).
+// 4-step wizard payload validated by CreateInspectionFromWizardSchema.
+// Returns the new inspection id so the wizard factory redirects to
+// /inspections/:id/edit on success.
+const createFromWizardRoute = createRoute({
+    method:     'post',
+    path:       '/wizard',
+    tags:       ['Inspections'],
+    summary:    'Create an inspection from the 4-step NewInspectionWizard',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        body: { content: { 'application/json': { schema: CreateInspectionFromWizardSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'Created',
+            content: { 'application/json': { schema: z.object({
+                success: z.literal(true),
+                data:    z.object({ id: z.string() }),
+            }) } },
+        },
+        400: { description: 'Validation error' },
+    },
+});
+
+inspectionsRoutes.openapi(createFromWizardRoute, async (c) => {
+    const input    = c.req.valid('json');
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+    const out = await c.var.services.inspection.createFromWizard(tenantId, userId, input);
+    return c.json({ success: true as const, data: out }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 3 task 3.4 — field-version PATCH item.
+// -----------------------------------------------------------------------------
+// Optimistic concurrency on individual item fields. Body carries the
+// expectedVersion the client thinks it has; server returns 200 + newVersion
+// on match, 409 + current/yours on stale write. The ConflictModal
+// (phase 3 task 3.6) consumes the 409 payload.
+const patchItemFieldRoute = createRoute({
+    method:     'patch',
+    path:       '/{id}/items/{itemId}',
+    tags:       ['Inspections'],
+    summary:    'Patch a single item field with optimistic-concurrency version check',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), itemId: z.string().min(1) }),
+        body: { content: { 'application/json': { schema: PatchItemFieldSchema } } },
+    },
+    responses: {
+        200: {
+            description: 'ok',
+            content: { 'application/json': { schema: z.object({
+                success: z.literal(true),
+                data:    z.object({ newVersion: z.number(), by: z.string(), at: z.number() }),
+            }) } },
+        },
+        404: { description: 'Inspection or item not found in this tenant' },
+        409: { description: 'expectedVersion stale — body contains current/yours' },
+    },
+});
+
+inspectionsRoutes.openapi(patchItemFieldRoute, async (c) => {
+    const { id, itemId } = c.req.valid('param');
+    const { field, value, expectedVersion, force } = c.req.valid('json');
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+    if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+    const out = await c.var.services.inspection.patchItem(
+        id, tenantId, itemId, field, value, expectedVersion, userId, { force: force ?? false },
+    );
+
+    if (out.kind === 'not_found') {
+        throw Errors.NotFound('Inspection not found');
+    }
+    if (out.kind === 'conflict') {
+        return c.json({ success: false as const, error: { code: 'CONFLICT', current: out.current, yours: out.yours } }, 409);
+    }
+    // Design System 0520 subsystem C phase 2 — apprentice writes get queued.
+    // Returns 200 + { kind: 'queued', reviewId } so the editor can update
+    // its UI to "Pending review" without retrying.
+    if (out.kind === 'queued') {
+        return c.json({ success: true as const, data: { kind: 'queued', reviewId: out.reviewId } }, 200);
+    }
+    return c.json({ success: true as const, data: { kind: 'ok', newVersion: out.newVersion, by: out.by, at: out.at } }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem B phase 2 task 2.5 — presence WebSocket upgrade.
+// -----------------------------------------------------------------------------
+// Verifies the caller has edit access to the inspection, then forwards the
+// upgrade request to InspectionPresenceDO with user identity stamped in
+// headers. The DO consumes these headers verbatim — the worker is the
+// trust boundary.
+//
+// 404 (not 403) on tenant mismatch — no inspection-existence enumeration leak.
+// 501 when the binding is absent (standalone deployments may opt out of
+// presence to skip the Durable Objects line on their bill).
+inspectionsRoutes.get('/:id/presence/ws', async (c) => {
+    if (c.req.header('Upgrade') !== 'websocket') {
+        return new Response('expected websocket', { status: 426 });
+    }
+    if (!c.env.INSPECTION_PRESENCE) {
+        return new Response('presence unavailable', { status: 501 });
+    }
+
+    const id = c.req.param('id');
+    if (!id) return new Response('not found', { status: 404 });
+
+    const tenantId = c.get('tenantId');
+    const user     = c.get('user') as { sub?: string } | undefined;
+    const userId   = user?.sub;
+
+    // Design System 0520 subsystem D phase 6 — observer fallback.
+    // Inspector path uses JWT; observers carry the dedicated
+    // __Host-observer_session cookie. We try JWT first (the common
+    // case) then degrade to the observer cookie. Both produce a DO
+    // attach request with `x-user-role: inspector` or `observer`
+    // respectively — the DO already routes the two roles correctly
+    // (observers are read-only in the roster snapshot).
+    let attachUserId: string;
+    let attachName:   string;
+    let attachRole:   'inspector' | 'observer';
+
+    if (userId && tenantId) {
+        let ins;
+        try {
+            const out = await c.var.services.inspection.getInspection(id, tenantId);
+            ins = out.inspection;
+        } catch {
+            return new Response('not found', { status: 404 });
+        }
+
+        let helpers: string[] = [];
+        try {
+            const parsed = JSON.parse(ins.helperInspectorIds ?? '[]');
+            if (Array.isArray(parsed)) helpers = parsed as string[];
+        } catch { /* malformed — treat as no helpers */ }
+
+        const allowed = ins.inspectorId === userId
+                     || ins.leadInspectorId === userId
+                     || helpers.includes(userId);
+        if (!allowed) return new Response('forbidden', { status: 403 });
+
+        attachUserId = userId;
+        attachName   = ins.inspectorId === userId ? 'Inspector' : 'Helper';
+        attachRole   = 'inspector';
+    } else {
+        const cookie = getCookie(c, OBSERVER_COOKIE_NAME);
+        if (!cookie) return new Response('unauthorized', { status: 401 });
+        const payload = await verifyObserverCookie(cookie, c.env.JWT_SECRET);
+        if (!payload || payload.inspectionId !== id) {
+            return new Response('forbidden', { status: 403 });
+        }
+        attachUserId = `observer-${payload.linkId}`;
+        attachName   = 'Observer';
+        attachRole   = 'observer';
+    }
+
+    const doId = c.env.INSPECTION_PRESENCE.idFromName(id);
+    const stub = c.env.INSPECTION_PRESENCE.get(doId);
+
+    const fwd = new Request('https://do.local/ws', {
+        method:  'GET',
+        headers: {
+            'Upgrade':          'websocket',
+            'x-user-id':        attachUserId,
+            'x-user-name':      attachName,
+            'x-user-photo-url': '',
+            'x-user-role':      attachRole,
+        },
+    });
+    return stub.fetch(fwd);
+});
+
+// Design System 0520 subsystem E P1.3 — Publish pre-flight gates.
+const preflightRoute = createRoute({
+    method:  'get',
+    path:    '/{id}/preflight',
+    tags:    ['Inspections'],
+    summary: 'Compute Publish pre-flight gates (rated / facts / cover / agreement)',
+    request: { params: z.object({ id: z.string().min(1) }) },
+    responses: {
+        200: { description: 'ok' },
+        404: { description: 'inspection not found in this tenant' },
+    },
+});
+inspectionsRoutes.openapi(preflightRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    if (!tenantId) throw Errors.Unauthorized('Missing tenant scope');
+    const out = await c.var.services.inspection.computePreflight(id, tenantId);
+    return c.json({ success: true as const, data: out }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem D phase 1 task 1.3 — UnitTree CRUD routes.
+// -----------------------------------------------------------------------------
+// Building / Floor / Unit hierarchy under each inspection. Backend
+// validation in UnitService (depth ≤ 3, sibling-name uniqueness, cycle
+// detection on move). Routes guard with the standard inspector role.
+
+const createUnitRoute = createRoute({
+    method:     'post',
+    path:       '/{id}/units',
+    tags:       ['Units'],
+    summary:    'Create a unit (Building / Floor / Unit) under an inspection',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: CreateUnitSchema } } },
+    },
+    responses: {
+        200: { description: 'created', content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ id: z.string() }) }) } } },
+        400: { description: 'validation / depth / duplicate-name' },
+    },
+});
+inspectionsRoutes.openapi(createUnitRoute, async (c) => {
+    const { id }      = c.req.valid('param');
+    const input       = c.req.valid('json');
+    const tenantId    = c.get('tenantId');
+    try {
+        const out = await c.var.services.unit.create(tenantId, { inspectionId: id, ...input });
+        return c.json({ success: true as const, data: out }, 200);
+    } catch (err) {
+        throw Errors.BadRequest((err as Error).message);
+    }
+});
+
+const listUnitsRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/units',
+    tags:       ['Units'],
+    summary:    'List units for an inspection (flat — client builds tree)',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request:    { params: z.object({ id: z.string().uuid() }) },
+    responses:  {
+        200: { description: 'ok' },
+    },
+});
+inspectionsRoutes.openapi(listUnitsRoute, async (c) => {
+    const { id }   = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    const units    = await c.var.services.unit.list(tenantId, id);
+    return c.json({ success: true as const, data: { units } }, 200);
+});
+
+const updateUnitRoute = createRoute({
+    method:     'patch',
+    path:       '/{id}/units/{unitId}',
+    tags:       ['Units'],
+    summary:    'Rename or re-sort a unit',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), unitId: z.string().min(1) }),
+        body: { content: { 'application/json': { schema: UpdateUnitSchema } } },
+    },
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
+});
+inspectionsRoutes.openapi(updateUnitRoute, async (c) => {
+    const { unitId } = c.req.valid('param');
+    const patch      = c.req.valid('json');
+    await c.var.services.unit.update(c.get('tenantId'), unitId, patch);
+    return c.json({ success: true as const }, 200);
+});
+
+const deleteUnitRoute = createRoute({
+    method:     'delete',
+    path:       '/{id}/units/{unitId}',
+    tags:       ['Units'],
+    summary:    'Delete a unit (cascades to children)',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request:    { params: z.object({ id: z.string().uuid(), unitId: z.string().min(1) }) },
+    responses:  { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
+});
+inspectionsRoutes.openapi(deleteUnitRoute, async (c) => {
+    const { unitId } = c.req.valid('param');
+    await c.var.services.unit.delete(c.get('tenantId'), unitId);
+    return c.json({ success: true as const }, 200);
+});
+
+const moveUnitRoute = createRoute({
+    method:     'post',
+    path:       '/{id}/units/{unitId}/move',
+    tags:       ['Units'],
+    summary:    'Reparent + reorder atomically (cycle-detected)',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), unitId: z.string().min(1) }),
+        body: { content: { 'application/json': { schema: MoveUnitSchema } } },
+    },
+    responses: {
+        200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } },
+        400: { description: 'cycle detected' },
+    },
+});
+inspectionsRoutes.openapi(moveUnitRoute, async (c) => {
+    const { unitId } = c.req.valid('param');
+    const { newParentUnitId, newSortOrder } = c.req.valid('json');
+    try {
+        await c.var.services.unit.move(c.get('tenantId'), unitId, newParentUnitId, newSortOrder);
+        return c.json({ success: true as const }, 200);
+    } catch (err) {
+        throw Errors.BadRequest((err as Error).message);
+    }
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem D phase 4 task 4.3 — ObserverLink routes.
+// -----------------------------------------------------------------------------
+// Mint / list / revoke for the no-account read-only viewer flow. The
+// anonymous /observe/:token claim handler is mounted at the top level
+// in src/index.ts because it does not sit under /api/inspections/:id.
+
+const mintObserverLinkRoute = createRoute({
+    method:     'post',
+    path:       '/{id}/observer-links',
+    tags:       ['ObserverLink'],
+    summary:    'Mint a no-account read-only viewer link',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid() }),
+        body: { content: { 'application/json': { schema: z.object({
+            durationSeconds: z.number().int().min(60).max(30 * 86400).optional(),
+        }) } } },
+    },
+    responses: { 200: { description: 'ok' } },
+});
+inspectionsRoutes.openapi(mintObserverLinkRoute, async (c) => {
+    const { id }   = c.req.valid('param');
+    const { durationSeconds } = c.req.valid('json');
+    const createdBy = (c.get('user') as { sub?: string } | undefined)?.sub;
+    if (!createdBy) throw Errors.Unauthorized('Missing user identity');
+
+    const out = await c.var.services.observerLink.mint(c.get('tenantId'), {
+        inspectionId: id,
+        createdBy,
+        ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    });
+
+    // Augment the bare service output with a fully-qualified claim URL
+    // so the InspectorToolsDock modal can render a copy-and-paste field
+    // without re-deriving the host or token path on the client.
+    const baseUrl = c.env.APP_BASE_URL || `https://${c.req.header('host') ?? ''}`;
+    const url     = `${baseUrl}/observe/${out.token}`;
+    return c.json({ success: true as const, data: { ...out, url } }, 200);
+});
+
+const listObserverLinksRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/observer-links',
+    tags:       ['ObserverLink'],
+    summary:    'List active observer links for an inspection',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request:    { params: z.object({ id: z.string().uuid() }) },
+    responses:  { 200: { description: 'ok' } },
+});
+inspectionsRoutes.openapi(listObserverLinksRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const links  = await c.var.services.observerLink.list(c.get('tenantId'), id);
+    return c.json({ success: true as const, data: { links } }, 200);
+});
+
+const revokeObserverLinkRoute = createRoute({
+    method:     'delete',
+    path:       '/{id}/observer-links/{linkId}',
+    tags:       ['ObserverLink'],
+    summary:    'Revoke an observer link',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request:    { params: z.object({ id: z.string().uuid(), linkId: z.string().min(1) }) },
+    responses:  { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
+});
+inspectionsRoutes.openapi(revokeObserverLinkRoute, async (c) => {
+    const { linkId } = c.req.valid('param');
+    await c.var.services.observerLink.revoke(c.get('tenantId'), linkId);
+    return c.json({ success: true as const }, 200);
+});
+
+// -----------------------------------------------------------------------------
+// Design System 0520 subsystem D phase 7 task 7.3 — ReportVersions routes.
+// -----------------------------------------------------------------------------
+// List + get-snapshot + diff. snapshotOnPublish is invoked from the
+// existing publish flow as part of subsystem D P9 (Republish UX, separate
+// commit) — only the read APIs land here.
+
+const listVersionsRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/versions',
+    tags:       ['ReportVersions'],
+    summary:    'List published versions for an inspection',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request:    { params: z.object({ id: z.string().uuid() }) },
+    responses:  { 200: { description: 'ok' } },
+});
+inspectionsRoutes.openapi(listVersionsRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const versions = await c.var.services.reportVersion.list(c.get('tenantId'), id);
+    return c.json({ success: true as const, data: { versions } }, 200);
+});
+
+const getVersionRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/versions/{n}',
+    tags:       ['ReportVersions'],
+    summary:    'Get full snapshot for a specific version',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request:    { params: z.object({ id: z.string().uuid(), n: z.string().regex(/^\d+$/) }) },
+    responses:  { 200: { description: 'ok' }, 404: { description: 'not found' } },
+});
+inspectionsRoutes.openapi(getVersionRoute, async (c) => {
+    const { id, n } = c.req.valid('param');
+    const snap = await c.var.services.reportVersion.get(c.get('tenantId'), id, parseInt(n, 10));
+    if (!snap) throw Errors.NotFound('Version not found');
+    return c.json({ success: true as const, data: snap }, 200);
+});
+
+const diffVersionRoute = createRoute({
+    method:     'get',
+    path:       '/{id}/versions/{n}/diff',
+    tags:       ['ReportVersions'],
+    summary:    'Diff version :n against ?from=<version>',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid(), n: z.string().regex(/^\d+$/) }),
+        query:  z.object({ from: z.string().regex(/^\d+$/) }),
+    },
+    responses: { 200: { description: 'ok' }, 404: { description: 'one of the versions not found' } },
+});
+inspectionsRoutes.openapi(diffVersionRoute, async (c) => {
+    const { id, n } = c.req.valid('param');
+    const { from }  = c.req.valid('query');
+    const diff = await c.var.services.reportVersion.diff(
+        c.get('tenantId'), id, parseInt(from, 10), parseInt(n, 10),
+    );
+    if (!diff) throw Errors.NotFound('Version diff not available');
+    return c.json({ success: true as const, data: diff }, 200);
 });
 
 export default inspectionsRoutes;

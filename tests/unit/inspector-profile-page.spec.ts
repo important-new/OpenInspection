@@ -32,7 +32,7 @@ const SERVICES: CatalogService[] = [
 
 describe('InspectorProfilePage — Sprint C-1', () => {
     it('renders editorial hero with oversized name + photo + license', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         expect(html).toContain('Mike Reynolds');
         expect(html).toContain('TX-9001');
         expect(html).toContain('Austin');
@@ -41,7 +41,7 @@ describe('InspectorProfilePage — Sprint C-1', () => {
     });
 
     it('renders services as 3-up card grid (not table)', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         expect(html).toMatch(/data-testid="service-card-Standard Home Inspection"/);
         expect(html).toMatch(/data-testid="service-card-Pre-Listing Inspection"/);
         expect(html).toMatch(/data-testid="service-card-New Construction"/);
@@ -49,27 +49,27 @@ describe('InspectorProfilePage — Sprint C-1', () => {
     });
 
     it('renders trust strip above CTA', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         expect(html).toMatch(/data-testid="trust-strip"/);
         expect(html).toMatch(/Insured/);
         expect(html).toMatch(/Licensed/);
     });
 
-    it('CTA links to /book/<slug>', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
-        expect(html).toMatch(/href="\/book\/mike"/);
+    it('CTA links to /book/<tenant>/<slug>', () => {
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
+        expect(html).toMatch(/href="\/book\/acme\/mike"/);
         expect(html).toMatch(/Book an inspection/);
     });
 
     it('emits JSON-LD Person schema for SEO', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         expect(html).toMatch(/<script type="application\/ld\+json">/);
         expect(html).toMatch(/"@type":\s*"Person"/);
         expect(html).toMatch(/"jobTitle":\s*"Home Inspector"/);
     });
 
     it('email rendered as base64 data attribute (anti-scraping)', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         // base64 of "mike@acme.test"
         expect(html).toMatch(/data-email-ascii="bWlrZUBhY21lLnRlc3Q="/);
         expect(html).not.toContain('mike@acme.test'); // raw email NOT in HTML
@@ -77,13 +77,13 @@ describe('InspectorProfilePage — Sprint C-1', () => {
 
     it('renders gracefully with missing photo + bio', () => {
         const minimal: InspectorProfile = { ...PROFILE, photoUrl: null, bio: null };
-        const html = render(InspectorProfilePage({ profile: minimal, services: SERVICES, host: 'acme.inspectorhub.io' }));
+        const html = render(InspectorProfilePage({ profile: minimal, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         expect(html).toContain('Mike Reynolds');
         expect(html).not.toContain('null');
     });
 
     it('mobile responsive — 600px breakpoint reduces hero photo to 120px and stacks services', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
         expect(html).toMatch(/@media[^{]*max-width:\s*600px/);
         // hero-photo gets 120px max in mobile media query
         expect(html).toMatch(/max-width:\s*120px/);
@@ -92,8 +92,8 @@ describe('InspectorProfilePage — Sprint C-1', () => {
     });
 
     it('canonical link + alternate ICS link for SEO + calendar discovery', () => {
-        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'acme.inspectorhub.io' }));
-        expect(html).toMatch(/<link rel="canonical" href="https:\/\/acme\.inspectorhub\.io\/inspector\/mike"/);
-        expect(html).toMatch(/<link rel="alternate" type="text\/calendar"[^>]*href="\/inspector\/mike\/calendar\.ics"/);
+        const html = render(InspectorProfilePage({ profile: PROFILE, services: SERVICES, host: 'app.inspectorhub.io', tenantSlug: 'acme' }));
+        expect(html).toMatch(/<link rel="canonical" href="https:\/\/app\.inspectorhub\.io\/inspector\/acme\/mike"/);
+        expect(html).toMatch(/<link rel="alternate" type="text\/calendar"[^>]*href="\/inspector\/acme\/mike\/calendar\.ics"/);
     });
 });

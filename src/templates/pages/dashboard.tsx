@@ -2,16 +2,32 @@ import { MainLayout } from '../layouts/main-layout';
 import { BrandingConfig } from '../../types/auth';
 import { CancelModal } from '../components/cancel-modal';
 import { Modal } from '../components/modal';
+import { NewInspectionWizard } from '../components/new-inspection-wizard';
+import { TeamStrip } from '../components/team-strip';
 import { PageHeader } from '../components/page-header';
+import { WorkflowTabs } from '../components/workflow-tabs';
+import { FiltersModal } from '../components/filters-modal';
 import { CustomizeColumnsModal } from '../components/customize-columns-modal';
 import { InspectionRow } from '../components/inspection-row';
+import { SeatBanner } from '../../features/seat-quota/seat-banner';
+import type { SeatUsage } from '../../features/seat-quota/usage';
 
-export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
+interface DashboardPageProps {
+    branding?: BrandingConfig | undefined;
+    seatUsage?: SeatUsage;
+    billingPortalUrl?: string | null;
+}
+
+export const DashboardPage = ({ branding, seatUsage, billingPortalUrl }: DashboardPageProps = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
 
     return (
         <MainLayout title={`${siteName} | Dashboard`} branding={branding}>
             <div class="space-y-6 animate-fade-in">
+
+                {seatUsage !== undefined && billingPortalUrl !== undefined ? (
+                    <SeatBanner usage={seatUsage} billingPortalUrl={billingPortalUrl} />
+                ) : null}
 
                 {/* Sprint 1 Sub-spec B Task 3 — canonical PageHeader.
                     Meta is wired to dashboardMeta Alpine data (see dashboard.js)
@@ -30,6 +46,36 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     Opens the modal whose Alpine state is on the modal root.
                                     Sits to the LEFT of New Inspection so the primary CTA
                                     keeps its position; styled as a low-emphasis icon button. */}
+                                {/* Design System 0520 subsystem E P3.2 — dashboard
+                                    Filters + Export. The Filters button summons the
+                                    FiltersModal; the Export button calls exportCsv()
+                                    on the dashboard scope (defined in dashboard.js). */}
+                                <button
+                                    type="button"
+                                    {...{ '@click': "$dispatch('open-filters')" }}
+                                    class="h-8 px-3 rounded-md border bg-white text-slate-600 font-bold text-[13px] hover:bg-slate-50 active:scale-95 transition-all inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                                    style="border-color: #e2e8f0"
+                                    aria-label="Filters"
+                                    title="Filters"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                                    </svg>
+                                    Filters
+                                </button>
+                                <button
+                                    type="button"
+                                    {...{ '@click': "$dispatch('export-csv')" }}
+                                    class="h-8 px-3 rounded-md border bg-white text-slate-600 font-bold text-[13px] hover:bg-slate-50 active:scale-95 transition-all inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                                    style="border-color: #e2e8f0"
+                                    aria-label="Export CSV"
+                                    title="Export visible inspections as CSV"
+                                >
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"></path>
+                                    </svg>
+                                    Export
+                                </button>
                                 <button
                                     type="button"
                                     onclick="document.getElementById('customizeColumnsModal')?.classList.remove('hidden')"
@@ -55,10 +101,31 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                                     </svg>
                                     New Inspection
                                 </button>
+                                {/* Design System 0520 subsystem B phase 5 — discoverable
+                                    wizard launcher. Coexists with the legacy quick-create
+                                    button above; wizard offers the 4-step flow with
+                                    team-mode + service picker + scheduled time + duration. */}
+                                <button
+                                    type="button"
+                                    onclick="window.dispatchEvent(new CustomEvent('open-new-inspection-wizard'))"
+                                    class="h-8 px-3 rounded-md ring-1 ring-indigo-300 text-indigo-700 text-[13px] font-semibold hover:bg-indigo-50 inline-flex items-center gap-1.5"
+                                    title="Open 4-step wizard"
+                                >
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                    </svg>
+                                    Wizard
+                                </button>
                             </>
                         }
                     />
                 </div>
+
+                {/* Design System 0520 subsystem B phase 7 — TeamStrip. Auto-hides
+                    when the tenant has <2 inspectors; otherwise renders a roster
+                    with live online/offline indicators streamed from the
+                    TenantPresenceDO via TenantPresenceClient. */}
+                <TeamStrip />
 
                 {/* Statistics Grid — R7-04 fix: each card is now a button
                     that opens the matching bucket section + scrolls into
@@ -136,6 +203,19 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
 
                 {/* Collapsible Inspection Sections */}
                 <div x-data="dashboard()" x-init="init()" class="space-y-4 mt-8">
+
+                    {/* Design System 0520 subsystem E P3.2 — Filters modal mount.
+                    Listens for `open-filters` (no detail) and broadcasts
+                    `filters-changed` on Apply / Reset. */}
+                <FiltersModal />
+
+                {/* Design System 0520 subsystem E P2 — WorkflowTabs.
+                        Sits above the inspections list; recounts from the
+                        same `inspections-loaded` event the table consumes,
+                        broadcasts `workflow-filter-changed` for the list's
+                        visible-rows computer to AND-filter against the
+                        existing time + tag selectors. */}
+                    <WorkflowTabs />
 
                     {/* Spec 4E — offline cache progress pill */}
                     <div x-show="cacheProgress" {...{ 'x-cloak': true }} class="text-xs text-slate-500 inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-full">
@@ -406,6 +486,12 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                     but the dashboard() factory's `isVisible(id)` reactive
                     helper is shared via `window.__dashboardColumns`). */}
                 <CustomizeColumnsModal />
+                {/* Design System 0520 subsystem B phase 5 — NewInspectionWizard.
+                    4-step modal opened via window 'open-new-inspection-wizard'
+                    event. Coexists with the legacy showCreateModal() flow so
+                    existing callers (inspection-row duplicate menu, agent
+                    submissions) remain functional. */}
+                <NewInspectionWizard />
 
                 {/* Create Inspection Modal — R7-11 fix: add overflow-x-hidden so
                     in-modal vertical scroll doesn't spill into page-level
@@ -566,7 +652,35 @@ export const DashboardPage = ({ branding }: { branding?: BrandingConfig | undefi
                 <script src="/js/auth.js"></script>
                 <script src="/js/action-menu.js"></script>
                 <script src="/js/dashboard.js"></script>
-                <script type="module" src="/js/contact-selector.js"></script>
+                {/* Design System 0520 subsystem E P2 — WorkflowTabs factory. */}
+                <script src="/js/workflow-tabs.js"></script>
+                {/* Design System 0520 subsystem E P3 — Filters modal +
+                    CSV export. csv-export is loaded as a module so
+                    dashboard.js can grab toCsv via window.csvExport.* */}
+                <script src="/js/filters-modal.js"></script>
+                <script
+                    type="module"
+                    dangerouslySetInnerHTML={{
+                        __html: `
+                            import { toCsv, downloadCsv } from '/js/csv-export.js';
+                            window.csvExport = { toCsv, downloadCsv };
+                        `,
+                    }}
+                ></script>
+                {/* contact-selector has no ESM imports — load as classic
+                    script so its alpine:init listener attaches BEFORE the
+                    deferred alpine.min.js fires that event. As a type=module
+                    it auto-defers and Alpine warns "contactSelector is not
+                    defined" on first evaluation. */}
+                <script src="/js/contact-selector.js"></script>
+                {/* Design System 0520 subsystem B phase 5 — NewInspectionWizard factory. */}
+                <script src="/js/new-inspection-wizard.js"></script>
+                {/* Design System 0520 subsystem B phase 7 — TeamStrip + its
+                    TenantPresenceClient dependency. Loaded as modules so
+                    they can `import` from /js/presence-protocol.js +
+                    /js/conflict-resolver-helpers.js. */}
+                <script type="module" src="/js/tenant-presence-client.js"></script>
+                <script type="module" src="/js/team-strip.js"></script>
                 <script type="module" src="/js/dashboard-prefetch.js"></script>
             </div>
         </MainLayout>

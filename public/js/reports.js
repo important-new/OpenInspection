@@ -168,7 +168,11 @@ function formatDate(d) {
 }
 
 async function copyReportLink(id) {
-    const url = window.location.origin + '/report/' + id;
+    const tenantRoot = document.querySelector('[data-tenant-subdomain]');
+    const tenant = tenantRoot?.getAttribute('data-tenant-subdomain') || '';
+    const url = tenant
+        ? window.location.origin + '/report/' + tenant + '/' + id
+        : window.location.origin + '/report/' + id;
     try {
         await navigator.clipboard.writeText(url);
         if (typeof showToast === 'function') showToast('Public report link copied.');

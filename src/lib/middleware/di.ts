@@ -1,6 +1,11 @@
 import { Context, Next } from 'hono';
 import { HonoConfig, AppServices } from '../../types/hono';
 import { AdminService } from '../../services/admin.service';
+import { UnitService } from '../../services/unit.service';
+import { ObserverLinkService } from '../../services/observer-link.service';
+import { ReportVersionService } from '../../services/report-version.service';
+import { ApprenticeService } from '../../services/apprentice.service';
+import { GuestInviteService } from '../../services/guest-invite.service';
 import { AIService } from '../../services/ai.service';
 import { AuthService } from '../../services/auth.service';
 import { BookingService } from '../../services/booking.service';
@@ -38,15 +43,30 @@ import { IcsService } from '../../services/ics.service';
 import { AgentService } from '../../services/agent.service';
 import { ConciergeService } from '../../services/concierge.service';
 import { QBOService } from '../../services/qbo.service';
+import { IdentityService } from '../../services/identity.service';
+import { IntegrationsService } from '../../services/integrations.service';
+import { AnalyticsService } from '../../services/analytics.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../integration/portal';
+import { getDeploymentProfile } from '../deployment-profile';
+import { buildKeyring } from '../jwt-keyring';
 
 /**
  * Middleware that injects a lazy-loaded service registry into the Hono context.
  * When env vars for email/AI are absent, falls back to AES-GCM-decrypted DB secrets.
  */
 export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
+    c.set('profile', getDeploymentProfile(c.env));
+    // Per-request ES256 keyring. PEM → CryptoKey imports happen at most once
+    // per request; downstream sign/verify call sites share the same Promise.
+    // .catch() suppresses the "unhandled rejection" diagnostic for requests
+    // that never touch JWTs (webhooks, healthchecks). Real awaiters still see
+    // the original rejection — the .catch() returns a separate, swallowed
+    // chain that never sees an `await`.
+    const keyringPromise = buildKeyring(c.env as unknown as Record<string, string | undefined>);
+    keyringPromise.catch(() => { /* defer reporting to the first awaiter */ });
+    c.set('keyringPromise', keyringPromise);
     // Pre-load DB secrets only when env vars are absent and tenant is known.
     // Env vars always take priority over DB-stored config.
     let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
@@ -79,10 +99,11 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.ai = new AIService(
                         c.env.DB,
                         c.env.GEMINI_API_KEY || dbSecrets.geminiApiKey || '',
-                        // Sprint 1 A-4: pass APP_MODE so the service can return
-                        // dev-mock suggestions in standalone (local) deployments
-                        // when no API key is set, instead of throwing 503.
-                        c.env.APP_MODE,
+                        // Sprint 1 A-4: pass effective deployment mode so the
+                        // service can return dev-mock suggestions when the
+                        // active profile permits it (standalone) and
+                        // no API key is configured, instead of throwing 503.
+                        c.var.profile.aiDevMockFallback ? 'standalone' : 'saas',
                     );
                     break;
                 case 'auth':
@@ -105,7 +126,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS, c.get('sdb'), c.env.TENANT_CACHE);
                     break;
                 case 'team':
-                    target.team = new TeamService(c.env.DB, ...(c.env.APP_MODE ? [{ APP_MODE: c.env.APP_MODE }] : []));
+                    target.team = new TeamService(c.env.DB);
                     break;
                 case 'template':
                     target.template = new TemplateService(c.env.DB);
@@ -252,6 +273,30 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         c.env.QBO_WEBHOOK_SECRET ?? '',
                         c.env.JWT_SECRET,
                     );
+                    break;
+                case 'unit':
+                    target.unit = new UnitService(c.env.DB);
+                    break;
+                case 'observerLink':
+                    target.observerLink = new ObserverLinkService(c.env.DB);
+                    break;
+                case 'reportVersion':
+                    target.reportVersion = new ReportVersionService(c.env.DB);
+                    break;
+                case 'apprentice':
+                    target.apprentice = new ApprenticeService(c.env.DB);
+                    break;
+                case 'guestInvite':
+                    target.guestInvite = new GuestInviteService(c.env.DB);
+                    break;
+                case 'identity':
+                    target.identity = new IdentityService(c.env.DB);
+                    break;
+                case 'integrations':
+                    target.integrations = new IntegrationsService(c.env.DB, c.env);
+                    break;
+                case 'analytics':
+                    target.analytics = new AnalyticsService(c.env.DB);
                     break;
             }
             return target[prop];

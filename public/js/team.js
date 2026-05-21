@@ -49,14 +49,15 @@ window.teamMeta = teamMeta;
 
             const pending = invites.filter(i => i.status === 'pending');
             const total = members.length + pending.length;
-            quotaBadge.textContent = maxUsers ? `Seats used: ${total} / ${maxUsers}` : `Seats used: ${total}`;
+            if (quotaBadge) quotaBadge.textContent = maxUsers ? `Seats used: ${total} / ${maxUsers}` : `Seats used: ${total}`;
 
             renderMembers(members);
             renderInvites(pending);
 
         } catch (e) {
             console.error('Error fetching team:', e);
-            membersList.innerHTML = '<tr><td colspan="3" class="px-6 py-8 text-sm text-center text-red-400">Network error. Please refresh.</td></tr>';
+            const detail = e instanceof Error ? e.message : String(e ?? 'unknown');
+            membersList.innerHTML = `<tr><td colspan="3" class="px-6 py-8 text-sm text-center text-red-400">Could not load team — ${detail}. Please refresh.</td></tr>`;
         }
     }
 

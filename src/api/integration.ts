@@ -4,21 +4,28 @@ import { HonoConfig } from '../types/hono';
 import { TenantUpdateParams } from '../lib/integration';
 import { TenantStatusBodySchema, StripeConnectBodySchema } from '../lib/validations/admin.schema';
 import { logger } from '../lib/logger';
+import { verifyM2mSignature } from '../lib/m2m-auth';
 
 const api = new Hono<HonoConfig>();
 
 /**
  * Middleware to verify M2M signature from Portal.
+ *
+ * Delegates to `verifyM2mSignature` which iterates every active
+ * PORTAL_M2M_SECRET_V<N> + legacy PORTAL_M2M_SECRET, enabling
+ * zero-downtime overlap-window secret rotation. The legacy single-secret
+ * check was removed in favour of the keyring helper.
  */
 async function verifyPortalSignature(c: Context<HonoConfig>, next: () => Promise<void>) {
-    const signature = c.req.header('x-portal-signature');
-    const secret = c.env.PORTAL_M2M_SECRET;
-
-    if (!secret) {
-        logger.error('PORTAL_M2M_SECRET is not configured');
+    const env = c.env as unknown as Record<string, string | undefined>;
+    const hasAnySecret = !!env['PORTAL_M2M_SECRET']
+        || Object.keys(env).some(k => /^PORTAL_M2M_SECRET_V\d+$/.test(k) && env[k]);
+    if (!hasAnySecret) {
+        logger.error('No PORTAL_M2M_SECRET[_V<N>] configured');
         return c.json({ error: 'Integration not configured' }, 501);
     }
 
+    const signature = c.req.header('x-portal-signature');
     if (!signature) {
         return c.json({ error: 'Missing signature' }, 401);
     }
@@ -32,47 +39,12 @@ async function verifyPortalSignature(c: Context<HonoConfig>, next: () => Promise
         body = rawBody;
     }
 
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(secret),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['verify']
-    );
-
-    const sigParts = signature.split('.');
-    if (sigParts.length !== 2) return c.json({ error: 'Invalid signature format' }, 401);
-
-    const [timestamp, hash] = sigParts;
-    const data = `${timestamp}.${body}`;
-
-    // Verify timestamp (within 5 minutes)
-    const now = Math.floor(Date.now() / 1000);
-    if (Math.abs(now - parseInt(timestamp)) > 300) {
-        return c.json({ error: 'Signature expired' }, 401);
-    }
-
-    const isValid = await crypto.subtle.verify(
-        'HMAC',
-        key,
-        hexToUint8Array(hash),
-        encoder.encode(data)
-    );
-
+    const isValid = await verifyM2mSignature(signature, body, env);
     if (!isValid) {
         return c.json({ error: 'Invalid signature' }, 401);
     }
 
     return next();
-}
-
-function hexToUint8Array(hex: string) {
-    const arr = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < arr.length; i++) {
-        arr[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
-    }
-    return arr;
 }
 
 /**

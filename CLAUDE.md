@@ -31,7 +31,7 @@ npm run deploy       # Deploy to Cloudflare Workers
 ## Core Architecture
 
 ### Authentication
-- JWT-based authentication system (HS256, HttpOnly cookie `__Host-inspector_token`).
+- JWT-based authentication (ES256 / ECDSA P-256, HttpOnly cookie `__Host-inspector_token`). Multi-version keyring with `kid` header support for safe rotation — see `src/lib/jwt-keyring.ts`.
 - Supports both Cookie (for dashboard) and Bearer Header (for API) token delivery.
 - PBKDF2-SHA256 password hashing (100k iterations, 16-byte salt). Legacy SHA-256 hashes auto-rehashed on login.
 
@@ -51,7 +51,10 @@ npm run deploy       # Deploy to Cloudflare Workers
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `JWT_SECRET` | Yes | Token signing key |
+| `JWT_CURRENT_KID` | Yes | Active JWT keypair version (e.g. `v1`). Names which `JWT_PRIVATE_KEY_V<N>`/`JWT_PUBLIC_KEY_V<N>` pair signs new tokens. |
+| `JWT_PRIVATE_KEY_V<N>` | Yes | PKCS8 PEM-encoded ES256 private key for version `vN`. At least V1 must be provisioned. |
+| `JWT_PUBLIC_KEY_V<N>` | Yes | SPKI PEM-encoded ES256 public key for version `vN`. Pairs with private key. Keep older versions in env during rotation so existing tokens stay valid. |
+| `JWT_SECRET` | Yes | KDF input for `config-crypto`, `qbo-crypto`, audit signing-key encryption, and M2M Bearer auth. **Not** used for JWT signing anymore — that moved to the ES256 keyring above. |
 | `DB` | Yes | Cloudflare D1 Database binding |
 | `PHOTOS` | Yes | Cloudflare R2 Bucket for image storage |
 | `TENANT_CACHE`| Yes | Cloudflare KV for configuration caching |
@@ -83,9 +86,11 @@ npm run deploy       # Deploy to Cloudflare Workers
 
 These rules are **mandatory** for any code that touches authentication. Violations reintroduce critical vulnerabilities.
 
-- **HS256 pinning**: Every `sign()` call MUST pass `'HS256'` as the 3rd argument. Every `verify()` call MUST pass `'HS256'`.
-- **iat claim**: Every `sign()` call MUST include `iat: Math.floor(Date.now() / 1000)`. Without `iat`, KV session invalidation cannot work.
-- **No fallback secret**: NEVER use `JWT_SECRET || 'fallback'` or any hardcoded default. Throw if `JWT_SECRET` is missing or `< 32 chars`.
+- **ES256 keyring**: All JWT signing and verification MUST go through `src/lib/jwt-keyring.ts`. Direct `sign()` / `verify()` calls from `hono/jwt` are FORBIDDEN — the keyring pins the algorithm to ES256 (ECDSA P-256 SHA-256), stamps the `kid` header, and enforces multi-version verification. Per-request keyrings are pre-built in `diMiddleware` and exposed as `await c.var.keyringPromise`.
+- **kid required**: Every JWT MUST carry a `kid` header. `signJwt()` sets it from `JWT_CURRENT_KID`; `verifyJwt()` rejects tokens with no kid, or with a kid that is not in the keyring.
+- **iat claim**: `signJwt()` auto-injects `iat: Math.floor(Date.now() / 1000)` when the caller omits it. Without `iat`, KV session invalidation (`pwchanged:{userId}`) cannot work.
+- **No HS256 fallback**: There is NO legacy HS256 path. Pre-launch architectural choice — see rotation scripts and docs. The remaining `JWT_SECRET` env binding is now used only as KDF input for `config-crypto`, `qbo-crypto`, audit signing-key encryption, and M2M Bearer auth — never for JWT signing.
+- **Key rotation flow**: To rotate, provision `JWT_PRIVATE_KEY_V<N+1>` + `JWT_PUBLIC_KEY_V<N+1>` first (verify-only window), then flip `JWT_CURRENT_KID` to the new version. Old tokens remain verifiable until V<N> is retired.
 - **Token NOT in response body**: Login, setup, and join endpoints MUST NOT return the JWT in the JSON response. Tokens are delivered exclusively via `Set-Cookie` (HttpOnly).
 - **Cookie name**: Always use `__Host-inspector_token` (enforces `Secure`, `Path=/`, no `Domain`).
 - **setCookie attributes**: Every `setCookie()` MUST include `httpOnly: true, secure: true, sameSite: 'Strict', path: '/'`.

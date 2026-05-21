@@ -18,23 +18,60 @@ APP_MODE = "standalone"
 # Default: Cloudflare's official always-pass test key (safe to use until you go live)
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 
-# ── Sandbox mode (Sprint 1 CC-2) ───────────────────────────────────────────
-# Set to "true" only on the public demo deployment (sandbox.inspectorhub.io).
-# Enables a top banner on every authenticated page warning visitors that the
-# data resets nightly. Production self-hosters MUST leave this unset/empty.
-SANDBOX_MODE = ""
-
-# ── Sandbox environment override ───────────────────────────────────────────
-# Deploy with `wrangler deploy --env sandbox` to flip SANDBOX_MODE on without
-# touching the production worker. Used by the openinspection-sandbox Worker
-# bound to sandbox.inspectorhub.io.
-[env.sandbox]
-name = "openinspection-sandbox"
-[env.sandbox.vars]
-ENVIRONMENT = "sandbox"
-APP_MODE = "standalone"
-SANDBOX_MODE = "true"
+# ── SaaS environment override ──────────────────────────────────────────────
+# Deploy with `wrangler deploy --env saas` to bring up a multi-tenant
+# control-plane-fronted worker at app.<your-domain>. Pairs with
+# apps/portal for billing + onboarding. Replace PORTAL_API_URL with your
+# own portal worker that owns Stripe + onboarding workflows.
+#
+# IMPORTANT: wrangler does NOT inherit top-level resource bindings into
+# env-specific overrides. Every binding must be redeclared under env.saas.*.
+# The SaaS topology typically uses a single
+# large D1 + a TENANT_CACHE KV partitioned by subdomain key prefix.
+[env.saas]
+name = "openinspection-saas"
+[env.saas.vars]
+ENVIRONMENT = "production"
+APP_MODE = "saas"
+SAAS_TOPOLOGY = "shared"
+PORTAL_API_URL = "https://portal.your-domain.com"
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+[[env.saas.d1_databases]]
+binding = "DB"
+database_name = "openinspection-saas-db"
+# Placeholder — create a separate D1 for the SaaS multi-tenant deployment
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+[[env.saas.kv_namespaces]]
+binding = "TENANT_CACHE"
+id = "00000000000000000000000000000000"
+[[env.saas.unsafe.bindings]]
+type = "ratelimit"
+name = "RATE_LIMITER"
+namespace_id = "1003"
+simple = { limit = 10, period = 60 }
+[[env.saas.r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "openinspection-saas-photos"
+[[env.saas.r2_buckets]]
+binding = "REPORTS"
+bucket_name = "openinspection-saas-reports"
+[env.saas.browser]
+binding = "BROWSER"
+[[env.saas.workflows]]
+binding = "SIGN_COMPLETION_WORKFLOW"
+name = "sign-completion-workflow-saas"
+class_name = "SignCompletionWorkflow"
+# Design System 0520 subsystem B — presence DOs mirrored into saas env.
+[[env.saas.durable_objects.bindings]]
+name       = "INSPECTION_PRESENCE"
+class_name = "InspectionPresenceDO"
+[[env.saas.durable_objects.bindings]]
+name       = "TENANT_PRESENCE"
+class_name = "TenantPresenceDO"
+[[env.saas.migrations]]
+tag = "v1"
+new_classes = ["InspectionPresenceDO", "TenantPresenceDO"]
 
 # ── Secrets — set via: wrangler secret put SECRET_NAME ──────────────────────
 # Run `npm run setup:cloudflare` to be prompted for each one interactively.
@@ -61,12 +98,14 @@ TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 [[d1_databases]]
 binding = "DB"
 database_name = "openinspection-standalone-db"
-database_id = "65aa4435-2387-4d9a-9a8b-0095194f2699"
+# Placeholder — `npm run setup:cloudflare` substitutes your real D1 ID
+database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "TENANT_CACHE"
-id = "c890ac2c34ea4f758970bfc0ef7d6d4b"
+# Placeholder — `npm run setup:cloudflare` substitutes your real KV namespace ID
+id = "00000000000000000000000000000000"
 
 [[unsafe.bindings]]
 type = "ratelimit"
@@ -107,3 +146,20 @@ binding = "BROWSER"
 binding = "SIGN_COMPLETION_WORKFLOW"
 name = "sign-completion-workflow"
 class_name = "SignCompletionWorkflow"
+
+# ── Design System 0520 subsystem B — multi-inspector presence (phase 2) ───
+# Two Durable Object classes, both using the WebSocket Hibernation API.
+# InspectionPresenceDO scopes per inspection id; TenantPresenceDO aggregates
+# rosters across the tenant for the dashboard TeamStrip. Standalone single-
+# inspector profiles can leave the bindings absent — routes feature-detect.
+[[durable_objects.bindings]]
+name       = "INSPECTION_PRESENCE"
+class_name = "InspectionPresenceDO"
+
+[[durable_objects.bindings]]
+name       = "TENANT_PRESENCE"
+class_name = "TenantPresenceDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["InspectionPresenceDO", "TenantPresenceDO"]

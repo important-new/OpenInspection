@@ -144,6 +144,18 @@ export class UserService {
     }
 
     /**
+     * Design System 0520 subsystem B phase 1 task 1.2 — update users.last_active_at.
+     * Called by touchLastActiveMiddleware via c.executionCtx.waitUntil() so the
+     * write never blocks the user-visible response. Middleware debounces to
+     * 30 s per userId per worker isolate, so this method is rate-limited
+     * upstream and does not need its own throttle.
+     */
+    async touchLastActive(userId: string, epochSeconds: number): Promise<void> {
+        const db = this.getDrizzle();
+        await db.update(users).set({ lastActiveAt: epochSeconds }).where(eq(users.id, userId));
+    }
+
+    /**
      * Generates `count` numeric-suffix alternatives — `<base>-2`, `<base>-3`,
      * etc. Pure helper kept side-effect-free so it can be reused by the API
      * route when it wants to surface suggestions on a 409 response.

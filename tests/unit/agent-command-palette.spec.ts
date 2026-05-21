@@ -51,14 +51,14 @@ describe('AgentCommandPalette — UC-A-6', () => {
                 { name: 'Bob',  slug: 'bob',  tenantSubdomain: 'bobs' },
             ],
             agentSlug: 'jane',
-            bookingHost: 'inspectorhub.io',
+            bookingHost: 'app.inspectorhub.io',
         }));
         // x-data payload is HTML-attribute-encoded — match either raw URL
         // string or its escaped form.
         expect(html).toContain('Copy booking link — Mike');
         expect(html).toContain('Copy booking link — Bob');
-        expect(html).toContain('https://acme.inspectorhub.io/book/mike?ref=jane');
-        expect(html).toContain('https://bobs.inspectorhub.io/book/bob?ref=jane');
+        expect(html).toContain('https://app.inspectorhub.io/book/acme/mike?ref=jane');
+        expect(html).toContain('https://app.inspectorhub.io/book/bobs/bob?ref=jane');
     });
 
     it('skips inspectors with no slug (no copy action emitted)', () => {
@@ -78,10 +78,10 @@ describe('AgentCommandPalette — UC-A-6', () => {
         const html = render(AgentCommandPalette({
             inspectors: [{ name: 'Mike', slug: 'mike', tenantSubdomain: 'acme' }],
             agentSlug: null,
-            bookingHost: 'inspectorhub.io',
+            bookingHost: 'app.inspectorhub.io',
         }));
-        expect(html).toContain('https://acme.inspectorhub.io/book/mike');
-        expect(html).not.toMatch(/book\/mike\?ref=/);
+        expect(html).toContain('https://app.inspectorhub.io/book/acme/mike');
+        expect(html).not.toMatch(/book\/acme\/mike\?ref=/);
     });
 
     it('opens via meta+k OR ctrl+/ keyboard shortcut', () => {

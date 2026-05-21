@@ -3,6 +3,17 @@ import { BareLayout } from '../layouts/main-layout';
 import { Modal, ModalFooter } from '../components/modal';
 import { PublishModal } from '../components/publish-modal';
 import { BurstCamera } from '../components/burst-camera';
+import { SpeedMode } from '../components/speed-mode';
+import { PhotoStudio } from '../components/photo-studio';
+import { InspectorToolsDock } from '../components/inspector-tools-dock';
+import { LiveConflictModal } from '../components/live-conflict-modal';
+import { RosterPopover } from '../components/roster-popover';
+import { ProgressStrip } from '../components/progress-strip';
+import { TeamBanner } from '../components/team-banner';
+import { FooterBar } from '../components/footer-bar';
+import { ReconnectBanner } from '../components/reconnect-banner';
+import { UnitTree } from '../components/unit-tree';
+import { MintObserverLinkModal } from '../components/mint-observer-link-modal';
 import type { BrandingConfig } from '../../types/auth';
 import { RECOMMENDATION_CATEGORIES } from '../../lib/recommendation-categories';
 
@@ -280,8 +291,34 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
       </nav>
       <div
         x-data={`inspectionEditor('${inspectionId}')`}
+        data-inspection-id={inspectionId}
         class="min-h-screen editor-canvas"
       >
+        {/* Design System 0520 subsystem B phase 4 task 4.5 — ReconnectBanner.
+            Sticky amber strip at top showing offline-queue status when
+            pending writes are queued or conflicts have surfaced. */}
+        <ReconnectBanner />
+        {/* Design System 0520 subsystem D phase 2 task 2.2 — UnitTree.
+            Hidden by `x-show="hasUnits || allowEnable"` so single-unit
+            residential inspections never see the rail. When shown, the
+            factory broadcasts `unit-selected` on window and the editor
+            scopes visibleItems via the `selectedUnitId` Alpine state
+            (see public/js/inspection-edit.js). */}
+        <UnitTree />
+        {/* Design System 0520 subsystem D phase 5 task 5.2 — observer
+            mint dialog. Trigger via $dispatch('open-mint-observer')
+            from any toolbar button (e.g. InspectorToolsDock fifth
+            tile, follow-up commit). */}
+        <MintObserverLinkModal />
+        {/* Design System 0520 subsystem B phase 6 task 6.5 — TeamBanner.
+            Auto-hidden when inspection.team_mode is false; otherwise shows
+            stacked avatars of lead + helpers and a Manage button that
+            dispatches `open-roster-popover` to summon the live roster. */}
+        <TeamBanner />
+        {/* Design System 0520 subsystem B phase 6 — ProgressStrip donut
+            + ETA + section heat-map. Auto-hides when no items yet. */}
+        <ProgressStrip />
+
         {/* Spec 5G M1.1 — Global hotkey photo input. P key triggers .click()
             on this hidden input; uploadPhoto reads activeItemId. */}
         <input
@@ -1915,6 +1952,36 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             `burst-camera:open` window event when the user taps a Camera
             button; the modal's `init()` listens and opens for that item. */}
         <BurstCamera />
+        {/* Design System 0520 M10 — SpeedMode full-screen single-item rating
+            overlay. Triggered by `Z` keyboard shortcut. Mounts at page root
+            so the fixed-inset overlay stacks above all editor chrome. */}
+        <SpeedMode />
+        {/* Design System 0520 M14 — PhotoStudio MVP annotation overlay.
+            Opened via `open-photo-studio` window event dispatched from photo
+            thumbnails. EXIF reads server-extracted exifData (no client
+            parsing). Save → PUT /api/inspections/:id/media/:mediaId/annotations. */}
+        <PhotoStudio />
+        {/* Design System 0520 M15 — InspectorTools FAB dock. Bottom-right
+            discoverable entry for SpeedMode / BurstCamera / PhotoStudio /
+            keyboard cheatsheet. Hot keys remain authoritative; dock is
+            mouse-driven discovery only. Auto-hidden while either overlay is
+            active to avoid float overlap. */}
+        <InspectorToolsDock />
+        {/* Design System 0520 subsystem B phase 4 task 4.4 — FooterBar.
+            Sticky bottom sync chip surfacing OfflineQueue state. */}
+        <FooterBar />
+        {/* Design System 0520 subsystem B phase 3 — live (online) conflict
+            modal. Distinct from the existing conflict-modal.tsx which
+            handles OFFLINE-replay conflicts surfaced by the Dexie sync
+            queue. This one fires when an online PATCH returns 409 because
+            another inspector saved the same field concurrently. */}
+        <LiveConflictModal />
+        {/* Design System 0520 subsystem B phase 7 — RosterPopover. Opens
+            via `open-roster-popover` window event; subscribes to the
+            current inspection's PresenceClient to show who is editing
+            (and which item). Add/Invite buttons are stubs that activate
+            when subsystem C M9 InviteSeatModal ships. */}
+        <RosterPopover />
         <Modal
             name="showLegacyPublishOptions"
             title="Publish options"
@@ -2366,11 +2433,58 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           __html: `window.__OI_RECO_GROUPS = ${JSON.stringify(recoGroups)};`,
         }}
       ></script>
+      {/* Design System 0520 M10 — expose SpeedMode pure helpers on window.
+          Must load BEFORE inspection-edit.js so the Alpine factory finds them
+          (per feedback_alpine_register_timing). */}
+      <script type="module" dangerouslySetInnerHTML={{
+        __html: `
+          import { buildSpeedQueue, nextUnratedIndex, isQueueExhausted } from '/js/speed-mode-helpers.js';
+          window.SpeedMode = { buildSpeedQueue, nextUnratedIndex, isQueueExhausted };
+        `,
+      }}></script>
       <script src="/js/inspection-edit.js"></script>
+      {/* Design System 0520 subsystem E P1.4 — pre-flight checks factory.
+          Mounted inside publish-modal; reads inspection id from the
+          window global set by inspectionEditor() above. */}
+      <script src="/js/preflight.js"></script>
       {/* S3-6 — burst-camera Alpine factory. Loads after inspection-edit.js
           so the editor's _uploadBlobAsPhoto helper is reachable at commit
           time. */}
       <script src="/js/burst-camera.js"></script>
+      {/* Design System 0520 M14 — PhotoStudio annotation overlay factory.
+          Loads after inspection-edit.js so the editor can dispatch the
+          `open-photo-studio` window event after the factory's init() has
+          subscribed. */}
+      <script type="module" src="/js/photo-studio.js"></script>
+      {/* Design System 0520 subsystem B phase 3 — live conflict modal factory.
+          Loaded as a module so it can `import` the conflict-resolver-helpers
+          ESM bundle alongside its companion components. */}
+      <script type="module" src="/js/live-conflict-modal.js"></script>
+      {/* Design System 0520 subsystem B phase 7 — RosterPopover + its
+          PresenceClient dependency. Both modules — PresenceClient self-
+          registers on window, RosterPopover reads from the data-inspection-id
+          attribute stamped on the editor root. */}
+      <script type="module" src="/js/presence-client.js"></script>
+      <script type="module" src="/js/roster-popover.js"></script>
+      {/* Design System 0520 subsystem B phase 6 — ProgressStrip factory.
+          Pulls completion / ETA / heat-map from progress-strip-helpers.js. */}
+      <script type="module" src="/js/progress-strip.js"></script>
+      {/* Design System 0520 subsystem B phase 6 — TeamBanner factory. */}
+      <script src="/js/team-banner.js"></script>
+      {/* Design System 0520 subsystem D phase 2 — UnitTree factory.
+          The tree appears as a left rail when this inspection has any
+          inspection_units rows, and broadcasts `unit-selected` events
+          for the editor's scoped-filter logic. */}
+      <script src="/js/unit-tree.js"></script>
+      {/* Design System 0520 subsystem D phase 5 task 5.2 — observer
+          mint dialog factory. */}
+      <script src="/js/mint-observer-link-modal.js"></script>
+      {/* Design System 0520 subsystem B phase 4 — OfflineQueue adapter +
+          its FooterBar / ReconnectBanner consumers. Loaded as modules so
+          the adapter can import from /js/sync-engine.js + /js/db.js. */}
+      <script type="module" src="/js/offline-queue.js"></script>
+      <script type="module" src="/js/footer-bar.js"></script>
+      <script type="module" src="/js/reconnect-banner.js"></script>
       <script src="/js/inspection-events.js"></script>
       {/* Sprint 2 S2-2 — request switcher Alpine factory. */}
       <script src="/js/request-switcher.js"></script>

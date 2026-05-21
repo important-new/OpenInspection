@@ -21,14 +21,16 @@ const INSPECTORS = [
     },
 ];
 
-const HOST_SUFFIX = 'inspectorhub.io';
+// PR 2 — path-tenant booking URLs (`/book/<tenant>/<slug>`) work uniformly
+// from a single host across every deploy mode.
+const HOST = 'app.inspectorhub.io';
 
 describe('AgentInspectorsPage — A2', () => {
     it('renders one card per linked inspector with photo + name + booking link', () => {
         const html = render(AgentInspectorsPage({
             agent: { name: 'Jane', slug: 'jane' },
             inspectors: INSPECTORS,
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
         expect(html).toContain('data-testid="inspector-card-mike"');
         expect(html).toContain('data-testid="inspector-card-bob"');
@@ -38,19 +40,19 @@ describe('AgentInspectorsPage — A2', () => {
         const html = render(AgentInspectorsPage({
             agent: { name: 'Jane', slug: 'jane' },
             inspectors: INSPECTORS,
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
-        expect(html).toContain('data-booking-url="https://acme.inspectorhub.io/book/mike?ref=jane"');
-        expect(html).toContain('data-booking-url="https://bobs.inspectorhub.io/book/bob?ref=jane"');
+        expect(html).toContain('data-booking-url="https://app.inspectorhub.io/book/acme/mike?ref=jane"');
+        expect(html).toContain('data-booking-url="https://app.inspectorhub.io/book/bobs/bob?ref=jane"');
     });
 
     it('omits ref query param when agent has no slug', () => {
         const html = render(AgentInspectorsPage({
             agent: { name: 'Jane', slug: null },
             inspectors: INSPECTORS,
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
-        expect(html).toContain('data-booking-url="https://acme.inspectorhub.io/book/mike"');
+        expect(html).toContain('data-booking-url="https://app.inspectorhub.io/book/acme/mike"');
         expect(html).not.toContain('?ref=');
     });
 
@@ -58,7 +60,7 @@ describe('AgentInspectorsPage — A2', () => {
         const html = render(AgentInspectorsPage({
             agent: { name: 'Jane', slug: 'jane' },
             inspectors: INSPECTORS,
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
         expect(html).toContain('https://r2/me.jpg');
     });
@@ -67,7 +69,7 @@ describe('AgentInspectorsPage — A2', () => {
         const html = render(AgentInspectorsPage({
             agent: { name: 'Jane', slug: 'jane' },
             inspectors: INSPECTORS,
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
         // Bob's card has no photoUrl — render initials "B"
         expect(html).toMatch(/data-testid="inspector-card-bob"[\s\S]*?data-initials="B"/);
@@ -77,7 +79,7 @@ describe('AgentInspectorsPage — A2', () => {
         const html = render(AgentInspectorsPage({
             agent: { name: 'Jane', slug: 'jane' },
             inspectors: [],
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
         expect(html).toContain('data-testid="agent-inspectors-empty"');
     });
@@ -90,7 +92,7 @@ describe('AgentInspectorsPage — A2', () => {
                 contactId: null, inspectorName: 'Anon',
                 inspectorPhotoUrl: null, inspectorSlug: null,
             }],
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
         expect(html).not.toContain('data-booking-url');
         expect(html).toContain('data-testid="inspector-card-no-slug"');
@@ -100,7 +102,7 @@ describe('AgentInspectorsPage — A2', () => {
         const html = render(AgentInspectorsPage({
             agent: { name: 'Jane', slug: 'jane' },
             inspectors: INSPECTORS,
-            hostSuffix: HOST_SUFFIX,
+            host: HOST,
         }));
         expect(html).toContain('data-testid="copy-booking-mike"');
         expect(html).toContain('data-testid="copy-booking-bob"');

@@ -12,7 +12,7 @@ related_code_paths: ["apps/core/", "apps/core/wrangler.toml", "apps/core/.dev.va
 - Core never calls portal APIs
 - Core has its own Stripe integration for pay-to-unlock reports; when a tenant has a `stripeConnectAccountId` the checkout routes through their Connect Express account with a 10% platform fee
 - Core has no tenant registration logic (handled by portal or the first-run setup wizard)
-- Subdomain routing in `src/lib/middleware/tenant-router.ts` defaults to `'dev'` in local development.
+- Subdomain routing in `src/features/tenant-routing/` (specifically `resolve-by-subdomain.ts`) defaults to `'dev'` in local development.
 - **Apex Mode**: Setting `SINGLE_TENANT_ID` enables single-tenant self-hosting on a primary domain, bypassing subdomain routing entirely.
 
 ## Implemented: Deployment Steps

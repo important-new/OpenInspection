@@ -87,5 +87,29 @@ export default defineConfig({
                 baseURL: process.env.CLOUD_BASE_URL || 'https://openinspection-standalone.important-new.workers.dev',
             },
         },
+        // Design System 0520 subsystem A E2E suites. Skipped automatically
+        // when TEST_INSPECTOR_EMAIL / _PASSWORD / TEST_INSPECTION_ID are not
+        // set, so local CI passes without seed data.
+        {
+            name: 'subsystem-a-speed-mode',
+            testMatch: 'subsystem-a-speed-mode.spec.ts',
+        },
+        {
+            name: 'subsystem-a-photo-studio',
+            testMatch: 'subsystem-a-photo-studio.spec.ts',
+        },
+        {
+            name: 'subsystem-a-inspector-tools-dock',
+            testMatch: 'subsystem-a-inspector-tools-dock.spec.ts',
+        },
+        // Design System 0520 subsystem B — auto-skipped when env vars unset.
+        {
+            name: 'subsystem-b-wizard',
+            testMatch: 'subsystem-b-wizard.spec.ts',
+        },
+        {
+            name: 'subsystem-b-team-strip',
+            testMatch: 'subsystem-b-team-strip.spec.ts',
+        },
     ],
 });

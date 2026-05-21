@@ -26,7 +26,7 @@ Request
   │
   ├─ diMiddleware         → injects service registry into context
   │
-  ├─ subdomainRouter      → **Dual Mode Routing**:
+  ├─ tenantRouter      → **Dual Mode Routing**:
   │                         1. Apex Mode: If SINGLE_TENANT_ID is set, bypass subdomain logic.
   │                         2. SaaS Mode: Extract subdomain from Host header,
   │                            look up tenant in KV → D1 fallback.
@@ -57,7 +57,7 @@ Request
 The application supports two primary routing strategies within a single codebase:
 
 ### 1. SaaS Mode (Subdomain-Based)
-In SaaS deployments, each inspection company gets a subdomain (e.g., `smith.yourdomain.com`). The `subdomainRouter` middleware in `src/lib/middleware/tenant-router.ts` extracts the subdomain from the `Host` header, resolves the matching tenant from D1, and caches the result in KV for 5 minutes.
+In SaaS deployments, each inspection company gets a subdomain (e.g., `smith.yourdomain.com`). The `tenantRouter` middleware in `src/features/tenant-routing/` (entry point `index.ts`) tries path-param resolution (`/<prefix>/<tenant>/...` URLs) first, then falls back to subdomain resolution: `resolve-by-subdomain.ts` extracts the subdomain from the `Host` header, resolves the matching tenant from D1, and caches the result in KV for 5 minutes.
 
 ### 2. Apex Mode (Single-Tenant / Self-Hosted)
 In standalone deployments, setting the `SINGLE_TENANT_ID` environment variable activates **Apex Mode**. The router bypasses subdomain extraction and directly loads the context for the specified tenant on the primary domain. This is the recommended mode for individual companies.
@@ -77,7 +77,7 @@ Roles are stored in the `users` table and carried in the JWT as both `role` and 
 
 ## Tenant Tier System
 
-Tenant billing tier and subscription status are stored in the `tenants` table and loaded by `subdomainRouter` into the Hono context on every request.
+Tenant billing tier and subscription status are stored in the `tenants` table and loaded by `tenantRouter` into the Hono context on every request.
 
 ### Tiers
 
@@ -105,7 +105,7 @@ Tenant billing tier and subscription status are stored in the `tenants` table an
 - `'silo_mode'` — enterprise tier only
 - `'stripe_connect'` — pro tier and above
 
-### Context Variables Set by `subdomainRouter`
+### Context Variables Set by `tenantRouter`
 
 | Variable | Type | Source |
 |---|---|---|
@@ -147,9 +147,14 @@ src/
       inspection.ts           — templates, inspections, results, agreements, availability
       index.ts                — re-exports all schema
     middleware/
-      tenant-router.ts        — subdomain → tenantId resolution + KV cache
       rbac.ts                 — requireRole() middleware
       bot-protection.ts       — Turnstile verification + CF threat_score blocking
+features/
+  tenant-routing/             — tenant resolution: path-param → subdomain → fixed
+    index.ts                  — tenantRouter middleware (strategy dispatch)
+    resolve-by-path-param.ts  — /<prefix>/<tenant>/... URL matching
+    resolve-by-subdomain.ts   — Host header → tenant + KV cache
+    resolve-by-fixed-tenant.ts — standalone fallback
     db/
       schema/
         tenant.ts             — tenants, users, tenantInvites tables
@@ -244,4 +249,4 @@ The token is accepted from:
 1. `Authorization: Bearer <token>` header
 2. `inspector_token` cookie (used by dashboard pages)
 
-After JWT verification, `subdomainRouter` additionally populates `tenantTier` and `tenantStatus` in the Hono context from the tenant record. These are not JWT claims — they are loaded from D1 (via KV cache) on every request.
+After JWT verification, `tenantRouter` additionally populates `tenantTier` and `tenantStatus` in the Hono context from the tenant record. These are not JWT claims — they are loaded from D1 (via KV cache) on every request.

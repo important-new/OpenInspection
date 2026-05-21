@@ -4,7 +4,6 @@ import { ConflictModal } from '../components/conflict-modal';
 import { KeyboardHUD } from '../components/keyboard-hud';
 import { CommandPalette } from '../components/command-palette';
 import { InlineTextPopover } from '../components/inline-text-popover';
-import { SandboxBanner } from '../components/sandbox-banner';
 
 function sanitizePrimaryColor(branding?: BrandingConfig): string {
     const raw = branding?.primaryColor || '#6366f1';
@@ -41,15 +40,30 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
             {/* handoff §7 — unsaved-changes guard. Pages opt in by calling
                 window.OIDirty.set(true|false). beforeunload + a-click intercept. */}
             <script src="/js/unsaved-guard.js"></script>
+            {/* Stub Alpine.data registrations for ESM factories (networkPill,
+                conflictModal). The real factories live in /js/network-pill.js
+                and /js/conflict-modal.js which are <script type="module">
+                (auto-deferred to AFTER alpine.min.js), so without these stubs
+                Alpine's first x-data evaluation fires "is not defined" warnings
+                for every property referenced inside (online, pendingItems,
+                popoverOpen, etc.). registerB4Component in those modules calls
+                Alpine.data() again and re-inits trees once the module loads,
+                so the stubs are silently replaced by the real factories.
+                Loaded SYNC before alpine.min.js so the alpine:init listener
+                attaches before Alpine boots. */}
+            <script src="/js/alpine-stubs.js"></script>
             <script defer src="/vendor/alpine-collapse.min.js"></script>
             <script defer src="/vendor/alpine.min.js"></script>
-            {/* These two register Alpine.data factories. Loaded SYNC (no defer)
+            {/* These register Alpine.data factories. Loaded SYNC (no defer)
                 so their alpine:init listener attaches BEFORE the deferred
                 alpine.min.js fires that event. With defer they ran too late
-                and the factories never registered. */}
+                and the factories never registered. Factories with no ESM
+                imports go here; factories that require ESM imports
+                (network-pill, conflict-modal) use the stub pattern above. */}
             <script src="/js/slash-trigger.js"></script>
             <script src="/js/command-palette.js"></script>
             <script src="/js/inline-text-popover.js"></script>
+            <script src="/js/template-drift-banner.js"></script>
             <script defer src="/vendor/flatpickr.min.js"></script>
             <script defer src="/js/flatpickr-init.js"></script>
             {/* B4 — Dexie importmap: must precede every type="module" script that imports 'dexie' */}
@@ -61,7 +75,6 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
             />
             <script type="module" src="/js/network-pill.js"></script>
             <script type="module" src="/js/conflict-modal.js"></script>
-            <script type="module" src="/js/template-drift-banner.js"></script>
             <link rel="stylesheet" href="/styles.css" />
             <style dangerouslySetInnerHTML={{ __html: `
                 :root {
@@ -98,7 +111,6 @@ function SharedHead({ title, primaryColor, gaMeasurementId, extraHead }: {
 
 export const BareLayout = (props: { title: string, children: unknown, branding?: BrandingConfig | undefined, extraHead?: JSX.Element, dataTheme?: 'modern' | 'classic' | 'minimal' }): JSX.Element => {
     const { title, children, branding, extraHead, dataTheme } = props;
-    const sandboxMode = branding?.sandboxMode === true;
 
     return (
         <html lang="en" class="scroll-smooth" {...(dataTheme ? { 'data-theme': dataTheme } : {})}>
@@ -109,7 +121,6 @@ export const BareLayout = (props: { title: string, children: unknown, branding?:
                 {...(extraHead ? { extraHead } : {})}
             />
             <body class="bg-[#fdfdfd] text-slate-900 antialiased min-h-screen selection:bg-indigo-100 selection:text-indigo-900">
-                {sandboxMode && <SandboxBanner />}
                 {children}
                 {/* Sprint 1 C-3 — NetworkPill is an inspector-only tool;
                     BareLayout serves public-facing pages so the pill renders
@@ -153,11 +164,11 @@ export const MainLayout = (props: {
     const { title, children, branding, extraHead } = props;
     const siteName = branding?.siteName || 'OpenInspection';
     const logoUrl = branding?.logoUrl;
-    const sandboxMode = branding?.sandboxMode === true;
     // Sprint B-1 — palette context falls back to the value the middleware
     // hydrated into branding so individual pages don't need to plumb it.
     const paletteSlug = props.currentUserSlug !== undefined ? props.currentUserSlug : (branding?.currentUserSlug ?? null);
     const paletteHost = props.bookingHost !== undefined ? props.bookingHost : (branding?.bookingHost ?? '');
+    const paletteTenant = branding?.tenantSubdomain ?? null;
 
     return (
         <html lang="en" class="scroll-smooth">
@@ -168,7 +179,6 @@ export const MainLayout = (props: {
                 {...(extraHead ? { extraHead } : {})}
             />
             <body class="bg-[#f8fafc] dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased min-h-screen" x-data="{ mobileMenu: false }">
-                {sandboxMode && <SandboxBanner />}
                 {/* Mobile Header Bar */}
                 <div class="lg:hidden sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between">
                     <div class="flex items-center gap-3">
@@ -570,6 +580,7 @@ navigator.serviceWorker?.addEventListener('message', function(e) {
                 <CommandPalette
                     currentUserSlug={paletteSlug}
                     {...(paletteHost ? { bookingHost: paletteHost } : {})}
+                    {...(paletteTenant ? { tenantSubdomain: paletteTenant } : {})}
                 />
                 <InlineTextPopover />
             </body>

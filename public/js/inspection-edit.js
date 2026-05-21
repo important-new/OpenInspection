@@ -44,6 +44,11 @@ function backfillLevelDescriptions(levels) {
 }
 
 function inspectionEditor(inspectionId) {
+  // Design System 0520 subsystem D phase 2 task 2.2 — expose the
+  // inspection id on a global the UnitTree factory reads so it knows
+  // which /api/inspections/:id/units to hit.
+  window.__inspectionEditorRoot = { inspectionId };
+
   return {
     inspectionId: inspectionId,
     inspection: {},
@@ -53,6 +58,12 @@ function inspectionEditor(inspectionId) {
     expanded: {},
     activeItemId: null,
     currentSectionIdx: 0,
+    // Design System 0520 subsystem D P2.2 — when the inspector picks a
+    // unit in the UnitTree left rail, the tree broadcasts
+    // `unit-selected` on window and this state mirrors the active unit
+    // id. Item-render templates can read `visibleItems` (computed
+    // below) to scope what's shown.
+    selectedUnitId: null,
     // Spec 5G M1.1 — view modes (⌘1=split, ⌘2=focus, ⌘3=preview)
     viewMode: 'split',
     // Spec 5G M2 — Comment Library slide-out
@@ -73,6 +84,11 @@ function inspectionEditor(inspectionId) {
     showMenu: false,
     showPublishModal: false,
     publishing: false,
+    // Design System 0520 subsystem E P1.4 — pre-flight gate. The
+    // PreflightChecks component broadcasts `preflight-status` on every
+    // load/refresh; the Send All button reads this flag to disable
+    // until all 5 gates pass.
+    preflightAllPassed: false,
     sendingPdf: false,
     isDesktop: window.innerWidth >= 1024,
     // Sprint 3 S3-4 — drawer state for the 1024-1279 tablet zone. The
@@ -124,6 +140,17 @@ function inspectionEditor(inspectionId) {
     // Keeps localStorage-only snippets as a fallback (offline / older saves).
     _userSnippets: [],
 
+    // Design System 0520 M10 — SpeedMode state (subsystem A, phase 3).
+    // Full-screen single-item rating overlay. See components/speed-mode.tsx.
+    speedMode: false,
+    speedQueue: [],     // flat indices into the materialised items list (see _flatItems)
+    speedCurrent: 0,
+
+    // Design System 0520 M15 — InspectorTools FAB dock (subsystem A, phase 5).
+    // Right-bottom floating action button consolidating mouse entry points
+    // for speed mode / burst camera / photo studio / keyboard cheatsheet.
+    dockOpen: false,
+
     publishOptions: {
       theme: 'modern',
       notifyClient: true,
@@ -132,7 +159,15 @@ function inspectionEditor(inspectionId) {
       requirePayment: false,
       // Round-2 F1 — radio: 'report' (default) or 'agreement'.
       payload: 'report',
+      // Design System 0520 subsystem D P9 — free-text "what changed in vN+1"
+      // shown only when republishing (publishedVersion > 0).
+      summary: '',
     },
+
+    // Design System 0520 subsystem D P9 — version awareness for Republish UX.
+    // Updated lazily by refreshPublishedVersion() — called on init() and again
+    // after a successful publish so the next modal open shows the new vN.
+    publishedVersion: 0,
 
     // Round-2 F1 — multi-recipient Publish modal state.
     showLegacyPublishOptions: false,
@@ -154,6 +189,26 @@ function inspectionEditor(inspectionId) {
       const clearLocalCheatsheet = () => { window.__oiLocalCheatsheet = false; };
       window.addEventListener('pagehide', clearLocalCheatsheet, { once: true });
       window.addEventListener('beforeunload', clearLocalCheatsheet, { once: true });
+
+      // Design System 0520 subsystem E P1.4 — pre-flight gate. The
+      // PreflightChecks panel inside publish-modal broadcasts its
+      // `allPassed` boolean on every load/refresh so the Send All
+      // button can read this Alpine state mirror.
+      window.addEventListener('preflight-status', (e) => {
+        this.preflightAllPassed = !!(e?.detail?.allPassed);
+      });
+
+      // Design System 0520 subsystem D P2.2 — mirror the UnitTree
+      // selection into Alpine state. The tree component fires this
+      // event on every click; null means "show all units / no scope".
+      window.addEventListener('unit-selected', (e) => {
+        this.selectedUnitId = (e?.detail?.unitId) ?? null;
+      });
+
+      // Design System 0520 subsystem D phase 9 — fetch existing version count
+      // so the publish-modal renders "Republish vN+1" when the inspection has
+      // been published before.
+      this.refreshPublishedVersion();
 
       // Slash-trigger inline popover sync — hide ACTIVE ITEM right pane while
       // the picker is open so the same canned comments are not rendered twice.
@@ -264,6 +319,28 @@ function inspectionEditor(inspectionId) {
             return;
           }
           return;
+        }
+        // Design System 0520 M10 — SpeedMode hotkeys (subsystem A, phase 3).
+        // `Z` toggles overlay. While speedMode === true, intercept 1..5 (rate
+        // + auto-advance), Tab/Arrow (nav), Enter (open editor), Esc (exit).
+        if ((e.key === 'z' || e.key === 'Z') && !inField) {
+          e.preventDefault();
+          this.toggleSpeedMode();
+          return;
+        }
+        if (this.speedMode) {
+          if (e.key >= '1' && e.key <= '5') {
+            e.preventDefault();
+            var sVals = ['sat', 'monitor', 'defect', 'ni', 'np'];
+            this.speedRate(sVals[parseInt(e.key, 10) - 1]);
+            return;
+          }
+          if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); this.speedSkip(); return; }
+          if (e.key === 'Tab' && e.shiftKey)  { e.preventDefault(); this.speedPrev(); return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); this.speedSkip(); return; }
+          if (e.key === 'ArrowLeft')  { e.preventDefault(); this.speedPrev(); return; }
+          if (e.key === 'Enter')      { e.preventDefault(); this.speedOpenEditor(); return; }
+          if (e.key === 'Escape')     { e.preventDefault(); this.speedMode = false; return; }
         }
         // When Comment Library drawer is open, intercept nav + insert keys
         if (this.showCommentLibrary) {
@@ -899,6 +976,7 @@ function inspectionEditor(inspectionId) {
     setRating(itemId, levelId) {
       if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
       this.results[itemId].rating = levelId;
+      this._stampUnitId(itemId);
       this.debounceSave();
     },
 
@@ -908,7 +986,18 @@ function inspectionEditor(inspectionId) {
     setItemValue(itemId, value) {
       if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
       this.results[itemId].value = value;
+      this._stampUnitId(itemId);
       this.debounceSave();
+    },
+
+    // Design System 0520 subsystem D P3 — stamp the active unit id onto
+    // newly-rated items. Once an item has a unitId we leave it alone so
+    // moving a unit doesn't silently reattribute past findings; the
+    // explicit unit-tree drag/move flow handles re-parenting deliberately.
+    _stampUnitId(itemId) {
+      if (this.selectedUnitId && !this.results[itemId].unitId) {
+        this.results[itemId].unitId = this.selectedUnitId;
+      }
     },
     getItemValue(itemId) {
       return this.results[itemId] && 'value' in this.results[itemId]
@@ -2269,6 +2358,226 @@ function inspectionEditor(inspectionId) {
       }
       this.showAiPopover = false;
       this.aiSuggestions = [];
+    },
+
+    // ============================================================
+    // Design System 0520 subsystem D phase 9 — Republish UX.
+    // Fetches /api/inspections/:id/versions on init + after a successful
+    // publish; sets publishedVersion to the highest existing version (0
+    // when none — first publish). The publish-modal uses this to flip
+    // between "Publish" and "Republish — v{N+1}" UX.
+    // ============================================================
+    async refreshPublishedVersion() {
+      try {
+        const r = await fetch('/api/inspections/' + this.inspectionId + '/versions', {
+          credentials: 'same-origin',
+        });
+        if (!r.ok) return;
+        const body = await r.json();
+        const versions = (body && body.data && body.data.versions) || [];
+        // list endpoint returns versions descending — index 0 is the latest.
+        this.publishedVersion = versions.length > 0 ? versions[0].versionNumber : 0;
+      } catch (_) { /* swallow — non-fatal */ }
+    },
+
+    // ============================================================
+    // Design System 0520 M10 — SpeedMode methods (subsystem A, phase 3).
+    // Pure helpers live in /public/js/speed-mode-helpers.js (exposed as
+    // window.SpeedMode by inspection-edit.tsx).
+    // ============================================================
+    _flatItems() {
+      // Build a flat array of items in template order with derived metadata.
+      // Cached per call (template + results are reactive — fresh build is
+      // cheap for typical inspections of ~150 items).
+      var out = [];
+      var sections = this.template && this.template.sections ? this.template.sections : [];
+      for (var s = 0; s < sections.length; s++) {
+        var sec = sections[s];
+        var items = sec.items || [];
+        for (var i = 0; i < items.length; i++) {
+          out.push({
+            id: items[i].id,
+            label: items[i].label || items[i].name || '',
+            sectionName: sec.title || sec.name || '',
+            sectionIdx: s,
+            itemIdx: i,
+            rating: (this.results[items[i].id] && this.results[items[i].id].rating) || null,
+          });
+        }
+      }
+      return out;
+    },
+
+    toggleSpeedMode() {
+      if (!this.speedMode) {
+        var items = this._flatItems();
+        var Q = window.SpeedMode && window.SpeedMode.buildSpeedQueue ? window.SpeedMode.buildSpeedQueue(items) : [];
+        if (Q.length === 0) {
+          if (typeof showToast === 'function') showToast('All items rated ✓');
+          return;
+        }
+        this._speedItems = items;
+        this.speedQueue = Q;
+        this.speedCurrent = 0;
+        this.speedMode = true;
+      } else {
+        this.speedMode = false;
+      }
+    },
+
+    get speedItemTitle() {
+      if (!this.speedMode) return '';
+      var idx = this.speedQueue[this.speedCurrent];
+      if (idx == null || !this._speedItems) return '';
+      return this._speedItems[idx] ? this._speedItems[idx].label : '';
+    },
+    get speedSectionName() {
+      if (!this.speedMode) return '';
+      var idx = this.speedQueue[this.speedCurrent];
+      if (idx == null || !this._speedItems) return '';
+      return this._speedItems[idx] ? this._speedItems[idx].sectionName : '';
+    },
+    get speedTotalCount() {
+      return this._speedItems ? this._speedItems.length : 0;
+    },
+    get speedRatedCount() {
+      if (!this._speedItems) return 0;
+      var c = 0;
+      for (var i = 0; i < this._speedItems.length; i++) {
+        if ((this.results[this._speedItems[i].id] || {}).rating) c++;
+      }
+      return c;
+    },
+    get speedPercentText() {
+      var total = this.speedTotalCount;
+      if (!total) return '0%';
+      return Math.round((this.speedRatedCount / total) * 100) + '%';
+    },
+
+    speedRate(value) {
+      if (!this.speedMode) return;
+      var qi = this.speedQueue[this.speedCurrent];
+      if (qi == null) return;
+      var item = this._speedItems[qi];
+      if (!item) return;
+      // Translate design-spec value → ratingLevels[N].id.
+      var map = { sat: 0, monitor: 1, defect: 2, ni: 3, np: 4 };
+      var idx = map[value];
+      if (idx == null || !this.ratingLevels[idx]) return;
+      this.setRating(item.id, this.ratingLevels[idx].id);
+      // Remove from queue + auto-advance.
+      this.speedQueue.splice(this.speedCurrent, 1);
+      if (this.speedQueue.length === 0) {
+        if (typeof showToast === 'function') showToast('All items rated ✓');
+        var self = this;
+        setTimeout(function () { self.speedMode = false; }, 1500);
+        return;
+      }
+      if (this.speedCurrent >= this.speedQueue.length) {
+        this.speedCurrent = this.speedQueue.length - 1;
+      }
+    },
+
+    speedSkip() {
+      if (!this.speedMode) return;
+      var next = window.SpeedMode && window.SpeedMode.nextUnratedIndex
+        ? window.SpeedMode.nextUnratedIndex(this.speedQueue, this.speedCurrent)
+        : -1;
+      this.speedCurrent = next === -1 ? 0 : next;
+    },
+
+    speedPrev() {
+      if (!this.speedMode) return;
+      if (this.speedCurrent > 0) this.speedCurrent--;
+    },
+
+    speedOpenEditor() {
+      if (!this.speedMode) return;
+      var qi = this.speedQueue[this.speedCurrent];
+      if (qi == null || !this._speedItems) return;
+      var item = this._speedItems[qi];
+      if (!item) return;
+      this.speedMode = false;
+      this.activeItemId = item.id;
+      this.currentSectionIdx = item.sectionIdx;
+      var el = document.getElementById('item-' + item.id);
+      if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    },
+
+    // ============================================================
+    // Design System 0520 subsystem B phase 3 task 3.7 / phase 4 task 4.6
+    // — additive field-level PATCH save path.
+    //
+    // Coexists with the legacy debounceSave() coarse-PUT loop without
+    // touching its callers. New consumers (Subsystem D version-diff,
+    // live conflict UX, multi-select bulk-rate) opt in by calling these
+    // helpers; legacy setRating / setItemValue keep working unchanged.
+    //
+    // On 409 → dispatches `present-live-conflict` so LiveConflictModal
+    // (subsystem B P3 T3.6) surfaces the diff. On other network errors
+    // → enqueues via window.OfflineQueue so the existing sync-engine's
+    // drain loop retries.
+    // ============================================================
+    _expectedVersions: {},   // itemId → { rating, notes, value } version counters
+
+    _trackVersion(itemId, field, v) {
+      if (!this._expectedVersions[itemId]) this._expectedVersions[itemId] = {};
+      this._expectedVersions[itemId][field] = v;
+    },
+
+    _expectedVersion(itemId, field) {
+      return (this._expectedVersions[itemId] && this._expectedVersions[itemId][field]) || 0;
+    },
+
+    async patchItemField(itemId, field, value) {
+      var url  = '/api/inspections/' + this.inspectionId + '/items/' + encodeURIComponent(itemId);
+      var body = { field: field, value: value, expectedVersion: this._expectedVersion(itemId, field) };
+      try {
+        var r = await fetch(url, {
+          method:  'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body:    JSON.stringify(body),
+          credentials: 'same-origin',
+        });
+        if (r.status === 409) {
+          var conflict = await r.json().catch(function () { return null; });
+          if (conflict && conflict.error) {
+            window.dispatchEvent(new CustomEvent('present-live-conflict', {
+              detail: {
+                inspectionId: this.inspectionId,
+                itemId:       itemId,
+                field:        field,
+                yours:        { value: value, expectedVersion: body.expectedVersion },
+                theirs:       conflict.error.current,
+              },
+            }));
+          }
+          return { ok: false, kind: 'conflict' };
+        }
+        if (!r.ok) {
+          // Network-ish — queue via existing sync-engine so the next
+          // drainQueue replays it.
+          window.OfflineQueue && window.OfflineQueue.enqueue && window.OfflineQueue.enqueue({
+            url: url, method: 'PATCH', body: JSON.stringify(body), inspectionId: this.inspectionId,
+          });
+          return { ok: false, kind: 'queued' };
+        }
+        var out = await r.json();
+        var data = (out && out.data) || {};
+        if (typeof data.newVersion === 'number') {
+          this._trackVersion(itemId, field, data.newVersion);
+        }
+        // Mirror into local results so UI reflects without a re-fetch.
+        if (!this.results[itemId]) this.results[itemId] = { rating: null, notes: '', photos: [] };
+        this.results[itemId][field] = value;
+        return { ok: true, newVersion: data.newVersion };
+      } catch (err) {
+        // Offline / fetch error — enqueue.
+        window.OfflineQueue && window.OfflineQueue.enqueue && window.OfflineQueue.enqueue({
+          url: url, method: 'PATCH', body: JSON.stringify(body), inspectionId: this.inspectionId,
+        });
+        return { ok: false, kind: 'queued' };
+      }
     },
   };
 }

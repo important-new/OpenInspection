@@ -1,8 +1,9 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Context } from 'hono';
 import { serveStatic } from 'hono/cloudflare-workers';
-import { deleteCookie, getCookie } from 'hono/cookie';
-import { verify } from 'hono/jwt';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { signObserverCookie } from './lib/observer-cookie';
+import { verifyJwt } from './lib/jwt-keyring';
 import { classifyJwtPayload } from './lib/auth/jwt-claims';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq, asc, desc, sql } from 'drizzle-orm';
@@ -11,7 +12,8 @@ import * as schema from './lib/db/schema';
 
 import { brandingMiddleware } from './lib/middleware/branding';
 import { inspectorPaletteMiddleware } from './lib/middleware/inspector-palette';
-import { tenantRouter } from './lib/middleware/tenant-router';
+import { touchLastActiveMiddleware } from './lib/middleware/touch-last-active';
+import { tenantRouter } from './features/tenant-routing';
 import { diMiddleware } from './lib/middleware/di';
 import { requireActiveSubscription } from './lib/middleware/tier-guard';
 import { securityHeaders } from './lib/middleware/security-headers';
@@ -22,6 +24,8 @@ import { HonoConfig } from './types/hono';
 import { UserRole } from './types/auth';
 import { logger } from './lib/logger';
 import { BUILD } from './generated/version';
+
+import { setupWizardRoutes } from './features/setup-wizard';
 
 import { LoginPage } from './templates/pages/login';
 import { DashboardPage } from './templates/pages/dashboard';
@@ -52,7 +56,6 @@ import { ContactsPage } from './templates/pages/contacts';
 import { RecommendationsPage } from './templates/pages/recommendations';
 import { CommentsPage } from './templates/pages/comments';
 import { InvoicesPage } from './templates/pages/invoices';
-import { SetupPage } from './templates/pages/setup';
 import { ReportCardStackPage } from './templates/pages/report-card-stack';
 import { InspectionEditPage } from './templates/pages/inspection-edit';
 import { InspectionPhotosPage } from './templates/pages/inspection/photos';
@@ -77,18 +80,31 @@ import { SettingsCommunicationPage } from './templates/pages/settings-communicat
 import { SettingsAccountPage } from './templates/pages/settings-account';
 import { SettingsAdvancedPage } from './templates/pages/settings-advanced';
 import { SettingsIntegrationsPage } from './templates/pages/settings-integrations';
+import { IntegrationsGridPage } from './templates/pages/settings-integrations-grid';
 import { SettingsIntegrationsQBOPage } from './templates/pages/settings-integrations-qbo';
 import { NotFoundPage } from './templates/pages/not-found';
+import { ObservePage, ObserverExpiredPage } from './templates/pages/observe';
+import { VersionDiffPage } from './templates/pages/version-diff';
+import { observerCookieGuard, OBSERVER_EXPIRED_PATH } from './lib/middleware/observer-cookie';
+import { GuestJoinPage } from './templates/pages/guest-join';
+import { SettingsBillingPage } from './templates/pages/settings-billing';
 import { BookingNotFoundPage } from './templates/pages/booking-not-found';
 import { BookingNoSlugLandingPage } from './templates/pages/booking-no-slug';
 import { InspectorProfilePage } from './templates/pages/inspector-profile';
 import { InspectorNotFoundPage } from './templates/pages/inspector-not-found';
 import { BookingEmbedPage } from './templates/pages/booking-embed';
+import { agreementSignPath } from './lib/public-urls';
 
 
 import coreAuthRoutes from './api/auth';
+import identityRoutes from './api/identity';
+import integrationsApiRoutes from './api/integrations';
+import analyticsRoutes from './api/analytics';
+import guestRoutes from './api/guest';
+import billingRoutes from './api/billing';
 import integrationRoutes from './api/integration';
 import inspectionsRoutes from './api/inspections';
+import tenantPresenceRoutes from './api/tenant-presence';
 import aiRoutes from './api/ai';
 import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
@@ -130,6 +146,7 @@ import { ConciergeConfirmPage } from './templates/pages/concierge-confirm';
 import { ConciergeConfirmExpiredPage } from './templates/pages/concierge-confirm-expired';
 import { ConciergeBookPage } from './templates/pages/concierge-book';
 import { SettingsCatalogBookingPage } from './templates/pages/settings-catalog-booking';
+import { getSeatUsage } from './features/seat-quota';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -241,12 +258,17 @@ app.use('*', async (c, next) => {
     // Agent Accounts A3 — concierge magic-link entry points (client-facing,
     // no JWT). The token in the URL is the secret.
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/admin/') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/widget.js' || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
-    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || path === '/setup' || path === '/login' || path === '/join' || path.startsWith('/agreements/sign/')) return next();
+    // Design System 0520 subsystem D P5 — observer surfaces are gated by
+    // the dedicated observer-cookie middleware, not JWT.
+    const isObserverPublic = path.startsWith('/observe/') || path === OBSERVER_EXPIRED_PATH;
+
+    if (isAuthPublic || isPublic || isAgentPublic || isConciergePublic || isObserverPublic || path === '/setup' || path === '/login' || path === '/join' || path === '/guest-join' || path.startsWith('/agreements/sign/')) return next();
 
     // Generate setup code if system is uninitialized and we are in standalone
-    if (c.env.APP_MODE === 'standalone' && c.env.TENANT_CACHE) {
+    // (gated on `hasSetupWizard` — only the standalone profile enables it).
+    if (c.var.profile.hasSetupWizard && c.env.TENANT_CACHE) {
         // Prefer explicit environment variable if set by user during deployment
         const storedCode = c.env.SETUP_CODE || await c.env.TENANT_CACHE.get('setup_verification_code');
 
@@ -286,9 +308,15 @@ app.use('*', async (c, next) => {
 
     if (!token) return next();
 
-    // Fail closed if the signing key is missing or too weak to meaningfully resist offline brute force.
-    if (!c.env.JWT_SECRET || c.env.JWT_SECRET.length < 32) {
-        logger.error('JWT_SECRET is missing or shorter than 32 characters; refusing to verify tokens');
+    // Resolve the per-request keyring (built lazily in diMiddleware). If the
+    // worker is misconfigured (no JWT_CURRENT_KID or no matching keypair),
+    // buildKeyring rejects — surface as 500 so the request fails closed.
+    let keyring;
+    try {
+        keyring = await c.var.keyringPromise!;
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.error('JWT keyring failed to build', { message: msg });
         throw Errors.Internal('Server configuration error');
     }
 
@@ -308,7 +336,7 @@ app.use('*', async (c, next) => {
             }
         }
 
-        const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
+        const payload = await verifyJwt(token, keyring);
         const classification = classifyJwtPayload(payload);
         const userId = payload.sub as string | undefined;
         const tokenIat = payload.iat as number | undefined;
@@ -368,7 +396,7 @@ app.use('*', async (c, next) => {
 
     // --- Tenant Isolation Guard (Fail-Fast) ---
     // In SaaS mode, strictly verify that the token's tenant matches the requested subdomain's tenant.
-    if (c.env.APP_MODE === 'saas') {
+    if (c.var.profile.mode === 'saas') {
         const tokenTenantId = c.get('tenantId');
         const resolvedTenantId = c.get('resolvedTenantId');
 
@@ -402,6 +430,12 @@ app.use('*', async (c, next) => {
 // the slug through manually.
 app.use('*', inspectorPaletteMiddleware);
 
+// Design System 0520 subsystem B phase 1 — debounced last-active touch. Runs
+// after every authenticated request (30 s window per user / worker isolate)
+// so TeamStrip's "last active Nm ago" pill stays accurate without hammering
+// D1 on every fetch.
+app.use('/api/*', touchLastActiveMiddleware);
+
 // API Routes
 app.use('/api/*', requireActiveSubscription);
 
@@ -409,7 +443,49 @@ app.use('/api/*', requireActiveSubscription);
 // Mount auth routes at canonical API path AND at root so that /setup, /login (POST), /join (POST) work without redirects
 app.route('/api/auth', coreAuthRoutes);
 app.route('/', coreAuthRoutes);
+// Design System 0520 subsystem C — guest + billing.
+app.route('/api/guest', guestRoutes);
+app.route('/api/billing', billingRoutes);
+// Design System 0520 subsystem E — identity / integrations / analytics.
+app.route('/api/identities', identityRoutes);
+app.route('/api/integrations', integrationsApiRoutes);
+app.route('/api/analytics', analyticsRoutes);
 app.route('/api/inspections', inspectionsRoutes);
+// Design System 0520 subsystem B phase 2 — tenant-level presence channel
+// (one WS per dashboard tab). Per-inspection presence is mounted inline on
+// inspectionsRoutes above as /api/inspections/:id/presence/ws.
+app.route('/api/tenant', tenantPresenceRoutes);
+
+// Design System 0520 subsystem D phase 4/5 — anonymous observer claim.
+// Public route — exchanges a one-time token for a __Host-observer_session
+// cookie (HMAC-signed scope = inspection id + expiresAt). Subsequent
+// /observe/inspections/:id loads carry the cookie; the middleware in
+// src/lib/middleware/observer-cookie.ts verifies + scopes per-request.
+app.get('/observe/:token', async (c) => {
+    const token = c.req.param('token');
+    if (!token) return c.text('Missing token', 400);
+
+    const out = await c.var.services.observerLink.claim(token);
+    if (out.kind === 'not_found' || out.kind === 'revoked') {
+        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Invalid link</h1><p>This observer link has been revoked or does not exist.</p></body></html>', 404);
+    }
+    if (out.kind === 'expired') {
+        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Link expired</h1><p>This observer link has expired. Ask your inspector for a fresh one.</p></body></html>', 410);
+    }
+
+    const cookie = await signObserverCookie(
+        { linkId: out.linkId, inspectionId: out.inspectionId, exp: out.exp },
+        c.env.JWT_SECRET,
+    );
+    setCookie(c, '__Host-observer_session', cookie, {
+        httpOnly: true,
+        secure:   true,
+        sameSite: 'Strict',
+        path:     '/observe',
+        maxAge:   Math.max(out.exp - Math.floor(Date.now() / 1000), 60),
+    });
+    return c.redirect(`/observe/inspections/${out.inspectionId}`);
+});
 app.route('/api/inspections', inspectionSyncRoutes);
 // Sprint 3 S3-3 — tag link/unlink endpoints share the /api/inspections root
 // so the URL carries inspection id + item id directly. Mounted before the
@@ -529,9 +605,10 @@ app.get('/login', async (c) => {
     // Agent JWTs (role='agent') belong on /agent-dashboard, not the inspector
     // dashboard which would render an empty shell because agents have no tenant.
     const token = getCookie(c, '__Host-inspector_token');
-    if (token && c.env.JWT_SECRET) {
+    if (token) {
         try {
-            const payload = await verify(token, c.env.JWT_SECRET, 'HS256');
+            const keyring = await c.var.keyringPromise!;
+            const payload = await verifyJwt(token, keyring);
             const role = (payload as Record<string, unknown>)['custom:userRole'] || (payload as Record<string, unknown>).role;
             return c.redirect(role === 'agent' ? '/agent-dashboard' : '/dashboard');
         } catch {
@@ -544,9 +621,41 @@ app.get('/login', async (c) => {
     return c.html(LoginPage({ branding }));
 });
 
-app.get('/setup', (c) => {
-    return c.html(SetupPage({ branding: c.get('branding') }));
+// Design System 0520 subsystem D P5.1 — observer viewer (cookie-gated).
+app.get('/observe/inspections/:id', observerCookieGuard, (c) => {
+    const id = c.req.param('id');
+    const b  = c.get('branding');
+    return c.html(ObservePage({ inspectionId: id, ...(b ? { branding: b } : {}) }));
 });
+app.get(OBSERVER_EXPIRED_PATH, (c) => {
+    const b = c.get('branding');
+    return c.html(ObserverExpiredPage(b ? { branding: b } : {}));
+});
+
+// Design System 0520 subsystem D P8 — version diff viewer.
+app.get('/inspections/:id/versions/:n/diff', htmlAuthGuard(), (c) => {
+    const id = c.req.param('id');
+    const n  = parseInt(c.req.param('n') ?? '1', 10);
+    if (!id || Number.isNaN(n) || n < 1) {
+        return c.html(NotFoundPage({ branding: c.get('branding') }), 404);
+    }
+    const b = c.get('branding');
+    return c.html(VersionDiffPage({
+        inspectionId: id,
+        toVersion:    n,
+        ...(b ? { branding: b } : {}),
+    }));
+});
+
+// Design System 0520 subsystem C P6.3 — anonymous guest join landing.
+app.get('/guest-join', (c) => {
+    const branding = c.get('branding');
+    const token = c.req.query('token') ?? '';
+    return c.html(GuestJoinPage({ token, ...(branding ? { branding } : {}) }));
+});
+
+// Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
+app.route('/setup', setupWizardRoutes());
 
 // Agent Accounts A1 — public invite acceptance landing.
 // Lifecycle: missing/unknown/expired/used token -> friendly recovery page (410).
@@ -672,11 +781,15 @@ app.get('/book', (c) => {
 // Booking #7 Sprint C-1 — public editorial profile page. Served before
 // /book/:slug so an inspector can share /inspector/<slug> as the SEO surface
 // and the customer falls through to /book/<slug> via the page CTA.
-app.get('/inspector/:slug', async (c) => {
+app.get('/inspector/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
-    if (!tenantId) {
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
         return c.html(InspectorNotFoundPage({ slug, companyName: branding?.siteName }), 404);
     }
     const profile = await c.var.services.user.getProfileBySlug(tenantId, slug);
@@ -690,7 +803,7 @@ app.get('/inspector/:slug', async (c) => {
         price: s.price,
     }));
     const host = (c.env.APP_BASE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')) || c.req.header('host') || '';
-    return c.html(InspectorProfilePage({ profile, services: catalog, host }));
+    return c.html(InspectorProfilePage({ profile, services: catalog, host, tenantSlug: tenantSlugFromPath }));
 });
 
 // Booking #7 Sprint C-4 — iframe-friendly booking widget at /embed/book/<slug>.
@@ -699,10 +812,16 @@ app.get('/inspector/:slug', async (c) => {
 // the iframe loads on any host page. The actual booking submit at
 // POST /api/public/book still enforces the per-tenant origin allowlist
 // configured in Settings → Embed Widget.
-app.get('/embed/book/:slug', async (c) => {
+app.get('/embed/book/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
     const inspector = await c.var.services.user.findBySlug(tenantId, slug);
     if (!inspector) return c.text('Not found', 404);
     const branding = c.get('branding');
@@ -726,10 +845,22 @@ app.get('/embed/book/:slug', async (c) => {
 // the inspector's own personal calendar) see opaque "Busy" blocks with no
 // addresses, client names, or emails. Cancelled inspections drop out so
 // freed slots become bookable again.
-app.get('/inspector/:slug/calendar.ics', async (c) => {
+//
+// PR 2 T9: path carries the tenant slug because the path-tenant resolver
+// (T1) eats the first segment after /inspector/. Without :tenant the
+// resolver would treat the inspector slug as the tenant in shared/silo
+// modes. Standalone deploys would still work via fixed-tenant fallback,
+// but the unified shape applies across all modes.
+app.get('/inspector/:tenant/:slug/calendar.ics', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
     const ics = await c.var.services.ics.busyFeedForInspector(tenantId, slug);
     return new Response(ics, {
         status: 200,
@@ -741,13 +872,18 @@ app.get('/inspector/:slug/calendar.ics', async (c) => {
     });
 });
 
-app.get('/book/:slug', async (c) => {
+app.get('/book/:tenant/:slug', async (c) => {
     const slug = c.req.param('slug');
+    const tenantSlugFromPath = c.req.param('tenant');
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
-    const inspector = tenantId
-        ? await c.var.services.user.findBySlug(tenantId, slug)
-        : null;
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
+    }
+    const inspector = await c.var.services.user.findBySlug(tenantId, slug);
     if (!inspector) {
         return c.html(BookingNotFoundPage({ ...(branding ? { branding } : {}), slug }), 404);
     }
@@ -774,13 +910,30 @@ app.get('/book/:slug', async (c) => {
     }));
 });
 
-// Public agreement signing page (no auth required — token is the secret)
-app.get('/agreements/sign/:token', async (c) => {
+// Public agreement signing page (no auth required — token is the secret).
+// :tenant in the path is defense-in-depth — the token alone is the cryptographic
+// gate, but the URL-level slug lets tenant-router populate branding / audit /
+// rate-limiting context BEFORE this handler runs. Slug-vs-agreement mismatch
+// 404s the same way as a bad token.
+app.get('/agreements/sign/:tenant/:token', async (c) => {
     const token = c.req.param('token') as string;
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
     const branding = c.get('branding');
+    // Tenant slug from path must match what tenant-router resolved.
+    // An unresolved path tenant manifests as a 404 here — reuse the
+    // styled not-found redirect to match the catch handler below.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.redirect('/not-found?from=agreement-sign', 302);
+    }
     try {
         const svc = c.var.services.agreement;
         const { request, agreement } = await svc.getAgreementByToken(token);
+        // Cross-tenant token probe: the token resolves but to a different tenant.
+        // Treat as not-found so this URL is indistinguishable from a bad token.
+        if (request.tenantId !== tenantId) {
+            return c.redirect('/not-found?from=agreement-sign', 302);
+        }
         await svc.markViewed(token);
 
         // Spec 5H P0 — append request.viewed to the audit chain (best-effort).
@@ -872,15 +1025,23 @@ app.get('/agreements/sign', (c) => c.redirect('/not-found?from=agreement-sign', 
 // Public — no JWT required. tenantId resolves from the subdomain via
 // tenantRouter middleware (`resolvedTenantId`), the same way the public
 // `/report/:id` viewer is scoped.
-app.get('/sign/:id', async (c) => {
+app.get('/sign/:tenant/:id', async (c) => {
     const id = c.req.param('id') as string;
-    const tenantId = c.get('tenantId') || c.get('resolvedTenantId');
-    if (!tenantId) return c.redirect('/not-found?from=agreement-sign', 302);
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here. Use the
+    // friendly not-found page to match the rest of this handler's
+    // failure modes (token miss / no live request).
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.redirect('/not-found?from=agreement-sign', 302);
+    }
 
     try {
         const pending = await c.var.services.agreement.findPendingByInspectionId(tenantId as string, id);
         if (pending) {
-            return c.redirect(`/agreements/sign/${pending.token}`, 302);
+            return c.redirect(agreementSignPath(tenantSlugFromPath as string, pending.token), 302);
         }
     } catch (e) {
         logger.warn('sign-redirect: lookup failed', { inspectionId: id.slice(0, 8), error: (e as Error).message });
@@ -894,10 +1055,22 @@ app.get('/sign/:id', async (c) => {
 // doesn't forward custom Authorization headers reliably -> 404. The token
 // itself is unguessable, so its secrecy is sufficient (same model as the
 // public /agreements/sign/{token} route).
-app.get('/m2m/agreement-render/:token', async (c) => {
+//
+// :tenant in the path is the same defense-in-depth as on /agreements/sign:
+// tenant-router resolves the slug into branding / context before the handler
+// runs, and a slug↔token tenant mismatch 404s.
+app.get('/m2m/agreement-render/:tenant/:token', async (c) => {
     const token = c.req.param('token') as string;
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.notFound();
+    }
     try {
         const { request, agreement } = await c.var.services.agreement.getAgreementByToken(token);
+        if (request.tenantId !== tenantId) {
+            return c.notFound();
+        }
 
         // Substitute placeholders the same way agreement-sign does
         const vars: Record<string, string> = {
@@ -1044,7 +1217,12 @@ async function loadVerifyData(c: Context<HonoConfig>, envelopeId: string) {
         .all();
     const verify = await c.var.services.auditLog.verifyChain(reqRow.tenantId, envelopeId);
     const pubKey = await c.var.services.signingKey.getPublicKey(reqRow.tenantId);
-    return { reqRow, agreement, auditRows, verify, pubKey };
+    const tenantRow = await db.select({ subdomain: schema.tenants.subdomain })
+        .from(schema.tenants)
+        .where(eq(schema.tenants.id, reqRow.tenantId))
+        .get();
+    const tenantSubdomain = tenantRow?.subdomain ?? '';
+    return { reqRow, agreement, auditRows, verify, pubKey, tenantSubdomain };
 }
 
 app.get('/verify/:envelopeId', async (c) => {
@@ -1121,7 +1299,7 @@ app.get('/api/public/verify/:envelopeId/document', async (c) => {
     const envelopeId = c.req.param('envelopeId') as string;
     const data = await loadVerifyData(c, envelopeId);
     if (!data) return c.text('Not found', 404);
-    return c.redirect(`/agreements/sign/${data.reqRow.token}`, 302);
+    return c.redirect(agreementSignPath(data.tenantSubdomain, data.reqRow.token), 302);
 });
 
 app.get('/api/public/verify/:envelopeId/audit-trail', async (c) => {
@@ -1151,10 +1329,17 @@ app.get('/api/public/verify/:envelopeId/audit-trail', async (c) => {
 // also fires on the public /report/:id route; previously only the
 // authenticated /api/inspections/:id/report enforced it, which left the
 // public link bypassable.
-app.get('/report/:id', async (c) => {
+app.get('/report/:tenant/:id', async (c) => {
     const id = c.req.param('id') as string;
-    const tenantId = c.get('tenantId') || c.get('resolvedTenantId');
-    if (!tenantId) return c.text('Not found', 404);
+    const tenantSlugFromPath = c.req.param('tenant');
+    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+    // Tenant slug from path must match what tenant-router resolved.
+    // The middleware only sets resolvedTenantId on a successful match,
+    // so an unresolved path tenant manifests as a 404 here. Plain-text
+    // 404 matches the existing minimal failure mode of this handler.
+    if (!tenantId || c.get('requestedSubdomain') !== tenantSlugFromPath) {
+        return c.text('Not found', 404);
+    }
 
     // Spec 5A.3 — ?summary=1 filters to defects-only (used by PDF Summary
     // renderer). ?print=1 already supported by main-layout (hides nav).
@@ -1167,10 +1352,10 @@ app.get('/report/:id', async (c) => {
     let role: string | null = null;
     try {
         const { getCookie } = await import('hono/cookie');
-        const { verify } = await import('hono/jwt');
         const tok = getCookie(c, '__Host-inspector_token');
-        if (tok && c.env.JWT_SECRET) {
-            const payload = await verify(tok, c.env.JWT_SECRET, 'HS256');
+        if (tok) {
+            const keyring = await c.var.keyringPromise!;
+            const payload = await verifyJwt(tok, keyring);
             role = (payload as { role?: string })?.role ?? null;
         }
     } catch { /* unauthenticated public view */ }
@@ -1299,7 +1484,7 @@ app.get('/report/:id', async (c) => {
                         reason:           'agreement',
                         companyName,
                         primaryColor,
-                        actionUrl:        `${baseUrl}/sign/${id}`,
+                        actionUrl:        `${baseUrl}/sign/${tenantSlugFromPath}/${id}`,
                         actionLabel:      'Sign agreement',
                         propertyAddress:  insp.propertyAddress ?? null,
                         inspectorName,
@@ -1483,10 +1668,10 @@ app.get('/r/:id/repair-request', async (c) => {
     let role: string | null = null;
     try {
         const { getCookie } = await import('hono/cookie');
-        const { verify } = await import('hono/jwt');
         const tok = getCookie(c, '__Host-inspector_token');
-        if (tok && c.env.JWT_SECRET) {
-            const payload = await verify(tok, c.env.JWT_SECRET, 'HS256');
+        if (tok) {
+            const keyring = await c.var.keyringPromise!;
+            const payload = await verifyJwt(tok, keyring);
             role = (payload as { role?: string })?.role ?? null;
         }
     } catch { /* unauthenticated public view */ }
@@ -1585,7 +1770,7 @@ app.get('/r/:id/repair-request', async (c) => {
                         reason:          'agreement',
                         companyName,
                         primaryColor,
-                        actionUrl:       `${baseUrl}/sign/${id}`,
+                        actionUrl:       `${baseUrl}/sign/${c.get('requestedSubdomain') ?? ''}/${id}`,
                         actionLabel:     'Sign agreement',
                         propertyAddress: insp.propertyAddress ?? null,
                         inspectorName,
@@ -1647,19 +1832,25 @@ app.get('/messages/:token', (c) => {
 });
 
 // Pages with Auth
-app.get('/dashboard', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(DashboardPage({ branding: c.get('branding') })));
+app.get('/dashboard', htmlAuthGuard(['owner', 'admin', 'inspector']), async (c) => {
+    const branding = c.get('branding');
+    const tenantId = c.get('tenantId');
+    // PR 3 Task 4 — surface a seat-quota status banner on the dashboard
+    // whenever the active deployment profile enforces seat quotas. When the
+    // profile carries no quota (standalone / saas-silo) we skip
+    // the DB hit entirely and the page renders identically to before.
+    const seatProps = c.var.profile.hasSeatQuota && tenantId
+        ? {
+              seatUsage: await getSeatUsage(tenantId, c.env.DB),
+              billingPortalUrl: c.var.profile.billingPortalUrl,
+          }
+        : {};
+    return c.html(DashboardPage({ ...(branding ? { branding } : {}), ...seatProps }));
+});
 app.get('/reports', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => {
     const b = c.get('branding');
     return c.html(ReportsPage(b ? { branding: b } : {}));
 });
-// Agent surfaces all need the same host-suffix derivation for ⌘K palette
-// "Copy booking link" actions. Centralized here to keep the three handlers
-// in lockstep with /agent-inspectors.
-function deriveAgentHostSuffix(c: Context<HonoConfig>): string {
-    const rawBase = (c.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    return rawBase.split('.').slice(rawBase.split('.').length > 2 ? 1 : 0).join('.') || 'inspectorhub.io';
-}
-
 app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
     const branding = c.get('branding');
     const user = c.get('user');
@@ -1703,7 +1894,7 @@ app.get('/agent-dashboard', htmlAuthGuard(['agent']), async (c) => {
         unreadReports,
         sparklineCreated: sparkline.created,
         inspectors,
-        bookingHost: deriveAgentHostSuffix(c),
+        bookingHost: c.req.header('host') || 'localhost',
     }));
 });
 // UC-A-5 — agent recommendations export. Server renders the static shell;
@@ -1739,22 +1930,15 @@ app.get('/agent-inspectors', htmlAuthGuard(['agent']), async (c) => {
         });
     }
     const inspectors = await c.var.services.agent.listInspectors(user.sub);
-    // Standalone single-tenant deployments don't have per-tenant subdomains —
-    // every booking link lives at `<currentHost>/book/<slug>`. Saas keeps the
-    // subdomain.hostSuffix split. Detect via APP_MODE so the agent's card
-    // shows a working URL in both topologies.
-    const isStandalone = (c.env.APP_MODE as string) !== 'saas';
-    const requestHost = c.req.header('host') || 'localhost';
-    const hostSuffix = deriveAgentHostSuffix(c);
+    // PR 2 — booking links are uniformly `/<host>/book/<tenant>/<slug>` across
+    // every deploy mode. The agent dashboard's host is the only host the agent
+    // is signed in on; the path-tenant prefix carries the tenant context.
+    const host = c.req.header('host') || 'localhost';
     return c.html(AgentInspectorsPage({
         ...(branding ? { branding } : {}),
         agent: { name: agentName, slug: agentSlug },
         inspectors,
-        hostSuffix,
-        // When set, the page uses this exact host for booking links instead of
-        // splicing tenantSubdomain.hostSuffix. Standalone deployments share the
-        // single deploy host across every row.
-        ...(isStandalone ? { fixedHost: requestHost } : {}),
+        host,
     }));
 });
 // Agent Accounts A3 — Book on Behalf form. Lives under /agent-inspectors so the
@@ -1874,7 +2058,7 @@ app.get('/agent-settings/profile', htmlAuthGuard(['agent']), async (c) => {
             notifyOnPaid:     row.notifyOnPaid,
         },
         inspectors,
-        bookingHost: deriveAgentHostSuffix(c),
+        bookingHost: c.req.header('host') || 'localhost',
     }));
 });
 app.get('/templates', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TemplatesPage({ branding: c.get('branding') })));
@@ -2023,6 +2207,7 @@ app.get('/settings/catalog/widget', htmlAuthGuard(['owner', 'admin']), (c) => {
         ...(b ? { branding: b } : {}),
         currentUserSlug: b?.currentUserSlug ?? null,
         bookingHost: b?.bookingHost ?? '',
+        tenantSubdomain: c.get('requestedSubdomain') ?? null,
     }));
 });
 // Agent Accounts A3 — concierge toggle.
@@ -2059,6 +2244,13 @@ app.get('/settings/communication/integrations', htmlAuthGuard(['owner', 'admin']
 
 // Integrations group
 app.get('/settings/integrations', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsIntegrationsPage({ branding: c.get('branding') })));
+// Design System 0520 subsystem E P6 — IntegrationGrid (M22) at a
+// distinct path so the existing per-integration settings page stays
+// the default for legacy in-bound links.
+app.get('/settings/integrations-grid', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(IntegrationsGridPage(b ? { branding: b } : {}));
+});
 app.get('/settings/integrations/qbo', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsIntegrationsQBOPage({ branding: c.get('branding') })));
 
 // Account group (per-user, all roles allowed)
@@ -2069,6 +2261,13 @@ app.get('/settings/account/security', htmlAuthGuard(), (c) => {
     return c.html(SettingsSecurityPage(b ? { branding: b } : {}));
 });
 app.get('/settings/account/bot-protection', htmlAuthGuard(['owner', 'admin']), (c) => c.html(SettingsAccountPage({ branding: c.get('branding'), subPage: 'bot-protection' })));
+
+// Design System 0520 subsystem C P9 — read-only seat-quota + billing
+// portal CTA. Owner/admin only — non-admins don't see billing UI.
+app.get('/settings/billing', htmlAuthGuard(['owner', 'admin']), (c) => {
+    const b = c.get('branding');
+    return c.html(SettingsBillingPage(b ? { branding: b } : {}));
+});
 
 // Advanced group
 app.get('/settings/advanced', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/advanced/payments'));
@@ -2087,7 +2286,20 @@ app.get('/settings/data', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('
 app.get('/metrics', htmlAuthGuard(['owner', 'admin']), (c) => c.html(MetricsPage({ branding: c.get('branding') })));
 // Sprint 1 Sub-spec B Task 2 — Team relocates under Settings.
 // Old /team URL kept as a 301 redirect so deep links from other tabs still work.
-app.get('/settings/team', htmlAuthGuard(['owner', 'admin']), (c) => c.html(TeamPage({ branding: c.get('branding') })));
+app.get('/settings/team', htmlAuthGuard(['owner', 'admin']), async (c) => {
+    const branding = c.get('branding');
+    const tenantId = c.get('tenantId');
+    // PR 3 Task 4 — seat-quota banner on team page mirrors the dashboard
+    // wiring. The team page is where invite blocks actually surface, so the
+    // banner is most actionable here.
+    const seatProps = c.var.profile.hasSeatQuota && tenantId
+        ? {
+              seatUsage: await getSeatUsage(tenantId, c.env.DB),
+              billingPortalUrl: c.var.profile.billingPortalUrl,
+          }
+        : {};
+    return c.html(TeamPage({ ...(branding ? { branding } : {}), ...seatProps }));
+});
 app.get('/team', htmlAuthGuard(['owner', 'admin']), (c) => c.redirect('/settings/team', 301));
 app.get('/agreements', htmlAuthGuard(['owner', 'admin', 'agent']), (c) => c.html(AgreementsPage({ branding: c.get('branding') })));
 app.get('/contacts', htmlAuthGuard(['owner', 'admin', 'inspector']), (c) => c.html(ContactsPage({ branding: c.get('branding') })));
@@ -2243,6 +2455,7 @@ app.get('/inspections/:id/signatures', htmlAuthGuard(['owner', 'admin', 'inspect
     return c.html(InspectionSignaturesPage({
         inspectionId: id,
         propertyAddress: shell?.propertyAddress ?? 'Inspection',
+        tenantSlug: c.get('requestedSubdomain') ?? '',
         branding: c.get('branding'),
         enableRepairList: !!shell?.enableRepairList,
         ...(shell?.requestId ? { requestId: shell.requestId } : {}),
@@ -2327,9 +2540,17 @@ app.notFound((c) => {
 // Named exports of `scheduled` aren't recognized by the runtime —
 // without this `Handler does not export a scheduled() function` fires
 // on every cron tick and the automation flush never runs.
-import { scheduled } from './scheduled';
+import { scheduled as baseScheduled } from './scheduled';
 export default {
     fetch: app.fetch.bind(app),
-    scheduled,
+    scheduled: async (event: ScheduledEvent, env: HonoConfig['Bindings'], ctx: ExecutionContext) => {
+        await baseScheduled(event, env, ctx);
+    },
 };
 export { SignCompletionWorkflow } from './workflows/sign-completion-workflow';
+
+// Design System 0520 subsystem B phase 2 — presence Durable Objects.
+// wrangler needs them re-exported from the entrypoint so it can discover
+// the class names referenced by [[durable_objects.bindings]] in wrangler.toml.
+export { InspectionPresenceDO } from './durable-objects/inspection-presence';
+export { TenantPresenceDO     } from './durable-objects/tenant-presence';

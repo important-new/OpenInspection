@@ -1,9 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { sign } from 'hono/jwt';
 import { setCookie } from 'hono/cookie';
 import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { verifyTurnstile } from '../lib/middleware/bot-protection';
+import { signJwt } from '../lib/jwt-keyring';
 import { logger } from '../lib/logger';
 
 /**
@@ -84,18 +84,16 @@ agentSignupRoutes.openapi(signupRoute, async (c) => {
         name: body.name,
     });
 
-    if (!c.env.JWT_SECRET || c.env.JWT_SECRET.length < 32) {
-        throw Errors.Internal('Server configuration error');
-    }
+    const keyring = await c.var.keyringPromise!;
     const now = Math.floor(Date.now() / 1000);
-    const token = await sign({
+    const token = await signJwt({
         sub: result.userId,
         role: 'agent',
         'custom:userRole': 'agent',
         email: result.email,
         iat: now,
         exp: now + 60 * 60 * 24,
-    }, c.env.JWT_SECRET, 'HS256');
+    }, keyring);
 
     setCookie(c, '__Host-inspector_token', token, {
         httpOnly: true,

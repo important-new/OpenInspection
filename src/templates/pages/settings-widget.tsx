@@ -8,9 +8,11 @@ interface Props {
     currentUserSlug?: string | null;
     /** Sprint C-4 — bookingHost ("acme.inspectorhub.io") for the snippet src URL. */
     bookingHost?: string;
+    /** PR 2 — tenant subdomain (path segment) for path-tenant embed URLs. */
+    tenantSubdomain?: string | null;
 }
 
-export const SettingsWidgetPage = ({ branding, currentUserSlug, bookingHost }: Props) => (
+export const SettingsWidgetPage = ({ branding, currentUserSlug, bookingHost, tenantSubdomain }: Props) => (
     <SettingsLayout
         branding={branding}
         title="Settings | Embed Booking Widget"
@@ -62,16 +64,17 @@ export const SettingsWidgetPage = ({ branding, currentUserSlug, bookingHost }: P
                 Defaults to width:100% (host page caps as it sees fit) per the
                 frontend-design directive. Compact variant collapses to a single
                 CTA expandable on click. */}
-            {currentUserSlug && bookingHost && (
+            {currentUserSlug && bookingHost && tenantSubdomain && (
                 <section
                     data-testid="settings-widget-personal-snippet"
                     data-slug={currentUserSlug}
                     data-host={bookingHost}
+                    data-tenant={tenantSubdomain}
                     class="bg-white border border-surface-200 rounded-lg p-6 space-y-4"
                 >
                     <div>
                         <h2 class="text-sm font-bold text-ink-900 uppercase tracking-[0.2em]">5 · Personal iframe snippet</h2>
-                        <p class="text-xs text-ink-500 mt-1">A direct iframe to your <code class="font-mono">/embed/book/{currentUserSlug}</code> page. Pastes anywhere, no JS bundle required.</p>
+                        <p class="text-xs text-ink-500 mt-1">A direct iframe to your <code class="font-mono">/embed/book/{tenantSubdomain}/{currentUserSlug}</code> page. Pastes anywhere, no JS bundle required.</p>
                     </div>
 
                     <label class="flex items-center gap-2 text-sm">

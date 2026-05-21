@@ -18,6 +18,7 @@ export interface AgentReferralRow {
     id: string;
     tenantId: string;
     tenantName: string;
+    tenantSubdomain: string;
     propertyAddress: string;
     clientName: string | null;
     date: string;
@@ -444,6 +445,7 @@ export class AgentService {
                 id:              inspections.id,
                 tenantId:        inspections.tenantId,
                 tenantName:      tenants.name,
+                tenantSubdomain: tenants.subdomain,
                 propertyAddress: inspections.propertyAddress,
                 clientName:      inspections.clientName,
                 date:            inspections.date,
@@ -498,6 +500,7 @@ export class AgentService {
             id:              r.id,
             tenantId:        r.tenantId,
             tenantName:      r.tenantName,
+            tenantSubdomain: r.tenantSubdomain,
             propertyAddress: r.propertyAddress,
             clientName:      r.clientName ?? null,
             date:            r.date,

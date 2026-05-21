@@ -1,11 +1,11 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { users, tenantInvites, tenants } from '../lib/db/schema';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { UserRole } from '../types/auth';
 import { Errors } from '../lib/errors';
 
 export class TeamService {
-    constructor(private db: D1Database, private env?: { APP_MODE?: string }) {}
+    constructor(private db: D1Database) {}
 
     private getDB() {
         return drizzle(this.db);
@@ -34,38 +34,36 @@ export class TeamService {
         tenantId: string;
         email: string;
         role: UserRole;
+        /** Required when `role === 'apprentice'`. Must be a user in the
+         *  same tenant. Replayed onto users.mentor_id at accept time. */
+        mentorId?: string;
+        /** Used when `role === 'specialist'`. Stored as JSON; replayed
+         *  onto users.assigned_section_ids at accept time. Defaults to
+         *  an empty array for non-specialist roles. */
+        assignedSectionIds?: string[];
     }) {
         const db = this.getDB();
 
-        // 1. Quota Check (skipped in standalone/self-hosted mode — no seat limits)
-        // 2. Check if already a member
-        // Run all reads in parallel
-        const [tenantRecord, currentUsersCount, pendingCount, existing] = await Promise.all([
-            this.env?.APP_MODE !== 'standalone'
-                ? db.select({ maxUsers: tenants.maxUsers }).from(tenants).where(eq(tenants.id, params.tenantId)).limit(1)
-                : Promise.resolve([] as { maxUsers: number }[]),
-            this.env?.APP_MODE !== 'standalone'
-                ? db.select({ value: count() }).from(users).where(eq(users.tenantId, params.tenantId))
-                : Promise.resolve([] as { value: number }[]),
-            this.env?.APP_MODE !== 'standalone'
-                ? db.select({ value: count() }).from(tenantInvites)
-                    .where(and(eq(tenantInvites.tenantId, params.tenantId), eq(tenantInvites.status, 'pending')))
-                : Promise.resolve([] as { value: number }[]),
-            db.select({ id: users.id }).from(users)
-                .where(and(eq(users.tenantId, params.tenantId), eq(users.email, params.email))).limit(1),
-        ]);
-
-        if (this.env?.APP_MODE !== 'standalone') {
-            const maxUsers = tenantRecord[0]?.maxUsers ?? 3;
-            const total = (currentUsersCount[0]?.value ?? 0) + (pendingCount[0]?.value ?? 0);
-            if (total >= maxUsers) {
-                throw Errors.Forbidden(`Seat limit reached (${maxUsers}). Request more seats from your workspace dashboard.`);
-            }
+        // Subsystem C P5 — apprentice MUST have a mentor in the same
+        // tenant; the queue routing in InspectionService.patchItem
+        // refuses to enqueue without it.
+        if (params.role === 'apprentice') {
+            if (!params.mentorId) throw Errors.BadRequest('Mentor required for apprentice invites');
+            const mentor = await db.select({ id: users.id }).from(users)
+                .where(and(eq(users.id, params.mentorId), eq(users.tenantId, params.tenantId)))
+                .limit(1);
+            if (mentor.length === 0) throw Errors.BadRequest('Mentor must be a member of the same team');
         }
+
+        // Seat-quota enforcement now lives in features/seat-quota/middleware
+        // (mounted on POST /api/team/invite). The service only needs to
+        // verify the invitee is not already a workspace member.
+        const existing = await db.select({ id: users.id }).from(users)
+            .where(and(eq(users.tenantId, params.tenantId), eq(users.email, params.email))).limit(1);
 
         if (existing.length > 0) throw Errors.Conflict('User is already a member');
 
-        // 3. Create Invite (7-day expiry)
+        // Create Invite (7-day expiry)
         const inviteToken = crypto.randomUUID();
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -76,6 +74,8 @@ export class TeamService {
             role: params.role,
             status: 'pending',
             expiresAt,
+            ...(params.mentorId ? { mentorId: params.mentorId } : {}),
+            assignedSectionIds: JSON.stringify(params.assignedSectionIds ?? []),
         });
 
         return { token: inviteToken, expiresAt };
@@ -94,5 +94,5 @@ export class TeamService {
         await db.delete(users).where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
         return user;
     }
-
+
 }

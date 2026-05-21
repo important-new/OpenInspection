@@ -6,9 +6,11 @@ import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { safeISODate } from '../lib/date';
 import { getBaseUrl, getBookingHost } from '../lib/url';
+import { agreementSignUrl } from '../lib/public-urls';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { verifyM2mAuth } from '../lib/m2m-auth';
 import {
     UpdateBrandingSchema,
     InviteMemberSchema,
@@ -34,8 +36,11 @@ import {
     ATTENTION_THRESHOLDS_DEFAULTS,
     DashboardColumnPrefsSchema,
     DashboardColumnPrefsResponseSchema,
+    SeedStarterContentBodySchema,
+    SeedStarterContentResponseSchema,
 } from '../lib/validations/admin.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
+import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
 
 const adminRoutes = new OpenAPIHono<HonoConfig>();
@@ -788,7 +793,8 @@ adminRoutes.openapi(sendAgreementRoute, async (c) => {
         ...(body.clientName !== undefined ? { clientName: body.clientName } : {}),
         ...(body.inspectionId !== undefined ? { inspectionId: body.inspectionId } : {}),
     });
-    const signUrl = `${getBaseUrl(c)}/agreements/sign/${request.token}`;
+    const tenantSlug = c.get('requestedSubdomain') ?? '';
+    const signUrl = agreementSignUrl(getBookingHost(c), tenantSlug, request.token);
 
     // Spec 5H D-patch — fetch the agreement HTML at send-time to compute its
     // content hash. This is the "what was the client agreed to" anchor for
@@ -1406,8 +1412,9 @@ adminRoutes.openapi({
         401: { description: 'Unauthorized' },
     },
 }, async (c) => {
-    const auth = c.req.header('authorization');
-    if (auth !== `Bearer ${c.env.PORTAL_M2M_SECRET}`) throw Errors.Unauthorized();
+    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+        throw Errors.Unauthorized();
+    }
 
     const { tenants } = await import('../lib/db/schema');
     const { TemplateSeedService } = await import('../services/template-seed.service');
@@ -1599,6 +1606,95 @@ adminRoutes.openapi(tenantConfigPatchRoute, async (c) => {
         metadata: update,
     });
     return c.json({ success: true as const, data: { ok: true as const } }, 200);
+});
+
+/**
+ * Design System 0520 subsystem C P8 T8.2 — portal → core seat-quota sync.
+ *
+ * Called by `apps/portal/src/services/billing.service.ts#syncSeatQuota`
+ * after a Stripe `customer.subscription.{created,updated,deleted}` event.
+ * Updates `tenants.max_users` so the seat-guard middleware + Guest-
+ * InviteService.claim see the new cap on the next request.
+ *
+ * Auth: `Authorization: Bearer <PORTAL_M2M_SECRET>` (or any active V<N>).
+ */
+adminRoutes.openapi({
+    method: 'post',
+    path: '/sync-quota',
+    tags: ['Admin'],
+    summary: 'M2M — set tenant seat quota (max_users)',
+    request: { body: { content: { 'application/json': { schema: SyncQuotaSchema } } } },
+    responses: {
+        200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'OK' },
+        401: { description: 'Unauthorized' },
+        404: { description: 'Tenant not found' },
+    },
+}, async (c) => {
+    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+        throw Errors.Unauthorized();
+    }
+
+    const { tenantId, maxUsers } = c.req.valid('json');
+    const { tenants } = await import('../lib/db/schema');
+    const db = drizzle(c.env.DB);
+
+    const result = await db.update(tenants)
+        .set({ maxUsers })
+        .where(eq(tenants.id, tenantId))
+        .returning({ id: tenants.id });
+    if (result.length === 0) throw Errors.NotFound('Tenant not found');
+
+    // Invalidate the per-tenant KV cache so the next request reads the
+    // fresh maxUsers value rather than the stale snapshot.
+    try {
+        await c.env.TENANT_CACHE.delete(`tenant:${tenantId}`);
+    } catch { /* cache miss is fine — read-through repopulates */ }
+
+    logger.info('sync-quota applied', { tenantId, maxUsers });
+    return c.json({ success: true as const, data: { success: true } }, 200);
+});
+
+/**
+ * POST /api/admin/seed-starter-content — Trial Sample-Data Mode spec (2026-05-20).
+ *
+ * Portal calls this from OnboardingWorkflow step 2.5 once a new tenant is
+ * provisioned, populating it with starter content (3 templates / 1 agreement /
+ * 250 canned comments / 3 event_types / 4 tags / recommendations /
+ * rating-systems / marketplace defaults). Idempotent — safe to retry on
+ * workflow re-run.
+ *
+ * Auth: `Authorization: Bearer <PORTAL_M2M_SECRET>` (or any active V<N>);
+ * matches the other portal → core M2M endpoints in this file.
+ */
+adminRoutes.openapi({
+    method: 'post',
+    path: '/seed-starter-content',
+    tags: ['Admin'],
+    summary: 'M2M — seed starter content into a newly-provisioned tenant',
+    request: { body: { content: { 'application/json': { schema: SeedStarterContentBodySchema } } } },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: SeedStarterContentResponseSchema } },
+            description: 'Seed counts (zero on idempotent re-run)',
+        },
+        401: { description: 'Unauthorized' },
+        404: { description: 'Tenant not found' },
+    },
+}, async (c) => {
+    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+        throw Errors.Unauthorized();
+    }
+
+    const { tenantId } = c.req.valid('json');
+    const { tenants } = await import('../lib/db/schema');
+    const db = drizzle(c.env.DB);
+    const existing = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, tenantId)).get();
+    if (!existing) throw Errors.NotFound('Tenant not found');
+
+    const { seedStarterContent } = await import('../services/starter-content.service');
+    const result = await seedStarterContent(c.env.DB, tenantId);
+
+    return c.json({ success: true as const, data: result }, 200);
 });
 
 export default adminRoutes;

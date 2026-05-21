@@ -2,13 +2,24 @@ import { MainLayout } from '../layouts/main-layout';
 import { Modal } from '../components/modal';
 import { BrandingConfig } from '../../types/auth';
 import { PageHeader } from '../components/page-header';
+import { SeatBanner } from '../../features/seat-quota/seat-banner';
+import type { SeatUsage } from '../../features/seat-quota/usage';
 
-export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined } = {}): JSX.Element => {
+interface TeamPageProps {
+    branding?: BrandingConfig | undefined;
+    seatUsage?: SeatUsage;
+    billingPortalUrl?: string | null;
+}
+
+export const TeamPage = ({ branding, seatUsage, billingPortalUrl }: TeamPageProps = {}): JSX.Element => {
     const siteName = branding?.siteName || 'OpenInspection';
 
     return (
         <MainLayout title={`${siteName} | Team`} branding={branding}>
             <div class="space-y-6 animate-fade-in">
+                {seatUsage !== undefined && billingPortalUrl !== undefined ? (
+                    <SeatBanner usage={seatUsage} billingPortalUrl={billingPortalUrl} />
+                ) : null}
                 <div x-data="teamMeta">
                     <PageHeader
                         eyebrow="SETTINGS · TEAM"
@@ -18,11 +29,13 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
                         meta={<span x-text="metaText"></span>}
                         actions={
                             <div class="flex items-center gap-2">
-                                <div id="quotaBadge" class="hidden sm:flex items-center gap-2 px-3 h-8 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                                    <span class="w-1 h-1 rounded-full bg-indigo-500"></span>
-                                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">Seats:</span>
-                                    <span class="text-[12px] font-bold text-slate-900 dark:text-slate-100 leading-none">Loading...</span>
-                                </div>
+                                {seatUsage !== undefined ? (
+                                    <div id="quotaBadge" class="hidden sm:flex items-center gap-2 px-3 h-8 rounded-md bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                        <span class="w-1 h-1 rounded-full bg-indigo-500"></span>
+                                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">Seats:</span>
+                                        <span class="text-[12px] font-bold text-slate-900 dark:text-slate-100 leading-none">Loading...</span>
+                                    </div>
+                                ) : null}
                                 <button
                                     type="button"
                                     id="openInviteModalBtn"
@@ -86,6 +99,79 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
                     </div>
                 </div>
 
+                {/* Design System 0520 subsystem C P10 — Defaults toggles. Owner/admin
+                    surfaces the three tenant-wide team-page switches. The factory in
+                    team-page-extras.js fetches /api/team/defaults on init and PUTs on
+                    @change. */}
+                <section x-data="teamDefaults()" {...{ 'x-init': 'init()' }}
+                    class="glass-panel rounded-xl p-6 shadow-md space-y-3">
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Defaults</h2>
+                    <label class="flex items-center gap-3">
+                        <input type="checkbox" {...{ 'x-model': 'teamModeDefault', '@change': 'save()' }} class="w-4 h-4" />
+                        <span class="text-sm font-medium">New inspections default to <strong>Team mode</strong></span>
+                    </label>
+                    <label class="flex items-center gap-3">
+                        <input type="checkbox" {...{ 'x-model': 'apprenticeReviewRequired', '@change': 'save()' }} class="w-4 h-4" />
+                        <span class="text-sm font-medium">Always require <strong>apprentice review</strong></span>
+                    </label>
+                    <label class="flex items-center gap-3">
+                        <input type="checkbox" {...{ 'x-model': 'guestInvitesEnabled', '@change': 'save()' }} class="w-4 h-4" />
+                        <span class="text-sm font-medium">Allow <strong>guest invites</strong></span>
+                    </label>
+                    <p class="text-xs text-slate-400" x-show="saving">Saving…</p>
+                </section>
+
+                {/* Design System 0520 subsystem C P10 — Apprentices + Active Guests +
+                    Billing pointer. All three are populated by team-page-extras.js
+                    against the endpoints added in P10.2. */}
+                <section x-data="teamApprentices()" {...{ 'x-init': 'init()' }}
+                    class="glass-panel rounded-xl p-6 shadow-md">
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-3">Apprentices</h2>
+                    <ul class="space-y-2">
+                        <template {...{ 'x-for': 'a in items', ':key': 'a.id' }}>
+                            <li class="flex items-center gap-3 p-3 border border-slate-200 rounded">
+                                <span class="font-medium" x-text="a.name" />
+                                <span class="text-xs text-slate-500" x-show="a.mentorName">
+                                    mentor <span x-text="a.mentorName" />
+                                </span>
+                                <a class="ml-auto inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-bold"
+                                   href="/apprentice-review"
+                                   x-show="a.pendingCount > 0">
+                                    <span x-text="a.pendingCount" /> awaiting
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                    <p class="text-sm text-slate-400" x-show="items.length === 0 && !loading">No apprentices yet.</p>
+                </section>
+
+                <section x-data="teamGuests()" {...{ 'x-init': 'init()' }}
+                    class="glass-panel rounded-xl p-6 shadow-md">
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-3">Active guests</h2>
+                    <ul class="space-y-2">
+                        <template {...{ 'x-for': 'g in items', ':key': 'g.id' }}>
+                            <li class="flex items-center gap-3 p-3 border border-slate-200 rounded">
+                                <span class="font-medium" x-text="g.name" />
+                                <span class="text-xs text-slate-500">
+                                    <span x-text="g.role" /> · expires <span x-text="g.expiresRel" />
+                                </span>
+                                <button class="ml-auto px-2 h-7 rounded-md bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200 hover:bg-rose-100"
+                                        {...{ '@click': 'revoke(g)' }}>Revoke</button>
+                            </li>
+                        </template>
+                    </ul>
+                    <p class="text-sm text-slate-400" x-show="items.length === 0 && !loading">No active guests.</p>
+                </section>
+
+                <section class="rounded-xl p-6 bg-indigo-50 border border-indigo-200 flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Billing</div>
+                        <div class="text-lg font-medium text-slate-900">Manage seats, invoices, and payment in the billing portal</div>
+                    </div>
+                    <a class="h-9 px-4 rounded-md bg-indigo-600 text-white text-sm font-bold inline-flex items-center hover:bg-indigo-700"
+                       href="/settings/billing">Manage billing →</a>
+                </section>
+
                 {/* Invite Modal — team.js looks up #closeInviteModalBtn / #submitInviteBtn
                     by id to bind onclick handlers, so those ids are preserved on the
                     inlined footer buttons. */}
@@ -134,6 +220,7 @@ export const TeamPage = ({ branding }: { branding?: BrandingConfig | undefined }
 
                 <script src="/js/auth.js"></script>
                 <script src="/js/team.js"></script>
+                <script src="/js/team-page-extras.js"></script>
             </div>
         </MainLayout>
     );

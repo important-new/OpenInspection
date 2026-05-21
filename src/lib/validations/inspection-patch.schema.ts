@@ -1,0 +1,27 @@
+// Design System 0520 subsystem B phase 3 — field-level patch schemas.
+//
+// Used by PATCH /api/inspections/:id/items/:itemId and
+// PATCH /api/inspections/:id/property-facts. The `expectedVersion` field
+// drives optimistic-concurrency conflict detection — server compares
+// against the stored `<field>_v` / `_meta[key].v` counter and returns 409
+// + the current value when stale.
+import { z } from '@hono/zod-openapi';
+
+export const PatchItemFieldSchema = z.object({
+    field:           z.enum(['rating', 'notes', 'value']),
+    value:           z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()]),
+    expectedVersion: z.number().int().min(0),
+    /** Set true after the user resolves a 409 via ConflictModal — bypasses
+     *  the version check for that single retry. */
+    force:           z.boolean().optional(),
+}).openapi('PatchItemField');
+
+export const PatchPropertyFactSchema = z.object({
+    key:             z.string().min(1).max(64),
+    value:           z.union([z.string(), z.number(), z.boolean(), z.null()]),
+    expectedVersion: z.number().int().min(0),
+    force:           z.boolean().optional(),
+}).openapi('PatchPropertyFact');
+
+export type PatchItemFieldInput    = z.infer<typeof PatchItemFieldSchema>;
+export type PatchPropertyFactInput = z.infer<typeof PatchPropertyFactSchema>;

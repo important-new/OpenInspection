@@ -24,6 +24,8 @@
     "teardown:local": "node scripts/teardown-cloudflare.js --local --force",
     "backup": "node scripts/backup.js",
     "restore": "node scripts/restore.js",
+    "rotate:jwt": "node scripts/rotate-jwt-keys.js",
+    "rotate:m2m": "node scripts/rotate-m2m-secret.js",
     "css:build": "npx tailwindcss -i ./src/styles/input.css -o ./public/styles.css --minify",
     "css:watch": "npx tailwindcss -i ./src/styles/input.css -o ./public/styles.css --watch",
     "db:migrate": "npx wrangler d1 migrations apply DB --local",
@@ -41,8 +43,6 @@
     "seed:rating-systems:remote": "node scripts/seed-rating-systems.js",
     "seed:marketplace": "node scripts/seed-marketplace.js --local",
     "seed:marketplace:remote": "node scripts/seed-marketplace.js",
-    "seed:sandbox": "node scripts/sandbox-seed.js --local",
-    "seed:sandbox:remote": "node scripts/sandbox-seed.js --env=sandbox",
     "prepare": "husky"
   },
   "dependencies": {

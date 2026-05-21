@@ -34,6 +34,12 @@ export const UpdateBrandingSchema = z.object({
     customReferralSources: z.array(z.string().min(1).max(50)).max(32).optional().openapi({ example: ['Magazine ad', 'Trade show'] }),
     // Migration 0059 — Workers Paid PDF pipeline opt-in. Default OFF.
     enablePdfPipeline: z.boolean().optional().openapi({ example: false }),
+    // Design System 0520 subsystem E P8 — InterNACHI inspector ID.
+    // Surfaced in the TeamCredit footer block on the customer report.
+    // Accepts the canonical NACHI format (NACHI##### or numeric IDs).
+    nachiNumber: z.string().regex(/^[A-Za-z0-9-]{4,32}$/, 'Invalid NACHI number')
+        .nullable().optional()
+        .openapi({ example: 'NACHI22041901' }),
 }).openapi('UpdateBranding');
 
 /**
@@ -41,7 +47,14 @@ export const UpdateBrandingSchema = z.object({
  */
 export const InviteMemberSchema = z.object({
     email: z.string().email('Invalid email address').openapi({ example: 'new-user@example.com' }),
-    role: z.enum(['admin', 'inspector', 'agent', 'owner']).default('inspector').openapi({ example: 'inspector' }),
+    role: z.enum(['admin', 'inspector', 'agent', 'owner', 'lead', 'specialist', 'apprentice', 'office'])
+        .default('inspector').openapi({ example: 'lead' }),
+    /** Required when role === 'apprentice'. Must be a user id from the
+     *  inviting tenant. Carried through to users.mentor_id at accept. */
+    mentorId: z.string().uuid().optional().openapi({ example: '6e9b6b1c-4a3f-4ae3-9c10-1f1c3f4d5e6a' }),
+    /** Used when role === 'specialist'. Section ids from the active
+     *  template. Carried through to users.assigned_section_ids JSON. */
+    assignedSectionIds: z.array(z.string().min(1)).optional().openapi({ example: ['s-roof', 's-elec'] }),
 }).openapi('InviteMember');
 
 /**
@@ -300,4 +313,23 @@ export const DashboardColumnPrefsResponseSchema = z.object({
     success: z.literal(true),
     data: z.object({ columns: z.array(z.string()) }),
 }).openapi('DashboardColumnPrefsResponse');
+
+// ── Trial Sample-Data Mode (2026-05-20 spec) ───────────────────────────────
+// Portal calls POST /api/admin/seed-starter-content during step 2.5 of the
+// OnboardingWorkflow to populate a newly-provisioned tenant with starter
+// content. Idempotent — re-runs return all-zero counts.
+export const SeedStarterContentBodySchema = z.object({
+    tenantId: z.string().min(1).openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
+}).openapi('SeedStarterContentBody');
+
+export const SeedStarterContentResponseSchema = createApiResponseSchema(z.object({
+    inspectionTemplatesSeeded:  z.number().int().nonnegative(),
+    agreementTemplatesSeeded:   z.number().int().nonnegative(),
+    cannedCommentsSeeded:       z.number().int().nonnegative(),
+    eventTypesSeeded:           z.number().int().nonnegative(),
+    tagsSeeded:                 z.number().int().nonnegative(),
+    recommendationsSeeded:      z.number().int().nonnegative(),
+    ratingSystemsSeeded:        z.number().int().nonnegative(),
+    marketplaceLibrariesSeeded: z.number().int().nonnegative(),
+})).openapi('SeedStarterContentResponse');
 

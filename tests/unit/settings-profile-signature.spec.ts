@@ -30,7 +30,8 @@ describe('SettingsProfilePage — signature card (Sprint B-4b)', () => {
         expect(html).toMatch(/data-sig-phone="\(303\) 555-0142"/);
         expect(html).toMatch(/data-sig-license="TX-9001"/);
         expect(html).toMatch(/data-sig-slug="mike"/);
-        expect(html).toMatch(/data-sig-host="acme\.inspectorhub\.io"/);
+        expect(html).toMatch(/data-sig-host="inspectorhub\.io"/);
+        expect(html).toMatch(/data-sig-tenant="acme"/);
     });
 
     it('omits the card when user has no slug yet', () => {

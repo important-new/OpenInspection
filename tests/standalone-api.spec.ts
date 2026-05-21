@@ -14,6 +14,7 @@ const BASE_URL = 'http://127.0.0.1:8789';
 
 const ADMIN_EMAIL = 'admin@autotest.com';
 const ADMIN_PASSWORD = 'Password123!';
+const ADMIN_NAME    = 'Automation Test Admin';
 const COMPANY_NAME = 'Automation Test Corp';
 const INSPECTOR_EMAIL = 'inspector@autotest.com';
 const INSPECTOR_PASSWORD = 'Inspector123!';
@@ -85,8 +86,9 @@ test.describe.serial('Standalone API Tests', () => {
         const res = await request.post(`${BASE_URL}/api/auth/setup`, {
             data: {
                 companyName: COMPANY_NAME,
-                email: ADMIN_EMAIL,
-                password: ADMIN_PASSWORD,
+                adminName:   ADMIN_NAME,
+                email:       ADMIN_EMAIL,
+                password:    ADMIN_PASSWORD,
                 verificationCode: '000000',
             },
             headers: {
@@ -301,15 +303,17 @@ test.describe.serial('Standalone API Tests', () => {
 
     // ── Report (public) ───────────────────────────────────────────────────────
 
-    test('API-22: GET /report/:id returns 200 for valid inspection', async ({ request }) => {
-        const res = await request.get(`${BASE_URL}/report/${createdInspectionId}`);
+    test('API-22: GET /report/:tenant/:id returns 200 for valid inspection', async ({ request }) => {
+        const tenantSlug = COMPANY_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const res = await request.get(`${BASE_URL}/report/${tenantSlug}/${createdInspectionId}`);
         expect(res.status(), 'Report must return 200').toBe(200);
         const html = await res.text();
         expect(html).toContain('742 Evergreen Terrace');
     });
 
-    test('API-23: GET /report/nonexistent returns 404', async ({ request }) => {
-        const res = await request.get(`${BASE_URL}/report/00000000-0000-0000-0000-000000000000`);
+    test('API-23: GET /report/:tenant/nonexistent returns 404', async ({ request }) => {
+        const tenantSlug = COMPANY_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const res = await request.get(`${BASE_URL}/report/${tenantSlug}/00000000-0000-0000-0000-000000000000`);
         expect(res.status()).toBe(404);
     });
 

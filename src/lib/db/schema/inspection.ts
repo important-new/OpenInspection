@@ -81,6 +81,10 @@ export const inspections = sqliteTable('inspections', {
     // don't warrant their own column. Reads/writes go through
     // updatePropertyFacts() which merges with the dedicated columns.
     propertyFacts:       text('property_facts', { mode: 'json' }).$type<Record<string, unknown>>(),
+    // Design System 0520 subsystem E P1 — id of the inspection_media_pool
+    // row used as the report cover image. NULL until the inspector picks
+    // one; the Publish pre-flight surfaces this as a gate.
+    coverPhotoId:        text('cover_photo_id'),
     unit:                text('unit'),
     county:              text('county'),
     sellingAgentId:      text('selling_agent_id'),
@@ -97,6 +101,16 @@ export const inspections = sqliteTable('inspections', {
     //   'awaiting_inspector' = agent submitted; inspector must approve (Spectora reviewer mode)
     //   'awaiting_client'    = magic-link sent to client; waiting on confirmation (HomeGauge auto mode or post-inspector-approve)
     conciergeStatus:     text('concierge_status'),
+    // Design System 0520 M3 — TeamMode + multi-inspector (subsystem B, phase 1).
+    //   teamMode             = boolean flag enabling team UI (TeamBanner / RosterPopover).
+    //   leadInspectorId      = primary inspector. NULL ⇒ falls back to inspectorId above.
+    //   helperInspectorIds   = JSON array of additional inspectors with edit access.
+    //   dataVersion          = monotonic counter; bumped on every successful field write
+    //                          (see InspectionService.patchItem) for offline-queue staleness checks.
+    teamMode:            integer('team_mode', { mode: 'boolean' }).notNull().default(false),
+    leadInspectorId:     text('lead_inspector_id'),
+    helperInspectorIds:  text('helper_inspector_ids').notNull().default('[]'),
+    dataVersion:         integer('data_version').notNull().default(0),
 });
 
 // Sprint 2 S2-2 — A single customer booking can spawn multiple inspections
@@ -189,6 +203,11 @@ export const inspectionMediaPool = sqliteTable('inspection_media_pool', {
         gps?:         { lat: number; lng: number };
         cameraModel?: string;
     }>(),
+    // Design System 0520 M14 — PhotoStudio annotation overlay (subsystem A,
+    // phase 4). `annotations` is opaque JSON-encoded shape array (≤8 KB)
+    // consumed exclusively client-side. `caption` is user-supplied, ≤200 chars.
+    annotations:   text('annotations'),
+    caption:       text('caption'),
 });
 
 export const inspectionResults = sqliteTable('inspection_results', {
