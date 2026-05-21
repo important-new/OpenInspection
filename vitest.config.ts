@@ -1,6 +1,14 @@
 import { defineConfig } from 'vitest/config';
+import path from 'node:path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // `cloudflare:workers` is only available in the Workers runtime; stub
+      // it out so route-metadata tests can import src/index.ts in Node.
+      'cloudflare:workers': path.resolve(__dirname, 'tests/unit/stubs/cloudflare-workers.ts'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
