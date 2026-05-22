@@ -209,6 +209,30 @@ export const InspectionSettingsSheet = ({
                                         Switching maps each rated item to the new system by severity bucket. Items without a matching bucket lose their rating. Notes, photos, and comments are preserved.
                                     </p>
                                 </label>
+
+                                {/* Feature #20 phase 3 — Save back / Save as new template.
+                                    Both act on the current snapshot's structure (sections +
+                                    items + rating system) without copying any per-item
+                                    ratings/notes/photos. Save back overwrites the source
+                                    template (other future inspections inherit). Save as
+                                    new creates a fresh template row in the tenant library. */}
+                                <div class="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        x-on:click="openSaveBackPrompt()"
+                                        class="h-9 px-3 rounded-md text-[12px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 ring-1 ring-inset ring-amber-200 dark:ring-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                                        title="Overwrite the source template with this inspection's structure"
+                                    >Save back to template</button>
+                                    <button
+                                        type="button"
+                                        x-on:click="openSaveAsNewPrompt()"
+                                        class="h-9 px-3 rounded-md text-[12px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                                        title="Freeze this inspection's structure as a new tenant template"
+                                    >Save as new template…</button>
+                                </div>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    Both options copy the section + item structure and the rating system only. Per-item ratings, notes, and photos stay with this inspection.
+                                </p>
                             </fieldset>
 
                             <fieldset class="space-y-4">
@@ -415,6 +439,171 @@ export const AddSectionPromptModal = (): JSX.Element => (
                         {...{ 'x-bind:disabled': "busy || !title.trim()" }}
                         class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                     >Add section</button>
+                </div>
+            </form>
+        </div>
+    </div>
+);
+
+/**
+ * Feature #20 phase 2c — generic destructive-confirm modal.
+ *
+ * One reusable confirmation surface for delete-section, delete-item,
+ * save-back-to-template, and any future irreversible action. The opener
+ * dispatches `confirm-danger-open` with a payload describing the dialog
+ * (title, body, confirmText, eventName) and stashes context on the
+ * editor; on confirm the modal fires the caller's eventName so each
+ * action can route its own handler. No window.confirm.
+ *
+ * Event detail shape:
+ *   { title: string, body: string[],  // bullet lines
+ *     confirmText?: string,            // defaults to "Delete"
+ *     confirmEvent: string,            // event name to fire on confirm
+ *     tone?: 'danger' | 'warning' }    // styles the confirm button
+ */
+export const ConfirmDangerModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            title: '',
+            body: [],
+            confirmText: 'Delete',
+            confirmEvent: '',
+            tone: 'danger',
+            busy: false,
+            close() { this.show = false; this.busy = false; },
+            cancel() { this.close(); },
+            confirm() {
+                if (this.busy || !this.confirmEvent) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent(this.confirmEvent));
+            },
+        }"
+        {...{
+            'x-on:confirm-danger-open.window': 'show = true; busy = false; title = $event.detail.title || ""; body = $event.detail.body || []; confirmText = $event.detail.confirmText || "Delete"; confirmEvent = $event.detail.confirmEvent || ""; tone = $event.detail.tone || "danger"',
+            'x-on:confirm-danger-done.window': 'close()',
+            'x-on:keydown.escape.window': 'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <div class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700">
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100" x-text="title"></h3>
+                </div>
+                <div class="px-5 py-4">
+                    <ul class="space-y-1.5 text-[13px] leading-relaxed text-slate-700 dark:text-slate-300 list-disc pl-5">
+                        <template x-for="(line, i) in body" {...{ 'x-bind:key': 'i' }}>
+                            <li x-text="line"></li>
+                        </template>
+                    </ul>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="button"
+                        x-on:click="confirm()"
+                        {...{ 'x-bind:disabled': "busy" }}
+                        {...{ 'x-bind:class': "tone === 'warning' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-rose-600 hover:bg-rose-700'" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white disabled:opacity-50 transition-colors"
+                        x-text="confirmText"
+                    ></button>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+/**
+ * Feature #20 phase 3 — save-as-new-template modal.
+ *
+ * Lets the inspector freeze the current per-inspection snapshot as a
+ * brand-new template row in the tenant library. The new template
+ * becomes available for future inspections via the standard template
+ * picker. Source template (the one this inspection was originally
+ * cloned from) is unchanged.
+ */
+export const SaveAsNewTemplateModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            name: '',
+            busy: false,
+            close() { this.show = false; this.name = ''; this.busy = false; },
+            cancel() { this.close(); },
+            submit() {
+                if (this.busy) return;
+                const n = (this.name || '').trim();
+                if (!n) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent('save-as-template-confirm', { detail: { name: n } }));
+            },
+        }"
+        {...{
+            'x-on:save-as-template-open.window': 'show = true; name = $event.detail?.suggestedName || ""; busy = false; $nextTick(() => $refs.nameInput?.focus())',
+            'x-on:save-as-template-done.window': 'close()',
+            'x-on:keydown.escape.window': 'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <form
+                {...{ 'x-on:submit.prevent': 'submit()' }}
+                class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
+            >
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Save as new template</h3>
+                    <p class="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                        Freezes the current section + item structure (plus the rating system) into a new tenant template. Per-item ratings, notes, and photos on this inspection are NOT copied.
+                    </p>
+                </div>
+                <div class="px-5 py-4">
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Template name</span>
+                        <input
+                            type="text"
+                            x-model="name"
+                            x-ref="nameInput"
+                            maxlength="100"
+                            required
+                            placeholder="e.g. Coastal Properties — Standard"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </label>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="submit"
+                        {...{ 'x-bind:disabled': "busy || !name.trim()" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Save as template</button>
                 </div>
             </form>
         </div>

@@ -881,6 +881,118 @@ function inspectionEditor(inspectionId) {
       return base;
     },
 
+    // Feature #20 phase 2c — destructive section + item ops via the
+    // shared ConfirmDangerModal. Each opener stashes context on
+    // `_pendingDanger` and routes the confirm event to the right
+    // handler. Snapshot rewrites use the same allowlist-strip helper
+    // the + Add flows already exercise.
+    _pendingDanger: null,
+
+    openDeleteSectionPrompt(idx) {
+      const sec = (this.sections || [])[idx];
+      if (!sec) return;
+      const items = sec.items || [];
+      const ratedCount = items.filter(it => this.results?.[it.id]?.rating).length;
+      const noteCount  = items.filter(it => (this.results?.[it.id]?.notes || '').trim()).length;
+      const photoCount = items.reduce((acc, it) => acc + ((this.results?.[it.id]?.photos || []).length), 0);
+      this._pendingDanger = { kind: 'delete-section', sectionId: sec.id };
+      this._ensureDangerListeners();
+      const body = [
+        `Removes ${items.length} item${items.length === 1 ? '' : 's'} from this inspection.`,
+      ];
+      if (ratedCount)  body.push(`${ratedCount} rating${ratedCount === 1 ? '' : 's'} will be discarded.`);
+      if (noteCount)   body.push(`${noteCount} item${noteCount === 1 ? '' : 's'} with notes will lose them.`);
+      if (photoCount)  body.push(`${photoCount} photo${photoCount === 1 ? '' : 's'} will become orphaned (still in R2 storage but no longer linked).`);
+      body.push('The source template is unchanged.');
+      window.dispatchEvent(new CustomEvent('confirm-danger-open', { detail: {
+        title:        `Delete section "${sec.title}"?`,
+        body,
+        confirmText:  'Delete section',
+        confirmEvent: 'danger-confirm-delete-section',
+        tone:         'danger',
+      }}));
+    },
+
+    openDeleteItemPrompt(itemId) {
+      const sec = this.currentSection;
+      const item = sec?.items?.find(it => it.id === itemId);
+      if (!item) return;
+      const r = this.results?.[itemId] || {};
+      this._pendingDanger = { kind: 'delete-item', itemId };
+      this._ensureDangerListeners();
+      const body = [`Removes item from section "${sec.title}".`];
+      if (r.rating)  body.push(`Rating "${r.rating}" will be discarded.`);
+      if ((r.notes || '').trim()) body.push('Notes will be discarded.');
+      if ((r.photos || []).length) body.push(`${r.photos.length} photo${r.photos.length === 1 ? '' : 's'} will become orphaned.`);
+      body.push('The source template is unchanged.');
+      window.dispatchEvent(new CustomEvent('confirm-danger-open', { detail: {
+        title:        `Delete item "${item.label}"?`,
+        body,
+        confirmText:  'Delete item',
+        confirmEvent: 'danger-confirm-delete-item',
+        tone:         'danger',
+      }}));
+    },
+
+    _ensureDangerListeners() {
+      if (this._dangerInstalled) return;
+      this._dangerInstalled = true;
+      window.addEventListener('danger-confirm-delete-section', () => this._deleteSection());
+      window.addEventListener('danger-confirm-delete-item',    () => this._deleteItem());
+    },
+
+    async _deleteSection() {
+      const pending = this._pendingDanger;
+      if (!pending || pending.kind !== 'delete-section') return;
+      try {
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || [])
+                            .filter(s => s.id !== pending.sectionId)
+                            .map(s => this._stripRuntimeKeys(s)),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Section deleted', false);
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Delete failed: ' + ((e && e.message) || 'unknown'), true);
+      }
+    },
+
+    async _deleteItem() {
+      const pending = this._pendingDanger;
+      if (!pending || pending.kind !== 'delete-item') return;
+      try {
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || []).map(s => {
+            const stripped = this._stripRuntimeKeys(s);
+            stripped.items = stripped.items.filter(it => it.id !== pending.itemId);
+            return stripped;
+          }),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Item deleted', false);
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Delete failed: ' + ((e && e.message) || 'unknown'), true);
+      }
+    },
+
     async _addSection(title) {
       const cleanTitle = (title || '').trim();
       if (!cleanTitle) {

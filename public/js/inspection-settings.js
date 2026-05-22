@@ -352,6 +352,124 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
+        // Feature #20 phase 3 — Save the current snapshot's structure
+        // back to the source template, or save it as a new template.
+        // Both read the snapshot off the editor's Alpine root (since
+        // the structural edit lives there, not in this sheet's state).
+        // Reuses the shared ConfirmDangerModal for the save-back warning
+        // and the dedicated SaveAsNewTemplateModal for the new-name prompt.
+
+        _captureSnapshotFromEditor() {
+            const editor = document.querySelector('[x-data*="inspectionEditor"]');
+            const data = editor && window.Alpine && window.Alpine.$data(editor);
+            if (!data) return null;
+            return {
+                schemaVersion: 2,
+                sections:      (data.sections || []).map(s => data._stripRuntimeKeys(s)),
+                ratingSystem:  data._snapshotRatingSystem(),
+            };
+        },
+
+        openSaveBackPrompt() {
+            const templateId = this.form.templateId;
+            if (!templateId) {
+                if (typeof window.showToast === 'function') window.showToast('No source template attached to this inspection', true);
+                return;
+            }
+            const tpl = (this.templates || []).find(t => t.id === templateId);
+            this._ensureSaveListeners();
+            window.dispatchEvent(new CustomEvent('confirm-danger-open', { detail: {
+                title:        'Save back to source template?',
+                body: [
+                    `This rewrites the template "${tpl ? tpl.name : templateId.slice(0, 8)}" with this inspection's section + item structure and rating system.`,
+                    'Future inspections created from this template will get the new structure.',
+                    'Already-published inspections keep their frozen snapshot and are unaffected.',
+                    'Per-item ratings / notes / photos from THIS inspection are NOT copied to the template.',
+                ],
+                confirmText:  'Overwrite template',
+                confirmEvent: 'danger-confirm-save-back',
+                tone:         'warning',
+            }}));
+        },
+
+        openSaveAsNewPrompt() {
+            this._ensureSaveListeners();
+            const tpl = (this.templates || []).find(t => t.id === this.form.templateId);
+            const suggested = tpl ? (tpl.name + ' (custom)') : 'New custom template';
+            window.dispatchEvent(new CustomEvent('save-as-template-open', { detail: { suggestedName: suggested } }));
+        },
+
+        _ensureSaveListeners() {
+            if (this._saveInstalled) return;
+            this._saveInstalled = true;
+            window.addEventListener('danger-confirm-save-back', () => this._saveBackToTemplate());
+            window.addEventListener('save-as-template-confirm', (e) => {
+                const name = (e && e.detail && e.detail.name) || '';
+                this._saveAsNewTemplate(name);
+            });
+        },
+
+        async _saveBackToTemplate() {
+            const templateId = this.form.templateId;
+            if (!templateId) return;
+            const snapshot = this._captureSnapshotFromEditor();
+            if (!snapshot) {
+                window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+                if (typeof window.showToast === 'function') window.showToast('Could not read the editor snapshot', true);
+                return;
+            }
+            try {
+                const res = await window.authFetch('/api/inspections/templates/' + templateId, {
+                    method:  'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ schema: snapshot }),
+                });
+                if (!res.ok) {
+                    const txt = await res.text();
+                    throw new Error('HTTP ' + res.status + (txt ? ' — ' + txt.slice(0, 200) : ''));
+                }
+                window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+                if (typeof window.showToast === 'function') window.showToast('Template updated', false);
+            } catch (e) {
+                window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+                if (typeof window.showToast === 'function') window.showToast('Save back failed: ' + ((e && e.message) || 'unknown'), true);
+            }
+        },
+
+        async _saveAsNewTemplate(name) {
+            const cleanName = (name || '').trim();
+            if (!cleanName) {
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                return;
+            }
+            const snapshot = this._captureSnapshotFromEditor();
+            if (!snapshot) {
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                if (typeof window.showToast === 'function') window.showToast('Could not read the editor snapshot', true);
+                return;
+            }
+            try {
+                const res = await window.authFetch('/api/inspections/templates', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ name: cleanName, schema: snapshot }),
+                });
+                if (!res.ok) {
+                    const txt = await res.text();
+                    throw new Error('HTTP ' + res.status + (txt ? ' — ' + txt.slice(0, 200) : ''));
+                }
+                const j = await res.json();
+                const newId = j?.data?.template?.id || '';
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                if (typeof window.showToast === 'function') window.showToast('Saved as new template "' + cleanName + '"', false);
+                // Optionally refresh the templates list so the new one appears.
+                if (newId) this.templates.push({ id: newId, name: cleanName });
+            } catch (e) {
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                if (typeof window.showToast === 'function') window.showToast('Save as new failed: ' + ((e && e.message) || 'unknown'), true);
+            }
+        },
+
         async _doRatingSwitch(mode) {
             const newId = this._pendingRatingSwitchId;
             if (!newId) return;
