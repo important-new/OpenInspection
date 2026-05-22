@@ -14,14 +14,15 @@ import {
     InspectorSignatureSchema,
 } from '../lib/validations/sync.schema';
 import { inspections, inspectionResults, templates } from '../lib/db/schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const syncRoutes = new OpenAPIHono<HonoConfig>();
 
 /* ── POST /api/inspections/:id/results/merge ──────────────────────────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/results/merge',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Three-way merge sync of offline results',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -53,7 +54,9 @@ syncRoutes.openapi(createRoute({
             description: 'Conflict — inspector adjudication required',
         },
     },
-}), async (c) => {
+    operationId: "mergeInspection",
+    description: "Auto-generated placeholder for mergeInspection (POST /{id}/results/merge, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const { base, ours, dirtyFields } = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
@@ -124,10 +127,10 @@ syncRoutes.openapi(createRoute({
 });
 
 /* ── DELETE /api/inspections/:id/items/:itemId/photos/:photoIndex ─────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'delete',
     path: '/{id}/items/{itemId}/photos/{photoIndex}',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Authoritative delete of a photo from a result item',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -150,7 +153,9 @@ syncRoutes.openapi(createRoute({
             description: 'Deleted',
         },
     },
-}), async (c) => {
+    operationId: "deleteInspectionItemsPhoto",
+    description: "Auto-generated placeholder for deleteInspectionItemsPhoto (DELETE /{id}/items/{itemId}/photos/{photoIndex}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id, itemId, photoIndex } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     const db = drizzle(c.env.DB);
@@ -182,10 +187,10 @@ syncRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/inspections/:id/inspector-signature ────────────────────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/inspector-signature',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Record inspector signature on an inspection (authenticated)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -205,7 +210,9 @@ syncRoutes.openapi(createRoute({
             description: 'Saved',
         },
     },
-}), async (c) => {
+    operationId: "createInspectionInspectorSignature",
+    description: "Auto-generated placeholder for createInspectionInspectorSignature (POST /{id}/inspector-signature, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const { signatureBase64, signedAt } = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
@@ -238,15 +245,17 @@ syncRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/inspections/:id/template/upgrade ───────────────────────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/template/upgrade',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Upgrade inspection template snapshot to current master version',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: { 200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ from: z.number(), to: z.number() }) }) } }, description: 'Upgraded' } },
-}), async (c) => {
+    operationId: "upgradeInspection",
+    description: "Auto-generated placeholder for upgradeInspection (POST /{id}/template/upgrade, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     const db = drizzle(c.env.DB);

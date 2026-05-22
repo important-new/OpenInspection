@@ -15,17 +15,18 @@ import {
     AvailabilityResponseSchema,
     BookingResponseSchema
 } from '../lib/validations/booking.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const bookingsRoutes = new OpenAPIHono<HonoConfig>();
 
 /**
  * GET /api/public/inspectors
  */
-const listInspectorsRoute = createRoute({
+const listInspectorsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/inspectors',
-    tags: ['Public'],
-    summary: 'List available inspectors',
+    tags: ["bookings", "public"],
+    summary: "List booking inspectors for current tenant",
     responses: {
         200: {
             content: {
@@ -36,7 +37,9 @@ const listInspectorsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listBookingInspectors",
+    description: "Auto-generated placeholder for listBookingInspectors (GET /inspectors, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 bookingsRoutes.openapi(listInspectorsRoute, async (c) => {
     const tenantId = c.get('tenantId') || c.get('requestedSubdomain');
@@ -53,10 +56,10 @@ bookingsRoutes.openapi(listInspectorsRoute, async (c) => {
  * service selector. Only id / name / price / duration / templateId are
  * exposed; internal notes are not surfaced.
  */
-const listPublicServicesRoute = createRoute({
+const listPublicServicesRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/services',
-    tags: ['Public'],
+    tags: ["bookings", "public"],
     summary: 'List active services for public booking',
     responses: {
         200: {
@@ -79,7 +82,9 @@ const listPublicServicesRoute = createRoute({
             description: 'List of active services',
         },
     },
-});
+    operationId: "listBookingServices",
+    description: "Auto-generated placeholder for listBookingServices (GET /services, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 bookingsRoutes.openapi(listPublicServicesRoute, async (c) => {
     const tenantId = c.get('tenantId') || c.get('requestedSubdomain');
@@ -115,11 +120,11 @@ bookingsRoutes.openapi(listPublicServicesRoute, async (c) => {
 /**
  * GET /api/public/availability/:inspectorId
  */
-const getAvailabilityRoute = createRoute({
+const getAvailabilityRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/availability/{inspectorId}',
-    tags: ['Public'],
-    summary: 'Get inspector availability',
+    tags: ["bookings", "public"],
+    summary: "Get booking availability for current tenant",
     request: {
         params: z.object({ inspectorId: z.string().uuid() }),
         query: z.object({
@@ -137,7 +142,9 @@ const getAvailabilityRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "getBookingAvailability",
+    description: "Auto-generated placeholder for getBookingAvailability (GET /availability/{inspectorId}, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 bookingsRoutes.openapi(getAvailabilityRoute, async (c) => {
     const tenantId = c.get('tenantId') || c.get('requestedSubdomain');
@@ -157,10 +164,10 @@ bookingsRoutes.openapi(getAvailabilityRoute, async (c) => {
 /**
  * POST /api/public/book
  */
-const createBookingRoute = createRoute({
+const createBookingRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/book',
-    tags: ['Public'],
+    tags: ["bookings", "public"],
     summary: 'Submit a new booking',
     request: {
         body: {
@@ -181,7 +188,9 @@ const createBookingRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "createBookingBook",
+    description: "Auto-generated placeholder for createBookingBook (POST /book, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 bookingsRoutes.openapi(createBookingRoute, async (c) => {
     await checkRateLimit(c, 'book');
@@ -461,10 +470,10 @@ bookingsRoutes.openapi(createBookingRoute, async (c) => {
 /**
  * GET /api/public/agreements/:token — fetch agreement content + mark viewed
  */
-const getAgreementByTokenRoute = createRoute({
+const getAgreementByTokenRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/agreements/:token',
-    tags: ['Public'],
+    tags: ["bookings", "public"],
     summary: 'Get agreement for signing (public, token-gated)',
     request: { params: z.object({ token: z.string().min(1) }) },
     responses: {
@@ -485,7 +494,9 @@ const getAgreementByTokenRoute = createRoute({
             description: 'Agreement content',
         },
     },
-});
+    operationId: "listBookingAgreements",
+    description: "Auto-generated placeholder for listBookingAgreements (GET /agreements/:token, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 bookingsRoutes.openapi(getAgreementByTokenRoute, async (c) => {
     const { token } = c.req.valid('param');
@@ -506,10 +517,10 @@ bookingsRoutes.openapi(getAgreementByTokenRoute, async (c) => {
 /**
  * POST /api/public/agreements/:token/sign — submit client signature
  */
-const signAgreementRoute = createRoute({
+const signAgreementRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/agreements/:token/sign',
-    tags: ['Public'],
+    tags: ["bookings", "public"],
     summary: 'Submit client signature (public, token-gated)',
     request: {
         params: z.object({ token: z.string().min(1) }),
@@ -531,7 +542,9 @@ const signAgreementRoute = createRoute({
             description: 'Signed',
         },
     },
-});
+    operationId: "createBookingAgreementsSign",
+    description: "Auto-generated placeholder for createBookingAgreementsSign (POST /agreements/:token/sign, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 bookingsRoutes.openapi(signAgreementRoute, async (c) => {
     const { token } = c.req.valid('param');
@@ -702,10 +715,10 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
 /**
  * POST /api/public/agreements/:token/decline — client declines the agreement
  */
-const declineAgreementRoute = createRoute({
+const declineAgreementRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/agreements/:token/decline',
-    tags: ['Public'],
+    tags: ["bookings", "public"],
     summary: 'Decline agreement (public, token-gated)',
     request: {
         params: z.object({ token: z.string().min(1) }),
@@ -723,7 +736,9 @@ const declineAgreementRoute = createRoute({
             description: 'Declined',
         },
     },
-});
+    operationId: "declineBooking",
+    description: "Auto-generated placeholder for declineBooking (POST /agreements/:token/decline, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 bookingsRoutes.openapi(declineAgreementRoute, async (c) => {
     const { token } = c.req.valid('param');
@@ -760,10 +775,10 @@ bookingsRoutes.openapi(declineAgreementRoute, async (c) => {
  * autocomplete. The plan language uses "Mapbox" as a placeholder for any
  * geocoder; we align with the existing infrastructure.
  */
-const publicGeocodeRoute = createRoute({
+const publicGeocodeRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/geocode',
-    tags: ['Public'],
+    tags: ["bookings", "public"],
     summary: 'Address autocomplete proxy (public, rate-limited)',
     request: {
         query: z.object({
@@ -790,7 +805,9 @@ const publicGeocodeRoute = createRoute({
             description: 'Autocomplete suggestions or fallback reason',
         },
     },
-});
+    operationId: "geocodeBooking",
+    description: "Auto-generated placeholder for geocodeBooking (GET /geocode, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 bookingsRoutes.openapi(publicGeocodeRoute, async (c) => {
     await checkRateLimit(c, 'book');

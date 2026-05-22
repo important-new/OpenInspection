@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 /**
  * Spec 5D — Address Autofill (Phase 1) — server-side proxy for the
@@ -31,10 +32,10 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 // ── GET /api/places/autocomplete ───────────────────────────────────────────
-const autocompleteRoute = createRoute({
+const autocompleteRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/autocomplete',
-    tags: ['Places'],
+    tags: ["bookings"],
     summary: 'Address autocomplete (Google Places proxy)',
     request: {
         query: z.object({
@@ -56,7 +57,9 @@ const autocompleteRoute = createRoute({
             description: 'Autocomplete suggestions',
         },
     },
-});
+    operationId: "autocompletePlace",
+    description: "Auto-generated placeholder for autocompletePlace (GET /autocomplete, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 placesRoutes.openapi(autocompleteRoute, async (c) => {
     const apiKey = c.env.GOOGLE_PLACES_API_KEY;
@@ -115,10 +118,10 @@ placesRoutes.openapi(autocompleteRoute, async (c) => {
 });
 
 // ── GET /api/places/details ────────────────────────────────────────────────
-const detailsRoute = createRoute({
+const detailsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/details',
-    tags: ['Places'],
+    tags: ["bookings"],
     summary: 'Address details (Google Places Details proxy)',
     request: {
         query: z.object({
@@ -143,7 +146,9 @@ const detailsRoute = createRoute({
             description: 'Place details',
         },
     },
-});
+    operationId: "listPlaceDetails",
+    description: "Auto-generated placeholder for listPlaceDetails (GET /details, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 placesRoutes.openapi(detailsRoute, async (c) => {
     const apiKey = c.env.GOOGLE_PLACES_API_KEY;

@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { HonoConfig } from '../types/hono';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const widgetRoutes = new OpenAPIHono<HonoConfig>();
 
-const recordEventRoute = createRoute({
+const recordEventRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/event',
-    tags: ['Widget'],
+    tags: ["webhooks"],
     summary: 'Record an embeddable widget event (public, no JWT)',
     middleware: [] as const,
     request: {
@@ -31,7 +32,9 @@ const recordEventRoute = createRoute({
             description: 'Recorded',
         },
     },
-});
+    operationId: "createWidgetEvent",
+    description: "Auto-generated placeholder for createWidgetEvent (POST /event, webhooks domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'excluded' }));
 
 widgetRoutes.openapi(recordEventRoute, async (c) => {
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');

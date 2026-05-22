@@ -5,12 +5,13 @@ import {
     CreateContactSchema, UpdateContactSchema,
     ContactResponseSchema, ContactListQuerySchema,
 } from '../lib/validations/contact.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const contactRoutes = new OpenAPIHono<HonoConfig>();
 
-const listContactsRoute = createRoute({
+const listContactsRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Contacts'], summary: 'List contacts',
+    tags: ["contacts"], summary: "List contacts for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])],
     request: { query: ContactListQuerySchema },
     responses: {
@@ -20,7 +21,9 @@ const listContactsRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listContacts",
+    description: "Auto-generated placeholder for listContacts (GET /, contacts domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'primary' }));
 
 contactRoutes.openapi(listContactsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -32,9 +35,9 @@ contactRoutes.openapi(listContactsRoute, async (c) => {
     return c.json({ success: true as const, data: { contacts: rows, total: rows.length } }, 200);
 });
 
-const createContactRoute = createRoute({
+const createContactRoute = createRoute(withMcpMetadata({
     method: 'post', path: '/',
-    tags: ['Contacts'], summary: 'Create contact',
+    tags: ["contacts"], summary: "Create contact for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: { body: { content: { 'application/json': { schema: CreateContactSchema } } } },
     responses: {
@@ -44,7 +47,9 @@ const createContactRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createContact",
+    description: "Auto-generated placeholder for createContact (POST /, contacts domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' }));
 
 contactRoutes.openapi(createContactRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -62,9 +67,9 @@ contactRoutes.openapi(createContactRoute, async (c) => {
     return c.json({ success: true as const, data: { contact } }, 201);
 });
 
-const updateContactRoute = createRoute({
+const updateContactRoute = createRoute(withMcpMetadata({
     method: 'put', path: '/{id}',
-    tags: ['Contacts'], summary: 'Update contact',
+    tags: ["contacts"], summary: "Replace contact for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         params: z.object({ id: z.string().uuid() }),
@@ -77,7 +82,9 @@ const updateContactRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "replaceContact",
+    description: "Auto-generated placeholder for replaceContact (PUT /{id}, contacts domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 contactRoutes.openapi(updateContactRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -100,9 +107,9 @@ contactRoutes.openapi(updateContactRoute, async (c) => {
     return c.json({ success: true as const, data: { contact } }, 200);
 });
 
-const deleteContactRoute = createRoute({
+const deleteContactRoute = createRoute(withMcpMetadata({
     method: 'delete', path: '/{id}',
-    tags: ['Contacts'], summary: 'Delete contact',
+    tags: ["contacts"], summary: "Delete contact for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
@@ -112,7 +119,9 @@ const deleteContactRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "deleteContact",
+    description: "Auto-generated placeholder for deleteContact (DELETE /{id}, contacts domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' }));
 
 contactRoutes.openapi(deleteContactRoute, async (c) => {
     const tenantId = c.get('tenantId');

@@ -5,6 +5,7 @@ import { Errors } from '../lib/errors';
 import { verifyTurnstile } from '../lib/middleware/bot-protection';
 import { signJwt } from '../lib/jwt-keyring';
 import { logger } from '../lib/logger';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 /**
  * Agent Accounts A1 — self-serve agent signup endpoint.
@@ -35,14 +36,12 @@ const SignupResponseSchema = z
     })
     .openapi('AgentSignupResponse');
 
-const signupRoute = createRoute({
+const signupRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/',
-    tags: ['Agents'],
-    summary: 'Self-serve agent signup',
-    description:
-        'Public endpoint. Creates a global agent user, auto-links to any tenants where the ' +
-        'email already exists as a type=agent contact, and returns the agent JWT via cookie.',
+    tags: ["agents"],
+    summary: "Create agent for current tenant",
+    description: "Auto-generated placeholder for createAgent (POST /, agents domain). TODO: replace with a real description sourced from the handler.",
     request: {
         body: { content: { 'application/json': { schema: SignupBodySchema } } },
     },
@@ -54,7 +53,8 @@ const signupRoute = createRoute({
         400: { description: 'Invalid input' },
         409: { description: 'Email already registered — log in instead' },
     },
-});
+    operationId: "createAgent"
+}, { scopes: ['write'], tier: 'extended' }));
 
 agentSignupRoutes.openapi(signupRoute, async (c) => {
     const body = c.req.valid('json');

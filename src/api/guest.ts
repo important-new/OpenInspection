@@ -17,13 +17,14 @@ import { guestInvites, tenants } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { sendSuccess } from '../lib/response';
 import type { HonoConfig } from '../types/hono';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 export const guestRoutes = new OpenAPIHono<HonoConfig>();
 
-const claimRoute = createRoute({
+const claimRoute = createRoute(withMcpMetadata({
     method:  'post',
     path:    '/claim',
-    tags:    ['Guest'],
+    tags: ["guest"],
     summary: 'Anonymously claim a guest invite token',
     request: {
         body: { content: { 'application/json': { schema: z.object({
@@ -45,7 +46,9 @@ const claimRoute = createRoute({
         402: { description: 'Tenant at seat cap' },
         404: { description: 'Not found / expired / already claimed' },
     },
-});
+    operationId: "createGuestClaim",
+    description: "Auto-generated placeholder for createGuestClaim (POST /claim, guest domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'extended' }));
 
 guestRoutes.openapi(claimRoute, async (c) => {
     const body = c.req.valid('json');

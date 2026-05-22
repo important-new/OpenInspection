@@ -5,16 +5,20 @@ import { MetricsQuerySchema, MetricsApiResponseSchema } from '../lib/validations
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections, inspectionServices, contacts } from '../lib/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const metricsRoutes = new OpenAPIHono<HonoConfig>();
 
-metricsRoutes.openapi(createRoute({
+metricsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Metrics'],
+    tags: ["metrics"],
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { query: MetricsQuerySchema },
     responses: { 200: { content: { 'application/json': { schema: MetricsApiResponseSchema } }, description: 'Metrics' } },
-}), async (c) => {
+    operationId: "listMetrics",
+    summary: "List metrics for current tenant",
+    description: "Auto-generated placeholder for listMetrics (GET /, metrics domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { period } = c.req.valid('query');
     const db = drizzle(c.env.DB);

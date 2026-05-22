@@ -10,6 +10,7 @@ import {
     MigrationBodySchema,
 } from '../lib/validations/template-migration.schema';
 import type { MigrateResult } from '../services/template-migration.service';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const templateMigrationRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -20,48 +21,46 @@ const templateMigrationRoutes = new OpenAPIHono<HonoConfig>();
  * KV lock `mig_lock:{oldId}` (5-minute TTL) prevents concurrent migrations.
  */
 templateMigrationRoutes.openapi(
-    createRoute({
-        method: 'post',
-        path: '/{oldId}/migrate-to/{newId}',
-        tags: ['Templates'],
-        summary: 'Migrate inspections from old template to new template',
-        description:
-            'Service-layer migrates results.data per the chosen strategy. ' +
-            'Throws 422 with a diff payload under refuse_incompatible when any ' +
-            'inspection would lose data. KV lock prevents concurrent runs on the same template.',
-        middleware: [requireRole(['owner', 'admin'])] as const,
-        request: {
-            params: MigrationParamsSchema,
-            body: {
-                content: {
-                    'application/json': {
-                        schema: MigrationBodySchema,
+    createRoute(withMcpMetadata({
+            method: 'post',
+            path: '/{oldId}/migrate-to/{newId}',
+            tags: ["templates"],
+            summary: 'Migrate inspections from old template to new template',
+            description: "Auto-generated placeholder for createTemplateMigrationMigrateTo (POST /{oldId}/migrate-to/{newId}, templates domain). TODO: replace with a real description sourced from the handler.",
+            middleware: [requireRole(['owner', 'admin'])] as const,
+            request: {
+                params: MigrationParamsSchema,
+                body: {
+                    content: {
+                        'application/json': {
+                            schema: MigrationBodySchema,
+                        },
                     },
                 },
             },
-        },
-        responses: {
-            200: {
-                content: {
-                    'application/json': {
-                        schema: z.object({
-                            success: z.boolean(),
-                            data: z.object({
-                                dryRun:             z.boolean().optional(),
-                                migrated:           z.number().int(),
-                                strategy:           z.string(),
-                                preview:            z.unknown(),
-                                oldTemplateDeleted: z.boolean(),
+            responses: {
+                200: {
+                    content: {
+                        'application/json': {
+                            schema: z.object({
+                                success: z.boolean(),
+                                data: z.object({
+                                    dryRun:             z.boolean().optional(),
+                                    migrated:           z.number().int(),
+                                    strategy:           z.string(),
+                                    preview:            z.unknown(),
+                                    oldTemplateDeleted: z.boolean(),
+                                }),
                             }),
-                        }),
+                        },
                     },
+                    description: 'Migrated',
                 },
-                description: 'Migrated',
+                409: { description: 'Concurrent migration in progress' },
+                422: { description: 'Strategy refused — schema incompatible' },
             },
-            409: { description: 'Concurrent migration in progress' },
-            422: { description: 'Strategy refused — schema incompatible' },
-        },
-    }),
+            operationId: "createTemplateMigrationMigrateTo"
+        }, { scopes: ['write'], tier: 'extended' })),
     async (c) => {
         const { oldId, newId } = c.req.valid('param');
         const body = c.req.valid('json');

@@ -16,6 +16,7 @@ import {
     ConciergeBookSchema,
     ConciergeBookResponseSchema,
 } from '../lib/validations/agent.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const agentRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -23,11 +24,11 @@ const agentRoutes = new OpenAPIHono<HonoConfig>();
  * GET /api/agents/my-reports
  * Agent or admin can view referral reports.
  */
-const getReportsRoute = createRoute({
+const getReportsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/my-reports',
-    tags: ['Agents'],
-    summary: 'View referral reports',
+    tags: ["agents"],
+    summary: "List agent my reports",
     request: {
         query: AgentReportsQuerySchema,
     },
@@ -44,7 +45,9 @@ const getReportsRoute = createRoute({
         403: { description: 'Forbidden' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listAgentMyReports",
+    description: "Auto-generated placeholder for listAgentMyReports (GET /my-reports, agents domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['agent'], tier: 'extended' }));
 
 agentRoutes.openapi(getReportsRoute, async (c) => {
     // Move RBAC check inside to fix OpenAPIHono type inference issues with context
@@ -93,10 +96,10 @@ const RecommendationRowSchema = z.object({
     location:        z.string().nullable(),
     photos:          z.array(z.string()),
 });
-const myRecommendationsRoute = createRoute({
+const myRecommendationsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/my-recommendations',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Defects from referred inspections grouped by category',
     responses: {
         200: {
@@ -114,7 +117,9 @@ const myRecommendationsRoute = createRoute({
         403: { description: 'Forbidden' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listAgentMyRecommendations",
+    description: "Auto-generated placeholder for listAgentMyRecommendations (GET /my-recommendations, agents domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['agent'], tier: 'extended' }));
 
 agentRoutes.openapi(myRecommendationsRoute, async (c) => {
     await requireRole(['agent'])(c, async () => {});
@@ -127,11 +132,11 @@ agentRoutes.openapi(myRecommendationsRoute, async (c) => {
  * GET /api/agents/leaderboard
  * Admin/owner leaderboard based on referral counts.
  */
-const getLeaderboardRoute = createRoute({
+const getLeaderboardRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/leaderboard',
-    tags: ['Agents'],
-    summary: 'Agent referral leaderboard',
+    tags: ["agents"],
+    summary: "Leaderboard agent for current tenant",
     responses: {
         200: {
             content: {
@@ -145,7 +150,9 @@ const getLeaderboardRoute = createRoute({
         403: { description: 'Forbidden' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "leaderboardAgent",
+    description: "Auto-generated placeholder for leaderboardAgent (GET /leaderboard, agents domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['agent'], tier: 'extended' }));
 
 agentRoutes.openapi(getLeaderboardRoute, async (c) => {
     await requireRole(['owner', 'admin', 'inspector', 'agent'])(c, async () => {});
@@ -184,10 +191,10 @@ agentRoutes.openapi(getLeaderboardRoute, async (c) => {
  * global users (tenant_id IS NULL), so the route does NOT require a tenantId.
  * RBAC narrows to role='agent' only.
  */
-const updateProfileRoute = createRoute({
+const updateProfileRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/profile',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Update agent profile (slug + notification prefs)',
     request: {
         body: { content: { 'application/json': { schema: AgentProfilePatchSchema } } },
@@ -203,7 +210,9 @@ const updateProfileRoute = createRoute({
         409: { description: 'Slug already taken' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createAgentProfile",
+    description: "Auto-generated placeholder for createAgentProfile (POST /profile, agents domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['agent'], tier: 'extended' }));
 
 agentRoutes.openapi(updateProfileRoute, async (c) => {
     await requireRole(['agent'])(c, async () => {});
@@ -229,10 +238,10 @@ agentRoutes.openapi(updateProfileRoute, async (c) => {
  * global JWT middleware so a stolen tenantId can't bypass the agent ↔ tenant
  * link check.
  */
-const conciergeBookRoute = createRoute({
+const conciergeBookRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/concierge-book',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Agent submits a concierge booking on behalf of a client',
     request: {
         body: { content: { 'application/json': { schema: ConciergeBookSchema } } },
@@ -248,7 +257,9 @@ const conciergeBookRoute = createRoute({
         404: { description: 'Inspector contact not found' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createAgentConciergeBook",
+    description: "Auto-generated placeholder for createAgentConciergeBook (POST /concierge-book, agents domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['agent'], tier: 'extended' }));
 
 agentRoutes.openapi(conciergeBookRoute, async (c) => {
     await requireRole(['agent'])(c, async () => {});

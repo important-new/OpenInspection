@@ -17,13 +17,14 @@ import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import type { HonoConfig } from '../types/hono';
 import { sendSuccess } from '../lib/response';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const publicShareRoutes = new OpenAPIHono<HonoConfig>();
 
-const shareTokenRoute = createRoute({
+const shareTokenRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/inspections/{id}/share-token',
-    tags: ['Public'],
+    tags: ["inspections", "public"],
     summary: 'Mint a 30-day view-only share token (customer-initiated)',
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
@@ -37,7 +38,9 @@ const shareTokenRoute = createRoute({
         403: { description: 'Report not delivered yet' },
         404: { description: 'Inspection not found' },
     },
-});
+    operationId: "createPublicShareInspectionsShareToken",
+    description: "Auto-generated placeholder for createPublicShareInspectionsShareToken (POST /inspections/{id}/share-token, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'extended' }));
 
 publicShareRoutes.openapi(shareTokenRoute, async (c) => {
     const { id } = c.req.valid('param');

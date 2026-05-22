@@ -21,13 +21,14 @@ import {
     InspectionRequestDetailResponseSchema,
     InspectionRequestResponseSchema,
 } from '../lib/validations/inspection-request.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const inspectionRequestsRoutes = new OpenAPIHono<HonoConfig>();
 
-const listRoute = createRoute({
+const listRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Inspection Requests'],
-    summary: 'List inspection requests',
+    tags: ["inspections"],
+    summary: "List inspection requests for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { query: InspectionRequestListQuerySchema },
     responses: {
@@ -37,7 +38,9 @@ const listRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listInspectionRequests",
+    description: "Auto-generated placeholder for listInspectionRequests (GET /, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionRequestsRoutes.openapi(listRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -52,10 +55,10 @@ inspectionRequestsRoutes.openapi(listRoute, async (c) => {
     return c.json({ success: true, data: { requests: rows, total: rows.length } }, 200);
 });
 
-const detailRoute = createRoute({
+const detailRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/{id}',
-    tags: ['Inspection Requests'],
-    summary: 'Get inspection request',
+    tags: ["inspections"],
+    summary: "Get inspection request for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string().min(1) }) },
     responses: {
@@ -65,7 +68,9 @@ const detailRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "getInspectionRequest",
+    description: "Auto-generated placeholder for getInspectionRequest (GET /{id}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionRequestsRoutes.openapi(detailRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -80,9 +85,9 @@ inspectionRequestsRoutes.openapi(detailRoute, async (c) => {
 // Returns 200 with `{ request: null }` when the inspection has no parent
 // (single-service legacy bookings) so the caller can branch without 404
 // noise in the console.
-const byInspectionRoute = createRoute({
+const byInspectionRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/by-inspection/{inspectionId}',
-    tags: ['Inspection Requests'],
+    tags: ["inspections"],
     summary: 'Get parent request by inspection id',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ inspectionId: z.string().min(1) }) },
@@ -100,7 +105,9 @@ const byInspectionRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "getInspectionRequestByInspection",
+    description: "Auto-generated placeholder for getInspectionRequestByInspection (GET /by-inspection/{inspectionId}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionRequestsRoutes.openapi(byInspectionRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -109,9 +116,9 @@ inspectionRequestsRoutes.openapi(byInspectionRoute, async (c) => {
     return c.json({ success: true as const, data: { request: request ?? null } }, 200);
 });
 
-const createReqRoute = createRoute({
+const createReqRoute = createRoute(withMcpMetadata({
     method: 'post', path: '/',
-    tags: ['Inspection Requests'],
+    tags: ["inspections"],
     summary: 'Create inspection request with N sub-inspections',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {
@@ -124,7 +131,9 @@ const createReqRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createInspectionRequest",
+    description: "Auto-generated placeholder for createInspectionRequest (POST /, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionRequestsRoutes.openapi(createReqRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -158,10 +167,10 @@ inspectionRequestsRoutes.openapi(createReqRoute, async (c) => {
     return c.json({ success: true, data: { request: created } }, 201);
 });
 
-const updateReqRoute = createRoute({
+const updateReqRoute = createRoute(withMcpMetadata({
     method: 'put', path: '/{id}',
-    tags: ['Inspection Requests'],
-    summary: 'Update inspection request',
+    tags: ["inspections"],
+    summary: "Replace inspection request for current tenant",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {
         params: z.object({ id: z.string().min(1) }),
@@ -174,7 +183,9 @@ const updateReqRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "replaceInspectionRequest",
+    description: "Auto-generated placeholder for replaceInspectionRequest (PUT /{id}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionRequestsRoutes.openapi(updateReqRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -189,9 +200,9 @@ inspectionRequestsRoutes.openapi(updateReqRoute, async (c) => {
     return c.json({ success: true, data: { request: updated } }, 200);
 });
 
-const addSubRoute = createRoute({
+const addSubRoute = createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/inspections',
-    tags: ['Inspection Requests'],
+    tags: ["inspections"],
     summary: 'Add a sub-inspection to an existing request',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {
@@ -215,7 +226,9 @@ const addSubRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createInspectionRequestInspections",
+    description: "Auto-generated placeholder for createInspectionRequestInspections (POST /{id}/inspections, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionRequestsRoutes.openapi(addSubRoute, async (c) => {
     const tenantId = c.get('tenantId');
