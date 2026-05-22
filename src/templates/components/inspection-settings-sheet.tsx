@@ -188,14 +188,26 @@ export const InspectionSettingsSheet = ({
                                         </template>
                                     </select>
                                 </label>
-                                <div
-                                    x-show="ratingSystemLabel"
-                                    style="display:none"
-                                    class="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-indigo-50 ring-1 ring-inset ring-indigo-200 text-[11px] font-bold text-indigo-700"
-                                >
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                    Rating system: <span x-text="ratingSystemLabel"></span>
-                                </div>
+                                {/* Feature #20 phase 2 — inline rating system swap.
+                                    Reads /api/rating-systems on sheet open, shows the
+                                    current snapshot's system as the selected option,
+                                    and warns the inspector via window.confirm() before
+                                    POSTing to /switch-rating-system (remap mode). */}
+                                <label class="block">
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Rating system</span>
+                                    <select
+                                        x-model="form.ratingSystemId"
+                                        x-on:change="switchRatingSystem($event.target.value)"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                    >
+                                        <template x-for="rs in ratingSystems" {...{ 'x-bind:key': 'rs.id' }}>
+                                            <option {...{ 'x-bind:value': 'rs.id' }} x-text="rs.name + ' (' + (rs.levels?.length || 0) + ' levels)'"></option>
+                                        </template>
+                                    </select>
+                                    <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        Switching maps each rated item to the new system by severity bucket. Items without a matching bucket lose their rating. Notes, photos, and comments are preserved.
+                                    </p>
+                                </label>
                             </fieldset>
 
                             <fieldset class="space-y-4">

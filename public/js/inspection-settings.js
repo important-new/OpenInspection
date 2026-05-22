@@ -19,10 +19,21 @@ document.addEventListener('alpine:init', () => {
         templates: [],
         inspectors: [],
         currentTemplate: null,
+        // Feature #20 phase 2 — list of tenant rating systems (seed + custom).
+        // Loaded once on sheet open from /api/rating-systems; rendered in the
+        // Template fieldset as a dropdown bound to form.ratingSystemId.
+        ratingSystems: [],
         form: {
             date: '',
             inspectorId: '',
             templateId: '',
+            // Feature #20 phase 2 — current rating system id (UUID). Resolved
+            // on load() by matching the snapshot's ratingSystem.name against
+            // the rating-systems list. The user-facing select binds to this;
+            // the @change handler routes through switchRatingSystem() which
+            // calls the dedicated swap endpoint (NOT the generic save flow,
+            // because the swap has side-effects on inspection_results).
+            ratingSystemId: '',
             price: 0,
             paymentRequired: false,
             agreementRequired: false,
@@ -76,7 +87,7 @@ document.addEventListener('alpine:init', () => {
 
         async load() {
             try {
-                const [inspRes, tplRes, teamRes, peopleRes, factsRes] = await Promise.all([
+                const [inspRes, tplRes, teamRes, peopleRes, factsRes, rsRes] = await Promise.all([
                     window.authFetch('/api/inspections/' + this.inspectionId),
                     window.authFetch('/api/templates'),
                     window.authFetch('/api/team/members'),
@@ -84,6 +95,8 @@ document.addEventListener('alpine:init', () => {
                     window.authFetch('/api/inspections/' + this.inspectionId + '/people'),
                     // Round-2 backlog G1 — Property Facts strip.
                     window.authFetch('/api/inspections/' + this.inspectionId + '/property-facts'),
+                    // Feature #20 phase 2 — tenant rating systems for the dropdown.
+                    window.authFetch('/api/rating-systems'),
                 ]);
                 const inspJson = inspRes.ok ? await inspRes.json() : { data: {} };
                 const insp = (inspJson.data && (inspJson.data.inspection || inspJson.data)) || {};
@@ -98,6 +111,26 @@ document.addEventListener('alpine:init', () => {
                 this.form.closingDate    = insp.closingDate    || '';
                 this.form.orderId        = insp.orderId        || '';
                 this.form.referralSource = insp.referralSource || '';
+
+                // Feature #20 phase 2 — populate ratingSystems + resolve the
+                // active one from the inspection's templateSnapshot. We match
+                // by name because the snapshot embeds the system inline
+                // rather than carrying a foreign-key id.
+                if (rsRes && rsRes.ok) {
+                    const rsJson = await rsRes.json();
+                    this.ratingSystems = (rsJson && rsJson.data) || [];
+                    try {
+                        const snapRaw = insp.templateSnapshot;
+                        if (snapRaw) {
+                            const snap = typeof snapRaw === 'string' ? JSON.parse(snapRaw) : snapRaw;
+                            const activeName = snap?.ratingSystem?.name;
+                            const match = activeName
+                                ? this.ratingSystems.find(rs => rs.name === activeName)
+                                : null;
+                            if (match) this.form.ratingSystemId = match.id;
+                        }
+                    } catch (e) { /* snapshot may be missing/legacy — leave default */ }
+                }
 
                 if (tplRes && tplRes.ok) {
                     const tplJson = await tplRes.json();
@@ -254,6 +287,60 @@ document.addEventListener('alpine:init', () => {
                 console.error('autofill failed', e);
                 this.autofillState = 'error';
                 this.autofillMessage = (e && e.message) || 'Auto-fill failed';
+            }
+        },
+
+        // Feature #20 phase 2 — swap the rating system on this inspection's
+        // snapshot via the dedicated endpoint (with severity-bucket remap).
+        // Bound to the <select>'s @change. We pre-confirm with a window prompt
+        // so the inspector can back out before any DB mutation; if confirmed,
+        // POST to /switch-rating-system, then hard-reload so the editor picks
+        // up the new levels + remapped ratings from the wire.
+        async switchRatingSystem(newId) {
+            if (!newId) return;
+            const target = this.ratingSystems.find(rs => rs.id === newId);
+            if (!target) return;
+            const ok = window.confirm(
+                'Switch rating system to "' + target.name + '"?\n\n' +
+                'Items already rated will be remapped to the closest level in the new system (matched by severity).\n' +
+                'Ratings without a matching bucket will be cleared.\n' +
+                'Notes, photos, and canned comments are preserved.\n\n' +
+                'OK to proceed, Cancel to abort.'
+            );
+            if (!ok) {
+                // Revert the select to the previously-saved id by rebinding;
+                // an Alpine $nextTick lets the DOM catch up before we read.
+                const previous = this.form.ratingSystemId;
+                // Reload to re-resolve from the snapshot (avoids stale select).
+                this.form.ratingSystemId = previous;
+                return;
+            }
+            this.saveState = 'saving';
+            try {
+                const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/switch-rating-system', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ratingSystemId: newId, mode: 'remap' }),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const j = await res.json();
+                const stats = (j && j.data) || { remapped: 0, cleared: 0, total: 0 };
+                this.saveState = 'saved';
+                // Surface the actual remap stats so the inspector knows what changed.
+                if (typeof window.showToast === 'function') {
+                    window.showToast(
+                        'Rating system switched: ' + stats.remapped + ' remapped, ' + stats.cleared + ' cleared (of ' + stats.total + ').',
+                        false
+                    );
+                }
+                // Hard reload so editor + viewer rebuild from the new snapshot.
+                window.location.reload();
+            } catch (e) {
+                this.saveState = 'error';
+                console.error('switchRatingSystem failed', e);
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Switch failed: ' + ((e && e.message) || 'unknown'), true);
+                }
             }
         },
 
