@@ -28,6 +28,10 @@ import {
 // appear in the doc under both /api/auth/* and root paths like /login, /join,
 // /profile, /2fa/*. The eachOperation() walker deduplicates by operationId so
 // only one needs metadata; we list both prefixes here for the skip-list phase.
+// Modules backfilled by `scripts/backfill-route-metadata.ts` (route metadata
+// only — Zod schemas not yet visited). Stay here until a follow-up codemod
+// adds `.describe()` to their input fields and the gate's field-description
+// walker passes for them.
 const SKIP_MODULES = new Set([
     '/api/admin',
     '/api/agent',
