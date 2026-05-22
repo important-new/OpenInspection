@@ -1447,9 +1447,22 @@ inspectionsRoutes.get('/:id/report', async (c) => {
         const results = await db.select().from(inspectionResults)
             .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, resolved.tenantId))).get();
         const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
+        // Feature #20 — anonymous viewer must also see the per-inspection
+        // snapshot, not the source template's schema. Same logic as the
+        // authenticated viewer below.
+        const rawSnapPublic = (inspection as unknown as { templateSnapshot?: unknown }).templateSnapshot;
+        let publicTemplate: unknown = template;
+        if (rawSnapPublic) {
+            try {
+                const snap = typeof rawSnapPublic === 'string' ? JSON.parse(rawSnapPublic as string) : rawSnapPublic;
+                if (snap && Array.isArray((snap as { sections?: unknown }).sections) && (snap as { sections: unknown[] }).sections.length > 0) {
+                    publicTemplate = { ...(template || {}), schema: snap };
+                }
+            } catch { /* malformed snapshot — fall through */ }
+        }
         return c.html(renderProfessionalReport({
             inspection: { ...inspection, internalNotes: null, paymentStatus: null, paymentRequired: false } as never,
-            template: template as never,
+            template: publicTemplate as never,
             results: (results || { data: {} }) as never,
             branding: c.get('branding'),
             isAuthenticated: false,
@@ -1532,9 +1545,25 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     } catch { /* no units / migration not applied — degrade silently */ }
 
     const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
+    // Feature #20 — the report viewer reads `template.schema`. When the
+    // inspection's per-job snapshot has its own (possibly extended)
+    // structure, override the template schema with it so added sections /
+    // items / rating-system swaps are actually visible in the published
+    // view. The snapshot is the authoritative shape for THIS inspection;
+    // template.schema is the source row used for future inspections.
+    const rawSnap = (inspection as unknown as { templateSnapshot?: unknown }).templateSnapshot;
+    let viewerTemplate: unknown = template;
+    if (rawSnap) {
+        try {
+            const snap = typeof rawSnap === 'string' ? JSON.parse(rawSnap as string) : rawSnap;
+            if (snap && Array.isArray((snap as { sections?: unknown }).sections) && (snap as { sections: unknown[] }).sections.length > 0) {
+                viewerTemplate = { ...(template || {}), schema: snap };
+            }
+        } catch { /* malformed snapshot — fall back to source template */ }
+    }
     return c.html(renderProfessionalReport({
         inspection: { ...inspection, inspectorName } as never,
-        template: template as never,
+        template: viewerTemplate as never,
         results: (results || { data: {} }) as never,
         branding: c.get('branding'),
         isAuthenticated: true,
