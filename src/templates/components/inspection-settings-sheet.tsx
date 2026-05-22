@@ -336,3 +336,87 @@ export const RatingSwitchConfirmModal = (): JSX.Element => (
         </div>
     </div>
 );
+
+/**
+ * Feature #20 phase 2b — add-section prompt modal.
+ *
+ * Mounted at page root alongside RatingSwitchConfirmModal so its overlay
+ * isn't clipped by the settings sheet. Communicates with the editor via
+ * window events:
+ *   add-section-open    →  modal opens with empty title
+ *   add-section-confirm {title}  →  editor patches snapshot
+ *   add-section-done    →  modal closes (editor fires on success/error)
+ */
+export const AddSectionPromptModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            title: '',
+            busy: false,
+            close() { this.show = false; this.title = ''; this.busy = false; },
+            cancel() { this.close(); },
+            submit() {
+                if (this.busy) return;
+                const t = (this.title || '').trim();
+                if (!t) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent('add-section-confirm', { detail: { title: t } }));
+            },
+        }"
+        {...{
+            'x-on:add-section-open.window': 'show = true; title = ""; busy = false; $nextTick(() => $refs.titleInput?.focus())',
+            'x-on:add-section-done.window':  'close()',
+            'x-on:keydown.escape.window':    'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <form
+                {...{ 'x-on:submit.prevent': 'submit()' }}
+                class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
+            >
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Add a section</h3>
+                    <p class="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                        Per-inspection only — the source template is unchanged.
+                    </p>
+                </div>
+                <div class="px-5 py-4">
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Section title</span>
+                        <input
+                            type="text"
+                            x-model="title"
+                            x-ref="titleInput"
+                            maxlength="50"
+                            required
+                            placeholder="e.g. Pool & Spa"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </label>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="submit"
+                        {...{ 'x-bind:disabled': "busy || !title.trim()" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Add section</button>
+                </div>
+            </form>
+        </div>
+    </div>
+);

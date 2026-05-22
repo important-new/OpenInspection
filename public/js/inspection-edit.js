@@ -790,6 +790,115 @@ function inspectionEditor(inspectionId) {
       this.batchSelected     = {};
     },
 
+    // Feature #20 phase 2b — open the AddSectionPromptModal. The modal
+    // handles its own state; on submit it fires `add-section-confirm`
+    // which the listener below routes to _addSection().
+    openAddSectionPrompt() {
+      this._ensureAddSectionListeners();
+      window.dispatchEvent(new CustomEvent('add-section-open'));
+    },
+
+    _ensureAddSectionListeners() {
+      if (this._addSectionInstalled) return;
+      this._addSectionInstalled = true;
+      window.addEventListener('add-section-confirm', (e) => {
+        const title = (e && e.detail && e.detail.title) || '';
+        this._addSection(title);
+      });
+    },
+
+    async _addSection(title) {
+      const cleanTitle = (title || '').trim();
+      if (!cleanTitle) {
+        window.dispatchEvent(new CustomEvent('add-section-done'));
+        return;
+      }
+      try {
+        // Mutate the local snapshot so the editor refreshes optimistically.
+        // The server-side TemplateSchemaV2 validator demands `id`, `title`,
+        // and `items` on every section — keep the new node minimal.
+        const newSection = {
+          id:    'sec_' + (crypto.randomUUID ? crypto.randomUUID() : Date.now()),
+          title: cleanTitle,
+          items: [],
+        };
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || []).map(s => this._stripRuntimeKeys(s)),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        snapshot.sections.push(newSection);
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        window.dispatchEvent(new CustomEvent('add-section-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Added section "' + cleanTitle + '"', false);
+        }
+        // Hard-reload so the section list rebuilds against the new snapshot.
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('add-section-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Add section failed: ' + ((e && e.message) || 'unknown'), true);
+        }
+      }
+    },
+
+    // Helpers for snapshot rebuild — the editor tacks runtime computed
+    // fields onto each section / item (rating, ratingColor, severityBucket,
+    // notes, photos, recommendation, ...) that aren't part of the persisted
+    // TemplateSchemaV2 shape. The schema is `.strict()`, so any extra key
+    // makes the PATCH fail with ZodError("unrecognized_keys"). Use an
+    // allowlist that mirrors src/lib/validations/template.schema.ts.
+    _stripRuntimeKeys(section) {
+      const allowedBase = ['id','label','description','icon','number','required','isSafety','defaultRecommendation','defaultEstimateMin','defaultEstimateMax','attributes','source','type'];
+      const typeExtras = {
+        rich:         ['ratingOptions','tabs'],
+        text:         ['options'],
+        textarea:     ['options'],
+        number:       ['options'],
+        select:       ['options'],
+        multi_select: ['options'],
+        photo_only:   ['options'],
+        boolean:      [],
+        date:         [],
+      };
+      const sectionAllow = ['id','title','icon','identifier','items','disclaimerText','alwaysPageBreak','source'];
+      const pick = (obj, keys) => keys.reduce((acc, k) => {
+        if (obj[k] !== undefined && obj[k] !== null) acc[k] = obj[k];
+        return acc;
+      }, {});
+
+      const out = pick(section, sectionAllow.filter(k => k !== 'items'));
+      // Default a rich item to type 'rich' if missing (legacy templates).
+      out.items = (section.items || []).map(it => {
+        const itemType = it.type || 'rich';
+        const allowed = allowedBase.concat(typeExtras[itemType] || []);
+        const picked = pick(it, allowed);
+        picked.type = itemType;
+        return picked;
+      });
+      return out;
+    },
+
+    _snapshotRatingSystem() {
+      // Reconstruct a v2-conformant ratingSystem block from ratingLevels.
+      // The editor already normalised these on load via mapRatingSystemLevels.
+      const levels = (this.ratingLevels || []).map(l => {
+        const out = { id: l.id || l.label, label: l.label || l.id };
+        if (l.abbreviation) out.abbreviation = l.abbreviation;
+        if (l.color)        out.color        = l.color;
+        if (l.severity)     out.severity     = l.severity;
+        if (l.isDefect)     out.isDefect     = true;
+        return out;
+      });
+      return { levels };
+    },
+
     /**
      * Design's Property Info as a virtual section — clicking the row in
      * the section rail swaps the centre pane from the item list to a

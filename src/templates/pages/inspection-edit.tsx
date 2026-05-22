@@ -13,7 +13,7 @@ import { TeamBanner } from '../components/team-banner';
 import { FooterBar } from '../components/footer-bar';
 import { ReconnectBanner } from '../components/reconnect-banner';
 import { UnitTree } from '../components/unit-tree';
-import { InspectionSettingsSheet, RatingSwitchConfirmModal } from '../components/inspection-settings-sheet';
+import { InspectionSettingsSheet, RatingSwitchConfirmModal, AddSectionPromptModal } from '../components/inspection-settings-sheet';
 import { MintObserverLinkModal } from '../components/mint-observer-link-modal';
 import { InviteSeatModal } from '../components/invite-seat-modal';
 import type { BrandingConfig } from '../../types/auth';
@@ -1312,6 +1312,20 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     x-text="sectionDefectCount(sec.id)"></span>
                 </button>
               </template>
+
+              {/* Feature #20 phase 2b — inline "+ Add section" button.
+                  Dispatches `add-section-open` window event to AddSectionPromptModal;
+                  on confirm, inspection-edit.js patches the snapshot and reloads. */}
+              <button
+                x-on:click="openAddSectionPrompt()"
+                class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm transition-all text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 mt-2 border border-dashed border-indigo-300 dark:border-indigo-700/50"
+                title="Add a new section to this inspection"
+              >
+                <span class="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden="true">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6" /></svg>
+                </span>
+                <span class="font-semibold">Add section</span>
+              </button>
             </div>
           </aside>
 
@@ -2439,6 +2453,10 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             settings sheet's clipping. Communicates with inspectionSettingsPage
             via `rating-switch-open` / `-confirm` / `-cancel` window events. */}
         <RatingSwitchConfirmModal />
+        {/* Feature #20 phase 2b — add-section prompt modal. Triggered by the
+            "+ Add section" button at the end of the section list. Editor
+            listens for `add-section-confirm` to patch the snapshot. */}
+        <AddSectionPromptModal />
         {/* S3-6 — burst-camera modal lives at the page level so it stays
             mounted across item navigation. inspection-edit.js dispatches a
             `burst-camera:open` window event when the user taps a Camera
