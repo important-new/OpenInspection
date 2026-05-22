@@ -209,8 +209,11 @@ export function renderProfessionalReport(data: {
                 class="px-6 py-8 md:px-10 md:py-10 relative overflow-hidden"
                 style="background: var(--bg-hero, var(--bg-primary, #0f172a));"
             >
-                <div class="absolute top-0 right-0 w-[400px] h-full bg-gradient-to-l from-indigo-500/20 to-transparent skew-x-[-20deg] translate-x-32"></div>
-                
+                <div
+                    class="absolute top-0 right-0 w-[400px] h-full skew-x-[-20deg] translate-x-32"
+                    style="background: linear-gradient(to left, var(--accent-on-hero, rgba(99,102,241,0.22)), transparent);"
+                ></div>
+
                 <div class="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
                     <div class="max-w-3xl">
                         <div class="flex items-center gap-4 mb-6">
@@ -224,13 +227,28 @@ export function renderProfessionalReport(data: {
                             Per handoff README, font-black is retained ONLY on Report Cover H1
                             + stat numbers; the size moved from text-7xl (72px) → text-4xl
                             (36px), still hero-scale but no longer Spectora-mockingly oversized. */}
-                        <h1 class="text-3xl md:text-2xl font-bold tracking-tight text-white leading-[1.1]">{inspection.propertyAddress}</h1>
-                        <p class="mt-8 text-xl text-slate-400 font-medium tracking-tight">Home Inspection Report</p>
+                        <h1
+                            class="text-4xl md:text-5xl font-bold tracking-tight text-white leading-[1.05]"
+                            style="font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif);"
+                        >{inspection.propertyAddress}</h1>
+                        <p
+                            class="mt-6 text-lg text-white/70 font-normal tracking-tight"
+                            style="font-family: var(--font-body, ui-sans-serif, system-ui, sans-serif);"
+                        >Home Inspection Report</p>
                     </div>
-                    
-                    <div class="flex flex-col items-start md:items-end gap-2 border-l-2 md:border-l-0 md:border-r-2 border-indigo-500/40 pl-8 md:pl-0 md:pr-8 py-2">
-                        <span class="text-[10px] font-bold uppercase tracking-[0.3em] text-indigo-400">Inspection Date</span>
-                        <span class="text-xl font-bold text-white tabular-nums tracking-tight">
+
+                    <div
+                        class="flex flex-col items-start md:items-end gap-2 border-l-2 md:border-l-0 md:border-r-2 pl-8 md:pl-0 md:pr-8 py-2"
+                        style="border-color: var(--hero-rule, rgba(99,102,241,0.4));"
+                    >
+                        <span
+                            class="text-[10px] font-bold uppercase tracking-[0.3em]"
+                            style="color: var(--hero-label, #a78bfa);"
+                        >Inspection Date</span>
+                        <span
+                            class="text-xl font-bold text-white tabular-nums tracking-tight"
+                            style="font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif);"
+                        >
                             {new Date(inspection.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).toUpperCase()}
                         </span>
                     </div>

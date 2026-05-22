@@ -16,6 +16,9 @@
   --border-color: rgba(255,255,255,0.08);
   --accent: #8b5cf6;           /* violet-500 */
   --accent-hover: #7c3aed;     /* violet-600 */
+  --accent-on-hero: rgba(139,92,246,0.25);
+  --hero-rule: rgba(139,92,246,0.45);
+  --hero-label: #c4b5fd;       /* violet-300 — readable on near-black */
   --radius-card: 16px;
   --radius-btn: 12px;
   --shadow-card: 0 4px 24px rgba(0,0,0,0.3);
@@ -34,8 +37,11 @@
   --text-secondary: #57534e;   /* stone-600 */
   --text-muted: #a8a29e;       /* stone-400 */
   --border-color: #e7e5e4;     /* stone-200 */
-  --accent: #d97706;           /* amber-600 */
-  --accent-hover: #b45309;     /* amber-700 */
+  --accent: #b45309;           /* amber-700 — better contrast on warm-white */
+  --accent-hover: #92400e;     /* amber-800 */
+  --accent-on-hero: rgba(217,119,6,0.30);
+  --hero-rule: rgba(251,191,36,0.55);
+  --hero-label: #fbbf24;       /* amber-400 — glows on dark brown */
   --radius-card: 12px;
   --radius-btn: 10px;
   --shadow-card: 0 4px 16px rgba(0,0,0,0.08);
@@ -56,6 +62,9 @@
   --border-color: #e4e4e7;     /* zinc-200 */
   --accent: #18181b;           /* zinc-900 */
   --accent-hover: #27272a;     /* zinc-800 */
+  --accent-on-hero: rgba(255,255,255,0.06);  /* faint highlight, not chromatic */
+  --hero-rule: rgba(255,255,255,0.20);
+  --hero-label: rgba(255,255,255,0.55);       /* monochrome by design */
   --radius-card: 8px;
   --radius-btn: 6px;
   --shadow-card: none;
