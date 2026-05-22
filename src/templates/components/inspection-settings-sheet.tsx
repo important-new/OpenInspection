@@ -191,13 +191,14 @@ export const InspectionSettingsSheet = ({
                                 {/* Feature #20 phase 2 — inline rating system swap.
                                     Reads /api/rating-systems on sheet open, shows the
                                     current snapshot's system as the selected option,
-                                    and warns the inspector via window.confirm() before
-                                    POSTing to /switch-rating-system (remap mode). */}
+                                    and opens an inline confirmation modal (oiPrompt
+                                    pattern, no window.confirm) with three explicit
+                                    options before POSTing to /switch-rating-system. */}
                                 <label class="block">
                                     <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Rating system</span>
                                     <select
                                         x-model="form.ratingSystemId"
-                                        x-on:change="switchRatingSystem($event.target.value)"
+                                        x-on:change="openRatingSwitchPrompt($event.target.value)"
                                         class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
                                     >
                                         <template x-for="rs in ratingSystems" {...{ 'x-bind:key': 'rs.id' }}>
@@ -253,3 +254,85 @@ export const InspectionSettingsSheet = ({
         </div>
     );
 };
+
+/**
+ * Feature #20 phase 2 — rating system switch confirmation modal.
+ *
+ * Lives at the page root (not inside the settings sheet's <aside>) so its
+ * `fixed inset-0` overlay isn't clipped by the sheet's transform / max-w
+ * constraints. State (ratingSwitchPrompt) lives in the inspectionSettingsPage
+ * Alpine factory; we read it here via $store + dispatched window events so
+ * the modal doesn't need to inherit the sheet's scope.
+ *
+ * Three explicit actions instead of OK/Cancel: Remap by severity, Clear all
+ * ratings, Cancel. Never use window.confirm.
+ */
+export const RatingSwitchConfirmModal = (): JSX.Element => (
+    <div
+        x-data="{
+            prompt: { show: false, targetName: '', targetLevelCount: 0, ratedCount: 0, busy: false },
+            close() { this.prompt = { ...this.prompt, show: false, busy: false }; },
+            cancel() { window.dispatchEvent(new CustomEvent('rating-switch-cancel')); this.close(); },
+            confirm(mode) {
+                if (this.prompt.busy) return;
+                this.prompt.busy = true;
+                window.dispatchEvent(new CustomEvent('rating-switch-confirm', { detail: { mode } }));
+            },
+        }"
+        {...{
+            'x-on:rating-switch-open.window': 'prompt = { show: true, targetName: $event.detail.targetName, targetLevelCount: $event.detail.targetLevelCount, ratedCount: $event.detail.ratedCount, busy: false }',
+            'x-on:rating-switch-done.window': 'close()',
+        }}
+    >
+        <div
+            x-show="prompt.show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <div class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700">
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Switch rating system?</h3>
+                </div>
+                <div class="px-5 py-4 space-y-3 text-[13px] text-slate-700 dark:text-slate-300">
+                    <p>
+                        Target: <strong class="font-semibold text-slate-900 dark:text-slate-100" x-text="prompt.targetName"></strong>
+                        <span x-text="' (' + prompt.targetLevelCount + ' levels)'" class="text-slate-500"></span>
+                    </p>
+                    <p>
+                        Currently rated: <strong class="font-semibold text-slate-900 dark:text-slate-100 tabular-nums" x-text="prompt.ratedCount"></strong> items
+                    </p>
+                    <ul class="space-y-1.5 text-[12px] leading-relaxed text-slate-600 dark:text-slate-400 list-disc pl-5">
+                        <li><strong>Remap by severity</strong> — each rating maps to a new level with the same bucket (good / marginal / significant). No bucket match = rating cleared.</li>
+                        <li><strong>Clear all ratings</strong> — every item's rating is removed, regardless of bucket.</li>
+                        <li>Notes, photos, and canned comments are <em>always</em> preserved.</li>
+                    </ul>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="button"
+                        x-on:click="confirm('clear')"
+                        {...{ 'x-bind:disabled': "prompt.busy" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 ring-1 ring-inset ring-rose-200 dark:ring-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 disabled:opacity-50 transition-colors"
+                    >Clear all ratings</button>
+                    <button
+                        type="button"
+                        x-on:click="confirm('remap')"
+                        {...{ 'x-bind:disabled': "prompt.busy" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Remap by severity</button>
+                </div>
+            </div>
+        </div>
+    </div>
+);

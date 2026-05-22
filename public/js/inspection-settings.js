@@ -127,7 +127,14 @@ document.addEventListener('alpine:init', () => {
                             const match = activeName
                                 ? this.ratingSystems.find(rs => rs.name === activeName)
                                 : null;
-                            if (match) this.form.ratingSystemId = match.id;
+                            if (match) {
+                                this.form.ratingSystemId = match.id;
+                                // Snapshot the current id so the cancel branch of the
+                                // switch-confirm modal can revert. Alpine 2-way binds
+                                // mutate form.ratingSystemId BEFORE @change fires, so
+                                // we need this side-channel.
+                                this._lastConfirmedRatingSystemId = match.id;
+                            }
                         }
                     } catch (e) { /* snapshot may be missing/legacy — leave default */ }
                 }
@@ -290,54 +297,87 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // Feature #20 phase 2 — swap the rating system on this inspection's
-        // snapshot via the dedicated endpoint (with severity-bucket remap).
-        // Bound to the <select>'s @change. We pre-confirm with a window prompt
-        // so the inspector can back out before any DB mutation; if confirmed,
-        // POST to /switch-rating-system, then hard-reload so the editor picks
-        // up the new levels + remapped ratings from the wire.
-        async switchRatingSystem(newId) {
-            if (!newId) return;
+        // Feature #20 phase 2 — rating-system swap.
+        //
+        // The <select>'s @change fires openRatingSwitchPrompt(newId), which
+        // dispatches a `rating-switch-open` window event to the modal (it
+        // lives at the page root because the sheet's transform/clipping
+        // would otherwise trap a nested fixed overlay). The modal raises
+        // `rating-switch-confirm {mode}` on its three buttons or
+        // `rating-switch-cancel` on backdrop/Cancel; we listen for both
+        // below via _ratingSwitchListeners installed once on first open.
+        // Hard-reload after success so editor + viewer rebuild from the
+        // new snapshot.
+        //
+        // No window.confirm/alert/prompt anywhere.
+        _pendingRatingSwitchId: '',
+
+        openRatingSwitchPrompt(newId) {
+            // _lastConfirmedRatingSystemId is set in load() + after every
+            // successful confirm; represents the id the snapshot actually
+            // sits at. Bouncing back to the current value is a no-op.
+            if (!newId || newId === this._lastConfirmedRatingSystemId) return;
             const target = this.ratingSystems.find(rs => rs.id === newId);
             if (!target) return;
-            const ok = window.confirm(
-                'Switch rating system to "' + target.name + '"?\n\n' +
-                'Items already rated will be remapped to the closest level in the new system (matched by severity).\n' +
-                'Ratings without a matching bucket will be cleared.\n' +
-                'Notes, photos, and canned comments are preserved.\n\n' +
-                'OK to proceed, Cancel to abort.'
-            );
-            if (!ok) {
-                // Revert the select to the previously-saved id by rebinding;
-                // an Alpine $nextTick lets the DOM catch up before we read.
-                const previous = this.form.ratingSystemId;
-                // Reload to re-resolve from the snapshot (avoids stale select).
-                this.form.ratingSystemId = previous;
-                return;
-            }
+            this._pendingRatingSwitchId = newId;
+            this._ensureRatingSwitchListeners();
+            // Best-effort count of currently rated items from the editor's
+            // Alpine root. Falls back to 0 on legacy / no-editor pages.
+            let ratedCount = 0;
+            try {
+                const editor = document.querySelector('[x-data*="inspectionEditor"]');
+                const editorData = editor && window.Alpine && window.Alpine.$data(editor);
+                const results = (editorData && editorData.results) || {};
+                ratedCount = Object.values(results).filter(r => r && r.rating).length;
+            } catch (_) { /* non-fatal */ }
+            window.dispatchEvent(new CustomEvent('rating-switch-open', { detail: {
+                targetName:       target.name,
+                targetLevelCount: (target.levels && target.levels.length) || 0,
+                ratedCount,
+                newId,
+            }}));
+        },
+
+        _ensureRatingSwitchListeners() {
+            if (this._ratingSwitchInstalled) return;
+            this._ratingSwitchInstalled = true;
+            window.addEventListener('rating-switch-cancel', () => {
+                // Revert the dropdown to the last persisted value.
+                this.form.ratingSystemId = this._lastConfirmedRatingSystemId || '';
+                this._pendingRatingSwitchId = '';
+            });
+            window.addEventListener('rating-switch-confirm', (e) => {
+                const mode = (e && e.detail && e.detail.mode) || 'remap';
+                this._doRatingSwitch(mode);
+            });
+        },
+
+        async _doRatingSwitch(mode) {
+            const newId = this._pendingRatingSwitchId;
+            if (!newId) return;
             this.saveState = 'saving';
             try {
                 const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/switch-rating-system', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ratingSystemId: newId, mode: 'remap' }),
+                    body: JSON.stringify({ ratingSystemId: newId, mode }),
                 });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const j = await res.json();
                 const stats = (j && j.data) || { remapped: 0, cleared: 0, total: 0 };
+                this._lastConfirmedRatingSystemId = newId;
                 this.saveState = 'saved';
-                // Surface the actual remap stats so the inspector knows what changed.
                 if (typeof window.showToast === 'function') {
-                    window.showToast(
-                        'Rating system switched: ' + stats.remapped + ' remapped, ' + stats.cleared + ' cleared (of ' + stats.total + ').',
-                        false
-                    );
+                    const verb = mode === 'clear'
+                        ? stats.cleared + ' ratings cleared'
+                        : stats.remapped + ' remapped, ' + stats.cleared + ' cleared';
+                    window.showToast('Rating system switched — ' + verb + ' (of ' + stats.total + ').', false);
                 }
                 // Hard reload so editor + viewer rebuild from the new snapshot.
                 window.location.reload();
             } catch (e) {
                 this.saveState = 'error';
-                console.error('switchRatingSystem failed', e);
+                window.dispatchEvent(new CustomEvent('rating-switch-done')); // close modal
                 if (typeof window.showToast === 'function') {
                     window.showToast('Switch failed: ' + ((e && e.message) || 'unknown'), true);
                 }

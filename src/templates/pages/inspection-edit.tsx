@@ -13,7 +13,7 @@ import { TeamBanner } from '../components/team-banner';
 import { FooterBar } from '../components/footer-bar';
 import { ReconnectBanner } from '../components/reconnect-banner';
 import { UnitTree } from '../components/unit-tree';
-import { InspectionSettingsSheet } from '../components/inspection-settings-sheet';
+import { InspectionSettingsSheet, RatingSwitchConfirmModal } from '../components/inspection-settings-sheet';
 import { MintObserverLinkModal } from '../components/mint-observer-link-modal';
 import { InviteSeatModal } from '../components/invite-seat-modal';
 import type { BrandingConfig } from '../../types/auth';
@@ -2434,6 +2434,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           inspectionId={inspectionId}
           {...(customReferralSources ? { customReferralSources } : {})}
         />
+        {/* Feature #20 phase 2 — rating system switch confirmation modal.
+            Mounted at page root so its fixed-position overlay escapes the
+            settings sheet's clipping. Communicates with inspectionSettingsPage
+            via `rating-switch-open` / `-confirm` / `-cancel` window events. */}
+        <RatingSwitchConfirmModal />
         {/* S3-6 — burst-camera modal lives at the page level so it stays
             mounted across item navigation. inspection-edit.js dispatches a
             `burst-camera:open` window event when the user taps a Camera
