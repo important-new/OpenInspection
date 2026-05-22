@@ -807,6 +807,80 @@ function inspectionEditor(inspectionId) {
       });
     },
 
+    // Feature #20 phase 2b — + Add item flow. The modal sits at page root
+    // and only knows label + type; we stash the target section id here so
+    // the listener can patch the right place in the snapshot.
+    _pendingAddItemSectionId: '',
+
+    openAddItemPrompt() {
+      const sec = this.currentSection;
+      if (!sec) return;
+      this._pendingAddItemSectionId = sec.id;
+      this._ensureAddItemListeners();
+      window.dispatchEvent(new CustomEvent('add-item-open', { detail: { sectionTitle: sec.title } }));
+    },
+
+    _ensureAddItemListeners() {
+      if (this._addItemInstalled) return;
+      this._addItemInstalled = true;
+      window.addEventListener('add-item-confirm', (e) => {
+        const label = (e && e.detail && e.detail.label) || '';
+        const type  = (e && e.detail && e.detail.type)  || 'rich';
+        this._addItem(this._pendingAddItemSectionId, label, type);
+      });
+    },
+
+    async _addItem(sectionId, label, type) {
+      const cleanLabel = (label || '').trim();
+      if (!sectionId || !cleanLabel) {
+        window.dispatchEvent(new CustomEvent('add-item-done'));
+        return;
+      }
+      try {
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || []).map(s => this._stripRuntimeKeys(s)),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        const target = snapshot.sections.find(s => s.id === sectionId);
+        if (!target) throw new Error('Section not found in snapshot');
+        const newItem = this._buildNewItem(cleanLabel, type);
+        target.items.push(newItem);
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error('HTTP ' + res.status + (body ? ' — ' + body.slice(0, 200) : ''));
+        }
+        window.dispatchEvent(new CustomEvent('add-item-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Added item "' + cleanLabel + '"', false);
+        }
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('add-item-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Add item failed: ' + ((e && e.message) || 'unknown'), true);
+        }
+      }
+    },
+
+    // Build a minimum-viable v2 item for the given type. Rich items need
+    // ratingOptions + tabs to satisfy the discriminated union; everything
+    // else just needs id + label + type.
+    _buildNewItem(label, type) {
+      const id = 'item_' + (crypto.randomUUID ? crypto.randomUUID() : Date.now());
+      const base = { id, label, type };
+      if (type === 'rich') {
+        base.ratingOptions = (this.ratingLevels || []).map(l => l.id || l.label).filter(Boolean);
+        base.tabs          = { information: [], limitations: [], defects: [] };
+      }
+      return base;
+    },
+
     async _addSection(title) {
       const cleanTitle = (title || '').trim();
       if (!cleanTitle) {

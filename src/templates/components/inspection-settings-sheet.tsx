@@ -420,3 +420,118 @@ export const AddSectionPromptModal = (): JSX.Element => (
         </div>
     </div>
 );
+
+/**
+ * Feature #20 phase 2b — add-item prompt modal.
+ *
+ * Same event-bridge pattern as AddSectionPromptModal. Receives
+ * `add-item-open {sectionTitle}` to seed the dialog (the sectionId
+ * is held by the editor's _pendingAddItemSectionId so the modal
+ * doesn't need it), emits `add-item-confirm {label, type}` on submit.
+ *
+ * Item types mirror TemplateSchemaV2's discriminated union: rich (the
+ * standard rated item with 3 canned-comment tabs) plus 8 non-rich data
+ * collectors. We default to rich because that's what 90% of inspection
+ * items are; the type-picker only matters when the inspector wants a
+ * data point ("Year Built", "Foundation Type") rather than a rating.
+ */
+export const AddItemPromptModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            label: '',
+            type: 'rich',
+            sectionTitle: '',
+            busy: false,
+            types: [
+                { value: 'rich',         label: 'Rated item (with canned comments)' },
+                { value: 'text',         label: 'Text field' },
+                { value: 'textarea',     label: 'Long text' },
+                { value: 'number',       label: 'Number' },
+                { value: 'select',       label: 'Single choice' },
+                { value: 'multi_select', label: 'Multi choice' },
+                { value: 'boolean',      label: 'Yes / No' },
+                { value: 'date',         label: 'Date' },
+                { value: 'photo_only',   label: 'Photos only' },
+            ],
+            close() { this.show = false; this.label = ''; this.type = 'rich'; this.busy = false; },
+            cancel() { this.close(); },
+            submit() {
+                if (this.busy) return;
+                const l = (this.label || '').trim();
+                if (!l) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent('add-item-confirm', { detail: { label: l, type: this.type } }));
+            },
+        }"
+        {...{
+            'x-on:add-item-open.window': 'show = true; label = ""; type = "rich"; busy = false; sectionTitle = $event.detail.sectionTitle || ""; $nextTick(() => $refs.labelInput?.focus())',
+            'x-on:add-item-done.window': 'close()',
+            'x-on:keydown.escape.window': 'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <form
+                {...{ 'x-on:submit.prevent': 'submit()' }}
+                class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
+            >
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Add an item</h3>
+                    <p class="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                        Adding to <strong x-text="sectionTitle || 'this section'"></strong> — per-inspection only.
+                    </p>
+                </div>
+                <div class="px-5 py-4 space-y-4">
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Item label</span>
+                        <input
+                            type="text"
+                            x-model="label"
+                            x-ref="labelInput"
+                            maxlength="100"
+                            required
+                            placeholder="e.g. Pool Pump"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Item type</span>
+                        <select
+                            x-model="type"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        >
+                            <template x-for="t in types" {...{ 'x-bind:key': 't.value' }}>
+                                <option {...{ 'x-bind:value': 't.value' }} x-text="t.label"></option>
+                            </template>
+                        </select>
+                        <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Type is locked once the item is created. Pick "Rated item" for anything you want to mark Satisfactory / Defect; the rest collect a single data point.
+                        </p>
+                    </label>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="submit"
+                        {...{ 'x-bind:disabled': "busy || !label.trim()" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Add item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+);

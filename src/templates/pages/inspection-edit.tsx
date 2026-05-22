@@ -13,7 +13,7 @@ import { TeamBanner } from '../components/team-banner';
 import { FooterBar } from '../components/footer-bar';
 import { ReconnectBanner } from '../components/reconnect-banner';
 import { UnitTree } from '../components/unit-tree';
-import { InspectionSettingsSheet, RatingSwitchConfirmModal, AddSectionPromptModal } from '../components/inspection-settings-sheet';
+import { InspectionSettingsSheet, RatingSwitchConfirmModal, AddSectionPromptModal, AddItemPromptModal } from '../components/inspection-settings-sheet';
 import { MintObserverLinkModal } from '../components/mint-observer-link-modal';
 import { InviteSeatModal } from '../components/invite-seat-modal';
 import type { BrandingConfig } from '../../types/auth';
@@ -2081,6 +2081,20 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 <p class="text-sm text-slate-500 dark:text-slate-400">No matches for &ldquo;<span class="font-semibold text-slate-700 dark:text-slate-200" x-text="searchQuery"></span>&rdquo;.</p>
                 <button x-on:click="clearSearch()" class="mt-2 text-xs font-semibold text-indigo-600 hover:underline">Clear search</button>
               </div>
+              {/* Feature #20 phase 2b — inline "+ Add item" tile at end of
+                  current section's grid. Hidden when a search is active
+                  so the no-results message owns the empty state. Editor
+                  knows the active section index, so we don't pass an id
+                  here; openAddItemPrompt() resolves it on click. */}
+              <button
+                x-show="!hasSearchQuery && currentSection"
+                x-on:click="openAddItemPrompt()"
+                class="col-span-2 xl:col-span-3 rounded-md p-4 text-left border border-dashed border-indigo-300 dark:border-indigo-700/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 transition-colors flex items-center justify-center gap-2 font-bold text-sm"
+                title="Add a new item to this section"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6" /></svg>
+                <span>Add item to <span x-text="currentSection?.title || 'this section'"></span></span>
+              </button>
             </div>
             </div>{/* /activeView === 'items' */}
           </main>
@@ -2457,6 +2471,11 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             "+ Add section" button at the end of the section list. Editor
             listens for `add-section-confirm` to patch the snapshot. */}
         <AddSectionPromptModal />
+        {/* Feature #20 phase 2b — add-item prompt modal. Triggered by the
+            "+ Add item to <section>" button at the bottom of each section's
+            grid. Editor holds the active section id in
+            _pendingAddItemSectionId so the modal only needs label + type. */}
+        <AddItemPromptModal />
         {/* S3-6 — burst-camera modal lives at the page level so it stays
             mounted across item navigation. inspection-edit.js dispatches a
             `burst-camera:open` window event when the user taps a Camera
