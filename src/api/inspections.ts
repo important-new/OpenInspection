@@ -966,6 +966,52 @@ inspectionsRoutes.openapi(updateTemplateSnapshotRoute, async (c) => {
 });
 
 /**
+ * POST /api/inspections/:id/switch-rating-system
+ *
+ * Feature #20 phase 2 — swaps the rating system on a per-inspection snapshot
+ * with controlled handling of existing item ratings (severity-bucket remap
+ * or clear). Also clears inspection_results.ratingSystemSnapshot so the new
+ * system re-freezes on next write. Notes / photos / canned comments are
+ * always preserved.
+ */
+const SwitchRatingSystemSchema = z.object({
+    ratingSystemId: z.string().uuid(),
+    mode:           z.enum(['remap', 'clear']).default('remap'),
+});
+const SwitchRatingSystemResultSchema = z.object({
+    remapped: z.number(),
+    cleared:  z.number(),
+    total:    z.number(),
+});
+const switchRatingSystemRoute = createRoute(withMcpMetadata({
+    method: 'post',
+    path: '/{id}/switch-rating-system',
+    tags: ["inspections"],
+    summary: 'Switch the rating system on the per-inspection snapshot',
+    description: 'Swaps the per-inspection ratingSystem to the target system. mode="remap" maps existing item ratings by severity bucket; mode="clear" wipes them. Notes/photos/canned comments preserved. Clears the inspection_results.ratingSystemSnapshot freeze so the new system applies end-to-end.',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid().describe('Inspection ID') }),
+        body: { content: { 'application/json': { schema: SwitchRatingSystemSchema } } },
+    },
+    responses: {
+        200: { content: { 'application/json': { schema: createApiResponseSchema(SwitchRatingSystemResultSchema) } }, description: 'Rating system switched' },
+    },
+    operationId: 'switchInspectionRatingSystem',
+}, { scopes: ['write'], tier: 'extended' }));
+
+inspectionsRoutes.openapi(switchRatingSystemRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const { ratingSystemId, mode } = c.req.valid('json');
+    const stats = await c.var.services.inspection.switchRatingSystem(id, c.get('tenantId'), ratingSystemId, mode);
+    auditFromContext(c, 'inspection.rating_system.switch', 'inspection', {
+        entityId: id,
+        metadata: { ratingSystemId, mode, ...stats },
+    });
+    return c.json({ success: true, data: stats }, 200);
+});
+
+/**
  * GET /api/inspections/:id/recommendations
  * Flattens all attached recommendations across all items + computes totals.
  * Spec 3 report renderer will consume this to build the consolidated repair list.
