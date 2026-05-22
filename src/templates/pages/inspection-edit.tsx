@@ -1154,7 +1154,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
             {/* Property Info Card */}
             <div
                 x-data="{ editing: false, fields: {} }"
-                x-init={`fields = {
+                x-effect={`if (!editing) { fields = {
                     yearBuilt: inspection.yearBuilt || '',
                     sqft: inspection.sqft || '',
                     foundationType: inspection.foundationType || '',
@@ -1164,7 +1164,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     /* Spec 5D — auto-fill county from geocoded place
                        when user hasn't manually overridden. */
                     county: inspection.county || inspection.addressCounty || ''
-                }`}
+                } }`}
                 class="px-4 py-3 border-t space-y-2"
                 style="border-color: rgba(226,232,240,0.5)"
             >
