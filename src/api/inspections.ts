@@ -37,7 +37,7 @@ import {
     MediaAttachRequestSchema,
     MediaAttachResponseSchema,
 } from '../lib/validations/inspection.schema';
-import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/template.schema';
+import { CreateTemplateSchema, UpdateTemplateSchema, TemplateSchemaV2Schema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
@@ -922,6 +922,46 @@ inspectionsRoutes.openapi(updateResultsRoute, async (c) => {
     const { data } = c.req.valid('json');
     const service = c.var.services.inspection;
     await service.updateResults(id, c.get('tenantId'), data);
+    return c.json({ success: true, data: { success: true } }, 200);
+});
+
+/**
+ * PATCH /api/inspections/:id/template-snapshot
+ *
+ * Feature #20 phase 1 — inline edits to the inspection's frozen template
+ * structure. The inspector swaps rating system / adds / removes / renames
+ * sections + items in the editor; we persist the whole next-state snapshot
+ * here without touching the source template row. (Save-back-to-template
+ * and save-as-new-template come in later phases.)
+ */
+const PatchTemplateSnapshotBodySchema = z.object({
+    snapshot: TemplateSchemaV2Schema.describe('Full v2 template structure to overwrite the inspection snapshot with'),
+});
+const updateTemplateSnapshotRoute = createRoute(withMcpMetadata({
+    method: 'patch',
+    path: '/{id}/template-snapshot',
+    tags: ["inspections"],
+    summary: 'Replace the per-inspection template snapshot',
+    description: 'Replaces the templateSnapshot JSON wholesale. Validated against TemplateSchemaV2. Used by the inspection editor for inline structural edits (rating system swap, add/remove section/item).',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid().describe('Inspection ID') }),
+        body: { content: { 'application/json': { schema: PatchTemplateSnapshotBodySchema } } },
+    },
+    responses: {
+        200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Snapshot replaced' },
+    },
+    operationId: 'patchInspectionTemplateSnapshot',
+}, { scopes: ['write'], tier: 'extended' }));
+
+inspectionsRoutes.openapi(updateTemplateSnapshotRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const { snapshot } = c.req.valid('json');
+    await c.var.services.inspection.updateTemplateSnapshot(id, c.get('tenantId'), snapshot);
+    auditFromContext(c, 'inspection.template_snapshot.update', 'inspection', {
+        entityId: id,
+        metadata: { sectionCount: snapshot.sections?.length ?? 0 },
+    });
     return c.json({ success: true, data: { success: true } }, 200);
 });
 

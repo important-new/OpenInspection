@@ -684,6 +684,27 @@ export class InspectionService {
     }
 
     /**
+     * Feature: inline template-snapshot edit.
+     *
+     * Replaces the per-inspection template snapshot wholesale — used by the
+     * editor when an inspector swaps rating system, adds/removes sections or
+     * items, or otherwise tailors the report structure for one job without
+     * touching the source template row. Validation happens upstream at the
+     * Zod boundary, so by the time we land here `snapshot` is a parsed v2
+     * schema object; we stringify on the way to D1.
+     */
+    async updateTemplateSnapshot(id: string, tenantId: string, snapshot: unknown) {
+        const db = this.getDrizzle();
+        const row = await db.select({ id: inspections.id }).from(inspections)
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)))
+            .get();
+        if (!row) throw Errors.NotFound('Inspection not found or access denied');
+        await db.update(inspections)
+            .set({ templateSnapshot: JSON.stringify(snapshot) as never })
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+    }
+
+    /**
      * Multi-photo upload to R2.
      */
     async uploadPhoto(id: string, tenantId: string, itemId: string, file: File) {
