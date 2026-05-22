@@ -8,6 +8,7 @@ import { CalendarSyncResponseSchema, CalendarCallbackQuerySchema } from '../lib/
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { logger } from '../lib/logger';
 import { getBaseUrl } from '../lib/url';
+import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 const calendarRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -150,11 +151,13 @@ calendarRoutes.get('/callback', async (c) => {
  * DELETE /api/calendar/disconnect
  * Removes stored Google tokens.
  */
-const disconnectRoute = createRoute({
+const disconnectRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/disconnect',
-    tags: ['Calendar'],
-    summary: 'Disconnect Google Calendar',
+    operationId: 'disconnectGoogleCalendar',
+    tags: ['calendar'],
+    summary: 'Disconnect Google Calendar integration',
+    description: 'Removes the stored Google Calendar OAuth refresh token and calendar ID for the current inspector. Future syncs will fail until they reconnect.',
     responses: {
         200: {
             content: {
@@ -167,7 +170,7 @@ const disconnectRoute = createRoute({
         401: { description: 'Unauthorized' }
     },
     security: [{ bearerAuth: [] }],
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 calendarRoutes.openapi(disconnectRoute, async (c) => {
     const user = c.get('user');
@@ -186,11 +189,13 @@ calendarRoutes.openapi(disconnectRoute, async (c) => {
  * POST /api/calendar/sync
  * Pulls busy blocks from Google Calendar.
  */
-const syncRoute = createRoute({
+const syncRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/sync',
-    tags: ['Calendar'],
-    summary: 'Sync Google Calendar events',
+    operationId: 'syncGoogleCalendarBusyBlocks',
+    tags: ['calendar'],
+    summary: 'Sync busy blocks from Google Calendar',
+    description: 'Pulls the upcoming busy time blocks from the inspector\'s connected Google Calendar and merges them into availability overrides so booking pages skip those slots.',
     responses: {
         200: {
             content: {
@@ -205,7 +210,7 @@ const syncRoute = createRoute({
         500: { description: 'Internal server error' }
     },
     security: [{ bearerAuth: [] }],
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 calendarRoutes.openapi(syncRoute, async (c) => {
     const jwtUser = c.get('user');

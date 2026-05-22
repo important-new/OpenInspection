@@ -42,17 +42,18 @@ import {
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const adminRoutes = new OpenAPIHono<HonoConfig>();
 
 /**
  * GET /api/admin/export
  */
-const exportDataRoute = createRoute({
+const exportDataRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/export',
-    tags: ['Admin'],
-    summary: 'Export tenant data',
+    tags: ["admin"],
+    summary: "Export tenant for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
@@ -64,7 +65,9 @@ const exportDataRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "exportTenant",
+    description: "Auto-generated placeholder for exportTenant (GET /export, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(exportDataRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -79,11 +82,11 @@ adminRoutes.openapi(exportDataRoute, async (c) => {
 /**
  * POST /api/admin/invite
  */
-const inviteMemberRoute = createRoute({
+const inviteMemberRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/invite',
-    tags: ['Admin'],
-    summary: 'Invite team member',
+    tags: ["admin"],
+    summary: "Invite tenant for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         body: {
@@ -104,7 +107,9 @@ const inviteMemberRoute = createRoute({
             description: 'Created',
         },
     },
-});
+    operationId: "inviteTenant",
+    description: "Auto-generated placeholder for inviteTenant (POST /invite, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(inviteMemberRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -125,11 +130,11 @@ adminRoutes.openapi(inviteMemberRoute, async (c) => {
 /**
  * POST /api/admin/import
  */
-const importDataRoute = createRoute({
+const importDataRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/import',
-    tags: ['Admin'],
-    summary: 'Import tenant data',
+    tags: ["admin"],
+    summary: "Import tenant for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         body: {
@@ -155,7 +160,9 @@ const importDataRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "importTenant",
+    description: "Auto-generated placeholder for importTenant (POST /import, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(importDataRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -251,11 +258,11 @@ adminRoutes.openapi(importDataRoute, async (c) => {
 /**
  * GET /api/admin/members
  */
-const listMembersRoute = createRoute({
+const listMembersRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/members',
-    tags: ['Admin'],
-    summary: 'List workspace members',
+    tags: ["admin"],
+    summary: "List tenant members for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
@@ -267,7 +274,9 @@ const listMembersRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTenantMembers",
+    description: "Auto-generated placeholder for listTenantMembers (GET /members, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(listMembersRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -286,11 +295,11 @@ adminRoutes.openapi(listMembersRoute, async (c) => {
 /**
  * GET Agreements
  */
-const listAgreementsRoute = createRoute({
+const listAgreementsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/agreements',
-    tags: ['Admin'],
-    summary: 'List agreements',
+    tags: ["admin"],
+    summary: "List tenant agreements for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
@@ -302,7 +311,9 @@ const listAgreementsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTenantAgreements",
+    description: "Auto-generated placeholder for listTenantAgreements (GET /agreements, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(listAgreementsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -310,11 +321,11 @@ adminRoutes.openapi(listAgreementsRoute, async (c) => {
     return c.json({ success: true, data: { agreements: await agreementService.listAgreements(tenantId) } }, 200);
 });
 
-const createAgreementRoute = createRoute({
+const createAgreementRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/agreements',
-    tags: ['Admin'],
-    summary: 'Create agreement',
+    tags: ["admin"],
+    summary: "Create tenant agreements for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         body: {
@@ -335,7 +346,9 @@ const createAgreementRoute = createRoute({
             description: 'Created',
         },
     },
-});
+    operationId: "createTenantAgreements",
+    description: "Auto-generated placeholder for createTenantAgreements (POST /agreements, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(createAgreementRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -345,11 +358,11 @@ adminRoutes.openapi(createAgreementRoute, async (c) => {
     return c.json({ success: true, data: { agreement: agreement } }, 201);
 });
 
-const updateAgreementRoute = createRoute({
+const updateAgreementRoute = createRoute(withMcpMetadata({
     method: 'put',
     path: '/agreements/{id}',
-    tags: ['Admin'],
-    summary: 'Update agreement',
+    tags: ["admin"],
+    summary: "Update tenant agreement for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         params: z.object({ id: z.string().uuid() }),
@@ -371,7 +384,9 @@ const updateAgreementRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "updateTenantAgreement",
+    description: "Auto-generated placeholder for updateTenantAgreement (PUT /agreements/{id}, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(updateAgreementRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -382,11 +397,11 @@ adminRoutes.openapi(updateAgreementRoute, async (c) => {
     return c.json({ success: true, data: { agreement: agreement } }, 200);
 });
 
-const deleteAgreementRoute = createRoute({
+const deleteAgreementRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/agreements/{id}',
-    tags: ['Admin'],
-    summary: 'Delete agreement',
+    tags: ["admin"],
+    summary: "Delete tenant agreement for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         params: z.object({ id: z.string().uuid() }),
@@ -401,7 +416,9 @@ const deleteAgreementRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "deleteTenantAgreement",
+    description: "Auto-generated placeholder for deleteTenantAgreement (DELETE /agreements/{id}, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(deleteAgreementRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -414,11 +431,11 @@ adminRoutes.openapi(deleteAgreementRoute, async (c) => {
 /**
  * GET /api/admin/audit-logs
  */
-const getAuditLogsRoute = createRoute({
+const getAuditLogsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/audit-logs',
-    tags: ['Admin'],
-    summary: 'Retrieve audit logs',
+    tags: ["admin"],
+    summary: "List tenant audit logs",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         query: z.object({
@@ -438,7 +455,9 @@ const getAuditLogsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTenantAuditLogs",
+    description: "Auto-generated placeholder for listTenantAuditLogs (GET /audit-logs, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(getAuditLogsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -475,10 +494,10 @@ adminRoutes.openapi(getAuditLogsRoute, async (c) => {
  */
 const InspectorAuditActionSchema = z.enum(['inspection.sync_conflict_resolved']);
 
-const postAuditLogRoute = createRoute({
+const postAuditLogRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/audit-logs',
-    tags: ['Admin'],
+    tags: ["admin"],
     summary: 'Record an inspector-driven audit event',
     middleware: [requireRole(['owner', 'admin', 'inspector'])],
     request: {
@@ -501,7 +520,9 @@ const postAuditLogRoute = createRoute({
             description: 'Recorded',
         },
     },
-});
+    operationId: "createTenantAuditLogs",
+    description: "Auto-generated placeholder for createTenantAuditLogs (POST /audit-logs, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(postAuditLogRoute, async (c) => {
     const { action, resourceType, resourceId, detail } = c.req.valid('json');
@@ -515,11 +536,11 @@ adminRoutes.openapi(postAuditLogRoute, async (c) => {
 /**
  * DELETE /api/admin/data
  */
-const eraseDataRoute = createRoute({
+const eraseDataRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/data',
-    tags: ['Admin'],
-    summary: 'Erase client data',
+    tags: ["admin"],
+    summary: "Delete tenant data for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         body: {
@@ -540,7 +561,9 @@ const eraseDataRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "deleteTenantData",
+    description: "Auto-generated placeholder for deleteTenantData (DELETE /data, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(eraseDataRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -558,11 +581,11 @@ adminRoutes.openapi(eraseDataRoute, async (c) => {
 /**
  * GET /api/admin/branding
  */
-const getBrandingRoute = createRoute({
+const getBrandingRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/branding',
-    tags: ['Branding'],
-    summary: 'Retrieve branding configuration',
+    tags: ["admin"],
+    summary: "List tenant branding for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
@@ -574,7 +597,9 @@ const getBrandingRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTenantBranding",
+    description: "Auto-generated placeholder for listTenantBranding (GET /branding, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(getBrandingRoute, async (c) => {
     const brandingService = c.var.services.branding;
@@ -600,11 +625,11 @@ adminRoutes.openapi(getBrandingRoute, async (c) => {
 /**
  * POST /api/admin/branding
  */
-const updateBrandingRoute = createRoute({
+const updateBrandingRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/branding',
-    tags: ['Branding'],
-    summary: 'Update branding configuration',
+    tags: ["admin"],
+    summary: "Create tenant branding for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         body: {
@@ -625,7 +650,9 @@ const updateBrandingRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "createTenantBranding",
+    description: "Auto-generated placeholder for createTenantBranding (POST /branding, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(updateBrandingRoute, async (c) => {
     const body = c.req.valid('json');
@@ -648,11 +675,11 @@ adminRoutes.openapi(updateBrandingRoute, async (c) => {
 /**
  * POST /api/admin/branding/logo
  */
-const uploadLogoRoute = createRoute({
+const uploadLogoRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/branding/logo',
-    tags: ['Branding'],
-    summary: 'Upload branding logo',
+    tags: ["admin"],
+    summary: "Create tenant branding logo",
     middleware: [requireRole(['owner', 'admin'])],
     request: {
         body: {
@@ -675,7 +702,9 @@ const uploadLogoRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "createTenantBrandingLogo",
+    description: "Auto-generated placeholder for createTenantBrandingLogo (POST /branding/logo, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(uploadLogoRoute, async (c) => {
     const formData = await c.req.formData();
@@ -703,10 +732,10 @@ const SecretsInputSchema = z.object({
     googleClientSecret: z.string().optional(),
 }).openapi('SecretsInput');
 
-const getConfigRoute = createRoute({
+const getConfigRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/config',
-    tags: ['Config'],
+    tags: ["admin"],
     summary: 'Get integration config and masked secrets',
     middleware: [requireRole(['owner'])],
     responses: {
@@ -715,7 +744,9 @@ const getConfigRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTenantConfig",
+    description: "Auto-generated placeholder for listTenantConfig (GET /config, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(getConfigRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -727,17 +758,19 @@ adminRoutes.openapi(getConfigRoute, async (c) => {
     return c.json({ success: true, data: { integrationConfig, secrets } }, 200);
 });
 
-const updateIntegrationConfigRoute = createRoute({
+const updateIntegrationConfigRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/config',
-    tags: ['Config'],
+    tags: ["admin"],
     summary: 'Save non-sensitive integration config (plaintext)',
     middleware: [requireRole(['owner'])],
     request: { body: { content: { 'application/json': { schema: IntegrationConfigSchema } } } },
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Saved' },
     },
-});
+    operationId: "createTenantConfig",
+    description: "Auto-generated placeholder for createTenantConfig (POST /config, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(updateIntegrationConfigRoute, async (c) => {
     const body = c.req.valid('json');
@@ -746,17 +779,19 @@ adminRoutes.openapi(updateIntegrationConfigRoute, async (c) => {
     return c.json({ success: true }, 200);
 });
 
-const updateSecretsRoute = createRoute({
+const updateSecretsRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/config/secrets',
-    tags: ['Config'],
-    summary: 'Save encrypted secrets (AES-256-GCM). Masked values are ignored.',
+    tags: ["admin"],
+    summary: "Create tenant config secrets",
     middleware: [requireRole(['owner'])],
     request: { body: { content: { 'application/json': { schema: SecretsInputSchema } } } },
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Saved' },
     },
-});
+    operationId: "createTenantConfigSecrets",
+    description: "Auto-generated placeholder for createTenantConfigSecrets (POST /config/secrets, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(updateSecretsRoute, async (c) => {
     const body = c.req.valid('json');
@@ -767,10 +802,10 @@ adminRoutes.openapi(updateSecretsRoute, async (c) => {
 
 // --- Agreement Signing ---
 
-const sendAgreementRoute = createRoute({
+const sendAgreementRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/agreements/send',
-    tags: ['Agreements'],
+    tags: ["admin", "agreements"],
     summary: 'Send an agreement signing request to a client',
     middleware: [requireRole(['owner', 'admin'])],
     request: { body: { content: { 'application/json': { schema: SendAgreementSchema } } } },
@@ -780,7 +815,9 @@ const sendAgreementRoute = createRoute({
             description: 'Signing request created and email sent',
         },
     },
-});
+    operationId: "sendTenant",
+    description: "Auto-generated placeholder for sendTenant (POST /agreements/send, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(sendAgreementRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -878,16 +915,18 @@ adminRoutes.openapi(sendAgreementRoute, async (c) => {
 
 // --- Spec 5H — Signing Requests admin views ---
 
-const listSigningRequestsRoute = createRoute({
+const listSigningRequestsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/agreements/requests',
-    tags: ['Admin'],
+    tags: ["admin"],
     summary: 'List signing requests for tenant',
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ requests: z.array(z.unknown()) }) }) } }, description: 'OK' },
     },
-});
+    operationId: "listTenantAgreementsRequests",
+    description: "Auto-generated placeholder for listTenantAgreementsRequests (GET /agreements/requests, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(listSigningRequestsRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const db = drizzle(c.env.DB);
@@ -913,10 +952,10 @@ adminRoutes.openapi(listSigningRequestsRoute, async (c) => {
     return c.json({ success: true as const, data: { requests: rows } }, 200);
 });
 
-const getSigningRequestDetailRoute = createRoute({
+const getSigningRequestDetailRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/agreements/requests/{id}',
-    tags: ['Admin'],
+    tags: ["admin"],
     summary: 'Get a signing request with full audit trail',
     middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string() }) },
@@ -924,7 +963,9 @@ const getSigningRequestDetailRoute = createRoute({
         200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.unknown() }) } }, description: 'OK' },
         404: { content: { 'application/json': { schema: z.object({ success: z.literal(false), error: z.unknown() }) } }, description: 'Not found' },
     },
-});
+    operationId: "getTenantAgreementsRequest",
+    description: "Auto-generated placeholder for getTenantAgreementsRequest (GET /agreements/requests/{id}, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(getSigningRequestDetailRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const id = c.req.valid('param').id;
@@ -972,17 +1013,19 @@ adminRoutes.openapi(getSigningRequestDetailRoute, async (c) => {
     }, 200);
 });
 
-const downloadAuditTrailRoute = createRoute({
+const downloadAuditTrailRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/agreements/requests/{id}/audit-trail',
-    tags: ['Admin'],
+    tags: ["admin"],
     summary: 'Download audit trail JSON for legal evidence',
     middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string() }) },
     responses: {
         200: { content: { 'application/json': { schema: z.unknown() } }, description: 'Audit JSON download' },
     },
-});
+    operationId: "listTenantAgreementsRequestsAuditTrail",
+    description: "Auto-generated placeholder for listTenantAgreementsRequestsAuditTrail (GET /agreements/requests/{id}/audit-trail, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(downloadAuditTrailRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const id = c.req.valid('param').id;
@@ -1046,10 +1089,10 @@ function commentRowToResponse(r: typeof comments.$inferSelect) {
     };
 }
 
-const listCommentsRoute = createRoute({
+const listCommentsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/comments',
-    tags: ['Comments'],
+    tags: ["admin"],
     summary: 'List comment library entries',
     // Inspectors need read access so the inspection-edit picker (T7+1) can
     // populate. Create/delete remain admin-only further below.
@@ -1062,7 +1105,9 @@ const listCommentsRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listTenantComments",
+    description: "Auto-generated placeholder for listTenantComments (GET /comments, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(listCommentsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1082,10 +1127,10 @@ adminRoutes.openapi(listCommentsRoute, async (c) => {
     return c.json({ success: true as const, data: { comments: rows.map(commentRowToResponse) } }, 200);
 });
 
-const createCommentRoute = createRoute({
+const createCommentRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/comments',
-    tags: ['Comments'],
+    tags: ["admin"],
     summary: 'Create a comment library entry',
     middleware: [requireRole(['owner', 'admin'])],
     request: { body: { content: { 'application/json': { schema: CommentSchema } } } },
@@ -1096,7 +1141,9 @@ const createCommentRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createTenantComments",
+    description: "Auto-generated placeholder for createTenantComments (POST /comments, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(createCommentRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1117,10 +1164,10 @@ adminRoutes.openapi(createCommentRoute, async (c) => {
     return c.json({ success: true as const, data: { comment: commentRowToResponse(row) } }, 201);
 });
 
-const deleteCommentRoute = createRoute({
+const deleteCommentRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/comments/{id}',
-    tags: ['Comments'],
+    tags: ["admin"],
     summary: 'Delete a comment library entry',
     middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string().uuid() }) },
@@ -1132,7 +1179,9 @@ const deleteCommentRoute = createRoute({
         404: { description: 'Not found' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "deleteTenantComment",
+    description: "Auto-generated placeholder for deleteTenantComment (DELETE /comments/{id}, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(deleteCommentRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1145,10 +1194,10 @@ adminRoutes.openapi(deleteCommentRoute, async (c) => {
     return c.json({ success: true }, 200);
 });
 
-const updateCommentRoute = createRoute({
+const updateCommentRoute = createRoute(withMcpMetadata({
     method: 'put',
     path: '/comments/{id}',
-    tags: ['Comments'],
+    tags: ["admin"],
     summary: 'Update a comment library entry',
     middleware: [requireRole(['owner', 'admin'])],
     request: {
@@ -1163,7 +1212,9 @@ const updateCommentRoute = createRoute({
         404: { description: 'Not found' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "updateTenantComment",
+    description: "Auto-generated placeholder for updateTenantComment (PUT /comments/{id}, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(updateCommentRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1197,10 +1248,10 @@ adminRoutes.openapi(updateCommentRoute, async (c) => {
 
 // --- Widget Origin Allowlist ---
 
-const getWidgetOriginsRoute = createRoute({
+const getWidgetOriginsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/widget/origins',
-    tags: ['Widget'],
+    tags: ["admin"],
     summary: 'Get current widget allowed-origin list',
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
@@ -1210,17 +1261,19 @@ const getWidgetOriginsRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listTenantWidgetOrigins",
+    description: "Auto-generated placeholder for listTenantWidgetOrigins (GET /widget/origins, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(getWidgetOriginsRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const origins = await c.var.services.widget.getAllowedOrigins(tenantId);
     return c.json({ success: true as const, data: { origins } }, 200);
 });
 
-const setWidgetOriginsRoute = createRoute({
+const setWidgetOriginsRoute = createRoute(withMcpMetadata({
     method: 'put',
     path: '/widget/origins',
-    tags: ['Widget'],
+    tags: ["admin"],
     summary: 'Replace widget allowed-origin list',
     middleware: [requireRole(['owner', 'admin'])],
     request: { body: { content: { 'application/json': { schema: z.object({ origins: z.array(z.string().min(1)).max(50) }) } } } },
@@ -1231,7 +1284,9 @@ const setWidgetOriginsRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "updateTenantWidgetOrigin",
+    description: "Auto-generated placeholder for updateTenantWidgetOrigin (PUT /widget/origins, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(setWidgetOriginsRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const { origins } = c.req.valid('json');
@@ -1241,10 +1296,10 @@ adminRoutes.openapi(setWidgetOriginsRoute, async (c) => {
 
 // --- Stripe Connect (inspector-facing) ---
 
-const getStripeConnectRoute = createRoute({
+const getStripeConnectRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/stripe-connect',
-    tags: ['Stripe'],
+    tags: ["admin"],
     summary: 'Get the tenant Stripe Connect account ID',
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
@@ -1254,17 +1309,19 @@ const getStripeConnectRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listTenantStripeConnect",
+    description: "Auto-generated placeholder for listTenantStripeConnect (GET /stripe-connect, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(getStripeConnectRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const { accountId } = await c.var.services.admin.getStripeConnect(tenantId);
     return c.json({ success: true as const, data: { accountId } }, 200);
 });
 
-const setStripeConnectRoute = createRoute({
+const setStripeConnectRoute = createRoute(withMcpMetadata({
     method: 'put',
     path: '/stripe-connect',
-    tags: ['Stripe'],
+    tags: ["admin"],
     summary: 'Set the tenant Stripe Connect account ID',
     middleware: [requireRole(['owner', 'admin'])],
     request: { body: { content: { 'application/json': { schema: StripeConnectAccountSchema } } } },
@@ -1275,7 +1332,9 @@ const setStripeConnectRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "updateTenantStripeConnect",
+    description: "Auto-generated placeholder for updateTenantStripeConnect (PUT /stripe-connect, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(setStripeConnectRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const { accountId } = c.req.valid('json');
@@ -1284,10 +1343,10 @@ adminRoutes.openapi(setStripeConnectRoute, async (c) => {
     return c.json({ success: true as const, data: { accountId } }, 200);
 });
 
-const deleteStripeConnectRoute = createRoute({
+const deleteStripeConnectRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/stripe-connect',
-    tags: ['Stripe'],
+    tags: ["admin"],
     summary: 'Disconnect the tenant Stripe Connect account',
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
@@ -1297,7 +1356,9 @@ const deleteStripeConnectRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "deleteTenantStripeConnect",
+    description: "Auto-generated placeholder for deleteTenantStripeConnect (DELETE /stripe-connect, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(deleteStripeConnectRoute, async (c) => {
     const tenantId = c.get('tenantId');
     await c.var.services.admin.setStripeConnect(tenantId, null);
@@ -1307,10 +1368,10 @@ adminRoutes.openapi(deleteStripeConnectRoute, async (c) => {
 
 // --- Earnings Summary ---
 
-const getEarningsSummaryRoute = createRoute({
+const getEarningsSummaryRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/earnings-summary',
-    tags: ['Stripe'],
+    tags: ["admin"],
     summary: 'Get aggregated invoice earnings (paid/pending/count)',
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
@@ -1331,7 +1392,9 @@ const getEarningsSummaryRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listTenantEarningsSummary",
+    description: "Auto-generated placeholder for listTenantEarningsSummary (GET /earnings-summary, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 adminRoutes.openapi(getEarningsSummaryRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const summary = await c.var.services.invoice.getEarningsSummary(tenantId);
@@ -1340,11 +1403,11 @@ adminRoutes.openapi(getEarningsSummaryRoute, async (c) => {
 
 // --- ICS Subscription Token ---
 
-const icsTokenRoute = createRoute({
+const icsTokenRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/ics-token',
-    tags: ['Calendar'],
-    summary: 'Get the tenant ICS subscription URL (creating a token if missing).',
+    tags: ["admin", "calendar"],
+    summary: "List tenant ics token",
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
@@ -1360,7 +1423,9 @@ const icsTokenRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listTenantIcsToken",
+    description: "Auto-generated placeholder for listTenantIcsToken (GET /ics-token, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(icsTokenRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1442,11 +1507,11 @@ adminRoutes.openapi({
 // Configurable per-team thresholds (in hours) applied to the dashboard
 // "Needs Attention" bucket. Stored as JSON on `tenant_configs.attention_thresholds`.
 
-const getAttentionThresholdsRoute = createRoute({
+const getAttentionThresholdsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/attention-thresholds',
-    tags: ['Admin'],
-    summary: 'Get attention thresholds',
+    tags: ["admin"],
+    summary: "List tenant attention thresholds",
     middleware: [requireRole(['owner', 'admin'])] as const,
     responses: {
         200: {
@@ -1454,7 +1519,9 @@ const getAttentionThresholdsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTenantAttentionThresholds",
+    description: "Auto-generated placeholder for listTenantAttentionThresholds (GET /attention-thresholds, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(getAttentionThresholdsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1467,11 +1534,11 @@ adminRoutes.openapi(getAttentionThresholdsRoute, async (c) => {
     return c.json({ success: true as const, data: { thresholds } }, 200);
 });
 
-const updateAttentionThresholdsRoute = createRoute({
+const updateAttentionThresholdsRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/attention-thresholds',
-    tags: ['Admin'],
-    summary: 'Update attention thresholds',
+    tags: ["admin"],
+    summary: "Patch tenant attention threshold",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { body: { content: { 'application/json': { schema: AttentionThresholdsSchema } } } },
     responses: {
@@ -1480,7 +1547,9 @@ const updateAttentionThresholdsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "patchTenantAttentionThreshold",
+    description: "Auto-generated placeholder for patchTenantAttentionThreshold (PATCH /attention-thresholds, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(updateAttentionThresholdsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1517,10 +1586,10 @@ adminRoutes.openapi(updateAttentionThresholdsRoute, async (c) => {
 // authenticated owner / admin. All other roles read the same value through
 // the dashboard render path — no separate read role gate needed.
 
-const getDashboardColumnsRoute = createRoute({
+const getDashboardColumnsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/dashboard-columns',
-    tags: ['Admin'],
+    tags: ["admin"],
     summary: 'Get tenant default dashboard column prefs',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: {
@@ -1529,7 +1598,9 @@ const getDashboardColumnsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTenantDashboardColumns",
+    description: "Auto-generated placeholder for listTenantDashboardColumns (GET /dashboard-columns, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(getDashboardColumnsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1537,10 +1608,10 @@ adminRoutes.openapi(getDashboardColumnsRoute, async (c) => {
     return c.json({ success: true as const, data: { columns } }, 200);
 });
 
-const updateDashboardColumnsRoute = createRoute({
+const updateDashboardColumnsRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/dashboard-columns',
-    tags: ['Admin'],
+    tags: ["admin"],
     summary: 'Update tenant default dashboard column prefs',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { body: { content: { 'application/json': { schema: DashboardColumnPrefsSchema } } } },
@@ -1550,7 +1621,9 @@ const updateDashboardColumnsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "patchTenantDashboardColumn",
+    description: "Auto-generated placeholder for patchTenantDashboardColumn (PATCH /dashboard-columns, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(updateDashboardColumnsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -1575,10 +1648,10 @@ const TenantConfigPatchResponseSchema = z.object({
     data: z.object({ ok: z.literal(true) }),
 }).openapi('TenantConfigPatchResponse');
 
-const tenantConfigPatchRoute = createRoute({
+const tenantConfigPatchRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/tenant-config',
-    tags: ['Admin'],
+    tags: ["admin"],
     summary: 'Patch a small allowlist of tenant_configs columns',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { body: { content: { 'application/json': { schema: TenantConfigPatchSchema } } } },
@@ -1588,7 +1661,9 @@ const tenantConfigPatchRoute = createRoute({
             description: 'Updated',
         },
     },
-});
+    operationId: "patchTenantTenantConfig",
+    description: "Auto-generated placeholder for patchTenantTenantConfig (PATCH /tenant-config, admin domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['admin'], tier: 'extended' }));
 
 adminRoutes.openapi(tenantConfigPatchRoute, async (c) => {
     const tenantId = c.get('tenantId');

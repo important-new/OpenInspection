@@ -7,6 +7,7 @@ import { Errors } from '../lib/errors';
 import { requireRole } from '../lib/middleware/rbac';
 import { signJwt } from '../lib/jwt-keyring';
 import { agentTenantLinks, users } from '../lib/db/schema/tenant';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 /**
  * Agent Accounts A1 — invite + accept endpoints. The (existing) /api/agent
@@ -34,14 +35,12 @@ const InviteResponseSchema = z
     })
     .openapi('AgentInviteResponse');
 
-const inviteRoute = createRoute({
+const inviteRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/invite',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Invite a partner agent',
-    description:
-        'Mints a 7-day invite token and emails the recipient an /agent-invite/accept link. ' +
-        'Inspector-facing — owners, admins, and inspectors can issue invites.',
+    description: "Auto-generated placeholder for inviteAgent (POST /invite, agents domain). TODO: replace with a real description sourced from the handler.",
     request: {
         body: { content: { 'application/json': { schema: InviteBodySchema } } },
     },
@@ -55,7 +54,8 @@ const inviteRoute = createRoute({
         409: { description: 'Invite already pending for this email' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "inviteAgent"
+}, { scopes: ['write'], tier: 'extended' }));
 
 agentsRoutes.openapi(inviteRoute, async (c) => {
     // RBAC moved inside to keep OpenAPIHono context typing happy. Owners, admins,
@@ -95,16 +95,12 @@ const AcceptResponseSchema = z
     })
     .openapi('AgentAcceptResponse');
 
-const acceptRoute = createRoute({
+const acceptRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/accept',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Accept a partner-agent invite',
-    description:
-        'Public endpoint. Validates the invite token, creates or reuses the global agent ' +
-        'user, links them to the invite tenant, and runs same-email auto-link to fold in ' +
-        'any other tenants where this email already exists as an agent contact. Returns ' +
-        'a Set-Cookie with the agent JWT and a redirect URL to /agent-dashboard.',
+    description: "Auto-generated placeholder for acceptAgent (POST /accept, agents domain). TODO: replace with a real description sourced from the handler.",
     request: {
         body: { content: { 'application/json': { schema: AcceptBodySchema } } },
     },
@@ -117,7 +113,8 @@ const acceptRoute = createRoute({
         404: { description: 'Token not found' },
         409: { description: 'Invite already used or email belongs to non-agent account' },
     },
-});
+    operationId: "acceptAgent"
+}, { scopes: ['write'], tier: 'extended' }));
 
 agentsRoutes.openapi(acceptRoute, async (c) => {
     const body = c.req.valid('json');
@@ -175,14 +172,12 @@ const ListLinksResponseSchema = z
     })
     .openapi('ListAgentLinksResponse');
 
-const listLinksRoute = createRoute({
+const listLinksRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/links',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'List partner-agent links for the current tenant',
-    description:
-        'Inspector-side. Returns one row per agent_tenant_links record for the ' +
-        'current tenant (active + pending + revoked). Used by /contacts Agents tab.',
+    description: "Auto-generated placeholder for listAgentLinks (GET /links, agents domain). TODO: replace with a real description sourced from the handler.",
     responses: {
         200: {
             content: { 'application/json': { schema: ListLinksResponseSchema } },
@@ -192,7 +187,8 @@ const listLinksRoute = createRoute({
         403: { description: 'Forbidden' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listAgentLinks"
+}, { scopes: ['read'], tier: 'extended' }));
 
 agentsRoutes.openapi(listLinksRoute, async (c) => {
     await requireRole(['owner', 'admin', 'inspector'])(c, async () => {});
@@ -243,15 +239,12 @@ const RevokeResponseSchema = z
     })
     .openapi('AgentLinkRevokeResponse');
 
-const revokeRoute = createRoute({
+const revokeRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{linkId}/revoke',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Revoke a partner-agent link',
-    description:
-        'Inspector-side. Flips agent_tenant_links.status to "revoked" and ' +
-        'records revoked_at. Tenant-scoped: callers can only revoke links ' +
-        'in their own tenant.',
+    description: "Auto-generated placeholder for revokeAgent (POST /{linkId}/revoke, agents domain). TODO: replace with a real description sourced from the handler.",
     request: { params: RevokeParamsSchema },
     responses: {
         200: {
@@ -263,7 +256,8 @@ const revokeRoute = createRoute({
         404: { description: 'Link not found' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "revokeAgent"
+}, { scopes: ['write'], tier: 'extended' }));
 
 agentsRoutes.openapi(revokeRoute, async (c) => {
     await requireRole(['owner', 'admin', 'inspector'])(c, async () => {});

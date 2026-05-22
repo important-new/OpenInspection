@@ -25,6 +25,7 @@ import { Errors } from '../lib/errors';
 import { checkRateLimit } from '../lib/rate-limit';
 import { logger } from '../lib/logger';
 import { writeAuditLog } from '../lib/audit';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const repairRequestRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -41,10 +42,10 @@ const EmailResponseSchema = z.object({
     }),
 });
 
-const sendEmailRoute = createRoute({
+const sendEmailRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/repair-request/email',
-    tags: ['Public'],
+    tags: ["inspections", "public"],
     summary: 'Email a copy of the repair-request export to the supplied address',
     request: {
         body: {
@@ -61,7 +62,9 @@ const sendEmailRoute = createRoute({
             description: 'Email queued for delivery',
         },
     },
-});
+    operationId: "createRepairRequestRepairRequestEmail",
+    description: "Auto-generated placeholder for createRepairRequestRepairRequestEmail (POST /repair-request/email, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'extended' }));
 
 repairRequestRoutes.openapi(sendEmailRoute, async (c) => {
     await checkRateLimit(c, 'book');

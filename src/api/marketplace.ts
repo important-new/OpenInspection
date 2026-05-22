@@ -11,14 +11,15 @@ import {
 import {
     ImportHistoryQuerySchema,
 } from '../lib/validations/import-history.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const marketplaceRoutes = new OpenAPIHono<HonoConfig>();
 
 // GET /api/templates/marketplace
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Marketplace'],
-    summary: 'List marketplace templates',
+    tags: ["marketplace"],
+    summary: "List marketplaces for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         query: z.object({
@@ -34,7 +35,9 @@ marketplaceRoutes.openapi(createRoute({
             description: 'OK',
         },
     },
-}), async (c) => {
+    operationId: "listMarketplaces",
+    description: "Auto-generated placeholder for listMarketplaces (GET /, marketplace domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'primary' })), async (c) => {
     const q = c.req.valid('query');
     const data = await c.var.services.marketplace.list({
         ...(q.search   !== undefined ? { search:   q.search }   : {}),
@@ -46,9 +49,9 @@ marketplaceRoutes.openapi(createRoute({
 });
 
 // POST /api/templates/marketplace/:id/import
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/import',
-    tags: ['Marketplace'],
+    tags: ["marketplace"],
     summary: 'Import marketplace template as tenant copy',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -59,7 +62,9 @@ marketplaceRoutes.openapi(createRoute({
         },
         404: { description: 'Not found' },
     },
-}), async (c) => {
+    operationId: "importMarketplace",
+    description: "Auto-generated placeholder for importMarketplace (POST /{id}/import, marketplace domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     try {
         const localTemplateId = await c.var.services.marketplace.importTemplate(id);
@@ -73,9 +78,9 @@ marketplaceRoutes.openapi(createRoute({
 });
 
 // Spec 5G M2 — Library marketplace (comments, snippets)
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/libraries',
-    tags: ['Marketplace'],
+    tags: ["marketplace"],
     summary: 'List marketplace libraries (comment packs, snippet packs)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -84,7 +89,9 @@ marketplaceRoutes.openapi(createRoute({
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.boolean(), data: z.array(z.any()) }) } }, description: 'OK' },
     },
-}), async (c) => {
+    operationId: "listMarketplaceLibraries",
+    description: "Auto-generated placeholder for listMarketplaceLibraries (GET /libraries, marketplace domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const q = c.req.valid('query');
     const data = await c.var.services.marketplace.listLibraries(q.kind ? { kind: q.kind } : {});
     return c.json({ success: true, data });
@@ -94,9 +101,9 @@ marketplaceRoutes.openapi(createRoute({
 // semver. Scheme 2: creates a NEW local copy with a "(vX.Y.Z)" suffix and
 // re-points the import marker; the old local row is preserved so existing
 // inspections do not break.
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/update',
-    tags: ['Marketplace'],
+    tags: ["marketplace"],
     summary: 'Update tenant copy to latest marketplace version (creates new local copy)',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -116,7 +123,9 @@ marketplaceRoutes.openapi(createRoute({
         400: { description: 'No update available' },
         404: { description: 'Not found' },
     },
-}), async (c) => {
+    operationId: "createMarketplaceUpdate",
+    description: "Auto-generated placeholder for createMarketplaceUpdate (POST /{id}/update, marketplace domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     try {
         const result = await c.var.services.marketplace.updateTemplateImport(id);
@@ -145,9 +154,9 @@ marketplaceRoutes.openapi(createRoute({
     }
 });
 
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/libraries/{id}/import',
-    tags: ['Marketplace'],
+    tags: ["marketplace"],
     summary: 'Import marketplace library into tenant',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -155,7 +164,9 @@ marketplaceRoutes.openapi(createRoute({
         201: { content: { 'application/json': { schema: z.object({ success: z.boolean(), data: z.object({ rowCount: z.number(), localFirstId: z.string() }) }) } }, description: 'Imported' },
         404: { description: 'Not found' },
     },
-}), async (c) => {
+    operationId: "importMarketplace",
+    description: "Auto-generated placeholder for importMarketplace (POST /libraries/{id}/import, marketplace domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     try {
         const result = await c.var.services.marketplace.importLibrary(id);
@@ -174,9 +185,9 @@ marketplaceRoutes.openapi(createRoute({
 
 // Round 37 — Update an already-imported library to the latest marketplace
 // semver. Scheme 2: appends new rows; does NOT delete previous import.
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/libraries/{id}/update',
-    tags: ['Marketplace'],
+    tags: ["marketplace"],
     summary: 'Update tenant library import to latest marketplace version (adds new rows)',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -195,7 +206,9 @@ marketplaceRoutes.openapi(createRoute({
         400: { description: 'No update available' },
         404: { description: 'Not found' },
     },
-}), async (c) => {
+    operationId: "createMarketplaceLibrariesUpdate",
+    description: "Auto-generated placeholder for createMarketplaceLibrariesUpdate (POST /libraries/{id}/update, marketplace domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     try {
         const result = await c.var.services.marketplace.updateLibraryImport(id);
@@ -226,14 +239,11 @@ marketplaceRoutes.openapi(createRoute({
 // Sprint 2 S2-7 — Library "replace" mode update. Deletes prior-import rows
 // before inserting the new pack. Owner/admin only; user must acknowledge the
 // edit-loss when prior rows have been modified.
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/libraries/{libraryId}/imports/replace',
-    tags: ['Marketplace'],
+    tags: ["marketplace"],
     summary: 'Replace tenant library import (deletes prior rows + inserts new pack)',
-    description:
-        'Owner/admin only. Deletes all comments rows whose library_id matches ' +
-        'the prior import for this tenant, then inserts the new pack. ' +
-        'Tenant-authored comments (library_id IS NULL) are never touched.',
+    description: "Auto-generated placeholder for replaceMarketplace (POST /libraries/{libraryId}/imports/replace, marketplace domain). TODO: replace with a real description sourced from the handler.",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {
         params: LibraryReplaceParamsSchema,
@@ -264,7 +274,8 @@ marketplaceRoutes.openapi(createRoute({
         400: { description: 'No update available or library not imported' },
         404: { description: 'Library not found' },
     },
-}), async (c) => {
+    operationId: "replaceMarketplace"
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { libraryId } = c.req.valid('param');
     let body: { confirmLossOfEdits?: boolean } | undefined;
     try { body = c.req.valid('json'); } catch { body = undefined; }
@@ -297,13 +308,11 @@ marketplaceRoutes.openapi(createRoute({
 
 // Sprint 2 S2-8 — Per-import history list. Tenant-scoped, optional template
 // or library filter. Used by the version-history drawer on /templates and /comments.
-marketplaceRoutes.openapi(createRoute({
+marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/imports/history',
-    tags: ['Marketplace'],
+    tags: ["marketplace"],
     summary: 'List per-import history events',
-    description:
-        'Returns install / update / replace / migrate events for the tenant. ' +
-        'Filter by templateId or libraryId; paginated.',
+    description: "Auto-generated placeholder for listMarketplaceImportsHistory (GET /imports/history, marketplace domain). TODO: replace with a real description sourced from the handler.",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { query: ImportHistoryQuerySchema },
     responses: {
@@ -320,7 +329,8 @@ marketplaceRoutes.openapi(createRoute({
             description: 'OK',
         },
     },
-}), async (c) => {
+    operationId: "listMarketplaceImportsHistory"
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const q = c.req.valid('query');
     const result = await c.var.services.importHistory.list({
         ...(q.templateId !== undefined ? { templateId: q.templateId } : {}),

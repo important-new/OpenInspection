@@ -4,6 +4,7 @@ import type { HonoConfig } from '../types/hono';
 import { requireRole } from '../lib/middleware/rbac';
 import { Errors } from '../lib/errors';
 import { detectMime } from '../lib/file-validation';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const messageRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -17,10 +18,10 @@ const AttachmentSchema = z.object({
 });
 
 // GET /api/messages/inspections/{inspectionId} — list inspector view
-const listRoute = createRoute({
+const listRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/inspections/{inspectionId}',
-    tags: ['Messages'],
+    tags: ["messages"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ inspectionId: z.string() }) },
     responses: {
@@ -30,7 +31,10 @@ const listRoute = createRoute({
         }) } }, description: 'OK' },
         401: { description: 'Unauthorized' },
     },
-});
+    operationId: "getMessageInspection",
+    summary: "Get message inspection for current tenant",
+    description: "Auto-generated placeholder for getMessageInspection (GET /inspections/{inspectionId}, messages domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 messageRoutes.openapi(listRoute, async (c) => {
     const { inspectionId } = c.req.valid('param');
@@ -46,10 +50,10 @@ messageRoutes.openapi(listRoute, async (c) => {
 });
 
 // POST /api/messages/inspections/{inspectionId} — send message as inspector
-const sendRoute = createRoute({
+const sendRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/inspections/{inspectionId}',
-    tags: ['Messages'],
+    tags: ["messages"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         params: z.object({ inspectionId: z.string() }),
@@ -62,7 +66,10 @@ const sendRoute = createRoute({
         201: { content: { 'application/json': { schema: z.object({ success: z.boolean(), data: z.any() }) } }, description: 'Created' },
         401: { description: 'Unauthorized' },
     },
-});
+    operationId: "createMessageInspection",
+    summary: "Create message inspection for current tenant",
+    description: "Auto-generated placeholder for createMessageInspection (POST /inspections/{inspectionId}, messages domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 messageRoutes.openapi(sendRoute, async (c) => {
     const { inspectionId } = c.req.valid('param');
@@ -88,9 +95,9 @@ messageRoutes.openapi(sendRoute, async (c) => {
 });
 
 // GET /api/messages/unread-count — sidebar badge
-const unreadRoute = createRoute({
+const unreadRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/unread-count',
-    tags: ['Messages'],
+    tags: ["messages"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: {
         200: { content: { 'application/json': { schema: z.object({
@@ -99,7 +106,10 @@ const unreadRoute = createRoute({
         }) } }, description: 'OK' },
         401: { description: 'Unauthorized' },
     },
-});
+    operationId: "unreadCountMessage",
+    summary: "Unread count message for current tenant",
+    description: "Auto-generated placeholder for unreadCountMessage (GET /unread-count, messages domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 messageRoutes.openapi(unreadRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -109,10 +119,10 @@ messageRoutes.openapi(unreadRoute, async (c) => {
 
 // ── T20: public client routes (no JWT, token-based) ─────────────────────────────
 
-const publicListRoute = createRoute({
+const publicListRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/public/{token}',
-    tags: ['Messages'],
+    tags: ["messages"],
     request: { params: z.object({ token: z.string() }) },
     responses: {
         200: { content: { 'application/json': { schema: z.object({
@@ -121,7 +131,10 @@ const publicListRoute = createRoute({
         }) } }, description: 'OK' },
         404: { description: 'Not found' },
     },
-});
+    operationId: "getMessagePublic",
+    summary: "Get message public for current tenant",
+    description: "Auto-generated placeholder for getMessagePublic (GET /public/{token}, messages domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 messageRoutes.openapi(publicListRoute, async (c) => {
     const { token } = c.req.valid('param');
@@ -136,10 +149,10 @@ messageRoutes.openapi(publicListRoute, async (c) => {
     } } }, 200);
 });
 
-const publicSendRoute = createRoute({
+const publicSendRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/public/{token}',
-    tags: ['Messages'],
+    tags: ["messages"],
     request: {
         params: z.object({ token: z.string() }),
         body: { content: { 'application/json': { schema: z.object({
@@ -151,7 +164,10 @@ const publicSendRoute = createRoute({
         201: { content: { 'application/json': { schema: z.object({ success: z.boolean(), data: z.any() }) } }, description: 'Created' },
         404: { description: 'Not found' },
     },
-});
+    operationId: "createMessagePublic",
+    summary: "Create message public for current tenant",
+    description: "Auto-generated placeholder for createMessagePublic (POST /public/{token}, messages domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 messageRoutes.openapi(publicSendRoute, async (c) => {
     const { token } = c.req.valid('param');
@@ -178,10 +194,10 @@ messageRoutes.openapi(publicSendRoute, async (c) => {
 
 // ── T21: attachment upload routes ───────────────────────────────────────────────
 
-const uploadRoute = createRoute({
+const uploadRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/inspections/{inspectionId}/upload',
-    tags: ['Messages'],
+    tags: ["messages"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ inspectionId: z.string() }) },
     responses: {
@@ -190,7 +206,10 @@ const uploadRoute = createRoute({
             data: z.object({ id: z.string(), key: z.string(), name: z.string(), size: z.number(), type: z.string(), uploadedAt: z.number() }),
         }) } }, description: 'OK' },
     },
-});
+    operationId: "uploadMessage",
+    summary: "Upload message for current tenant",
+    description: "Auto-generated placeholder for uploadMessage (POST /inspections/{inspectionId}/upload, messages domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 messageRoutes.openapi(uploadRoute, async (c) => {
     const { inspectionId } = c.req.valid('param');
@@ -210,10 +229,10 @@ messageRoutes.openapi(uploadRoute, async (c) => {
     return c.json({ success: true, data: { id, key, name: file.name, size: file.size, type: detected ?? file.type, uploadedAt: Date.now() } }, 200);
 });
 
-const publicUploadRoute = createRoute({
+const publicUploadRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/public/{token}/upload',
-    tags: ['Messages'],
+    tags: ["messages"],
     request: { params: z.object({ token: z.string() }) },
     responses: {
         200: { content: { 'application/json': { schema: z.object({
@@ -222,7 +241,10 @@ const publicUploadRoute = createRoute({
         }) } }, description: 'OK' },
         404: { description: 'Not found' },
     },
-});
+    operationId: "uploadMessage",
+    summary: "Upload message for current tenant",
+    description: "Auto-generated placeholder for uploadMessage (POST /public/{token}/upload, messages domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 messageRoutes.openapi(publicUploadRoute, async (c) => {
     const { token } = c.req.valid('param');

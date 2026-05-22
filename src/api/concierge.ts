@@ -4,6 +4,7 @@ import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
 import { agreementSignPath } from '../lib/public-urls';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const conciergeRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -27,10 +28,10 @@ const ConfirmResponseSchema = createApiResponseSchema(
     }),
 ).openapi('ConciergeConfirmResponse');
 
-const confirmRoute = createRoute({
+const confirmRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/confirm',
-    tags: ['Concierge'],
+    tags: ["bookings"],
     summary: 'Client redeems a concierge magic-link token',
     request: {
         body: { content: { 'application/json': { schema: ConfirmBodySchema } } },
@@ -43,7 +44,9 @@ const confirmRoute = createRoute({
         400: { description: 'Token expired or already used' },
         404: { description: 'Token not found' },
     },
-});
+    operationId: "confirmConcierge",
+    description: "Auto-generated placeholder for confirmConcierge (POST /confirm, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'extended' }));
 
 conciergeRoutes.openapi(confirmRoute, async (c) => {
     const { token } = c.req.valid('json');

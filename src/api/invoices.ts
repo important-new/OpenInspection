@@ -2,12 +2,13 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { HonoConfig } from '../types/hono';
 import { requireRole } from '../lib/middleware/rbac';
 import { CreateInvoiceSchema, InvoiceResponseSchema } from '../lib/validations/invoice.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const invoiceRoutes = new OpenAPIHono<HonoConfig>();
 
-const listInvoicesRoute = createRoute({
+const listInvoicesRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Invoices'], summary: 'List invoices',
+    tags: ["invoices"], summary: "List invoices for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
@@ -16,16 +17,18 @@ const listInvoicesRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listInvoices",
+    description: "Auto-generated placeholder for listInvoices (GET /, invoices domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'primary' }));
 
 invoiceRoutes.openapi(listInvoicesRoute, async (c) => {
     const rows = await c.var.services.invoice.listInvoices(c.get('tenantId'));
     return c.json({ success: true as const, data: { invoices: rows } }, 200);
 });
 
-const createInvoiceRoute = createRoute({
+const createInvoiceRoute = createRoute(withMcpMetadata({
     method: 'post', path: '/',
-    tags: ['Invoices'], summary: 'Create invoice',
+    tags: ["invoices"], summary: "Create invoice for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: { body: { content: { 'application/json': { schema: CreateInvoiceSchema } } } },
     responses: {
@@ -35,7 +38,9 @@ const createInvoiceRoute = createRoute({
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createInvoice",
+    description: "Auto-generated placeholder for createInvoice (POST /, invoices domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' }));
 
 invoiceRoutes.openapi(createInvoiceRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -53,16 +58,18 @@ invoiceRoutes.openapi(createInvoiceRoute, async (c) => {
     return c.json({ success: true as const, data: { invoice } }, 201);
 });
 
-const markSentRoute = createRoute({
+const markSentRoute = createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/mark-sent',
-    tags: ['Invoices'], summary: 'Mark invoice as sent',
+    tags: ["invoices"], summary: 'Mark invoice as sent',
     middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Success' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "markSentInvoice",
+    description: "Auto-generated placeholder for markSentInvoice (POST /{id}/mark-sent, invoices domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 invoiceRoutes.openapi(markSentRoute, async (c) => {
     const id = c.req.valid('param').id as string;
@@ -85,16 +92,18 @@ invoiceRoutes.openapi(markSentRoute, async (c) => {
     return c.json({ success: true }, 200);
 });
 
-const markPaidRoute = createRoute({
+const markPaidRoute = createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/mark-paid',
-    tags: ['Invoices'], summary: 'Mark invoice as paid',
+    tags: ["invoices"], summary: 'Mark invoice as paid',
     middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Success' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "markPaidInvoice",
+    description: "Auto-generated placeholder for markPaidInvoice (POST /{id}/mark-paid, invoices domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 invoiceRoutes.openapi(markPaidRoute, async (c) => {
     const id = c.req.valid('param').id as string;
@@ -111,16 +120,18 @@ invoiceRoutes.openapi(markPaidRoute, async (c) => {
     return c.json({ success: true }, 200);
 });
 
-const deleteInvoiceRoute = createRoute({
+const deleteInvoiceRoute = createRoute(withMcpMetadata({
     method: 'delete', path: '/{id}',
-    tags: ['Invoices'], summary: 'Delete invoice',
+    tags: ["invoices"], summary: "Delete invoice for current tenant",
     middleware: [requireRole(['owner', 'admin'])],
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
         200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'Deleted' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "deleteInvoice",
+    description: "Auto-generated placeholder for deleteInvoice (DELETE /{id}, invoices domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' }));
 
 invoiceRoutes.openapi(deleteInvoiceRoute, async (c) => {
     const id = c.req.valid('param').id as string;

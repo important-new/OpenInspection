@@ -8,7 +8,8 @@ export const passwordSchema = z.string()
     .min(8, 'Password must be at least 8 characters')
     .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character');
+    .regex(/[^A-Za-z0-9]/, 'Must contain at least one special character')
+    .describe('New password — min 8 chars with at least one uppercase letter, one digit, and one special character.');
 
 /**
  * Helper to wrap a schema in the standard ApiResponse structure for OpenAPI.

@@ -49,6 +49,7 @@ import { inspections as inspectionTable, inspectionResults, agreements, inspecti
 import { eq, inArray, and } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { SignatureUser } from '../lib/inspector-signature';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const inspectionsRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -84,10 +85,10 @@ async function resolveSignatureInspector(
 }
 
 // --- GET /api/inspections/dashboard — Spec 3A ---
-const dashboardRoute = createRoute({
+const dashboardRoute = createRoute(withMcpMetadata({
     method: 'get',
     path:   '/dashboard',
-    tags:   ['Inspections'],
+    tags: ["inspections"],
     summary: 'Bucketed inspections for dashboard',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: {
@@ -96,7 +97,9 @@ const dashboardRoute = createRoute({
             description: 'Dashboard buckets',
         },
     },
-});
+    operationId: "dashboardInspection",
+    description: "Auto-generated placeholder for dashboardInspection (GET /dashboard, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(dashboardRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const buckets  = await c.var.services.inspection.getDashboardBuckets(tenantId);
@@ -119,11 +122,11 @@ inspectionsRoutes.openapi(dashboardRoute, async (c) => {
  * GET /api/inspections
  * List inspections with pagination and stats.
  */
-const listInspectionsRoute = createRoute({
+const listInspectionsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/',
-    tags: ['Inspections'],
-    summary: 'List inspections',
+    tags: ["inspections"],
+    summary: "List inspections for current tenant",
     description: 'Retrieve a paginated list of inspections with optional filtering.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -139,7 +142,8 @@ const listInspectionsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listInspections"
+}, { scopes: ['read'], tier: 'primary' }));
 
 inspectionsRoutes.openapi(listInspectionsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -172,12 +176,12 @@ inspectionsRoutes.openapi(listInspectionsRoute, async (c) => {
 /**
  * GET /api/inspections/templates
  */
-const listTemplatesRoute = createRoute({
+const listTemplatesRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/templates',
-    tags: ['Templates'],
-    summary: 'List templates',
-    description: 'Retrieve all inspection templates for the tenant.',
+    tags: ["inspections", "templates"],
+    summary: "List inspection templates for current tenant",
+    description: "Retrieve all inspection templates for the tenant. (GET /templates, inspections domain).",
     responses: {
         200: {
             content: {
@@ -199,7 +203,8 @@ const listTemplatesRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listInspectionTemplates"
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(listTemplatesRoute, async (c) => {
     const service = c.var.services.template;
@@ -214,10 +219,10 @@ inspectionsRoutes.openapi(listTemplatesRoute, async (c) => {
  * local copy in this tenant. The Marketplace duplicate banner consumes this
  * to suggest compare/use-new/keep-both actions on /templates.
  */
-const listTemplateDuplicatesRoute = createRoute({
+const listTemplateDuplicatesRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/templates/duplicates',
-    tags: ['Templates'],
+    tags: ["inspections", "templates"],
     summary: 'List duplicate marketplace imports',
     description: 'Returns one entry per marketplace template ID that has more than one local copy.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])],
@@ -242,7 +247,8 @@ const listTemplateDuplicatesRoute = createRoute({
             description: 'Duplicate import groups',
         },
     },
-});
+    operationId: "listInspectionTemplatesDuplicates"
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(listTemplateDuplicatesRoute, async (c) => {
     const service = c.var.services.template;
@@ -253,12 +259,12 @@ inspectionsRoutes.openapi(listTemplateDuplicatesRoute, async (c) => {
 /**
  * GET /api/inspections/templates/:id
  */
-const getTemplateRoute = createRoute({
+const getTemplateRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/templates/{id}',
-    tags: ['Templates'],
-    summary: 'Get template',
-    description: 'Retrieve a single template with full schema.',
+    tags: ["inspections", "templates"],
+    summary: "Get inspection template for current tenant",
+    description: "Retrieve a single template with full schema. (GET /templates/{id}, inspections domain).",
     request: {
         params: z.object({ id: z.string() }),
     },
@@ -272,7 +278,8 @@ const getTemplateRoute = createRoute({
             description: 'Template details',
         },
     },
-});
+    operationId: "getInspectionTemplate"
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(getTemplateRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -284,12 +291,12 @@ inspectionsRoutes.openapi(getTemplateRoute, async (c) => {
 /**
  * POST /api/inspections/templates
  */
-const createTemplateRoute = createRoute({
+const createTemplateRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/templates',
-    tags: ['Templates'],
-    summary: 'Create template',
-    description: 'Create a new inspection template.',
+    tags: ["inspections", "templates"],
+    summary: "Create inspection templates for current tenant",
+    description: "Create a new inspection template. (POST /templates, inspections domain).",
     request: {
         body: {
             content: {
@@ -310,7 +317,8 @@ const createTemplateRoute = createRoute({
             description: 'Created',
         },
     },
-});
+    operationId: "createInspectionTemplates"
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(createTemplateRoute, async (c) => {
     const body = c.req.valid('json');
@@ -326,11 +334,11 @@ inspectionsRoutes.openapi(createTemplateRoute, async (c) => {
  * created template row and the conversion stats (for the diff display in
  * the upcoming import-from-Spectora UI).
  */
-const importSpectoraRoute = createRoute({
+const importSpectoraRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/templates/import-spectora',
-    tags: ['Templates'],
-    summary: 'Import Spectora template',
+    tags: ["inspections", "templates"],
+    summary: "Create inspection templates import spectora",
     description: 'Convert a Spectora export to v2 and create a new template from it.',
     request: {
         body: {
@@ -364,7 +372,8 @@ const importSpectoraRoute = createRoute({
             description: 'Imported',
         },
     },
-});
+    operationId: "createInspectionTemplatesImportSpectora"
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(importSpectoraRoute, async (c) => {
     const body = c.req.valid('json');
@@ -385,11 +394,11 @@ inspectionsRoutes.openapi(importSpectoraRoute, async (c) => {
 /**
  * PUT /api/inspections/templates/:id
  */
-const updateTemplateRoute = createRoute({
+const updateTemplateRoute = createRoute(withMcpMetadata({
     method: 'put',
     path: '/templates/{id}',
-    tags: ['Templates'],
-    summary: 'Update template',
+    tags: ["inspections", "templates"],
+    summary: "Update inspection template for current tenant",
     request: {
         params: z.object({ id: z.string().uuid() }),
         body: {
@@ -411,7 +420,9 @@ const updateTemplateRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "updateInspectionTemplate",
+    description: "Auto-generated placeholder for updateInspectionTemplate (PUT /templates/{id}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(updateTemplateRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -424,11 +435,11 @@ inspectionsRoutes.openapi(updateTemplateRoute, async (c) => {
 /**
  * DELETE /api/inspections/templates/:id
  */
-const deleteTemplateRoute = createRoute({
+const deleteTemplateRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/templates/{id}',
-    tags: ['Templates'],
-    summary: 'Delete template',
+    tags: ["inspections", "templates"],
+    summary: "Delete inspection template for current tenant",
     request: {
         params: z.object({ id: z.string().uuid() }),
     },
@@ -443,7 +454,9 @@ const deleteTemplateRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "deleteInspectionTemplate",
+    description: "Auto-generated placeholder for deleteInspectionTemplate (DELETE /templates/{id}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(deleteTemplateRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -455,11 +468,11 @@ inspectionsRoutes.openapi(deleteTemplateRoute, async (c) => {
 /**
  * GET /api/inspections/inspectors
  */
-const listInspectorsRoute = createRoute({
+const listInspectorsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/inspectors',
-    tags: ['Inspectors'],
-    summary: 'List inspectors',
+    tags: ["inspections"],
+    summary: "List inspection inspectors for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])],
     responses: {
         200: {
@@ -480,7 +493,9 @@ const listInspectorsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listInspectionInspectors",
+    description: "Auto-generated placeholder for listInspectionInspectors (GET /inspectors, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(listInspectorsRoute, async (c) => {
     const service = c.var.services.admin;
@@ -491,12 +506,12 @@ inspectionsRoutes.openapi(listInspectorsRoute, async (c) => {
 /**
  * PATCH /api/inspections/bulk
  */
-const bulkUpdateRoute = createRoute({
+const bulkUpdateRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/bulk',
-    tags: ['Inspections'],
-    summary: 'Bulk update inspections',
-    description: 'Perform mass operations on multiple inspections.',
+    tags: ["inspections"],
+    summary: "Bulk inspection for current tenant",
+    description: "Perform mass operations on multiple inspections. (PATCH /bulk, inspections domain).",
     request: {
         body: {
             content: {
@@ -517,7 +532,8 @@ const bulkUpdateRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "bulkInspection"
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(bulkUpdateRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -548,10 +564,10 @@ inspectionsRoutes.openapi(bulkUpdateRoute, async (c) => {
 /**
  * GET /api/inspections/counts
  */
-const getCountsRoute = createRoute({
+const getCountsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/counts',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Get inspection tab counts',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: {
@@ -560,7 +576,9 @@ const getCountsRoute = createRoute({
             description: 'Tab counts',
         },
     },
-});
+    operationId: "countsInspection",
+    description: "Auto-generated placeholder for countsInspection (GET /counts, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(getCountsRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -571,11 +589,11 @@ inspectionsRoutes.openapi(getCountsRoute, async (c) => {
 /**
  * GET /api/inspections/:id
  */
-const getInspectionRoute = createRoute({
+const getInspectionRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/{id}',
-    tags: ['Inspections'],
-    summary: 'Get inspection',
+    tags: ["inspections"],
+    summary: "Get inspection for current tenant",
     description: 'Retrieve detailed information about a single inspection.',
     request: {
         params: z.object({
@@ -598,7 +616,8 @@ const getInspectionRoute = createRoute({
             description: 'Inspection not found',
         },
     },
-});
+    operationId: "getInspection"
+}, { scopes: ['read'], tier: 'primary' }));
 
 inspectionsRoutes.openapi(getInspectionRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -613,12 +632,12 @@ inspectionsRoutes.openapi(getInspectionRoute, async (c) => {
 /**
  * DELETE /api/inspections/:id
  */
-const deleteInspectionRoute = createRoute({
+const deleteInspectionRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/{id}',
-    tags: ['Inspections'],
-    summary: 'Delete inspection',
-    description: 'Permanently remove an inspection record.',
+    tags: ["inspections"],
+    summary: "Delete inspection for current tenant",
+    description: "Permanently remove an inspection record. (DELETE /{id}, inspections domain).",
     request: {
         params: z.object({
             id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
@@ -635,7 +654,8 @@ const deleteInspectionRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "deleteInspection"
+}, { scopes: ['write'], tier: 'primary' }));
 
 inspectionsRoutes.openapi(deleteInspectionRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -656,12 +676,12 @@ inspectionsRoutes.openapi(deleteInspectionRoute, async (c) => {
 /**
  * PATCH /api/inspections/:id
  */
-const updateInspectionRoute = createRoute({
+const updateInspectionRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/{id}',
-    tags: ['Inspections'],
-    summary: 'Update inspection',
-    description: 'Partially update an inspection record.',
+    tags: ["inspections"],
+    summary: "Patch inspection for current tenant",
+    description: "Partially update an inspection record. (PATCH /{id}, inspections domain).",
     request: {
         params: z.object({
             id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
@@ -685,7 +705,8 @@ const updateInspectionRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "patchInspection"
+}, { scopes: ['write'], tier: 'primary' }));
 
 inspectionsRoutes.openapi(updateInspectionRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -709,11 +730,11 @@ inspectionsRoutes.openapi(updateInspectionRoute, async (c) => {
  * Round-2 backlog G1 (Spectora §E.2) — GET /api/inspections/:id/property-facts
  * Returns the six Property Facts columns for the strip + report banner.
  */
-const getPropertyFactsRoute = createRoute({
+const getPropertyFactsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/{id}/property-facts',
-    tags: ['Inspections'],
-    summary: 'Get property facts',
+    tags: ["inspections"],
+    summary: "List inspection property facts",
     description: 'Returns the Property Facts strip payload (year built, sqft, foundation, lot, beds, baths).',
     request: {
         params: z.object({ id: z.string().uuid() }),
@@ -725,7 +746,8 @@ const getPropertyFactsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listInspectionPropertyFacts"
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(getPropertyFactsRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -739,11 +761,11 @@ inspectionsRoutes.openapi(getPropertyFactsRoute, async (c) => {
  * Inline-edit handler for the Property Facts card. Accepts a partial payload
  * so a single-field save round-trips without touching the other columns.
  */
-const updatePropertyFactsRoute = createRoute({
+const updatePropertyFactsRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/{id}/property-facts',
-    tags: ['Inspections'],
-    summary: 'Update property facts',
+    tags: ["inspections"],
+    summary: "Patch inspection property fact",
     description: 'Patches the Property Facts strip. Omitted keys are unchanged; null clears a field.',
     request: {
         params: z.object({ id: z.string().uuid() }),
@@ -756,7 +778,8 @@ const updatePropertyFactsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "patchInspectionPropertyFact"
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(updatePropertyFactsRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -784,10 +807,10 @@ inspectionsRoutes.openapi(updatePropertyFactsRoute, async (c) => {
  * inspection-settings.js patches each field via the existing PATCH
  * /property-facts endpoint, preserving the inspector's manual overrides.
  */
-const autofillPropertyFactsRoute = createRoute({
+const autofillPropertyFactsRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/property-facts/autofill',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Auto-fill property facts from public records (Estated.io)',
     description: 'Returns mapped Property Facts payload or null + reason code. Inspector remains free to override fields manually after auto-fill.',
     request: {
@@ -801,7 +824,8 @@ const autofillPropertyFactsRoute = createRoute({
             description: 'Auto-fill result',
         },
     },
-});
+    operationId: "autofillInspection"
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(autofillPropertyFactsRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -830,11 +854,11 @@ inspectionsRoutes.openapi(autofillPropertyFactsRoute, async (c) => {
 /**
  * GET /api/inspections/:id/results
  */
-const getResultsRoute = createRoute({
+const getResultsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/{id}/results',
-    tags: ['Inspections'],
-    summary: 'Get inspection results',
+    tags: ["inspections"],
+    summary: "List inspection results for current tenant",
     request: {
         params: z.object({ id: z.string().uuid() }),
     },
@@ -848,7 +872,9 @@ const getResultsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listInspectionResults",
+    description: "Auto-generated placeholder for listInspectionResults (GET /{id}/results, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(getResultsRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -861,11 +887,11 @@ inspectionsRoutes.openapi(getResultsRoute, async (c) => {
 /**
  * PATCH /api/inspections/:id/results
  */
-const updateResultsRoute = createRoute({
+const updateResultsRoute = createRoute(withMcpMetadata({
     method: 'patch',
     path: '/{id}/results',
-    tags: ['Inspections'],
-    summary: 'Update inspection results',
+    tags: ["inspections"],
+    summary: "Patch inspection result for current tenant",
     request: {
         params: z.object({ id: z.string().uuid() }),
         body: {
@@ -887,7 +913,9 @@ const updateResultsRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "patchInspectionResult",
+    description: "Auto-generated placeholder for patchInspectionResult (PATCH /{id}/results, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(updateResultsRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -902,17 +930,19 @@ inspectionsRoutes.openapi(updateResultsRoute, async (c) => {
  * Flattens all attached recommendations across all items + computes totals.
  * Spec 3 report renderer will consume this to build the consolidated repair list.
  */
-const aggregateRecommendationsRoute = createRoute({
+const aggregateRecommendationsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/{id}/recommendations',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Aggregate all attached recommendations + totals for repair list',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string().uuid() }) },
     responses: {
         200: { content: { 'application/json': { schema: AggregatedRecommendationsResponseSchema } }, description: 'Aggregated recommendations' },
     },
-});
+    operationId: "listInspectionRecommendations",
+    description: "Auto-generated placeholder for listInspectionRecommendations (GET /{id}/recommendations, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(aggregateRecommendationsRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -955,12 +985,12 @@ inspectionsRoutes.openapi(aggregateRecommendationsRoute, async (c) => {
 /**
  * POST /api/inspections
  */
-const createInspectionRoute = createRoute({
+const createInspectionRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/',
-    tags: ['Inspections'],
-    summary: 'Create inspection',
-    description: 'Initialize a new inspection for a property.',
+    tags: ["inspections"],
+    summary: "Create inspection for current tenant",
+    description: "Initialize a new inspection for a property. (POST /, inspections domain).",
     request: {
         body: {
             content: {
@@ -983,7 +1013,8 @@ const createInspectionRoute = createRoute({
             description: 'Created',
         },
     },
-});
+    operationId: "createInspection"
+}, { scopes: ['write'], tier: 'primary' }));
 
 inspectionsRoutes.openapi(createInspectionRoute, async (c) => {
     const body = c.req.valid('json');
@@ -1013,11 +1044,11 @@ inspectionsRoutes.openapi(createInspectionRoute, async (c) => {
 /**
  * POST /api/inspections/:id/clone
  */
-const cloneInspectionRoute = createRoute({
+const cloneInspectionRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/clone',
-    tags: ['Inspections'],
-    summary: 'Clone inspection',
+    tags: ["inspections"],
+    summary: "Clone inspection for current tenant",
     request: {
         params: z.object({ id: z.string().uuid() }),
     },
@@ -1032,7 +1063,9 @@ const cloneInspectionRoute = createRoute({
             description: 'Created',
         },
     },
-});
+    operationId: "cloneInspection",
+    description: "Auto-generated placeholder for cloneInspection (POST /{id}/clone, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(cloneInspectionRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -1055,11 +1088,11 @@ inspectionsRoutes.openapi(cloneInspectionRoute, async (c) => {
  * the response echoes the target so the client can attach the key to the
  * right custom row.
  */
-const uploadPhotoRoute = createRoute({
+const uploadPhotoRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/upload',
-    tags: ['Inspections'],
-    summary: 'Upload inspection photo',
+    tags: ["inspections"],
+    summary: "Upload inspection for current tenant",
     request: {
         params: z.object({ id: z.string().uuid() }),
         body: {
@@ -1092,7 +1125,9 @@ const uploadPhotoRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "uploadInspection",
+    description: "Auto-generated placeholder for uploadInspection (POST /{id}/upload, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(uploadPhotoRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -1120,10 +1155,10 @@ inspectionsRoutes.openapi(uploadPhotoRoute, async (c) => {
  *   POST /api/inspections/:id/media/attach   — attach pool photo to an item
  *   DELETE /api/inspections/:id/media/pool/:poolId — discard pool photo
  */
-const mediaCenterRoute = createRoute({
+const mediaCenterRoute = createRoute(withMcpMetadata({
     method: 'get',
     path:   '/{id}/media',
-    tags:   ['Inspections'],
+    tags: ["inspections"],
     summary: 'Media Center — all attached + pool photos',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string().uuid() }) },
@@ -1133,17 +1168,19 @@ const mediaCenterRoute = createRoute({
             description: 'Aggregated photos',
         },
     },
-});
+    operationId: "listInspectionMedia",
+    description: "Auto-generated placeholder for listInspectionMedia (GET /{id}/media, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(mediaCenterRoute, async (c) => {
     const { id } = c.req.valid('param');
     const data = await c.var.services.inspection.getMediaCenter(id, c.get('tenantId'));
     return c.json({ success: true, data }, 200);
 });
 
-const mediaUploadRoute = createRoute({
+const mediaUploadRoute = createRoute(withMcpMetadata({
     method: 'post',
     path:   '/{id}/media/upload',
-    tags:   ['Inspections'],
+    tags: ["inspections"],
     summary: 'Upload a photo to the inspection media pool (loose, unattached)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -1169,7 +1206,9 @@ const mediaUploadRoute = createRoute({
             description: 'Pool photo created',
         },
     },
-});
+    operationId: "uploadInspection",
+    description: "Auto-generated placeholder for uploadInspection (POST /{id}/media/upload, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(mediaUploadRoute, async (c) => {
     const { id } = c.req.valid('param');
     const formData = await c.req.parseBody();
@@ -1187,10 +1226,10 @@ inspectionsRoutes.openapi(mediaUploadRoute, async (c) => {
     return c.json({ success: true, data: result }, 200);
 });
 
-const mediaAttachRoute = createRoute({
+const mediaAttachRoute = createRoute(withMcpMetadata({
     method: 'post',
     path:   '/{id}/media/attach',
-    tags:   ['Inspections'],
+    tags: ["inspections"],
     summary: 'Attach a pool photo to an inspection item',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -1203,7 +1242,9 @@ const mediaAttachRoute = createRoute({
             description: 'Photo attached',
         },
     },
-});
+    operationId: "attachInspection",
+    description: "Auto-generated placeholder for attachInspection (POST /{id}/media/attach, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(mediaAttachRoute, async (c) => {
     const { id } = c.req.valid('param');
     const { poolId, itemId } = c.req.valid('json');
@@ -1215,10 +1256,10 @@ inspectionsRoutes.openapi(mediaAttachRoute, async (c) => {
     return c.json({ success: true, data: result }, 200);
 });
 
-const mediaPoolDeleteRoute = createRoute({
+const mediaPoolDeleteRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path:   '/{id}/media/pool/{poolId}',
-    tags:   ['Inspections'],
+    tags: ["inspections"],
     summary: 'Delete a pool photo (cancel an upload)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -1230,7 +1271,9 @@ const mediaPoolDeleteRoute = createRoute({
             description: 'Pool photo deleted',
         },
     },
-});
+    operationId: "deleteInspectionMediaPool",
+    description: "Auto-generated placeholder for deleteInspectionMediaPool (DELETE /{id}/media/pool/{poolId}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(mediaPoolDeleteRoute, async (c) => {
     const { id, poolId } = c.req.valid('param');
     await c.var.services.inspection.deletePoolPhoto(id, c.get('tenantId'), poolId);
@@ -1240,10 +1283,10 @@ inspectionsRoutes.openapi(mediaPoolDeleteRoute, async (c) => {
 // Design System 0520 M14 — PhotoStudio annotation save (subsystem A, phase 4).
 // Opaque JSON-encoded shape array (≤8 KB) + caption (≤200 chars). Tenant-
 // isolated via ScopedDB; 404 on cross-tenant access (no enumeration leak).
-const updateMediaAnnotationsRoute = createRoute({
+const updateMediaAnnotationsRoute = createRoute(withMcpMetadata({
     method:     'put',
     path:       '/{id}/media/{mediaId}/annotations',
-    tags:       ['Inspections'],
+    tags: ["inspections"],
     summary:    'Save PhotoStudio annotation overlay + caption',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -1275,7 +1318,9 @@ const updateMediaAnnotationsRoute = createRoute({
         },
         404: { description: 'Media not found in this tenant' },
     },
-});
+    operationId: "updateInspectionMediaAnnotation",
+    description: "Auto-generated placeholder for updateInspectionMediaAnnotation (PUT /{id}/media/{mediaId}/annotations, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(updateMediaAnnotationsRoute, async (c) => {
     const { id, mediaId } = c.req.valid('param');
@@ -1514,11 +1559,11 @@ inspectionsRoutes.post('/:id/sign', async (c) => {
 /**
  * POST /api/inspections/:id/complete
  */
-const completeInspectionRoute = createRoute({
+const completeInspectionRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/complete',
-    tags: ['Inspections'],
-    summary: 'Complete inspection',
+    tags: ["inspections"],
+    summary: "Complete inspection for current tenant",
     request: {
         params: z.object({ id: z.string().uuid() }),
     },
@@ -1533,7 +1578,9 @@ const completeInspectionRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "completeInspection",
+    description: "Auto-generated placeholder for completeInspection (POST /{id}/complete, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -1595,10 +1642,10 @@ inspectionsRoutes.openapi(completeInspectionRoute, async (c) => {
     return c.json({ success: true, data: { success: true } }, 200);
 });
 
-const sendReportPdfRoute = createRoute({
+const sendReportPdfRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/send-report-pdf',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Re-send the inspection report as a PDF email attachment',
     middleware: [requireRole(['owner', 'admin', 'inspector'])],
     request: {
@@ -1624,7 +1671,9 @@ const sendReportPdfRoute = createRoute({
         503: { description: 'PDF rendering unavailable; text-only email sent instead' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "createInspectionSendReportPdf",
+    description: "Auto-generated placeholder for createInspectionSendReportPdf (POST /{id}/send-report-pdf, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(sendReportPdfRoute, async (c) => {
     const { id } = c.req.valid('param');
@@ -1663,10 +1712,10 @@ inspectionsRoutes.openapi(sendReportPdfRoute, async (c) => {
 /**
  * GET /api/inspections/:id/report-data
  */
-const getReportDataRoute = createRoute({
+const getReportDataRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/{id}/report-data',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Get structured report data',
     request: {
         params: z.object({ id: z.string() }),
@@ -1681,7 +1730,9 @@ const getReportDataRoute = createRoute({
             description: 'Report data',
         },
     },
-});
+    operationId: "listInspectionReportData",
+    description: "Auto-generated placeholder for listInspectionReportData (GET /{id}/report-data, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(getReportDataRoute, async (c) => {
     const tenantId = c.get('tenantId') as string;
@@ -1733,10 +1784,10 @@ const RepairListResponseSchema = z.object({
     showEstimates: z.boolean(),
 });
 
-const getRepairListRoute = createRoute({
+const getRepairListRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/{id}/repair-list',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Get aggregated repair list (defects-only punch list)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -1746,7 +1797,9 @@ const getRepairListRoute = createRoute({
             description: 'Repair list',
         },
     },
-});
+    operationId: "listInspectionRepairList",
+    description: "Auto-generated placeholder for listInspectionRepairList (GET /{id}/repair-list, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(getRepairListRoute, async (c) => {
     const tenantId = c.get('tenantId') as string;
@@ -1758,13 +1811,15 @@ inspectionsRoutes.openapi(getRepairListRoute, async (c) => {
 /**
  * POST /api/inspections/:id/confirm
  */
-inspectionsRoutes.openapi(createRoute({
+inspectionsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/confirm',
-    tags: ['Inspections'], summary: 'Confirm inspection',
+    tags: ["inspections"], summary: "Confirm inspection for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Confirmed' } },
-}), async (c) => {
+    operationId: "confirmInspection",
+    description: "Auto-generated placeholder for confirmInspection (POST /{id}/confirm, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { id } = c.req.valid('param');
     await c.var.services.inspection.confirmInspection(tenantId, id);
@@ -1774,16 +1829,18 @@ inspectionsRoutes.openapi(createRoute({
 /**
  * POST /api/inspections/:id/cancel
  */
-inspectionsRoutes.openapi(createRoute({
+inspectionsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/cancel',
-    tags: ['Inspections'], summary: 'Cancel inspection',
+    tags: ["inspections"], summary: "Cancel inspection for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         params: z.object({ id: z.string() }),
         body: { content: { 'application/json': { schema: CancelInspectionSchema } } },
     },
     responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Cancelled' } },
-}), async (c) => {
+    operationId: "cancelInspection",
+    description: "Auto-generated placeholder for cancelInspection (POST /{id}/cancel, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { id } = c.req.valid('param');
     const { reason, notes } = c.req.valid('json');
@@ -1794,13 +1851,15 @@ inspectionsRoutes.openapi(createRoute({
 /**
  * POST /api/inspections/:id/uncancel
  */
-inspectionsRoutes.openapi(createRoute({
+inspectionsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/uncancel',
-    tags: ['Inspections'], summary: 'Uncancel inspection',
+    tags: ["inspections"], summary: "Create inspection uncancel for current tenant",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Uncancelled' } },
-}), async (c) => {
+    operationId: "createInspectionUncancel",
+    description: "Auto-generated placeholder for createInspectionUncancel (POST /{id}/uncancel, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { id } = c.req.valid('param');
     await c.var.services.inspection.uncancelInspection(tenantId, id);
@@ -1812,10 +1871,10 @@ inspectionsRoutes.openapi(createRoute({
  * Returns the multi-party list (client + buyer agent + listing agent) that
  * the Publish modal renders per-recipient Email/Text checkboxes against.
  */
-const recipientsRoute = createRoute({
+const recipientsRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/{id}/recipients',
-    tags:    ['Inspections'],
+    tags: ["inspections"],
     summary: 'List the recipients eligible for the Publish modal',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -1825,7 +1884,9 @@ const recipientsRoute = createRoute({
             description: 'Recipient list',
         },
     },
-});
+    operationId: "listInspectionRecipients",
+    description: "Auto-generated placeholder for listInspectionRecipients (GET /{id}/recipients, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(recipientsRoute, async (c) => {
     const tenantId = c.get('tenantId') as string;
@@ -1838,10 +1899,10 @@ inspectionsRoutes.openapi(recipientsRoute, async (c) => {
  * Round-2 F3 — GET /api/inspections/:id/people
  * People-card payload (inspector + client + buyer/listing agents).
  */
-const peopleRoute = createRoute({
+const peopleRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/{id}/people',
-    tags:    ['Inspections'],
+    tags: ["inspections"],
     summary: 'People card payload (inspector, client, agents)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -1851,7 +1912,9 @@ const peopleRoute = createRoute({
             description: 'People card',
         },
     },
-});
+    operationId: "listInspectionPeople",
+    description: "Auto-generated placeholder for listInspectionPeople (GET /{id}/people, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(peopleRoute, async (c) => {
     const tenantId = c.get('tenantId') as string;
@@ -1863,11 +1926,11 @@ inspectionsRoutes.openapi(peopleRoute, async (c) => {
 /**
  * POST /api/inspections/:id/publish
  */
-const publishRoute = createRoute({
+const publishRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/publish',
-    tags: ['Inspections'],
-    summary: 'Publish inspection report',
+    tags: ["inspections"],
+    summary: "Publish inspection for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         params: z.object({ id: z.string() }),
@@ -1889,7 +1952,9 @@ const publishRoute = createRoute({
             description: 'Published',
         },
     },
-});
+    operationId: "publishInspection",
+    description: "Auto-generated placeholder for publishInspection (POST /{id}/publish, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(publishRoute, async (c) => {
     const tenantId = c.get('tenantId') as string;
@@ -1960,9 +2025,9 @@ inspectionsRoutes.openapi(publishRoute, async (c) => {
 // ── Spec 5A.6 — POST /api/inspections/:id/pdf/refresh ──────────────────────────
 // Re-enqueue Summary + Full PDF rendering. Inspector / admin only.
 // Returns 202 with current status so the client can poll the same row via GET.
-inspectionsRoutes.openapi(createRoute({
+inspectionsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/pdf/refresh',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Refresh PDF renders (Summary + Full)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -1976,7 +2041,9 @@ inspectionsRoutes.openapi(createRoute({
             description: 'PDF renders enqueued',
         },
     },
-}), async (c) => {
+    operationId: "refreshInspection",
+    description: "Auto-generated placeholder for refreshInspection (POST /{id}/pdf/refresh, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId') as string;
     const { id } = c.req.valid('param');
     const reportPdf = c.var.services.reportPdf;
@@ -2010,9 +2077,9 @@ inspectionsRoutes.openapi(createRoute({
 // payload if PDF still rendering / failed (client polls). Auth: any caller
 // with a tenant context (logged-in inspector or branding-resolved request);
 // public-share-token support follows the existing /report/:id pattern.
-inspectionsRoutes.openapi(createRoute({
+inspectionsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/{id}/pdf',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Download report PDF (Summary or Full)',
     request: {
         params: z.object({ id: z.string() }),
@@ -2031,7 +2098,9 @@ inspectionsRoutes.openapi(createRoute({
             description: 'PDF still rendering',
         },
     },
-}), async (c) => {
+    operationId: "listInspectionPdf",
+    description: "Auto-generated placeholder for listInspectionPdf (GET /{id}/pdf, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId') as string;
     if (!tenantId) return c.json({ success: false, error: { message: 'Tenant required' } }, 400);
     const { id } = c.req.valid('param');
@@ -2061,9 +2130,9 @@ inspectionsRoutes.openapi(createRoute({
 });
 
 // POST /api/inspections/:id/agent-token — generates a shareable agent view token
-inspectionsRoutes.openapi(createRoute({
+inspectionsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/agent-token',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Generate shareable agent view token',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -2073,7 +2142,9 @@ inspectionsRoutes.openapi(createRoute({
             description: 'Agent view token and URL',
         },
     },
-}), async (c) => {
+    operationId: "createInspectionAgentToken",
+    description: "Auto-generated placeholder for createInspectionAgentToken (POST /{id}/agent-token, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId') as string;
     const { id } = c.req.valid('param');
     const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
@@ -2086,9 +2157,9 @@ inspectionsRoutes.openapi(createRoute({
 // Generates a fresh 30-day agent view token and emails the link to the inspection's
 // referring agent. Returns 400 if no agent is linked or the agent has no email on
 // file. Used by the report viewer's Share dropdown ("Share with your agent").
-inspectionsRoutes.openapi(createRoute({
+inspectionsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/share-agent',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Email the report share link to the linked agent',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: z.object({ id: z.string() }) },
@@ -2098,7 +2169,9 @@ inspectionsRoutes.openapi(createRoute({
             description: 'Share link emailed to agent',
         },
     },
-}), async (c) => {
+    operationId: "createInspectionShareAgent",
+    description: "Auto-generated placeholder for createInspectionShareAgent (POST /{id}/share-agent, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId') as string;
     const { id } = c.req.valid('param');
     const db = drizzle(c.env.DB);
@@ -2148,10 +2221,10 @@ inspectionsRoutes.openapi(createRoute({
 });
 
 // ── Phase T (T12): Photo annotation save ────────────────────────────────────────
-const saveAnnotationRoute = createRoute({
+const saveAnnotationRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/items/{itemId}/photos/{photoIndex}/annotation',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Save photo annotation (composite PNG + Konva nodes JSON)',
     request: {
         params: z.object({
@@ -2177,7 +2250,9 @@ const saveAnnotationRoute = createRoute({
             description: 'Annotation saved',
         },
     },
-});
+    operationId: "createInspectionItemsPhotosAnnotation",
+    description: "Auto-generated placeholder for createInspectionItemsPhotosAnnotation (POST /{id}/items/{itemId}/photos/{photoIndex}/annotation, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(saveAnnotationRoute, async (c) => {
     const { id, itemId, photoIndex } = c.req.valid('param');
@@ -2199,10 +2274,10 @@ inspectionsRoutes.openapi(saveAnnotationRoute, async (c) => {
 // Inspector flips an awaiting_inspector concierge booking to awaiting_client.
 // Service mints the magic-link + sends the client confirm email. Tenant scope
 // is enforced via JWT-derived tenantId — never trust the URL for tenant.
-const approveConciergeRoute = createRoute({
+const approveConciergeRoute = createRoute(withMcpMetadata({
     method: 'post',
     path:   '/{id}/concierge/approve',
-    tags:   ['Inspections'],
+    tags: ["inspections"],
     summary: 'Approve a concierge booking awaiting inspector review',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -2216,7 +2291,9 @@ const approveConciergeRoute = createRoute({
         404: { description: 'Inspection not found in this tenant' },
         409: { description: 'Inspection is not in awaiting_inspector state' },
     },
-});
+    operationId: "approveInspection",
+    description: "Auto-generated placeholder for approveInspection (POST /{id}/concierge/approve, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId');
@@ -2231,10 +2308,10 @@ inspectionsRoutes.openapi(approveConciergeRoute, async (c) => {
 // 4-step wizard payload validated by CreateInspectionFromWizardSchema.
 // Returns the new inspection id so the wizard factory redirects to
 // /inspections/:id/edit on success.
-const createFromWizardRoute = createRoute({
+const createFromWizardRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/wizard',
-    tags:       ['Inspections'],
+    tags: ["inspections"],
     summary:    'Create an inspection from the 4-step NewInspectionWizard',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -2250,7 +2327,9 @@ const createFromWizardRoute = createRoute({
         },
         400: { description: 'Validation error' },
     },
-});
+    operationId: "createInspectionWizard",
+    description: "Auto-generated placeholder for createInspectionWizard (POST /wizard, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(createFromWizardRoute, async (c) => {
     const input    = c.req.valid('json');
@@ -2270,10 +2349,10 @@ inspectionsRoutes.openapi(createFromWizardRoute, async (c) => {
 // expectedVersion the client thinks it has; server returns 200 + newVersion
 // on match, 409 + current/yours on stale write. The ConflictModal
 // (phase 3 task 3.6) consumes the 409 payload.
-const patchItemFieldRoute = createRoute({
+const patchItemFieldRoute = createRoute(withMcpMetadata({
     method:     'patch',
     path:       '/{id}/items/{itemId}',
-    tags:       ['Inspections'],
+    tags: ["inspections"],
     summary:    'Patch a single item field with optimistic-concurrency version check',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -2291,7 +2370,9 @@ const patchItemFieldRoute = createRoute({
         404: { description: 'Inspection or item not found in this tenant' },
         409: { description: 'expectedVersion stale — body contains current/yours' },
     },
-});
+    operationId: "patchInspectionItem",
+    description: "Auto-generated placeholder for patchInspectionItem (PATCH /{id}/items/{itemId}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(patchItemFieldRoute, async (c) => {
     const { id, itemId } = c.req.valid('param');
@@ -2409,17 +2490,19 @@ inspectionsRoutes.get('/:id/presence/ws', async (c) => {
 });
 
 // Design System 0520 subsystem E P1.3 — Publish pre-flight gates.
-const preflightRoute = createRoute({
+const preflightRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/{id}/preflight',
-    tags:    ['Inspections'],
+    tags: ["inspections"],
     summary: 'Compute Publish pre-flight gates (rated / facts / cover / agreement)',
     request: { params: z.object({ id: z.string().min(1) }) },
     responses: {
         200: { description: 'ok' },
         404: { description: 'inspection not found in this tenant' },
     },
-});
+    operationId: "listInspectionPreflight",
+    description: "Auto-generated placeholder for listInspectionPreflight (GET /{id}/preflight, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(preflightRoute, async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId');
@@ -2435,10 +2518,10 @@ inspectionsRoutes.openapi(preflightRoute, async (c) => {
 // validation in UnitService (depth ≤ 3, sibling-name uniqueness, cycle
 // detection on move). Routes guard with the standard inspector role.
 
-const createUnitRoute = createRoute({
+const createUnitRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/{id}/units',
-    tags:       ['Units'],
+    tags: ["inspections"],
     summary:    'Create a unit (Building / Floor / Unit) under an inspection',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -2449,7 +2532,9 @@ const createUnitRoute = createRoute({
         200: { description: 'created', content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ id: z.string() }) }) } } },
         400: { description: 'validation / depth / duplicate-name' },
     },
-});
+    operationId: "createInspectionUnits",
+    description: "Auto-generated placeholder for createInspectionUnits (POST /{id}/units, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(createUnitRoute, async (c) => {
     const { id }      = c.req.valid('param');
     const input       = c.req.valid('json');
@@ -2462,17 +2547,19 @@ inspectionsRoutes.openapi(createUnitRoute, async (c) => {
     }
 });
 
-const listUnitsRoute = createRoute({
+const listUnitsRoute = createRoute(withMcpMetadata({
     method:     'get',
     path:       '/{id}/units',
-    tags:       ['Units'],
+    tags: ["inspections"],
     summary:    'List units for an inspection (flat — client builds tree)',
     middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
     request:    { params: z.object({ id: z.string().uuid() }) },
     responses:  {
         200: { description: 'ok' },
     },
-});
+    operationId: "listInspectionUnits",
+    description: "Auto-generated placeholder for listInspectionUnits (GET /{id}/units, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(listUnitsRoute, async (c) => {
     const { id }   = c.req.valid('param');
     const tenantId = c.get('tenantId');
@@ -2480,10 +2567,10 @@ inspectionsRoutes.openapi(listUnitsRoute, async (c) => {
     return c.json({ success: true as const, data: { units } }, 200);
 });
 
-const updateUnitRoute = createRoute({
+const updateUnitRoute = createRoute(withMcpMetadata({
     method:     'patch',
     path:       '/{id}/units/{unitId}',
-    tags:       ['Units'],
+    tags: ["inspections"],
     summary:    'Rename or re-sort a unit',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -2491,7 +2578,9 @@ const updateUnitRoute = createRoute({
         body: { content: { 'application/json': { schema: UpdateUnitSchema } } },
     },
     responses: { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
-});
+    operationId: "patchInspectionUnit",
+    description: "Auto-generated placeholder for patchInspectionUnit (PATCH /{id}/units/{unitId}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(updateUnitRoute, async (c) => {
     const { unitId } = c.req.valid('param');
     const patch      = c.req.valid('json');
@@ -2499,25 +2588,27 @@ inspectionsRoutes.openapi(updateUnitRoute, async (c) => {
     return c.json({ success: true as const }, 200);
 });
 
-const deleteUnitRoute = createRoute({
+const deleteUnitRoute = createRoute(withMcpMetadata({
     method:     'delete',
     path:       '/{id}/units/{unitId}',
-    tags:       ['Units'],
+    tags: ["inspections"],
     summary:    'Delete a unit (cascades to children)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request:    { params: z.object({ id: z.string().uuid(), unitId: z.string().min(1) }) },
     responses:  { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
-});
+    operationId: "deleteInspectionUnit",
+    description: "Auto-generated placeholder for deleteInspectionUnit (DELETE /{id}/units/{unitId}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(deleteUnitRoute, async (c) => {
     const { unitId } = c.req.valid('param');
     await c.var.services.unit.delete(c.get('tenantId'), unitId);
     return c.json({ success: true as const }, 200);
 });
 
-const moveUnitRoute = createRoute({
+const moveUnitRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/{id}/units/{unitId}/move',
-    tags:       ['Units'],
+    tags: ["inspections"],
     summary:    'Reparent + reorder atomically (cycle-detected)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -2528,7 +2619,9 @@ const moveUnitRoute = createRoute({
         200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } },
         400: { description: 'cycle detected' },
     },
-});
+    operationId: "createInspectionUnitsMove",
+    description: "Auto-generated placeholder for createInspectionUnitsMove (POST /{id}/units/{unitId}/move, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(moveUnitRoute, async (c) => {
     const { unitId } = c.req.valid('param');
     const { newParentUnitId, newSortOrder } = c.req.valid('json');
@@ -2547,10 +2640,10 @@ inspectionsRoutes.openapi(moveUnitRoute, async (c) => {
 // anonymous /observe/:token claim handler is mounted at the top level
 // in src/index.ts because it does not sit under /api/inspections/:id.
 
-const mintObserverLinkRoute = createRoute({
+const mintObserverLinkRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/{id}/observer-links',
-    tags:       ['ObserverLink'],
+    tags: ["inspections"],
     summary:    'Mint a no-account read-only viewer link',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -2560,7 +2653,9 @@ const mintObserverLinkRoute = createRoute({
         }) } } },
     },
     responses: { 200: { description: 'ok' } },
-});
+    operationId: "createInspectionObserverLinks",
+    description: "Auto-generated placeholder for createInspectionObserverLinks (POST /{id}/observer-links, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(mintObserverLinkRoute, async (c) => {
     const { id }   = c.req.valid('param');
     const { durationSeconds } = c.req.valid('json');
@@ -2581,30 +2676,34 @@ inspectionsRoutes.openapi(mintObserverLinkRoute, async (c) => {
     return c.json({ success: true as const, data: { ...out, url } }, 200);
 });
 
-const listObserverLinksRoute = createRoute({
+const listObserverLinksRoute = createRoute(withMcpMetadata({
     method:     'get',
     path:       '/{id}/observer-links',
-    tags:       ['ObserverLink'],
+    tags: ["inspections"],
     summary:    'List active observer links for an inspection',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request:    { params: z.object({ id: z.string().uuid() }) },
     responses:  { 200: { description: 'ok' } },
-});
+    operationId: "listInspectionObserverLinks",
+    description: "Auto-generated placeholder for listInspectionObserverLinks (GET /{id}/observer-links, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(listObserverLinksRoute, async (c) => {
     const { id } = c.req.valid('param');
     const links  = await c.var.services.observerLink.list(c.get('tenantId'), id);
     return c.json({ success: true as const, data: { links } }, 200);
 });
 
-const revokeObserverLinkRoute = createRoute({
+const revokeObserverLinkRoute = createRoute(withMcpMetadata({
     method:     'delete',
     path:       '/{id}/observer-links/{linkId}',
-    tags:       ['ObserverLink'],
+    tags: ["inspections"],
     summary:    'Revoke an observer link',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request:    { params: z.object({ id: z.string().uuid(), linkId: z.string().min(1) }) },
     responses:  { 200: { description: 'ok', content: { 'application/json': { schema: SuccessResponseSchema } } } },
-});
+    operationId: "deleteInspectionObserverLink",
+    description: "Auto-generated placeholder for deleteInspectionObserverLink (DELETE /{id}/observer-links/{linkId}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 inspectionsRoutes.openapi(revokeObserverLinkRoute, async (c) => {
     const { linkId } = c.req.valid('param');
     await c.var.services.observerLink.revoke(c.get('tenantId'), linkId);
@@ -2618,30 +2717,34 @@ inspectionsRoutes.openapi(revokeObserverLinkRoute, async (c) => {
 // existing publish flow as part of subsystem D P9 (Republish UX, separate
 // commit) — only the read APIs land here.
 
-const listVersionsRoute = createRoute({
+const listVersionsRoute = createRoute(withMcpMetadata({
     method:     'get',
     path:       '/{id}/versions',
-    tags:       ['ReportVersions'],
+    tags: ["inspections"],
     summary:    'List published versions for an inspection',
     middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
     request:    { params: z.object({ id: z.string().uuid() }) },
     responses:  { 200: { description: 'ok' } },
-});
+    operationId: "listInspectionVersions",
+    description: "Auto-generated placeholder for listInspectionVersions (GET /{id}/versions, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(listVersionsRoute, async (c) => {
     const { id } = c.req.valid('param');
     const versions = await c.var.services.reportVersion.list(c.get('tenantId'), id);
     return c.json({ success: true as const, data: { versions } }, 200);
 });
 
-const getVersionRoute = createRoute({
+const getVersionRoute = createRoute(withMcpMetadata({
     method:     'get',
     path:       '/{id}/versions/{n}',
-    tags:       ['ReportVersions'],
+    tags: ["inspections"],
     summary:    'Get full snapshot for a specific version',
     middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
     request:    { params: z.object({ id: z.string().uuid(), n: z.string().regex(/^\d+$/) }) },
     responses:  { 200: { description: 'ok' }, 404: { description: 'not found' } },
-});
+    operationId: "getInspectionVersion",
+    description: "Auto-generated placeholder for getInspectionVersion (GET /{id}/versions/{n}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(getVersionRoute, async (c) => {
     const { id, n } = c.req.valid('param');
     const snap = await c.var.services.reportVersion.get(c.get('tenantId'), id, parseInt(n, 10));
@@ -2649,10 +2752,10 @@ inspectionsRoutes.openapi(getVersionRoute, async (c) => {
     return c.json({ success: true as const, data: snap }, 200);
 });
 
-const diffVersionRoute = createRoute({
+const diffVersionRoute = createRoute(withMcpMetadata({
     method:     'get',
     path:       '/{id}/versions/{n}/diff',
-    tags:       ['ReportVersions'],
+    tags: ["inspections"],
     summary:    'Diff version :n against ?from=<version>',
     middleware: [requireRole(['owner', 'admin', 'inspector', 'agent'])] as const,
     request: {
@@ -2660,7 +2763,9 @@ const diffVersionRoute = createRoute({
         query:  z.object({ from: z.string().regex(/^\d+$/) }),
     },
     responses: { 200: { description: 'ok' }, 404: { description: 'one of the versions not found' } },
-});
+    operationId: "listInspectionVersionsDiff",
+    description: "Auto-generated placeholder for listInspectionVersionsDiff (GET /{id}/versions/{n}/diff, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 inspectionsRoutes.openapi(diffVersionRoute, async (c) => {
     const { id, n } = c.req.valid('param');
     const { from }  = c.req.valid('query');

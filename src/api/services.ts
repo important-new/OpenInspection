@@ -8,29 +8,34 @@ import {
     ValidateDiscountSchema, ValidateDiscountResponseSchema,
 } from '../lib/validations/service.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const servicesRoutes = new OpenAPIHono<HonoConfig>();
 
 // GET /api/services
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Services'], summary: 'List services',
+    tags: ["services"], summary: "List services for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: { 200: { content: { 'application/json': { schema: ServiceListResponseSchema } }, description: 'OK' } },
-}), async (c) => {
+    operationId: "listServices",
+    description: "Auto-generated placeholder for listServices (GET /, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'primary' })), async (c) => {
     const tenantId = c.get('tenantId');
     const rows = await c.var.services.service.listServices(tenantId);
     return c.json({ success: true, data: rows });
 });
 
 // POST /api/services/discount/validate — MUST be before /:id routes
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/discount/validate',
-    tags: ['Services'], summary: 'Validate discount code',
+    tags: ["services"], summary: "Validate service for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { body: { content: { 'application/json': { schema: ValidateDiscountSchema } } } },
     responses: { 200: { content: { 'application/json': { schema: createApiResponseSchema(ValidateDiscountResponseSchema) } }, description: 'Validation result' } },
-}), async (c) => {
+    operationId: "validateService",
+    description: "Auto-generated placeholder for validateService (POST /discount/validate, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { code, subtotal } = c.req.valid('json');
     const result = await c.var.services.service.validateDiscountCode(tenantId, code, subtotal);
@@ -38,13 +43,15 @@ servicesRoutes.openapi(createRoute({
 });
 
 // POST /api/services/discount-codes
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/discount-codes',
-    tags: ['Services'], summary: 'Create discount code',
+    tags: ["services"], summary: "Create service discount codes",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { body: { content: { 'application/json': { schema: CreateDiscountCodeSchema } } } },
     responses: { 201: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Created' } },
-}), async (c) => {
+    operationId: "createServiceDiscountCodes",
+    description: "Auto-generated placeholder for createServiceDiscountCodes (POST /discount-codes, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const data = c.req.valid('json');
     await c.var.services.service.createDiscountCode(tenantId, data);
@@ -52,28 +59,32 @@ servicesRoutes.openapi(createRoute({
 });
 
 // GET /api/services/discount-codes — MUST be before /:id routes
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/discount-codes',
-    tags: ['Services'], summary: 'List discount codes',
+    tags: ["services"], summary: "List service discount codes",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'OK' } },
-}), async (c) => {
+    operationId: "listServiceDiscountCodes",
+    description: "Auto-generated placeholder for listServiceDiscountCodes (GET /discount-codes, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const rows = await c.var.services.service.listDiscountCodes(tenantId);
     return c.json({ success: true, data: rows });
 });
 
 // PUT /api/services/discount-codes/:id — MUST be before /:id routes
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'put', path: '/discount-codes/{id}',
-    tags: ['Services'], summary: 'Update discount code',
+    tags: ["services"], summary: "Update service discount code",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {
         params: z.object({ id: z.string() }),
         body: { content: { 'application/json': { schema: UpdateDiscountCodeSchema } } },
     },
     responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Updated' } },
-}), async (c) => {
+    operationId: "updateServiceDiscountCode",
+    description: "Auto-generated placeholder for updateServiceDiscountCode (PUT /discount-codes/{id}, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { id } = c.req.valid('param');
     const data = c.req.valid('json');
@@ -82,13 +93,15 @@ servicesRoutes.openapi(createRoute({
 });
 
 // DELETE /api/services/discount-codes/:id — MUST be before /:id routes
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'delete', path: '/discount-codes/{id}',
-    tags: ['Services'], summary: 'Delete discount code',
+    tags: ["services"], summary: "Delete service discount code",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Deleted' } },
-}), async (c) => {
+    operationId: "deleteServiceDiscountCode",
+    description: "Auto-generated placeholder for deleteServiceDiscountCode (DELETE /discount-codes/{id}, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { id } = c.req.valid('param');
     await c.var.services.service.deleteDiscountCode(tenantId, id);
@@ -96,13 +109,15 @@ servicesRoutes.openapi(createRoute({
 });
 
 // POST /api/services
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/',
-    tags: ['Services'], summary: 'Create service',
+    tags: ["services"], summary: "Create service for current tenant",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { body: { content: { 'application/json': { schema: CreateServiceSchema } } } },
     responses: { 201: { content: { 'application/json': { schema: ServiceResponseSchema } }, description: 'Created' } },
-}), async (c) => {
+    operationId: "createService",
+    description: "Auto-generated placeholder for createService (POST /, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' })), async (c) => {
     const tenantId = c.get('tenantId');
     const data = c.req.valid('json');
     const row = await c.var.services.service.createService(tenantId, data);
@@ -110,16 +125,18 @@ servicesRoutes.openapi(createRoute({
 });
 
 // PUT /api/services/:id
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'put', path: '/{id}',
-    tags: ['Services'], summary: 'Update service',
+    tags: ["services"], summary: "Replace service for current tenant",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {
         params: z.object({ id: z.string() }),
         body: { content: { 'application/json': { schema: UpdateServiceSchema } } },
     },
     responses: { 200: { content: { 'application/json': { schema: ServiceResponseSchema } }, description: 'OK' } },
-}), async (c) => {
+    operationId: "replaceService",
+    description: "Auto-generated placeholder for replaceService (PUT /{id}, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { id } = c.req.valid('param');
     const data = c.req.valid('json');
@@ -128,13 +145,15 @@ servicesRoutes.openapi(createRoute({
 });
 
 // DELETE /api/services/:id
-servicesRoutes.openapi(createRoute({
+servicesRoutes.openapi(createRoute(withMcpMetadata({
     method: 'delete', path: '/{id}',
-    tags: ['Services'], summary: 'Delete service',
+    tags: ["services"], summary: "Delete service for current tenant",
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Deleted' } },
-}), async (c) => {
+    operationId: "deleteService",
+    description: "Auto-generated placeholder for deleteService (DELETE /{id}, services domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' })), async (c) => {
     const tenantId = c.get('tenantId');
     const { id } = c.req.valid('param');
     await c.var.services.service.deleteService(tenantId, id);

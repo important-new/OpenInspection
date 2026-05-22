@@ -14,6 +14,7 @@ import {
     TeamMembersResponseSchema
 } from '../lib/validations/admin.schema';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const teamRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -21,10 +22,10 @@ const teamRoutes = new OpenAPIHono<HonoConfig>();
  * GET /api/team/members
  * Fetches active members and pending invitations for the workspace.
  */
-const listTeamMembersRoute = createRoute({
+const listTeamMembersRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/members',
-    tags: ['Team'],
+    tags: ["team"],
     summary: 'List team members and pending invites',
     middleware: [requireRole(['admin', 'owner', 'inspector', 'viewer'])],
     responses: {
@@ -37,7 +38,9 @@ const listTeamMembersRoute = createRoute({
             description: 'Success',
         },
     },
-});
+    operationId: "listTeamMembers",
+    description: "Auto-generated placeholder for listTeamMembers (GET /members, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 teamRoutes.openapi(listTeamMembersRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -58,10 +61,10 @@ teamRoutes.openapi(listTeamMembersRoute, async (c) => {
  * POST /api/team/invite
  * Invites a new team member to the workspace.
  */
-const inviteTeamMemberRoute = createRoute({
+const inviteTeamMemberRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/invite',
-    tags: ['Team'],
+    tags: ["team"],
     summary: 'Invite a new team member',
     middleware: [requireRole(['admin', 'owner']), requireSeatAvailable],
     request: {
@@ -83,7 +86,9 @@ const inviteTeamMemberRoute = createRoute({
             description: 'Created',
         },
     },
-});
+    operationId: "inviteTeam",
+    description: "Auto-generated placeholder for inviteTeam (POST /invite, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 teamRoutes.openapi(inviteTeamMemberRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -116,10 +121,10 @@ teamRoutes.openapi(inviteTeamMemberRoute, async (c) => {
  * DELETE /api/team/members/:id
  * Removes a team member and invalidates their sessions.
  */
-const removeTeamMemberRoute = createRoute({
+const removeTeamMemberRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/members/{id}',
-    tags: ['Team'],
+    tags: ["team"],
     summary: 'Remove a team member',
     middleware: [requireRole(['admin', 'owner'])],
     request: {
@@ -135,7 +140,9 @@ const removeTeamMemberRoute = createRoute({
             description: 'Member removed',
         },
     },
-});
+    operationId: "deleteTeamMember",
+    description: "Auto-generated placeholder for deleteTeamMember (DELETE /members/{id}, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 teamRoutes.openapi(removeTeamMemberRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -162,14 +169,16 @@ teamRoutes.openapi(removeTeamMemberRoute, async (c) => {
 // a single row and (on approve / edit) applies the value to
 // inspection_results via patchItem(force: true).
 
-const listApprenticeReviewsRoute = createRoute({
+const listApprenticeReviewsRoute = createRoute(withMcpMetadata({
     method:     'get',
     path:       '/apprentice-reviews',
-    tags:       ['Apprentice'],
+    tags: ["team"],
     summary:    "List the caller's pending apprentice reviews",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses:  { 200: { description: 'ok' } },
-});
+    operationId: "listTeamApprenticeReviews",
+    description: "Auto-generated placeholder for listTeamApprenticeReviews (GET /apprentice-reviews, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 teamRoutes.openapi(listApprenticeReviewsRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const user     = c.get('user') as { sub?: string } | undefined;
@@ -179,10 +188,10 @@ teamRoutes.openapi(listApprenticeReviewsRoute, async (c) => {
     return c.json({ success: true as const, data: { items } }, 200);
 });
 
-const decideApprenticeReviewRoute = createRoute({
+const decideApprenticeReviewRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/apprentice-reviews/{id}/decide',
-    tags:       ['Apprentice'],
+    tags: ["team"],
     summary:    'Approve / reject / edit an apprentice-submitted item field',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -193,7 +202,9 @@ const decideApprenticeReviewRoute = createRoute({
         }) } } },
     },
     responses: { 200: { description: 'ok' }, 404: { description: 'review not found' } },
-});
+    operationId: "createTeamApprenticeReviewsDecide",
+    description: "Auto-generated placeholder for createTeamApprenticeReviewsDecide (POST /apprentice-reviews/{id}/decide, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 teamRoutes.openapi(decideApprenticeReviewRoute, async (c) => {
     const { id } = c.req.valid('param');
     const { action, decisionValue } = c.req.valid('json');
@@ -234,10 +245,10 @@ teamRoutes.openapi(decideApprenticeReviewRoute, async (c) => {
 // guests count against the same seat quota as permanent members, so the
 // seat-guard middleware runs first.
 
-const mintGuestInviteRoute = createRoute({
+const mintGuestInviteRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/guests',
-    tags:       ['Team'],
+    tags: ["team"],
     summary:    'Mint a one-time guest invite link',
     middleware: [requireRole(['admin', 'owner']), requireSeatAvailable] as const,
     request: {
@@ -250,7 +261,9 @@ const mintGuestInviteRoute = createRoute({
         201: { description: 'Invite minted' },
         402: { description: 'Tenant at seat cap' },
     },
-});
+    operationId: "createTeamGuests",
+    description: "Auto-generated placeholder for createTeamGuests (POST /guests, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 teamRoutes.openapi(mintGuestInviteRoute, async (c) => {
     const tenantId = c.get('tenantId');

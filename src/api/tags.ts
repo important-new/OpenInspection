@@ -22,21 +22,24 @@ import {
     TagLinkResponseSchema,
     TagUnlinkResponseSchema,
 } from '../lib/validations/tag.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const tagsRoutes = new OpenAPIHono<HonoConfig>();
 
 const IdParamSchema = z.object({ id: z.string().min(1) });
 
 /* ── GET /api/tags ────────────────────────────────────────────────────── */
-tagsRoutes.openapi(createRoute({
+tagsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Tags'],
+    tags: ["tags"],
     summary: 'List tags for the current tenant (seed + custom)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses: {
         200: { content: { 'application/json': { schema: TagListResponseSchema } }, description: 'List' },
     },
-}), async (c) => {
+    operationId: "listTags",
+    description: "Auto-generated placeholder for listTags (GET /, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId') as string;
     // Lazy-seed canonical tags so first-time tenants always see the five.
     await c.var.services.tag.seedDefaults(tenantId);
@@ -45,16 +48,18 @@ tagsRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/tags ───────────────────────────────────────────────────── */
-tagsRoutes.openapi(createRoute({
+tagsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/',
-    tags: ['Tags'],
+    tags: ["tags"],
     summary: 'Create a custom tag',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { body: { content: { 'application/json': { schema: CreateTagSchema } } } },
     responses: {
         200: { content: { 'application/json': { schema: TagSingleResponseSchema } }, description: 'Created' },
     },
-}), async (c) => {
+    operationId: "createTag",
+    description: "Auto-generated placeholder for createTag (POST /, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const input = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
     const tag = await c.var.services.tag.create(tenantId, input);
@@ -63,9 +68,9 @@ tagsRoutes.openapi(createRoute({
 });
 
 /* ── PUT /api/tags/:id ────────────────────────────────────────────────── */
-tagsRoutes.openapi(createRoute({
+tagsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'put', path: '/{id}',
-    tags: ['Tags'],
+    tags: ["tags"],
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {
         params: IdParamSchema,
@@ -74,7 +79,10 @@ tagsRoutes.openapi(createRoute({
     responses: {
         200: { content: { 'application/json': { schema: TagSingleResponseSchema } }, description: 'Updated' },
     },
-}), async (c) => {
+    operationId: "replaceTag",
+    summary: "Replace tag for current tenant",
+    description: "Auto-generated placeholder for replaceTag (PUT /{id}, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const patch = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
@@ -88,9 +96,9 @@ tagsRoutes.openapi(createRoute({
  *  tenant that have at least one item linked to this tag. The dashboard
  *  uses this to scope its flat list view to "by tag".
  */
-tagsRoutes.openapi(createRoute({
+tagsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/{id}/inspections',
-    tags: ['Tags'],
+    tags: ["tags"],
     summary: 'List inspections that have any item tagged with this tag',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: IdParamSchema },
@@ -107,7 +115,9 @@ tagsRoutes.openapi(createRoute({
             description: 'Inspection ids',
         },
     },
-}), async (c) => {
+    operationId: "listTagInspections",
+    description: "Auto-generated placeholder for listTagInspections (GET /{id}/inspections, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     // Tenant-scope guard via lookup — refuses cross-tenant ids.
@@ -118,15 +128,18 @@ tagsRoutes.openapi(createRoute({
 });
 
 /* ── DELETE /api/tags/:id ─────────────────────────────────────────────── */
-tagsRoutes.openapi(createRoute({
+tagsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'delete', path: '/{id}',
-    tags: ['Tags'],
+    tags: ["tags"],
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: { params: IdParamSchema },
     responses: {
         200: { content: { 'application/json': { schema: TagDeleteResponseSchema } }, description: 'Deleted' },
     },
-}), async (c) => {
+    operationId: "deleteTag",
+    summary: "Delete tag for current tenant",
+    description: "Auto-generated placeholder for deleteTag (DELETE /{id}, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     const result = await c.var.services.tag.delete(id, tenantId);
@@ -158,16 +171,18 @@ const InspectionItemTagWithTagParamsSchema = z.object({
 const LinkBodySchema = z.object({ tagId: z.string().min(1) }).strict();
 
 /* ── GET /api/inspections/:id/items/:itemId/tags ──────────────────────── */
-inspectionTagRoutes.openapi(createRoute({
+inspectionTagRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/{id}/items/{itemId}/tags',
-    tags: ['Tags'],
+    tags: ["tags"],
     summary: 'List tags linked to an inspection item',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: InspectionItemTagParamsSchema },
     responses: {
         200: { content: { 'application/json': { schema: TagListResponseSchema } }, description: 'Item tags' },
     },
-}), async (c) => {
+    operationId: "listTagItemsTags",
+    description: "Auto-generated placeholder for listTagItemsTags (GET /{id}/items/{itemId}/tags, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const { id, itemId } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     const data = await c.var.services.tag.getItemTags(tenantId, id, itemId);
@@ -175,9 +190,9 @@ inspectionTagRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/inspections/:id/items/:itemId/tags ─────────────────────── */
-inspectionTagRoutes.openapi(createRoute({
+inspectionTagRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/items/{itemId}/tags',
-    tags: ['Tags'],
+    tags: ["tags"],
     summary: 'Link a tag to an inspection item',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
@@ -187,7 +202,9 @@ inspectionTagRoutes.openapi(createRoute({
     responses: {
         200: { content: { 'application/json': { schema: TagLinkResponseSchema } }, description: 'Linked' },
     },
-}), async (c) => {
+    operationId: "createTagItemsTags",
+    description: "Auto-generated placeholder for createTagItemsTags (POST /{id}/items/{itemId}/tags, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id, itemId } = c.req.valid('param');
     const { tagId } = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
@@ -203,16 +220,18 @@ inspectionTagRoutes.openapi(createRoute({
 });
 
 /* ── DELETE /api/inspections/:id/items/:itemId/tags/:tagId ────────────── */
-inspectionTagRoutes.openapi(createRoute({
+inspectionTagRoutes.openapi(createRoute(withMcpMetadata({
     method: 'delete', path: '/{id}/items/{itemId}/tags/{tagId}',
-    tags: ['Tags'],
+    tags: ["tags"],
     summary: 'Unlink a tag from an inspection item',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: InspectionItemTagWithTagParamsSchema },
     responses: {
         200: { content: { 'application/json': { schema: TagUnlinkResponseSchema } }, description: 'Unlinked' },
     },
-}), async (c) => {
+    operationId: "deleteTagItemsTag",
+    description: "Auto-generated placeholder for deleteTagItemsTag (DELETE /{id}/items/{itemId}/tags/{tagId}, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id, itemId, tagId } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
 
@@ -232,9 +251,9 @@ inspectionTagRoutes.openapi(createRoute({
  */
 const InspectionIdParamSchema = z.object({ id: z.string().min(1) });
 
-inspectionTagRoutes.openapi(createRoute({
+inspectionTagRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/{id}/tags',
-    tags: ['Tags'],
+    tags: ["tags"],
     summary: 'Map of itemId → tags for an inspection',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: { params: InspectionIdParamSchema },
@@ -257,7 +276,9 @@ inspectionTagRoutes.openapi(createRoute({
             description: 'Item tag map',
         },
     },
-}), async (c) => {
+    operationId: "listTagTags",
+    description: "Auto-generated placeholder for listTagTags (GET /{id}/tags, tags domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     await c.var.services.inspection.getInspection(id, tenantId);
