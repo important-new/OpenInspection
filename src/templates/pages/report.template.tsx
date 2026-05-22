@@ -161,7 +161,8 @@ export function renderProfessionalReport(data: {
         tab: 'full',
     })})`}
     x-init="init()"
-    class="min-h-screen bg-slate-50/50 antialiased relative"
+    class="min-h-screen antialiased relative"
+    style="background: var(--bg-primary, #f8fafc); color: var(--text-primary, #0f172a); font-family: var(--font-body, ui-sans-serif, system-ui, sans-serif);"
 >
     {/* Sub-spec D Task 5 — left sidebar, hidden in print. */}
     <ReportSidebar
@@ -199,9 +200,15 @@ export function renderProfessionalReport(data: {
         {...{':class': "(showAgreement || (signed && showPayment && !paid)) ? 'blur-content' : ''"}}
         class="max-w-6xl mx-auto relative z-10"
     >
-        <div class="bg-white shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)] rounded-xl overflow-hidden border border-white relative">
+        <div
+            class="shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)] overflow-hidden relative"
+            style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #ffffff); border-radius: var(--radius-card, 12px);"
+        >
             {/* Header / Cover Tier */}
-            <div class="bg-slate-900 px-6 py-8 md:px-10 md:py-10 relative overflow-hidden">
+            <div
+                class="px-6 py-8 md:px-10 md:py-10 relative overflow-hidden"
+                style="background: var(--bg-hero, var(--bg-primary, #0f172a));"
+            >
                 <div class="absolute top-0 right-0 w-[400px] h-full bg-gradient-to-l from-indigo-500/20 to-transparent skew-x-[-20deg] translate-x-32"></div>
                 
                 <div class="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">

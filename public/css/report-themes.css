@@ -9,6 +9,7 @@
   --bg-secondary: #0f172a;     /* slate-900 */
   --bg-card: rgba(255,255,255,0.05);
   --bg-card-hover: rgba(255,255,255,0.08);
+  --bg-hero: linear-gradient(135deg, #020617 0%, #1e1b4b 100%);
   --text-primary: #f8fafc;     /* slate-50 */
   --text-secondary: #94a3b8;   /* slate-400 */
   --text-muted: #64748b;       /* slate-500 */
@@ -28,6 +29,7 @@
   --bg-secondary: #f5f5f4;     /* stone-100 */
   --bg-card: #ffffff;
   --bg-card-hover: #fafaf9;
+  --bg-hero: linear-gradient(135deg, #1c1917 0%, #44403c 100%);
   --text-primary: #1c1917;     /* stone-900 */
   --text-secondary: #57534e;   /* stone-600 */
   --text-muted: #a8a29e;       /* stone-400 */
@@ -47,6 +49,7 @@
   --bg-secondary: #f4f4f5;     /* zinc-100 */
   --bg-card: #ffffff;
   --bg-card-hover: #fafafa;
+  --bg-hero: #18181b;          /* zinc-900 — flat, no gradient */
   --text-primary: #18181b;     /* zinc-900 */
   --text-secondary: #52525b;   /* zinc-600 */
   --text-muted: #a1a1aa;       /* zinc-400 */
