@@ -1319,7 +1319,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     selectSection. Confirm modal handles the destructive
                     action with item-count + data-impact preview. */}
                 <button
-                  x-on:click.stop="openDeleteSectionPrompt(idx)"
+                  {...{ 'x-on:click.stop': 'openDeleteSectionPrompt(idx)' }}
                   class="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/sec:opacity-100 transition-opacity h-7 w-7 rounded-md flex items-center justify-center text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                   title="Delete this section"
                   aria-label="Delete section"
@@ -1749,7 +1749,7 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       ></span>
                       {/* Feature #20 phase 2c — hover delete on item card. */}
                       <button
-                        x-on:click.stop="openDeleteItemPrompt(item.id)"
+                        {...{ 'x-on:click.stop': 'openDeleteItemPrompt(item.id)' }}
                         class="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 rounded flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                         title="Delete this item"
                         aria-label="Delete item"

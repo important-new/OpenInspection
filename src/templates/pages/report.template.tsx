@@ -71,7 +71,13 @@ export function renderProfessionalReport(data: {
     ];
     const levelMap = new Map(ratingLevels.map(l => [l.id, l]));
 
-    // Resolve a rating ID to its severity bucket
+    // Resolve a rating ID to its severity bucket. Honors the level's own
+    // severity / isDefect first; falls back to the well-known label set
+    // for seeded rating systems (OpenInspection Default 5-tier, TREC,
+    // ITB 3-tier + 8-level) when the embedded snapshot loses severity
+    // metadata during a round-trip — happens when the editor's
+    // _snapshotRatingSystem rebuilds from a level array that didn't carry
+    // severity through.
     const resolveSeverity = (ratingId: string | undefined): 'good' | 'marginal' | 'defect' | null => {
         if (!ratingId) return null;
         const level = levelMap.get(ratingId);
@@ -80,10 +86,14 @@ export function renderProfessionalReport(data: {
             if (level.severity === 'marginal') return 'marginal';
             if (level.severity === 'good') return 'good';
         }
-        // Legacy fallback: full string IDs
-        if (ratingId === 'Satisfactory') return 'good';
-        if (ratingId === 'Monitor') return 'marginal';
-        if (ratingId === 'Defect') return 'defect';
+        // Label-based fallback covering all four seeded rating systems.
+        // Order matters: more specific labels first.
+        const good = new Set(['Satisfactory', 'Inspected', 'Functional', 'Low Maintenance']);
+        const marginal = new Set(['Monitor', 'Marginal']);
+        const defect = new Set(['Defect', 'Deficient', 'Deficiency', 'Hazard', 'Safety Hazard', 'Repair']);
+        if (defect.has(ratingId))   return 'defect';
+        if (marginal.has(ratingId)) return 'marginal';
+        if (good.has(ratingId))     return 'good';
         return null;
     };
 
