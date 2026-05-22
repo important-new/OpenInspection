@@ -17,35 +17,38 @@ import { guestInvites, tenants } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { sendSuccess } from '../lib/response';
 import type { HonoConfig } from '../types/hono';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 export const guestRoutes = new OpenAPIHono<HonoConfig>();
 
-const claimRoute = createRoute({
+const claimRoute = createRoute(withMcpMetadata({
     method:  'post',
     path:    '/claim',
-    tags:    ['Guest'],
+    tags: ["guest"],
     summary: 'Anonymously claim a guest invite token',
     request: {
         body: { content: { 'application/json': { schema: z.object({
-            token:    z.string().min(20).max(128),
-            name:     z.string().min(1).max(100),
-            email:    z.string().email(),
-            password: z.string().min(8).max(128),
-        }) } } },
+            token:    z.string().min(20).max(128).describe('TODO describe token field for the OpenInspection MCP integration'),
+            name:     z.string().min(1).max(100).describe('TODO describe name field for the OpenInspection MCP integration'),
+            email:    z.string().email().describe('TODO describe email field for the OpenInspection MCP integration'),
+            password: z.string().min(8).max(128).describe('TODO describe password field for the OpenInspection MCP integration'),
+        }).describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         200: {
             description: 'Claim succeeded',
             content: { 'application/json': { schema: z.object({
-                success: z.boolean(),
-                data:    z.object({ userId: z.string() }),
+                success: z.boolean().describe('TODO describe success field for the OpenInspection MCP integration'),
+                data:    z.object({ userId: z.string().describe('TODO describe userId field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
             }) } },
         },
         400: { description: 'Invalid input' },
         402: { description: 'Tenant at seat cap' },
         404: { description: 'Not found / expired / already claimed' },
     },
-});
+    operationId: "createGuestClaim",
+    description: "Auto-generated placeholder for createGuestClaim (POST /claim, guest domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'extended' }));
 
 guestRoutes.openapi(claimRoute, async (c) => {
     const body = c.req.valid('json');

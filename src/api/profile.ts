@@ -7,6 +7,7 @@ import { SetSlugRequestSchema } from '../lib/validations/profile.schema';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
 import { users } from '../lib/db/schema/tenant';
 import { logger } from '../lib/logger';
+import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 /**
  * Booking #7 Sprint A — authenticated profile endpoint mounted at
@@ -16,23 +17,25 @@ import { logger } from '../lib/logger';
 const app = new OpenAPIHono<HonoConfig>();
 
 const SlugConflictResponseSchema = z.object({
-    success: z.literal(false),
+    success: z.literal(false).describe('TODO describe success field for the OpenInspection MCP integration'),
     error: z.object({
-        message: z.string(),
-        code: z.string(),
-        details: z.object({ suggestions: z.array(z.string()).optional() }).optional(),
+        message: z.string().describe('TODO describe message field for the OpenInspection MCP integration'),
+        code: z.string().describe('TODO describe code field for the OpenInspection MCP integration'),
+        details: z.object({ suggestions: z.array(z.string()).optional().describe('TODO describe suggestions field for the OpenInspection MCP integration') }).optional().describe('TODO describe details field for the OpenInspection MCP integration'),
     }),
 });
 
-const setSlugRoute = createRoute({
+const setSlugRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/slug',
-    tags: ['Profile'],
-    summary: 'Set the current user’s booking slug',
+    operationId: 'setMyBookingSlug',
+    tags: ['profile'],
+    summary: 'Set the current user booking slug',
+    description: 'Saves the caller\'s public booking-page slug used in /book/<slug> URLs. Validates availability and returns 409 with suggestions when the slug is taken or reserved.',
     request: {
         body: {
             content: {
-                'application/json': { schema: SetSlugRequestSchema },
+                'application/json': { schema: SetSlugRequestSchema.describe('TODO describe schema field for the OpenInspection MCP integration') },
             },
         },
     },
@@ -40,19 +43,19 @@ const setSlugRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: createApiResponseSchema(z.object({ slug: z.string() })),
+                    schema: createApiResponseSchema(z.object({ slug: z.string().describe('TODO describe slug field for the OpenInspection MCP integration') })),
                 },
             },
             description: 'Slug saved',
         },
         409: {
             content: {
-                'application/json': { schema: SlugConflictResponseSchema },
+                'application/json': { schema: SlugConflictResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') },
             },
             description: 'Slug conflict',
         },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 app.openapi(setSlugRoute, async (c) => {
     const userId = c.get('user')?.sub;
@@ -87,15 +90,17 @@ app.openapi(setSlugRoute, async (c) => {
 const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 const MAX_PHOTO_BYTES = 2_000_000;
 
-const photoUploadRoute = createRoute({
+const photoUploadRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/photo',
-    tags: ['Profile'],
-    summary: 'Upload inspector profile photo (Sprint C-1)',
+    operationId: 'uploadMyProfilePhoto',
+    tags: ['profile'],
+    summary: 'Upload inspector profile photo',
+    description: 'Accepts a jpg/png/webp photo (max 2 MB) as multipart form data, stores it in R2 under a tenant-scoped key, and saves the public photoUrl on the user record.',
     request: {
         body: {
             content: {
-                'multipart/form-data': { schema: z.object({ photo: z.any() }) },
+                'multipart/form-data': { schema: z.object({ photo: z.any().describe('Profile photo file — jpg, png, or webp; max 2 MB.') }).describe('TODO describe schema field for the OpenInspection MCP integration') },
             },
         },
     },
@@ -103,13 +108,13 @@ const photoUploadRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: createApiResponseSchema(z.object({ photoUrl: z.string() })),
+                    schema: createApiResponseSchema(z.object({ photoUrl: z.string().describe('TODO describe photoUrl field for the OpenInspection MCP integration') })),
                 },
             },
             description: 'Uploaded',
         },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 app.openapi(photoUploadRoute, async (c) => {
     const userId = c.get('user')?.sub;
@@ -147,22 +152,24 @@ app.openapi(photoUploadRoute, async (c) => {
 });
 
 const ProfileDetailsSchema = z.object({
-    bio: z.string().max(600).nullable().optional(),
+    bio: z.string().max(600).nullable().optional().describe('Free-form inspector biography shown on the public booking page; null clears it.'),
     serviceAreas: z.array(z.object({
-        city: z.string().min(1).max(80),
-        state: z.string().min(1).max(40),
-        zip: z.string().min(1).max(20),
-    })).max(20).optional(),
+        city: z.string().min(1).max(80).describe('City name within the inspector\'s service coverage.'),
+        state: z.string().min(1).max(40).describe('State or province for the service area.'),
+        zip: z.string().min(1).max(20).describe('ZIP or postal code for the service area.'),
+    })).max(20).optional().describe('List of geographic service areas (up to 20) shown on the public profile page.'),
 });
 
-const detailsRoute = createRoute({
+const detailsRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/details',
-    tags: ['Profile'],
-    summary: 'Update inspector bio + service areas (Sprint C-1)',
+    operationId: 'updateMyProfileDetails',
+    tags: ['profile'],
+    summary: 'Update inspector bio and service areas',
+    description: 'Updates the inspector\'s public-facing bio and service-area list. Both fields are optional; missing keys leave existing values unchanged.',
     request: {
         body: {
-            content: { 'application/json': { schema: ProfileDetailsSchema } },
+            content: { 'application/json': { schema: ProfileDetailsSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
         },
     },
     responses: {
@@ -175,7 +182,7 @@ const detailsRoute = createRoute({
             description: 'Saved',
         },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 app.openapi(detailsRoute, async (c) => {
     const userId = c.get('user')?.sub;

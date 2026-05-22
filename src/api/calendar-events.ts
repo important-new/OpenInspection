@@ -8,6 +8,7 @@ import type { HonoConfig } from '../types/hono';
 import { requireRole } from '../lib/middleware/rbac';
 import { logger } from '../lib/logger';
 import { getCalendarEventStyle } from '../lib/calendar-event-style';
+import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -45,29 +46,31 @@ async function refreshGoogleToken(clientId: string, clientSecret: string, refres
 
 const calendarEventsRoutes = new OpenAPIHono<HonoConfig>();
 
-const eventsRoute = createRoute({
+const eventsRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/',
-    tags: ['Calendar'],
-    summary: 'Get calendar events for FullCalendar (local inspections + Google events)',
+    operationId: 'listCalendarEvents',
+    tags: ['calendar'],
+    summary: 'Get calendar events for FullCalendar',
+    description: 'Returns combined calendar events (local inspections + Google Calendar busy blocks) in FullCalendar-compatible format. Used by the dashboard month/week views.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         query: z.object({
             // Accept either YYYY-MM-DD (FullCalendar dayGridMonth view) or full ISO 8601
-            start: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Expected date or ISO datetime'),
-            end: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Expected date or ISO datetime'),
-        }),
+            start: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Expected date or ISO datetime').describe('Window start as YYYY-MM-DD or full ISO 8601 timestamp.'),
+            end: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Expected date or ISO datetime').describe('Window end (exclusive) as YYYY-MM-DD or full ISO 8601 timestamp.'),
+        }).describe('TODO describe query field for the OpenInspection MCP integration'),
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: z.array(z.any()) } },
+            content: { 'application/json': { schema: z.array(z.any()).describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Events array',
         },
         401: { description: 'Unauthorized' },
         403: { description: 'Forbidden' },
     },
     security: [{ bearerAuth: [] }],
-});
+}, { scopes: ['read'], tier: 'primary' }));
 
 calendarEventsRoutes.openapi(eventsRoute, async (c) => {
     const { start, end } = c.req.valid('query');

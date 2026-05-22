@@ -10,17 +10,20 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { Errors } from '../lib/errors';
 import type { HonoConfig } from '../types/hono';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const analyticsRoutes = new OpenAPIHono<HonoConfig>();
 
-const growthRoute = createRoute({
+const growthRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/growth',
-    tags:    ['Analytics'],
+    tags: ["metrics"],
     summary: 'Inspection count per month for the last N months',
-    request: { query: z.object({ months: z.coerce.number().int().min(1).max(36).default(12) }) },
+    request: { query: z.object({ months: z.coerce.number().int().min(1).max(36).default(12).describe('TODO describe months field for the OpenInspection MCP integration') }).describe('TODO describe query field for the OpenInspection MCP integration') },
     responses: { 200: { description: 'ok' } },
-});
+    operationId: "listAnalyticGrowth",
+    description: "Auto-generated placeholder for listAnalyticGrowth (GET /growth, metrics domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 analyticsRoutes.openapi(growthRoute, async (c) => {
     const tenantId = c.get('tenantId');
     if (!tenantId) throw Errors.Unauthorized('Missing tenant scope');
@@ -29,13 +32,15 @@ analyticsRoutes.openapi(growthRoute, async (c) => {
     return c.json({ success: true as const, data: out }, 200);
 });
 
-const heatmapRoute = createRoute({
+const heatmapRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/findings-heatmap',
-    tags:    ['Analytics'],
+    tags: ["metrics"],
     summary: 'Section × rating bucket counts across this tenant\'s inspections',
     responses: { 200: { description: 'ok' } },
-});
+    operationId: "listAnalyticFindingsHeatmap",
+    description: "Auto-generated placeholder for listAnalyticFindingsHeatmap (GET /findings-heatmap, metrics domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 analyticsRoutes.openapi(heatmapRoute, async (c) => {
     const tenantId = c.get('tenantId');
     if (!tenantId) throw Errors.Unauthorized('Missing tenant scope');

@@ -1,19 +1,20 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, inArray } from 'drizzle-orm';
 import { requireRole } from '../lib/middleware/rbac';
 import { requireSeatAvailable } from '../features/seat-quota';
 import { getBaseUrl } from '../lib/url';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
-import { tenantConfigs, users, apprenticeReviews } from '../lib/db/schema';
+import { tenantConfigs, users, apprenticeReviews, inspections } from '../lib/db/schema';
 import {
     InviteMemberSchema,
     InviteResponseSchema,
     TeamMembersResponseSchema
 } from '../lib/validations/admin.schema';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const teamRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -21,23 +22,25 @@ const teamRoutes = new OpenAPIHono<HonoConfig>();
  * GET /api/team/members
  * Fetches active members and pending invitations for the workspace.
  */
-const listTeamMembersRoute = createRoute({
+const listTeamMembersRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/members',
-    tags: ['Team'],
+    tags: ["team"],
     summary: 'List team members and pending invites',
     middleware: [requireRole(['admin', 'owner', 'inspector', 'viewer'])],
     responses: {
         200: {
             content: {
                 'application/json': {
-                    schema: TeamMembersResponseSchema,
+                    schema: TeamMembersResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Success',
         },
     },
-});
+    operationId: "listTeamMembers",
+    description: "Auto-generated placeholder for listTeamMembers (GET /members, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 teamRoutes.openapi(listTeamMembersRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -58,17 +61,17 @@ teamRoutes.openapi(listTeamMembersRoute, async (c) => {
  * POST /api/team/invite
  * Invites a new team member to the workspace.
  */
-const inviteTeamMemberRoute = createRoute({
+const inviteTeamMemberRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/invite',
-    tags: ['Team'],
+    tags: ["team"],
     summary: 'Invite a new team member',
     middleware: [requireRole(['admin', 'owner']), requireSeatAvailable],
     request: {
         body: {
             content: {
                 'application/json': {
-                    schema: InviteMemberSchema,
+                    schema: InviteMemberSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
         },
@@ -77,13 +80,15 @@ const inviteTeamMemberRoute = createRoute({
         201: {
             content: {
                 'application/json': {
-                    schema: InviteResponseSchema,
+                    schema: InviteResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Created',
         },
     },
-});
+    operationId: "inviteTeam",
+    description: "Auto-generated placeholder for inviteTeam (POST /invite, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 teamRoutes.openapi(inviteTeamMemberRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -116,26 +121,28 @@ teamRoutes.openapi(inviteTeamMemberRoute, async (c) => {
  * DELETE /api/team/members/:id
  * Removes a team member and invalidates their sessions.
  */
-const removeTeamMemberRoute = createRoute({
+const removeTeamMemberRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/members/{id}',
-    tags: ['Team'],
+    tags: ["team"],
     summary: 'Remove a team member',
     middleware: [requireRole(['admin', 'owner'])],
     request: {
-        params: z.object({ id: z.string().uuid() }),
+        params: z.object({ id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration'),
     },
     responses: {
         200: {
             content: {
                 'application/json': {
-                    schema: createApiResponseSchema(z.object({ removed: z.boolean() })),
+                    schema: createApiResponseSchema(z.object({ removed: z.boolean().describe('TODO describe removed field for the OpenInspection MCP integration') })),
                 },
             },
             description: 'Member removed',
         },
     },
-});
+    operationId: "deleteTeamMember",
+    description: "Auto-generated placeholder for deleteTeamMember (DELETE /members/{id}, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 teamRoutes.openapi(removeTeamMemberRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -162,38 +169,74 @@ teamRoutes.openapi(removeTeamMemberRoute, async (c) => {
 // a single row and (on approve / edit) applies the value to
 // inspection_results via patchItem(force: true).
 
-const listApprenticeReviewsRoute = createRoute({
+const listApprenticeReviewsRoute = createRoute(withMcpMetadata({
     method:     'get',
     path:       '/apprentice-reviews',
-    tags:       ['Apprentice'],
+    tags: ["team"],
     summary:    "List the caller's pending apprentice reviews",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     responses:  { 200: { description: 'ok' } },
-});
+    operationId: "listTeamApprenticeReviews",
+    description: "Auto-generated placeholder for listTeamApprenticeReviews (GET /apprentice-reviews, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 teamRoutes.openapi(listApprenticeReviewsRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const user     = c.get('user') as { sub?: string } | undefined;
     if (!user?.sub) throw Errors.Unauthorized('Missing user identity');
 
-    const items = await c.var.services.apprentice.listPendingForMentor(tenantId, user.sub);
+    const rows = await c.var.services.apprentice.listPendingForMentor(tenantId, user.sub);
+    if (rows.length === 0) {
+        return c.json({ success: true as const, data: { items: [] } }, 200);
+    }
+
+    // UI enrichment — the /apprentice-review page needs the apprentice's
+    // name and the inspection's property address to be usable. Two batched
+    // queries (one per join) keep this O(1) instead of N+1.
+    const db = drizzle(c.env.DB);
+    const typedRows = rows as Array<{ apprenticeId: string; inspectionId: string } & Record<string, unknown>>;
+    const apprenticeIds: string[] = [...new Set(typedRows.map((r) => r.apprenticeId))];
+    const inspectionIds: string[] = [...new Set(typedRows.map((r) => r.inspectionId))];
+
+    const apprenticeRows = await db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(and(eq(users.tenantId, tenantId), inArray(users.id, apprenticeIds)))
+        .all();
+    const inspectionRows = await db
+        .select({ id: inspections.id, address: inspections.propertyAddress })
+        .from(inspections)
+        .where(and(eq(inspections.tenantId, tenantId), inArray(inspections.id, inspectionIds)))
+        .all();
+
+    const apprenticeNameById: Record<string, string | null> = Object.fromEntries(apprenticeRows.map((a) => [a.id, a.name]));
+    const inspectionAddrById: Record<string, string | null> = Object.fromEntries(inspectionRows.map((i) => [i.id, i.address]));
+
+    const items = typedRows.map((r) => ({
+        ...r,
+        apprenticeName:    apprenticeNameById[r.apprenticeId] ?? 'Unknown apprentice',
+        inspectionAddress: inspectionAddrById[r.inspectionId] ?? r.inspectionId,
+    }));
+
     return c.json({ success: true as const, data: { items } }, 200);
 });
 
-const decideApprenticeReviewRoute = createRoute({
+const decideApprenticeReviewRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/apprentice-reviews/{id}/decide',
-    tags:       ['Apprentice'],
+    tags: ["team"],
     summary:    'Approve / reject / edit an apprentice-submitted item field',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().min(1) }),
+        params: z.object({ id: z.string().min(1).describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration'),
         body: { content: { 'application/json': { schema: z.object({
-            action:        z.enum(['approved', 'rejected', 'edited']),
-            decisionValue: z.unknown().optional(),
-        }) } } },
+            action:        z.enum(['approved', 'rejected', 'edited']).describe('TODO describe action field for the OpenInspection MCP integration'),
+            decisionValue: z.unknown().optional().describe('TODO describe decisionValue field for the OpenInspection MCP integration'),
+        }).describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: { 200: { description: 'ok' }, 404: { description: 'review not found' } },
-});
+    operationId: "createTeamApprenticeReviewsDecide",
+    description: "Auto-generated placeholder for createTeamApprenticeReviewsDecide (POST /apprentice-reviews/{id}/decide, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 teamRoutes.openapi(decideApprenticeReviewRoute, async (c) => {
     const { id } = c.req.valid('param');
     const { action, decisionValue } = c.req.valid('json');
@@ -234,23 +277,25 @@ teamRoutes.openapi(decideApprenticeReviewRoute, async (c) => {
 // guests count against the same seat quota as permanent members, so the
 // seat-guard middleware runs first.
 
-const mintGuestInviteRoute = createRoute({
+const mintGuestInviteRoute = createRoute(withMcpMetadata({
     method:     'post',
     path:       '/guests',
-    tags:       ['Team'],
+    tags: ["team"],
     summary:    'Mint a one-time guest invite link',
     middleware: [requireRole(['admin', 'owner']), requireSeatAvailable] as const,
     request: {
         body: { content: { 'application/json': { schema: z.object({
-            role:            z.enum(['lead', 'specialist', 'apprentice', 'office']),
-            durationSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).default(86_400),
-        }) } } },
+            role:            z.enum(['lead', 'specialist', 'apprentice', 'office']).describe('TODO describe role field for the OpenInspection MCP integration'),
+            durationSeconds: z.number().int().positive().max(60 * 60 * 24 * 30).default(86_400).describe('TODO describe durationSeconds field for the OpenInspection MCP integration'),
+        }).describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         201: { description: 'Invite minted' },
         402: { description: 'Tenant at seat cap' },
     },
-});
+    operationId: "createTeamGuests",
+    description: "Auto-generated placeholder for createTeamGuests (POST /guests, team domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 teamRoutes.openapi(mintGuestInviteRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -278,18 +323,21 @@ teamRoutes.openapi(mintGuestInviteRoute, async (c) => {
 // ─── Design System 0520 subsystem C P10.2 — defaults / apprentices / guests ──
 
 const DefaultsSchema = z.object({
-    teamModeDefault:          z.boolean().optional(),
-    apprenticeReviewRequired: z.boolean().optional(),
-    guestInvitesEnabled:      z.boolean().optional(),
+    teamModeDefault:          z.boolean().optional().describe('TODO describe teamModeDefault field for the OpenInspection MCP integration'),
+    apprenticeReviewRequired: z.boolean().optional().describe('TODO describe apprenticeReviewRequired field for the OpenInspection MCP integration'),
+    guestInvitesEnabled:      z.boolean().optional().describe('TODO describe guestInvitesEnabled field for the OpenInspection MCP integration'),
 });
 
 /** GET /api/team/defaults — read the three team-page toggles. */
-teamRoutes.openapi({
-    method: 'get', path: '/defaults', tags: ['Team'],
-    summary: "Get tenant's team-page default toggles",
+teamRoutes.openapi(withMcpMetadata({
+    method: 'get', path: '/defaults',
+    operationId: 'getTeamDefaults',
+    tags: ['team'],
+    summary: "Get tenant team-page default toggles",
+    description: "Returns the three boolean toggles that govern the team page: teamModeDefault, apprenticeReviewRequired, guestInvitesEnabled. Used to drive UI state.",
     middleware: [requireRole(['owner', 'admin', 'inspector', 'lead'])] as const,
     responses: { 200: { description: 'ok' } },
-}, async (c) => {
+}, { scopes: ['read'], tier: 'extended' }), async (c) => {
     const tenantId = c.get('tenantId');
     const db = drizzle(c.env.DB);
     const row = await db.select({
@@ -308,13 +356,16 @@ teamRoutes.openapi({
 });
 
 /** PUT /api/team/defaults — patch any subset of the three toggles. */
-teamRoutes.openapi({
-    method: 'put', path: '/defaults', tags: ['Team'],
-    summary: "Update tenant's team-page default toggles",
+teamRoutes.openapi(withMcpMetadata({
+    method: 'put', path: '/defaults',
+    operationId: 'updateTeamDefaults',
+    tags: ['team'],
+    summary: "Update tenant team-page default toggles",
+    description: "Patches any subset of the three team-page toggles (teamModeDefault, apprenticeReviewRequired, guestInvitesEnabled). Missing keys leave existing values unchanged.",
     middleware: [requireRole(['owner', 'admin'])] as const,
-    request: { body: { content: { 'application/json': { schema: DefaultsSchema } } } },
+    request: { body: { content: { 'application/json': { schema: DefaultsSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } } },
     responses: { 200: { description: 'ok' } },
-}, async (c) => {
+}, { scopes: ['admin'], tier: 'extended' }), async (c) => {
     const tenantId = c.get('tenantId');
     const body = c.req.valid('json');
     const update: Partial<typeof tenantConfigs.$inferInsert> = {};
@@ -333,12 +384,15 @@ teamRoutes.openapi({
  * with their mentor's name + a pending-review count. Drives the
  * Apprentices section on /team.
  */
-teamRoutes.openapi({
-    method: 'get', path: '/apprentices', tags: ['Team'],
-    summary: 'List apprentices with mentor + pending review count',
+teamRoutes.openapi(withMcpMetadata({
+    method: 'get', path: '/apprentices',
+    operationId: 'listTeamApprentices',
+    tags: ['team'],
+    summary: 'List apprentices with mentor and review counts',
+    description: 'Returns every apprentice in the tenant along with their mentor name and pending-review count. Drives the Apprentices section of the team page.',
     middleware: [requireRole(['owner', 'admin', 'inspector', 'lead'])] as const,
     responses: { 200: { description: 'ok' } },
-}, async (c) => {
+}, { scopes: ['read'], tier: 'extended' }), async (c) => {
     const tenantId = c.get('tenantId');
     const db = drizzle(c.env.DB);
 
@@ -377,12 +431,15 @@ teamRoutes.openapi({
 });
 
 /** GET /api/team/guests — list active (non-expired) guest users. */
-teamRoutes.openapi({
-    method: 'get', path: '/guests', tags: ['Team'],
-    summary: 'List active guest accounts (expires_at IS NOT NULL AND > now)',
+teamRoutes.openapi(withMcpMetadata({
+    method: 'get', path: '/guests',
+    operationId: 'listTeamGuests',
+    tags: ['team', 'guest'],
+    summary: 'List active guest accounts in tenant',
+    description: 'Returns all active (non-expired) guest user accounts in the tenant: filter is `expires_at IS NOT NULL AND > now`. Used by the team-page guest panel.',
     middleware: [requireRole(['owner', 'admin'])] as const,
     responses: { 200: { description: 'ok' } },
-}, async (c) => {
+}, { scopes: ['read'], tier: 'extended' }), async (c) => {
     const tenantId = c.get('tenantId');
     const db = drizzle(c.env.DB);
     const now = Math.floor(Date.now() / 1000);
@@ -412,13 +469,16 @@ teamRoutes.openapi({
  * POST /api/team/guests/:id/revoke — set expires_at = now for a guest.
  * Idempotent: revoking an already-expired guest is a no-op success.
  */
-teamRoutes.openapi({
-    method: 'post', path: '/guests/{id}/revoke', tags: ['Team'],
-    summary: 'Revoke a guest immediately (sets expires_at = now)',
+teamRoutes.openapi(withMcpMetadata({
+    method: 'post', path: '/guests/{id}/revoke',
+    operationId: 'revokeTeamGuest',
+    tags: ['team', 'guest'],
+    summary: 'Revoke guest access immediately',
+    description: 'Marks the specified guest account as expired (sets expires_at = now). Idempotent — revoking an already-expired guest returns 200 success.',
     middleware: [requireRole(['owner', 'admin'])] as const,
-    request: { params: z.object({ id: z.string().min(1) }) },
+    request: { params: z.object({ id: z.string().min(1).describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration') },
     responses: { 200: { description: 'ok' }, 404: { description: 'not found' } },
-}, async (c) => {
+}, { scopes: ['admin'], tier: 'extended' }), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId');
     const db = drizzle(c.env.DB);

@@ -6,7 +6,10 @@
 [![GitHub Discussions](https://img.shields.io/github/discussions/InspectorHub/OpenInspection)](https://github.com/InspectorHub/OpenInspection/discussions)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](LICENSE)
 
-🧪 **Live demo**: Start a [free 30-day trial](https://inspectorhub.io/register) — magic-link signup, no credit card. Trial workspace ships with starter templates + canned comments so you can explore the product immediately.
+> 🧪 **Try it in 60 seconds — no install, no credit card.**
+> [**Start a free 30-day trial on inspectorhub.io →**](https://inspectorhub.io/register)
+>
+> Magic-link signup. Your trial workspace ships pre-loaded with starter templates + canned comments so you can click through a real inspection immediately. Decide to self-host later? Your data exports cleanly — same codebase, same schema.
 
 ---
 
@@ -55,7 +58,11 @@ A complete home inspection software stack: inspector dashboard, public booking w
 
 ## Quick start
 
-### Zero-Setup (Web-First)
+### Option 0: Try it hosted (fastest)
+
+Not ready to commit to running infrastructure? Spin up a managed workspace at [**inspectorhub.io/register**](https://inspectorhub.io/register) — 30-day free trial, no card. Useful for evaluating the editor, report viewer, and booking flow before you decide to self-host. You can export your data and move to a self-hosted deploy at any time.
+
+### Option 1: Zero-Setup (Web-First)
 1. Click the **Deploy to Cloudflare** button above
 2. Follow the dashboard prompts to create your D1 database, R2 bucket, and KV namespace
 3. Visit your Worker URL (e.g., `https://openinspection.workers.dev/setup`)
@@ -63,7 +70,7 @@ A complete home inspection software stack: inspector dashboard, public booking w
 
 > If you don't see the setup code in your deployment logs, run `npm run setup:cloudflare -- --refresh-setup-code` to generate a new one.
 
-### CLI-First
+### Option 2: CLI-First
 ```bash
 git clone https://github.com/InspectorHub/OpenInspection
 cd OpenInspection
@@ -72,7 +79,7 @@ npm run setup:cloudflare    # provisions D1 / R2 / KV automatically
 npm run dev                 # http://localhost:8788
 ```
 
-### Local development
+### Option 3: Local development
 ```bash
 git clone https://github.com/InspectorHub/OpenInspection
 cd OpenInspection

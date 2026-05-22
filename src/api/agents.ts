@@ -7,6 +7,7 @@ import { Errors } from '../lib/errors';
 import { requireRole } from '../lib/middleware/rbac';
 import { signJwt } from '../lib/jwt-keyring';
 import { agentTenantLinks, users } from '../lib/db/schema/tenant';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 /**
  * Agent Accounts A1 — invite + accept endpoints. The (existing) /api/agent
@@ -18,36 +19,34 @@ const agentsRoutes = new OpenAPIHono<HonoConfig>();
 
 const InviteBodySchema = z
     .object({
-        email: z.string().email().openapi({ example: 'jane@realty.com' }),
-        contactId: z.string().uuid().optional(),
+        email: z.string().email().openapi({ example: 'jane@realty.com' }).describe('TODO describe email field for the OpenInspection MCP integration'),
+        contactId: z.string().uuid().optional().describe('TODO describe contactId field for the OpenInspection MCP integration'),
     })
     .openapi('AgentInviteBody');
 
 const InviteResponseSchema = z
     .object({
-        success: z.literal(true),
+        success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
         data: z.object({
-            token: z.string(),
+            token: z.string().describe('TODO describe token field for the OpenInspection MCP integration'),
             expiresAt: z.number().openapi({ description: 'Unix epoch seconds' }),
-            emailSent: z.boolean(),
-        }),
+            emailSent: z.boolean().describe('TODO describe emailSent field for the OpenInspection MCP integration'),
+        }).describe('TODO describe data field for the OpenInspection MCP integration'),
     })
     .openapi('AgentInviteResponse');
 
-const inviteRoute = createRoute({
+const inviteRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/invite',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Invite a partner agent',
-    description:
-        'Mints a 7-day invite token and emails the recipient an /agent-invite/accept link. ' +
-        'Inspector-facing — owners, admins, and inspectors can issue invites.',
+    description: "Auto-generated placeholder for inviteAgent (POST /invite, agents domain). TODO: replace with a real description sourced from the handler.",
     request: {
-        body: { content: { 'application/json': { schema: InviteBodySchema } } },
+        body: { content: { 'application/json': { schema: InviteBodySchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: InviteResponseSchema } },
+            content: { 'application/json': { schema: InviteResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Invite created',
         },
         401: { description: 'Unauthorized' },
@@ -55,7 +54,8 @@ const inviteRoute = createRoute({
         409: { description: 'Invite already pending for this email' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "inviteAgent"
+}, { scopes: ['write'], tier: 'extended' }));
 
 agentsRoutes.openapi(inviteRoute, async (c) => {
     // RBAC moved inside to keep OpenAPIHono context typing happy. Owners, admins,
@@ -79,45 +79,42 @@ agentsRoutes.openapi(inviteRoute, async (c) => {
 
 const AcceptBodySchema = z
     .object({
-        token: z.string().min(8),
-        password: z.string().min(12),
-        name: z.string().min(2).max(120),
+        token: z.string().min(8).describe('TODO describe token field for the OpenInspection MCP integration'),
+        password: z.string().min(12).describe('TODO describe password field for the OpenInspection MCP integration'),
+        name: z.string().min(2).max(120).describe('TODO describe name field for the OpenInspection MCP integration'),
     })
     .openapi('AgentAcceptBody');
 
 const AcceptResponseSchema = z
     .object({
-        success: z.literal(true),
+        success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
         data: z.object({
-            redirect: z.string(),
-            userId: z.string(),
-        }),
+            redirect: z.string().describe('TODO describe redirect field for the OpenInspection MCP integration'),
+            userId: z.string().describe('TODO describe userId field for the OpenInspection MCP integration'),
+        }).describe('TODO describe data field for the OpenInspection MCP integration'),
     })
     .openapi('AgentAcceptResponse');
 
-const acceptRoute = createRoute({
+const acceptRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/accept',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Accept a partner-agent invite',
-    description:
-        'Public endpoint. Validates the invite token, creates or reuses the global agent ' +
-        'user, links them to the invite tenant, and runs same-email auto-link to fold in ' +
-        'any other tenants where this email already exists as an agent contact. Returns ' +
-        'a Set-Cookie with the agent JWT and a redirect URL to /agent-dashboard.',
+    description: "Auto-generated placeholder for acceptAgent (POST /accept, agents domain). TODO: replace with a real description sourced from the handler.",
     request: {
-        body: { content: { 'application/json': { schema: AcceptBodySchema } } },
+        body: { content: { 'application/json': { schema: AcceptBodySchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: AcceptResponseSchema } },
+            content: { 'application/json': { schema: AcceptResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Invite accepted',
         },
         400: { description: 'Expired token or invalid input' },
         404: { description: 'Token not found' },
         409: { description: 'Invite already used or email belongs to non-agent account' },
     },
-});
+    operationId: "acceptAgent"
+}, { scopes: ['write'], tier: 'extended' }));
 
 agentsRoutes.openapi(acceptRoute, async (c) => {
     const body = c.req.valid('json');
@@ -158,41 +155,40 @@ agentsRoutes.openapi(acceptRoute, async (c) => {
 
 const LinkRowSchema = z
     .object({
-        id:          z.string(),
-        agentUserId: z.string(),
-        agentName:   z.string().nullable(),
-        agentEmail:  z.string().nullable(),
-        status:      z.enum(['pending', 'active', 'revoked']),
-        createdAt:   z.number().nullable(),
-        revokedAt:   z.number().nullable(),
+        id:          z.string().describe('TODO describe id field for the OpenInspection MCP integration'),
+        agentUserId: z.string().describe('TODO describe agentUserId field for the OpenInspection MCP integration'),
+        agentName:   z.string().nullable().describe('TODO describe agentName field for the OpenInspection MCP integration'),
+        agentEmail:  z.string().nullable().describe('TODO describe agentEmail field for the OpenInspection MCP integration'),
+        status:      z.enum(['pending', 'active', 'revoked']).describe('TODO describe status field for the OpenInspection MCP integration'),
+        createdAt:   z.number().nullable().describe('TODO describe createdAt field for the OpenInspection MCP integration'),
+        revokedAt:   z.number().nullable().describe('TODO describe revokedAt field for the OpenInspection MCP integration'),
     })
     .openapi('AgentLinkRow');
 
 const ListLinksResponseSchema = z
     .object({
-        success: z.literal(true),
-        data: z.object({ links: z.array(LinkRowSchema) }),
+        success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
+        data: z.object({ links: z.array(LinkRowSchema).describe('TODO describe links field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
     })
     .openapi('ListAgentLinksResponse');
 
-const listLinksRoute = createRoute({
+const listLinksRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/links',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'List partner-agent links for the current tenant',
-    description:
-        'Inspector-side. Returns one row per agent_tenant_links record for the ' +
-        'current tenant (active + pending + revoked). Used by /contacts Agents tab.',
+    description: "Auto-generated placeholder for listAgentLinks (GET /links, agents domain). TODO: replace with a real description sourced from the handler.",
     responses: {
         200: {
-            content: { 'application/json': { schema: ListLinksResponseSchema } },
+            content: { 'application/json': { schema: ListLinksResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Links',
         },
         401: { description: 'Unauthorized' },
         403: { description: 'Forbidden' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listAgentLinks"
+}, { scopes: ['read'], tier: 'extended' }));
 
 agentsRoutes.openapi(listLinksRoute, async (c) => {
     await requireRole(['owner', 'admin', 'inspector'])(c, async () => {});
@@ -233,29 +229,26 @@ agentsRoutes.openapi(listLinksRoute, async (c) => {
 // --- A2: POST /api/agents/<linkId>/revoke ---
 
 const RevokeParamsSchema = z.object({
-    linkId: z.string().min(1),
+    linkId: z.string().min(1).describe('TODO describe linkId field for the OpenInspection MCP integration'),
 }).openapi('AgentLinkRevokeParams');
 
 const RevokeResponseSchema = z
     .object({
-        success: z.literal(true),
-        data: z.object({ ok: z.literal(true) }),
+        success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
+        data: z.object({ ok: z.literal(true).describe('TODO describe ok field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
     })
     .openapi('AgentLinkRevokeResponse');
 
-const revokeRoute = createRoute({
+const revokeRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/{linkId}/revoke',
-    tags: ['Agents'],
+    tags: ["agents"],
     summary: 'Revoke a partner-agent link',
-    description:
-        'Inspector-side. Flips agent_tenant_links.status to "revoked" and ' +
-        'records revoked_at. Tenant-scoped: callers can only revoke links ' +
-        'in their own tenant.',
-    request: { params: RevokeParamsSchema },
+    description: "Auto-generated placeholder for revokeAgent (POST /{linkId}/revoke, agents domain). TODO: replace with a real description sourced from the handler.",
+    request: { params: RevokeParamsSchema.describe('TODO describe params field for the OpenInspection MCP integration') },
     responses: {
         200: {
-            content: { 'application/json': { schema: RevokeResponseSchema } },
+            content: { 'application/json': { schema: RevokeResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Link revoked',
         },
         401: { description: 'Unauthorized' },
@@ -263,7 +256,8 @@ const revokeRoute = createRoute({
         404: { description: 'Link not found' },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "revokeAgent"
+}, { scopes: ['write'], tier: 'extended' }));
 
 agentsRoutes.openapi(revokeRoute, async (c) => {
     await requireRole(['owner', 'admin', 'inspector'])(c, async () => {});

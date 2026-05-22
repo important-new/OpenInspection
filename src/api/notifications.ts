@@ -8,6 +8,7 @@ import {
 } from '../lib/validations/notification.schema';
 import { Errors } from '../lib/errors';
 import type { ListOptions } from '../services/notification.service';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const notificationsRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -40,25 +41,27 @@ function requireUserId(c: any): string {
 }
 
 const OkResponseSchema = z.object({
-    success: z.literal(true),
-    data: z.object({ ok: z.literal(true) }),
+    success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
+    data: z.object({ ok: z.literal(true).describe('TODO describe ok field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
 });
 
 // GET / — list notifications for current user
-const listRoute = createRoute({
+const listRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/',
-    tags: ['Notifications'],
+    tags: ["notifications"],
     summary: 'List notifications for current user',
-    request: { query: ListNotificationsQuerySchema },
+    request: { query: ListNotificationsQuerySchema.describe('TODO describe query field for the OpenInspection MCP integration') },
     responses: {
         200: {
-            content: { 'application/json': { schema: ListNotificationsResponseSchema } },
+            content: { 'application/json': { schema: ListNotificationsResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'OK',
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "listNotifications",
+    description: "Auto-generated placeholder for listNotifications (GET /, notifications domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'primary' }));
 notificationsRoutes.openapi(listRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const userId   = requireUserId(c);
@@ -77,19 +80,21 @@ notificationsRoutes.openapi(listRoute, async (c) => {
 });
 
 // GET /unread-count
-const unreadCountRoute = createRoute({
+const unreadCountRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/unread-count',
-    tags: ['Notifications'],
+    tags: ["notifications"],
     summary: 'Count unread notifications for current user',
     responses: {
         200: {
-            content: { 'application/json': { schema: UnreadCountResponseSchema } },
+            content: { 'application/json': { schema: UnreadCountResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'OK',
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "unreadCountNotification",
+    description: "Auto-generated placeholder for unreadCountNotification (GET /unread-count, notifications domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 notificationsRoutes.openapi(unreadCountRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const userId   = requireUserId(c);
@@ -98,20 +103,22 @@ notificationsRoutes.openapi(unreadCountRoute, async (c) => {
 });
 
 // POST /mark-read
-const markReadRoute = createRoute({
+const markReadRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/mark-read',
-    tags: ['Notifications'],
+    tags: ["notifications"],
     summary: 'Mark a list of notifications as read',
-    request: { body: { content: { 'application/json': { schema: MarkReadSchema } } } },
+    request: { body: { content: { 'application/json': { schema: MarkReadSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } } },
     responses: {
         200: {
-            content: { 'application/json': { schema: OkResponseSchema } },
+            content: { 'application/json': { schema: OkResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'OK',
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "markReadNotification",
+    description: "Auto-generated placeholder for markReadNotification (POST /mark-read, notifications domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 notificationsRoutes.openapi(markReadRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const userId   = requireUserId(c);
@@ -121,19 +128,21 @@ notificationsRoutes.openapi(markReadRoute, async (c) => {
 });
 
 // POST /mark-all-read
-const markAllRoute = createRoute({
+const markAllRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/mark-all-read',
-    tags: ['Notifications'],
+    tags: ["notifications"],
     summary: 'Mark every unread notification as read',
     responses: {
         200: {
-            content: { 'application/json': { schema: OkResponseSchema } },
+            content: { 'application/json': { schema: OkResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'OK',
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "markAllReadNotification",
+    description: "Auto-generated placeholder for markAllReadNotification (POST /mark-all-read, notifications domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 notificationsRoutes.openapi(markAllRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const userId   = requireUserId(c);
@@ -142,20 +151,22 @@ notificationsRoutes.openapi(markAllRoute, async (c) => {
 });
 
 // DELETE /{id} — archive (soft-delete)
-const archiveRoute = createRoute({
+const archiveRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/{id}',
-    tags: ['Notifications'],
+    tags: ["notifications"],
     summary: 'Archive a notification (soft-delete from inbox)',
-    request: { params: z.object({ id: z.string().min(1) }) },
+    request: { params: z.object({ id: z.string().min(1).describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration') },
     responses: {
         200: {
-            content: { 'application/json': { schema: OkResponseSchema } },
+            content: { 'application/json': { schema: OkResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'OK',
         },
     },
     security: [{ bearerAuth: [] }],
-});
+    operationId: "deleteNotification",
+    description: "Auto-generated placeholder for deleteNotification (DELETE /{id}, notifications domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' }));
 notificationsRoutes.openapi(archiveRoute, async (c) => {
     const tenantId = c.get('tenantId');
     const userId   = requireUserId(c);

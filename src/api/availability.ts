@@ -14,6 +14,7 @@ import {
     OverrideResponseSchema
 } from '../lib/validations/booking.schema';
 import { SuccessResponseSchema, createApiResponseSchema } from '../lib/validations/shared.schema';
+import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 const availabilityRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -21,28 +22,30 @@ const availabilityRoutes = new OpenAPIHono<HonoConfig>();
  * GET /api/availability
  * Returns recurring slots for an inspector.
  */
-const listAvailabilityRoute = createRoute({
+const listAvailabilityRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/',
-    tags: ['Availability'],
-    summary: 'List recurring availability',
+    operationId: 'listRecurringAvailability',
+    tags: ['bookings'],
+    summary: 'List recurring weekly availability',
+    description: 'Returns the recurring weekly availability slots for an inspector. Defaults to the caller; admins can query any inspector via the inspectorId query parameter.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         query: z.object({
-            inspectorId: z.string().uuid().optional(),
-        }),
+            inspectorId: z.string().uuid().optional().describe('Inspector UUID to query; defaults to the caller when omitted.'),
+        }).describe('TODO describe query field for the OpenInspection MCP integration'),
     },
     responses: {
         200: {
             content: {
                 'application/json': {
-                    schema: AvailabilityListResponseSchema,
+                    schema: AvailabilityListResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Success',
         },
     },
-});
+}, { scopes: ['read'], tier: 'primary' }));
 
 availabilityRoutes.openapi(listAvailabilityRoute, async (c) => {
     const db = drizzle(c.env.DB);
@@ -69,17 +72,19 @@ availabilityRoutes.openapi(listAvailabilityRoute, async (c) => {
  * PUT /api/availability
  * Replaces recurring slots.
  */
-const updateScheduleRoute = createRoute({
+const updateScheduleRoute = createRoute(withMcpMetadata({
     method: 'put',
     path: '/',
-    tags: ['Availability'],
-    summary: 'Update weekly schedule',
+    operationId: 'updateWeeklyAvailability',
+    tags: ['bookings'],
+    summary: 'Replace weekly availability schedule',
+    description: 'Replaces the inspector\'s recurring weekly schedule wholesale with the supplied slots. Admins can edit any inspector; others may only edit their own.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         body: {
             content: {
                 'application/json': {
-                    schema: AvailabilitySchema,
+                    schema: AvailabilitySchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
         },
@@ -88,13 +93,13 @@ const updateScheduleRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: createApiResponseSchema(z.object({ count: z.number() })),
+                    schema: createApiResponseSchema(z.object({ count: z.number().describe('TODO describe count field for the OpenInspection MCP integration') })),
                 },
             },
             description: 'Success',
         },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 availabilityRoutes.openapi(updateScheduleRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -117,28 +122,30 @@ availabilityRoutes.openapi(updateScheduleRoute, async (c) => {
 /**
  * GET /api/availability/overrides
  */
-const listOverridesRoute = createRoute({
+const listOverridesRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/overrides',
-    tags: ['Availability'],
-    summary: 'List availability overrides',
+    operationId: 'listAvailabilityOverrides',
+    tags: ['bookings'],
+    summary: 'List availability override entries',
+    description: 'Returns availability override entries (blocked dates and custom slots) for an inspector. Used by the calendar UI to render day-level adjustments.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         query: z.object({
-            inspectorId: z.string().uuid().optional(),
-        }),
+            inspectorId: z.string().uuid().optional().describe('Inspector UUID to query; defaults to the caller when omitted.'),
+        }).describe('TODO describe query field for the OpenInspection MCP integration'),
     },
     responses: {
         200: {
             content: {
                 'application/json': {
-                    schema: OverrideListResponseSchema,
+                    schema: OverrideListResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Success',
         },
     },
-});
+}, { scopes: ['read'], tier: 'extended' }));
 
 availabilityRoutes.openapi(listOverridesRoute, async (c) => {
     const db = drizzle(c.env.DB);
@@ -163,17 +170,19 @@ availabilityRoutes.openapi(listOverridesRoute, async (c) => {
 /**
  * POST /api/availability/overrides
  */
-const createOverrideRoute = createRoute({
+const createOverrideRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/overrides',
-    tags: ['Availability'],
-    summary: 'Add availability override',
+    operationId: 'createAvailabilityOverride',
+    tags: ['bookings'],
+    summary: 'Create an availability override',
+    description: 'Adds a single availability override (block a date, add an unusual slot). Admins may create overrides for any inspector; others only for themselves.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         body: {
             content: {
                 'application/json': {
-                    schema: OverrideSchema,
+                    schema: OverrideSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
         },
@@ -182,13 +191,13 @@ const createOverrideRoute = createRoute({
         201: {
             content: {
                 'application/json': {
-                    schema: OverrideResponseSchema,
+                    schema: OverrideResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Created',
         },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 availabilityRoutes.openapi(createOverrideRoute, async (c) => {
     const tenantId = c.get('tenantId');
@@ -218,26 +227,28 @@ availabilityRoutes.openapi(createOverrideRoute, async (c) => {
 /**
  * DELETE /api/availability/overrides/:id
  */
-const deleteOverrideRoute = createRoute({
+const deleteOverrideRoute = createRoute(withMcpMetadata({
     method: 'delete',
     path: '/overrides/{id}',
-    tags: ['Availability'],
-    summary: 'Delete availability override',
+    operationId: 'deleteAvailabilityOverride',
+    tags: ['bookings'],
+    summary: 'Delete an availability override',
+    description: 'Removes the specified availability override entry, restoring the default recurring schedule for that date.',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().uuid() }),
+        params: z.object({ id: z.string().uuid().describe('UUID of the availability override entry to delete.') }).describe('TODO describe params field for the OpenInspection MCP integration'),
     },
     responses: {
         200: {
             content: {
                 'application/json': {
-                    schema: SuccessResponseSchema,
+                    schema: SuccessResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Success',
         },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 availabilityRoutes.openapi(deleteOverrideRoute, async (c) => {
     const tenantId = c.get('tenantId');

@@ -4,6 +4,7 @@ import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
 import { agreementSignPath } from '../lib/public-urls';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const conciergeRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -17,33 +18,35 @@ const conciergeRoutes = new OpenAPIHono<HonoConfig>();
  * client-side script can route to the appropriate next step.
  */
 const ConfirmBodySchema = z.object({
-    token: z.string().min(8).max(128),
+    token: z.string().min(8).max(128).describe('TODO describe token field for the OpenInspection MCP integration'),
 }).openapi('ConciergeConfirmBody');
 
 const ConfirmResponseSchema = createApiResponseSchema(
     z.object({
-        inspectionId: z.string().uuid(),
-        redirect:     z.string(),
+        inspectionId: z.string().uuid().describe('TODO describe inspectionId field for the OpenInspection MCP integration'),
+        redirect:     z.string().describe('TODO describe redirect field for the OpenInspection MCP integration'),
     }),
 ).openapi('ConciergeConfirmResponse');
 
-const confirmRoute = createRoute({
+const confirmRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/confirm',
-    tags: ['Concierge'],
+    tags: ["bookings"],
     summary: 'Client redeems a concierge magic-link token',
     request: {
-        body: { content: { 'application/json': { schema: ConfirmBodySchema } } },
+        body: { content: { 'application/json': { schema: ConfirmBodySchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: ConfirmResponseSchema } },
+            content: { 'application/json': { schema: ConfirmResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Confirmed — caller redirects to either the agreement signing page or the inspection report',
         },
         400: { description: 'Token expired or already used' },
         404: { description: 'Token not found' },
     },
-});
+    operationId: "confirmConcierge",
+    description: "Auto-generated placeholder for confirmConcierge (POST /confirm, bookings domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'extended' }));
 
 conciergeRoutes.openapi(confirmRoute, async (c) => {
     const { token } = c.req.valid('json');

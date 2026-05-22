@@ -14,38 +14,39 @@ import {
     InspectorSignatureSchema,
 } from '../lib/validations/sync.schema';
 import { inspections, inspectionResults, templates } from '../lib/db/schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const syncRoutes = new OpenAPIHono<HonoConfig>();
 
 /* ── POST /api/inspections/:id/results/merge ──────────────────────────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/results/merge',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Three-way merge sync of offline results',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().uuid() }),
-        body: { content: { 'application/json': { schema: ResultsMergeRequestSchema } } },
+        params: z.object({ id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration'),
+        body: { content: { 'application/json': { schema: ResultsMergeRequestSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: ResultsMergeResponseSchema } },
+            content: { 'application/json': { schema: ResultsMergeResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Merged',
         },
         409: {
             content: {
                 'application/json': {
                     schema: z.object({
-                        success: z.literal(false),
+                        success: z.literal(false).describe('TODO describe success field for the OpenInspection MCP integration'),
                         error: z.object({
-                            code: z.literal('MERGE_CONFLICT'),
-                            message: z.string(),
+                            code: z.literal('MERGE_CONFLICT').describe('TODO describe code field for the OpenInspection MCP integration'),
+                            message: z.string().describe('TODO describe message field for the OpenInspection MCP integration'),
                             details: z.object({
-                                base:      ResultsBlobSchema,
-                                theirs:    ResultsBlobSchema,
-                                conflicts: z.array(MergeConflictSchema),
-                            }),
+                                base:      ResultsBlobSchema.describe('TODO describe base field for the OpenInspection MCP integration'),
+                                theirs:    ResultsBlobSchema.describe('TODO describe theirs field for the OpenInspection MCP integration'),
+                                conflicts: z.array(MergeConflictSchema).describe('TODO describe conflicts field for the OpenInspection MCP integration'),
+                            }).describe('TODO describe details field for the OpenInspection MCP integration'),
                         }),
                     }).openapi('MergeConflictResponse'),
                 },
@@ -53,7 +54,9 @@ syncRoutes.openapi(createRoute({
             description: 'Conflict — inspector adjudication required',
         },
     },
-}), async (c) => {
+    operationId: "mergeInspection",
+    description: "Auto-generated placeholder for mergeInspection (POST /{id}/results/merge, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const { base, ours, dirtyFields } = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
@@ -124,33 +127,35 @@ syncRoutes.openapi(createRoute({
 });
 
 /* ── DELETE /api/inspections/:id/items/:itemId/photos/:photoIndex ─────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'delete',
     path: '/{id}/items/{itemId}/photos/{photoIndex}',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Authoritative delete of a photo from a result item',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         params: z.object({
-            id:         z.string().uuid(),
-            itemId:     z.string(),
-            photoIndex: z.coerce.number().int().nonnegative(),
-        }),
+            id:         z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration'),
+            itemId:     z.string().describe('TODO describe itemId field for the OpenInspection MCP integration'),
+            photoIndex: z.coerce.number().int().nonnegative().describe('TODO describe photoIndex field for the OpenInspection MCP integration'),
+        }).describe('TODO describe params field for the OpenInspection MCP integration'),
     },
     responses: {
         200: {
             content: {
                 'application/json': {
                     schema: z.object({
-                        success: z.literal(true),
-                        data: z.object({ deletedKey: z.string().nullable() }),
+                        success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
+                        data: z.object({ deletedKey: z.string().nullable().describe('TODO describe deletedKey field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
                     }),
                 },
             },
             description: 'Deleted',
         },
     },
-}), async (c) => {
+    operationId: "deleteInspectionItemsPhoto",
+    description: "Auto-generated placeholder for deleteInspectionItemsPhoto (DELETE /{id}/items/{itemId}/photos/{photoIndex}, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id, itemId, photoIndex } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     const db = drizzle(c.env.DB);
@@ -182,30 +187,32 @@ syncRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/inspections/:id/inspector-signature ────────────────────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/inspector-signature',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Record inspector signature on an inspection (authenticated)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().uuid() }),
-        body: { content: { 'application/json': { schema: InspectorSignatureSchema } } },
+        params: z.object({ id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration'),
+        body: { content: { 'application/json': { schema: InspectorSignatureSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         200: {
             content: {
                 'application/json': {
                     schema: z.object({
-                        success: z.literal(true),
-                        data: z.object({ savedAt: z.number().int().positive() }),
+                        success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
+                        data: z.object({ savedAt: z.number().int().positive().describe('TODO describe savedAt field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
                     }),
                 },
             },
             description: 'Saved',
         },
     },
-}), async (c) => {
+    operationId: "createInspectionInspectorSignature",
+    description: "Auto-generated placeholder for createInspectionInspectorSignature (POST /{id}/inspector-signature, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const { signatureBase64, signedAt } = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
@@ -238,15 +245,17 @@ syncRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/inspections/:id/template/upgrade ───────────────────────────── */
-syncRoutes.openapi(createRoute({
+syncRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/template/upgrade',
-    tags: ['Inspections'],
+    tags: ["inspections"],
     summary: 'Upgrade inspection template snapshot to current master version',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
-    request: { params: z.object({ id: z.string().uuid() }) },
-    responses: { 200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ from: z.number(), to: z.number() }) }) } }, description: 'Upgraded' } },
-}), async (c) => {
+    request: { params: z.object({ id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration') },
+    responses: { 200: { content: { 'application/json': { schema: z.object({ success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'), data: z.object({ from: z.number().describe('TODO describe from field for the OpenInspection MCP integration'), to: z.number().describe('TODO describe to field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration') }) } }, description: 'Upgraded' } },
+    operationId: "upgradeInspection",
+    description: "Auto-generated placeholder for upgradeInspection (POST /{id}/template/upgrade, inspections domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     const db = drizzle(c.env.DB);

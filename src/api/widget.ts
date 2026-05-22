@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { HonoConfig } from '../types/hono';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const widgetRoutes = new OpenAPIHono<HonoConfig>();
 
-const recordEventRoute = createRoute({
+const recordEventRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/event',
-    tags: ['Widget'],
+    tags: ["webhooks"],
     summary: 'Record an embeddable widget event (public, no JWT)',
     middleware: [] as const,
     request: {
@@ -14,9 +15,9 @@ const recordEventRoute = createRoute({
             content: {
                 'application/json': {
                     schema: z.object({
-                        event: z.enum(['view', 'submit', 'success', 'error']),
-                        metadata: z.record(z.string(), z.unknown()).optional(),
-                    }),
+                        event: z.enum(['view', 'submit', 'success', 'error']).describe('TODO describe event field for the OpenInspection MCP integration'),
+                        metadata: z.record(z.string(), z.unknown()).optional().describe('TODO describe metadata field for the OpenInspection MCP integration'),
+                    }).describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
         },
@@ -25,13 +26,15 @@ const recordEventRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: z.object({ success: z.literal(true) }),
+                    schema: z.object({ success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration') }).describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Recorded',
         },
     },
-});
+    operationId: "createWidgetEvent",
+    description: "Auto-generated placeholder for createWidgetEvent (POST /event, webhooks domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'excluded' }));
 
 widgetRoutes.openapi(recordEventRoute, async (c) => {
     const tenantId = c.get('resolvedTenantId') || c.get('tenantId');

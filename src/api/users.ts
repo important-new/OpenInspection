@@ -5,21 +5,24 @@ import { and, eq } from 'drizzle-orm';
 import { users } from '../lib/db/schema';
 import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
+import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 const userRoutes = new OpenAPIHono<HonoConfig>();
 
-const getOnboardingRoute = createRoute({
+const getOnboardingRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/me/onboarding',
-    tags: ['Users'],
+    operationId: 'getMyOnboardingState',
+    tags: ['identity'],
     summary: 'Get current user onboarding state',
+    description: 'Returns the boolean map describing which onboarding tooltips, banners, and wizard steps the user has already completed or dismissed.',
     responses: {
         200: { content: { 'application/json': { schema: z.object({
-            success: z.boolean(),
-            data: z.object({ state: z.record(z.string(), z.boolean()) }),
+            success: z.boolean().describe('TODO describe success field for the OpenInspection MCP integration'),
+            data: z.object({ state: z.record(z.string(), z.boolean()).describe('TODO describe state field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
         }) } }, description: 'OK' },
         401: { description: 'Unauthorized' },
     },
-});
+}, { scopes: ['read'], tier: 'extended' }));
 
 userRoutes.openapi(getOnboardingRoute, async (c) => {
     const jwtUser = c.get('user');
@@ -34,21 +37,23 @@ userRoutes.openapi(getOnboardingRoute, async (c) => {
     return c.json({ success: true, data: { state: (u?.onboardingState ?? {}) as Record<string, boolean> } }, 200);
 });
 
-const setOnboardingRoute = createRoute({
+const setOnboardingRoute = createRoute(withMcpMetadata({
     method: 'post', path: '/me/onboarding',
-    tags: ['Users'],
-    summary: 'Mark an onboarding flow as completed',
+    operationId: 'markOnboardingStep',
+    tags: ['identity'],
+    summary: 'Mark an onboarding step completed',
+    description: 'Records that the caller has completed or dismissed a single onboarding step (identified by key). Persists boolean flag on the user record.',
     request: {
         body: { content: { 'application/json': { schema: z.object({
-            key: z.string().min(1).max(64),
-            completed: z.boolean(),
-        }) } } },
+            key: z.string().min(1).max(64).describe('Onboarding-step identifier (e.g. "dashboard.welcome", "templates.tour").'),
+            completed: z.boolean().describe('True to mark the step as completed; false to clear / un-dismiss it.'),
+        }).describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
-        200: { content: { 'application/json': { schema: z.object({ success: z.boolean() }) } }, description: 'OK' },
+        200: { content: { 'application/json': { schema: z.object({ success: z.boolean().describe('TODO describe success field for the OpenInspection MCP integration') }).describe('TODO describe schema field for the OpenInspection MCP integration') } }, description: 'OK' },
         401: { description: 'Unauthorized' },
     },
-});
+}, { scopes: ['write'], tier: 'extended' }));
 
 userRoutes.openapi(setOnboardingRoute, async (c) => {
     const jwtUser = c.get('user');

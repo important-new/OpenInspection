@@ -12,6 +12,7 @@ import {
     CommentEditSchema,
     CommentEditResponseSchema,
 } from '../lib/validations/ai.schema';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const aiRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -19,17 +20,17 @@ const aiRoutes = new OpenAPIHono<HonoConfig>();
  * POST /api/ai/comment-assist
  * Assistance for rewriting rough notes.
  */
-const commentAssistRoute = createRoute({
+const commentAssistRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/comment-assist',
-    tags: ['AI'],
-    summary: 'Professional comment assistant',
+    tags: ["ai"],
+    summary: "Create ai comment assist",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         body: {
             content: {
                 'application/json': {
-                    schema: CommentAssistSchema,
+                    schema: CommentAssistSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
         },
@@ -38,13 +39,15 @@ const commentAssistRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: CommentAssistResponseSchema,
+                    schema: CommentAssistResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Success',
         },
     },
-});
+    operationId: "createAiCommentAssist",
+    description: "Auto-generated placeholder for createAiCommentAssist (POST /comment-assist, ai domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 aiRoutes.openapi(commentAssistRoute, async (c) => {
     const { text, context } = c.req.valid('json');
@@ -58,17 +61,17 @@ aiRoutes.openapi(commentAssistRoute, async (c) => {
  * POST /api/ai/auto-summary
  * Generates a high-level summary of defects.
  */
-const autoSummaryRoute = createRoute({
+const autoSummaryRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/auto-summary',
-    tags: ['AI'],
-    summary: 'Generate inspection summary',
+    tags: ["ai"],
+    summary: "Create ai auto summary",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         body: {
             content: {
                 'application/json': {
-                    schema: AutoSummarySchema,
+                    schema: AutoSummarySchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
         },
@@ -77,13 +80,15 @@ const autoSummaryRoute = createRoute({
         200: {
             content: {
                 'application/json': {
-                    schema: AutoSummaryResponseSchema,
+                    schema: AutoSummaryResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration'),
                 },
             },
             description: 'Success',
         },
     },
-});
+    operationId: "createAiAutoSummary",
+    description: "Auto-generated placeholder for createAiAutoSummary (POST /auto-summary, ai domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' }));
 
 aiRoutes.openapi(autoSummaryRoute, async (c) => {
     const { inspectionId } = c.req.valid('json');
@@ -104,22 +109,24 @@ aiRoutes.openapi(autoSummaryRoute, async (c) => {
  * inspector instruction (e.g. "shorten", "add NW corner detail"). Rate-limited
  * the same way as login + booking endpoints.
  */
-aiRoutes.openapi(createRoute({
+aiRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/comment/edit',
-    tags: ['AI'],
+    tags: ["ai"],
     summary: 'Rewrite a canned comment with AI assistance',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        body: { content: { 'application/json': { schema: CommentEditSchema } } },
+        body: { content: { 'application/json': { schema: CommentEditSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: CommentEditResponseSchema } },
+            content: { 'application/json': { schema: CommentEditResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Rewritten comment',
         },
     },
-}), async (c) => {
+    operationId: "createAiCommentEdit",
+    description: "Auto-generated placeholder for createAiCommentEdit (POST /comment/edit, ai domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     await checkRateLimit(c, 'ai-comment-edit');
     const input = c.req.valid('json');
     // Strip undefined optional fields so service stays exactOptionalPropertyTypes-clean.
@@ -136,24 +143,26 @@ aiRoutes.openapi(createRoute({
     return c.json({ success: true, data: { rewritten } }, 200);
 });
 
-aiRoutes.openapi(createRoute({
+aiRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/suggest-comment',
-    tags: ['AI'],
+    tags: ["ai"],
     summary: 'Suggest professional comments for a form item',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
         body: {
-            content: { 'application/json': { schema: SuggestCommentSchema } },
+            content: { 'application/json': { schema: SuggestCommentSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
         },
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: SuggestCommentResponseSchema } },
+            content: { 'application/json': { schema: SuggestCommentResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Suggestions',
         },
     },
-}), async (c) => {
+    operationId: "createAiSuggestComment",
+    description: "Auto-generated placeholder for createAiSuggestComment (POST /suggest-comment, ai domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const params = c.req.valid('json');
     const suggestions = await c.var.services.ai.suggestComment(params);
     return c.json({ success: true, data: suggestions });

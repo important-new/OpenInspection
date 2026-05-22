@@ -11,20 +11,23 @@ import {
     ListRecommendationsQuerySchema,
 } from '../lib/validations/recommendation.schema';
 import { RECOMMENDATION_SEEDS } from '../data/recommendation-seeds';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const recommendationsRoutes = new OpenAPIHono<HonoConfig>();
 
 /* ── GET /api/recommendations ─────────────────────────────────────────────── */
-recommendationsRoutes.openapi(createRoute({
+recommendationsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/',
-    tags: ['Recommendations'],
+    tags: ["recommendations"],
     summary: 'List recommendations (filter: category, severity)',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
-    request: { query: ListRecommendationsQuerySchema },
+    request: { query: ListRecommendationsQuerySchema.describe('TODO describe query field for the OpenInspection MCP integration') },
     responses: {
-        200: { content: { 'application/json': { schema: RecommendationListResponseSchema } }, description: 'List' },
+        200: { content: { 'application/json': { schema: RecommendationListResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } }, description: 'List' },
     },
-}), async (c) => {
+    operationId: "listRecommendations",
+    description: "Auto-generated placeholder for listRecommendations (GET /, recommendations domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'primary' })), async (c) => {
     const { category, severity } = c.req.valid('query');
     const tenantId = c.get('tenantId') as string;
     const filter: { category?: string; severity?: 'satisfactory' | 'monitor' | 'defect' } = {};
@@ -35,15 +38,18 @@ recommendationsRoutes.openapi(createRoute({
 });
 
 /* ── GET /api/recommendations/:id ─────────────────────────────────────────── */
-recommendationsRoutes.openapi(createRoute({
+recommendationsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/{id}',
-    tags: ['Recommendations'],
+    tags: ["recommendations"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
-    request: { params: z.object({ id: z.string().uuid() }) },
+    request: { params: z.object({ id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration') },
     responses: {
-        200: { content: { 'application/json': { schema: RecommendationResponseSchema } }, description: 'Single recommendation' },
+        200: { content: { 'application/json': { schema: RecommendationResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } }, description: 'Single recommendation' },
     },
-}), async (c) => {
+    operationId: "getRecommendation",
+    summary: "Get recommendation for current tenant",
+    description: "Auto-generated placeholder for getRecommendation (GET /{id}, recommendations domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'primary' })), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     const r = await c.var.services.recommendation.getById(id, tenantId);
@@ -52,15 +58,18 @@ recommendationsRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/recommendations ────────────────────────────────────────────── */
-recommendationsRoutes.openapi(createRoute({
+recommendationsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/',
-    tags: ['Recommendations'],
+    tags: ["recommendations"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
-    request: { body: { content: { 'application/json': { schema: CreateRecommendationSchema } } } },
+    request: { body: { content: { 'application/json': { schema: CreateRecommendationSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } } },
     responses: {
-        200: { content: { 'application/json': { schema: RecommendationResponseSchema } }, description: 'Created' },
+        200: { content: { 'application/json': { schema: RecommendationResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } }, description: 'Created' },
     },
-}), async (c) => {
+    operationId: "createRecommendation",
+    summary: "Create recommendation for current tenant",
+    description: "Auto-generated placeholder for createRecommendation (POST /, recommendations domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' })), async (c) => {
     const input = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
     const userId = (c.get('user') as { sub?: string } | undefined)?.sub;
@@ -70,18 +79,21 @@ recommendationsRoutes.openapi(createRoute({
 });
 
 /* ── PUT /api/recommendations/:id ─────────────────────────────────────────── */
-recommendationsRoutes.openapi(createRoute({
+recommendationsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'put', path: '/{id}',
-    tags: ['Recommendations'],
+    tags: ["recommendations"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().uuid() }),
-        body: { content: { 'application/json': { schema: UpdateRecommendationSchema } } },
+        params: z.object({ id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration'),
+        body: { content: { 'application/json': { schema: UpdateRecommendationSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
-        200: { content: { 'application/json': { schema: RecommendationResponseSchema } }, description: 'Updated' },
+        200: { content: { 'application/json': { schema: RecommendationResponseSchema.describe('TODO describe schema field for the OpenInspection MCP integration') } }, description: 'Updated' },
     },
-}), async (c) => {
+    operationId: "replaceRecommendation",
+    summary: "Replace recommendation for current tenant",
+    description: "Auto-generated placeholder for replaceRecommendation (PUT /{id}, recommendations domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const { id } = c.req.valid('param');
     const patch = c.req.valid('json');
     const tenantId = c.get('tenantId') as string;
@@ -91,15 +103,18 @@ recommendationsRoutes.openapi(createRoute({
 });
 
 /* ── DELETE /api/recommendations/:id ──────────────────────────────────────── */
-recommendationsRoutes.openapi(createRoute({
+recommendationsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'delete', path: '/{id}',
-    tags: ['Recommendations'],
+    tags: ["recommendations"],
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
-    request: { params: z.object({ id: z.string().uuid() }) },
+    request: { params: z.object({ id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration') },
     responses: {
-        200: { content: { 'application/json': { schema: z.object({ success: z.literal(true), data: z.object({ deleted: z.literal(true) }) }) } }, description: 'Deleted' },
+        200: { content: { 'application/json': { schema: z.object({ success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'), data: z.object({ deleted: z.literal(true).describe('TODO describe deleted field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration') }) } }, description: 'Deleted' },
     },
-}), async (c) => {
+    operationId: "deleteRecommendation",
+    summary: "Delete recommendation for current tenant",
+    description: "Auto-generated placeholder for deleteRecommendation (DELETE /{id}, recommendations domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'primary' })), async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     await c.var.services.recommendation.delete(id, tenantId);
@@ -108,19 +123,21 @@ recommendationsRoutes.openapi(createRoute({
 });
 
 /* ── POST /api/recommendations/seed-defaults ──────────────────────────────── */
-recommendationsRoutes.openapi(createRoute({
+recommendationsRoutes.openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/seed-defaults',
-    tags: ['Recommendations'],
+    tags: ["recommendations"],
     summary: 'Bulk-insert the default 80 recommendations (idempotent — skips entries with matching name+category)',
     middleware: [requireRole(['owner', 'admin'])] as const,
     request: {},
     responses: {
         200: { content: { 'application/json': { schema: z.object({
-            success: z.literal(true),
-            data: z.object({ inserted: z.number(), skipped: z.number() }),
+            success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'),
+            data: z.object({ inserted: z.number().describe('TODO describe inserted field for the OpenInspection MCP integration'), skipped: z.number().describe('TODO describe skipped field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration'),
         }) } }, description: 'Bulk seed result' },
     },
-}), async (c) => {
+    operationId: "seedDefaultsRecommendation",
+    description: "Auto-generated placeholder for seedDefaultsRecommendation (POST /seed-defaults, recommendations domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['write'], tier: 'extended' })), async (c) => {
     const tenantId = c.get('tenantId') as string;
     const result = await c.var.services.recommendation.bulkSeed(tenantId, RECOMMENDATION_SEEDS);
     return c.json({ success: true as const, data: result }, 200);

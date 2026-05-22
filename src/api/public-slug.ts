@@ -5,6 +5,7 @@ import type { HonoConfig } from '../types/hono';
 import { SlugAvailabilityResponseSchema } from '../lib/validations/profile.schema';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
 import { users, slugReservations } from '../lib/db/schema/tenant';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 /**
  * Booking #7 Sprint A — public slug-availability endpoint.
@@ -25,16 +26,16 @@ import { users, slugReservations } from '../lib/db/schema/tenant';
  */
 const app = new OpenAPIHono<HonoConfig>();
 
-const checkSlugRoute = createRoute({
+const checkSlugRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/check/slug',
-    tags: ['Public'],
+    tags: ["profile", "public"],
     summary: 'Check whether a booking slug is available',
     request: {
         query: z.object({
-            value: z.string().min(1).max(64),
-            namespace: z.enum(['inspector', 'agent']).optional(),
-        }),
+            value: z.string().min(1).max(64).describe('TODO describe value field for the OpenInspection MCP integration'),
+            namespace: z.enum(['inspector', 'agent']).optional().describe('TODO describe namespace field for the OpenInspection MCP integration'),
+        }).describe('TODO describe query field for the OpenInspection MCP integration'),
     },
     responses: {
         200: {
@@ -46,7 +47,9 @@ const checkSlugRoute = createRoute({
             description: 'Availability check result',
         },
     },
-});
+    operationId: "listSlugCheckSlug",
+    description: "Auto-generated placeholder for listSlugCheckSlug (GET /check/slug, profile domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: [], tier: 'extended' }));
 
 app.openapi(checkSlugRoute, async (c) => {
     const { value, namespace } = c.req.valid('query');

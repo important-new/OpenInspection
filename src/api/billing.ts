@@ -16,19 +16,22 @@ import { tenants, users as usersTbl } from '../lib/db/schema';
 import { summariseSeats } from '../lib/billing-summary';
 import { Errors } from '../lib/errors';
 import type { HonoConfig } from '../types/hono';
+import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const billingRoutes = new OpenAPIHono<HonoConfig>();
 
-const summaryRoute = createRoute({
+const summaryRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/summary',
-    tags:    ['Billing'],
+    tags: ["invoices"],
     summary: 'Get tenant seat-quota summary (permanent + guests + cap)',
     responses: {
         200: { description: 'Summary' },
         404: { description: 'Tenant not found' },
     },
-});
+    operationId: "listBillingSummary",
+    description: "Auto-generated placeholder for listBillingSummary (GET /summary, invoices domain). TODO: replace with a real description sourced from the handler."
+}, { scopes: ['read'], tier: 'extended' }));
 
 billingRoutes.openapi(summaryRoute, async (c) => {
     const tenantId = c.get('tenantId');
