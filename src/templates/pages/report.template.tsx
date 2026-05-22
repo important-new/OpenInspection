@@ -316,7 +316,9 @@ export function renderProfessionalReport(data: {
                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Client</h3>
                        </div>
                        <p class="text-xl font-bold tracking-tight text-slate-900">{inspection.clientName || 'Private Client'}</p>
-                       <p class="mt-2 text-lg text-indigo-600 font-bold uppercase tracking-tight">{inspection.clientEmail || 'REDACTED'}</p>
+                       {inspection.clientEmail
+                           ? <p class="mt-2 text-sm text-slate-500 font-medium tracking-tight">{inspection.clientEmail}</p>
+                           : null}
                        <div class="mt-6 pt-6 border-t border-slate-100 flex gap-4">
                            <div class="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500">Standard Inspection</div>
                        </div>
@@ -326,8 +328,10 @@ export function renderProfessionalReport(data: {
                            <div class="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Inspector</h3>
                        </div>
-                       <p class="text-xl font-bold tracking-tight text-slate-900">{branding?.siteName || siteName}</p>
-                       <p class="mt-2 text-lg text-slate-500 font-medium">Report #{inspection.id.substring(0, 8).toUpperCase()}</p>
+                       {(inspection as { inspectorName?: string | null }).inspectorName
+                           ? <p class="text-xl font-bold tracking-tight text-slate-900">{(inspection as { inspectorName?: string | null }).inspectorName}</p>
+                           : null}
+                       <p class="mt-1 text-sm text-slate-500 font-medium tracking-tight">{branding?.siteName || siteName} · Report #{inspection.id.substring(0, 8).toUpperCase()}</p>
                        <div class="mt-6 flex items-center gap-3">
                            <div class="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
