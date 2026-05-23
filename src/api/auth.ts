@@ -91,6 +91,24 @@ const loginRoute = createRoute(withMcpMetadata({
 }, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(loginRoute, async (c) => {
+    // Shared-SaaS deploys disable the local password form — see the
+    // matching guard on GET /login. Returning Gone (410) + a redirect
+    // hint lets stale clients (cached SPA build, scripted callers) bail
+    // out cleanly instead of attempting credential validation against
+    // a per-(tenant_id,email) row they can't disambiguate.
+    const profile = c.var.profile;
+    if (profile?.mode === 'saas' && profile?.saasTopology === 'shared') {
+        const portal = c.env.PORTAL_API_URL?.replace(/\/$/, '') ?? null;
+        return c.json({
+            success: false,
+            error: {
+                code: 'LOGIN_MOVED_TO_PORTAL',
+                message: 'Sign in via the workspace portal; this tenant runs in shared-SaaS mode.',
+                ...(portal ? { details: { redirect: `${portal}/login` } } : {}),
+            },
+        }, 410);
+    }
+
     await checkRateLimit(c, 'login');
 
     const body = c.req.valid('json');
@@ -223,6 +241,83 @@ coreAuthRoutes.openapi(joinTeamRoute, async (c) => {
         success: true,
         data: { redirect: '/dashboard' }
     }, 200);
+});
+
+/**
+ * GET /sso?code=<uuid>
+ *
+ * SSO consume endpoint — the receiving half of the portal-issued
+ * handoff token minted at POST /api/integration/sso-handoff. Reads
+ * `sso:<code>` from KV (single-use, short TTL), looks up the user,
+ * issues a workspace-scoped session cookie, and redirects into the
+ * inspector dashboard.
+ *
+ * Public route (no auth middleware) — the code IS the credential.
+ * Code is deleted from KV on success so a leaked URL can't be replayed.
+ *
+ * This endpoint is what makes multi-workspace switching feel
+ * frictionless from portal: user clicks a workspace card → portal
+ * calls /api/integration/sso-handoff to get a code → portal 302s the
+ * browser to this URL → core sets the right cookie → user lands on
+ * the right tenant's dashboard.
+ */
+const ssoConsumeRoute = createRoute(withMcpMetadata({
+    method: 'get',
+    path: '/sso',
+    operationId: 'ssoConsume',
+    summary: 'Consume a portal-issued SSO handoff code',
+    description: 'Reads sso:<code> from KV, issues a session cookie, redirects to /dashboard.',
+    tags: ['auth', 'public'],
+    request: {
+        query: z.object({
+            code: z.string().min(8).describe('One-time SSO handoff code minted by the portal at POST /api/integration/sso-handoff. Single-use, expires after 60 seconds, deleted from KV on successful consume.'),
+        }),
+    },
+    responses: {
+        302: { description: 'Redirect to /dashboard on success or /login on failure' },
+    }
+}, { scopes: [], tier: 'excluded' }));
+
+coreAuthRoutes.openapi(ssoConsumeRoute, async (c) => {
+    const { code } = c.req.valid('query');
+    if (!c.env.TENANT_CACHE) return c.redirect('/login?sso=unavailable', 302);
+
+    const raw = await c.env.TENANT_CACHE.get(`sso:${code}`);
+    if (!raw) return c.redirect('/login?sso=expired', 302);
+    // Single-use: delete BEFORE issuing the cookie so a parallel replay
+    // can't piggyback on a still-resolving call.
+    await c.env.TENANT_CACHE.delete(`sso:${code}`);
+
+    let parsed: { userId?: string; tenantId?: string };
+    try { parsed = JSON.parse(raw); } catch { return c.redirect('/login?sso=invalid', 302); }
+    if (!parsed.userId || !parsed.tenantId) return c.redirect('/login?sso=invalid', 302);
+
+    const { drizzle } = await import('drizzle-orm/d1');
+    const { eq, and } = await import('drizzle-orm');
+    const { users } = await import('../lib/db/schema');
+    const d = drizzle(c.env.DB);
+    const user = await d.select().from(users)
+        .where(and(eq(users.id, parsed.userId), eq(users.tenantId, parsed.tenantId)))
+        .get();
+    if (!user) return c.redirect('/login?sso=invalid', 302);
+
+    const keyring = await c.var.keyringPromise!;
+    const now = Math.floor(Date.now() / 1000);
+    const token = await signJwt({
+        sub: user.id,
+        'custom:tenantId': user.tenantId,
+        'custom:userRole': user.role,
+        role: user.role,
+        iat: now,
+        exp: now + 60 * 60 * 24,
+        // Marker so audit logs / downstream middleware can detect that
+        // this session was minted via portal handoff rather than direct
+        // password login.
+        'custom:sso': true,
+    }, keyring);
+
+    setCookie(c, '__Host-inspector_token', token, authCookieOptions());
+    return c.redirect('/dashboard', 302);
 });
 
 const forgotPasswordRoute = createRoute(withMcpMetadata({
