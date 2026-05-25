@@ -1448,7 +1448,7 @@ inspectionsRoutes.get('/:id/report', async (c) => {
 
     const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
     return c.html(renderProfessionalReport({
-        inspection: inspection as never,
+        inspection: { ...inspection, inspectorName } as never,
         template: template as never,
         results: (results || { data: {} }) as never,
         branding: c.get('branding'),

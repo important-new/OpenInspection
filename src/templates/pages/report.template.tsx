@@ -162,7 +162,8 @@ export function renderProfessionalReport(data: {
         tab: 'full',
     })})`}
     x-init="init()"
-    class="min-h-screen bg-slate-50/50 antialiased relative"
+    class="min-h-screen antialiased relative"
+    style="background: var(--bg-primary, #f8fafc); color: var(--text-primary, #0f172a); font-family: var(--font-body, ui-sans-serif, system-ui, sans-serif);"
 >
     {/* Sub-spec D Task 5 — left sidebar, hidden in print. */}
     <ReportSidebar
@@ -200,11 +201,20 @@ export function renderProfessionalReport(data: {
         {...{':class': "(showAgreement || (signed && showPayment && !paid)) ? 'blur-content' : ''"}}
         class="max-w-6xl mx-auto relative z-10"
     >
-        <div class="bg-white shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)] rounded-xl overflow-hidden border border-white relative">
+        <div
+            class="shadow-[0_40px_100px_-20px_rgba(0,0,0,0.08)] overflow-hidden relative"
+            style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #ffffff); border-radius: var(--radius-card, 12px);"
+        >
             {/* Header / Cover Tier */}
-            <div class="bg-slate-900 px-6 py-8 md:px-10 md:py-10 relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-[400px] h-full bg-gradient-to-l from-indigo-500/20 to-transparent skew-x-[-20deg] translate-x-32"></div>
-                
+            <div
+                class="px-6 py-8 md:px-10 md:py-10 relative overflow-hidden"
+                style="background: var(--bg-hero, var(--bg-primary, #0f172a));"
+            >
+                <div
+                    class="absolute top-0 right-0 w-[400px] h-full skew-x-[-20deg] translate-x-32"
+                    style="background: linear-gradient(to left, var(--accent-on-hero, rgba(99,102,241,0.22)), transparent);"
+                ></div>
+
                 <div class="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
                     <div class="max-w-3xl">
                         <div class="flex items-center gap-4 mb-6">
@@ -218,13 +228,28 @@ export function renderProfessionalReport(data: {
                             Per handoff README, font-black is retained ONLY on Report Cover H1
                             + stat numbers; the size moved from text-7xl (72px) → text-4xl
                             (36px), still hero-scale but no longer Spectora-mockingly oversized. */}
-                        <h1 class="text-3xl md:text-2xl font-bold tracking-tight text-white leading-[1.1]">{inspection.propertyAddress}</h1>
-                        <p class="mt-8 text-xl text-slate-400 font-medium tracking-tight">Home Inspection Report</p>
+                        <h1
+                            class="text-4xl md:text-5xl font-bold tracking-tight text-white leading-[1.05]"
+                            style="font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif);"
+                        >{inspection.propertyAddress}</h1>
+                        <p
+                            class="mt-6 text-lg text-white/70 font-normal tracking-tight"
+                            style="font-family: var(--font-body, ui-sans-serif, system-ui, sans-serif);"
+                        >Home Inspection Report</p>
                     </div>
-                    
-                    <div class="flex flex-col items-start md:items-end gap-2 border-l-2 md:border-l-0 md:border-r-2 border-indigo-500/40 pl-8 md:pl-0 md:pr-8 py-2">
-                        <span class="text-[10px] font-bold uppercase tracking-[0.3em] text-indigo-400">Inspection Date</span>
-                        <span class="text-xl font-bold text-white tabular-nums tracking-tight">
+
+                    <div
+                        class="flex flex-col items-start md:items-end gap-2 border-l-2 md:border-l-0 md:border-r-2 pl-8 md:pl-0 md:pr-8 py-2"
+                        style="border-color: var(--hero-rule, rgba(99,102,241,0.4));"
+                    >
+                        <span
+                            class="text-[10px] font-bold uppercase tracking-[0.3em]"
+                            style="color: var(--hero-label, #a78bfa);"
+                        >Inspection Date</span>
+                        <span
+                            class="text-xl font-bold text-white tabular-nums tracking-tight"
+                            style="font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif);"
+                        >
                             {new Date(inspection.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }).toUpperCase()}
                         </span>
                     </div>
@@ -292,7 +317,9 @@ export function renderProfessionalReport(data: {
                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Client</h3>
                        </div>
                        <p class="text-xl font-bold tracking-tight text-slate-900">{inspection.clientName || 'Private Client'}</p>
-                       <p class="mt-2 text-lg text-indigo-600 font-bold uppercase tracking-tight">{inspection.clientEmail || 'REDACTED'}</p>
+                       {inspection.clientEmail
+                           ? <p class="mt-2 text-sm text-slate-500 font-medium tracking-tight">{inspection.clientEmail}</p>
+                           : null}
                        <div class="mt-6 pt-6 border-t border-slate-100 flex gap-4">
                            <div class="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-500">Standard Inspection</div>
                        </div>
@@ -302,8 +329,10 @@ export function renderProfessionalReport(data: {
                            <div class="w-1.5 h-6 bg-indigo-600 rounded-full"></div>
                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Inspector</h3>
                        </div>
-                       <p class="text-xl font-bold tracking-tight text-slate-900">{branding?.siteName || siteName}</p>
-                       <p class="mt-2 text-lg text-slate-500 font-medium">Report #{inspection.id.substring(0, 8).toUpperCase()}</p>
+                       {(inspection as { inspectorName?: string | null }).inspectorName
+                           ? <p class="text-xl font-bold tracking-tight text-slate-900">{(inspection as { inspectorName?: string | null }).inspectorName}</p>
+                           : null}
+                       <p class="mt-1 text-sm text-slate-500 font-medium tracking-tight">{branding?.siteName || siteName} · Report #{inspection.id.substring(0, 8).toUpperCase()}</p>
                        <div class="mt-6 flex items-center gap-3">
                            <div class="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
