@@ -188,14 +188,51 @@ export const InspectionSettingsSheet = ({
                                         </template>
                                     </select>
                                 </label>
-                                <div
-                                    x-show="ratingSystemLabel"
-                                    style="display:none"
-                                    class="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-indigo-50 ring-1 ring-inset ring-indigo-200 text-[11px] font-bold text-indigo-700"
-                                >
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                    Rating system: <span x-text="ratingSystemLabel"></span>
+                                {/* Feature #20 phase 2 — inline rating system swap.
+                                    Reads /api/rating-systems on sheet open, shows the
+                                    current snapshot's system as the selected option,
+                                    and opens an inline confirmation modal (oiPrompt
+                                    pattern, no window.confirm) with three explicit
+                                    options before POSTing to /switch-rating-system. */}
+                                <label class="block">
+                                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Rating system</span>
+                                    <select
+                                        x-model="form.ratingSystemId"
+                                        x-on:change="openRatingSwitchPrompt($event.target.value)"
+                                        class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                                    >
+                                        <template x-for="rs in ratingSystems" {...{ 'x-bind:key': 'rs.id' }}>
+                                            <option {...{ 'x-bind:value': 'rs.id' }} x-text="rs.name + ' (' + (rs.levels?.length || 0) + ' levels)'"></option>
+                                        </template>
+                                    </select>
+                                    <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        Switching maps each rated item to the new system by severity bucket. Items without a matching bucket lose their rating. Notes, photos, and comments are preserved.
+                                    </p>
+                                </label>
+
+                                {/* Feature #20 phase 3 — Save back / Save as new template.
+                                    Both act on the current snapshot's structure (sections +
+                                    items + rating system) without copying any per-item
+                                    ratings/notes/photos. Save back overwrites the source
+                                    template (other future inspections inherit). Save as
+                                    new creates a fresh template row in the tenant library. */}
+                                <div class="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        x-on:click="openSaveBackPrompt()"
+                                        class="h-9 px-3 rounded-md text-[12px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 ring-1 ring-inset ring-amber-200 dark:ring-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                                        title="Overwrite the source template with this inspection's structure"
+                                    >Save back to template</button>
+                                    <button
+                                        type="button"
+                                        x-on:click="openSaveAsNewPrompt()"
+                                        class="h-9 px-3 rounded-md text-[12px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                                        title="Freeze this inspection's structure as a new tenant template"
+                                    >Save as new template…</button>
                                 </div>
+                                <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    Both options copy the section + item structure and the rating system only. Per-item ratings, notes, and photos stay with this inspection.
+                                </p>
                             </fieldset>
 
                             <fieldset class="space-y-4">
@@ -241,3 +278,449 @@ export const InspectionSettingsSheet = ({
         </div>
     );
 };
+
+/**
+ * Feature #20 phase 2 — rating system switch confirmation modal.
+ *
+ * Lives at the page root (not inside the settings sheet's <aside>) so its
+ * `fixed inset-0` overlay isn't clipped by the sheet's transform / max-w
+ * constraints. State (ratingSwitchPrompt) lives in the inspectionSettingsPage
+ * Alpine factory; we read it here via $store + dispatched window events so
+ * the modal doesn't need to inherit the sheet's scope.
+ *
+ * Three explicit actions instead of OK/Cancel: Remap by severity, Clear all
+ * ratings, Cancel. Never use window.confirm.
+ */
+export const RatingSwitchConfirmModal = (): JSX.Element => (
+    <div
+        x-data="{
+            prompt: { show: false, targetName: '', targetLevelCount: 0, ratedCount: 0, busy: false },
+            close() { this.prompt = { ...this.prompt, show: false, busy: false }; },
+            cancel() { window.dispatchEvent(new CustomEvent('rating-switch-cancel')); this.close(); },
+            confirm(mode) {
+                if (this.prompt.busy) return;
+                this.prompt.busy = true;
+                window.dispatchEvent(new CustomEvent('rating-switch-confirm', { detail: { mode } }));
+            },
+        }"
+        {...{
+            'x-on:rating-switch-open.window': 'prompt = { show: true, targetName: $event.detail.targetName, targetLevelCount: $event.detail.targetLevelCount, ratedCount: $event.detail.ratedCount, busy: false }',
+            'x-on:rating-switch-done.window': 'close()',
+        }}
+    >
+        <div
+            x-show="prompt.show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <div class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700">
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Switch rating system?</h3>
+                </div>
+                <div class="px-5 py-4 space-y-3 text-[13px] text-slate-700 dark:text-slate-300">
+                    <p>
+                        Target: <strong class="font-semibold text-slate-900 dark:text-slate-100" x-text="prompt.targetName"></strong>
+                        <span x-text="' (' + prompt.targetLevelCount + ' levels)'" class="text-slate-500"></span>
+                    </p>
+                    <p>
+                        Currently rated: <strong class="font-semibold text-slate-900 dark:text-slate-100 tabular-nums" x-text="prompt.ratedCount"></strong> items
+                    </p>
+                    <ul class="space-y-1.5 text-[12px] leading-relaxed text-slate-600 dark:text-slate-400 list-disc pl-5">
+                        <li><strong>Remap by severity</strong> — each rating maps to a new level with the same bucket (good / marginal / significant). No bucket match = rating cleared.</li>
+                        <li><strong>Clear all ratings</strong> — every item's rating is removed, regardless of bucket.</li>
+                        <li>Notes, photos, and canned comments are <em>always</em> preserved.</li>
+                    </ul>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="button"
+                        x-on:click="confirm('clear')"
+                        {...{ 'x-bind:disabled': "prompt.busy" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/30 ring-1 ring-inset ring-rose-200 dark:ring-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 disabled:opacity-50 transition-colors"
+                    >Clear all ratings</button>
+                    <button
+                        type="button"
+                        x-on:click="confirm('remap')"
+                        {...{ 'x-bind:disabled': "prompt.busy" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Remap by severity</button>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+/**
+ * Feature #20 phase 2b — add-section prompt modal.
+ *
+ * Mounted at page root alongside RatingSwitchConfirmModal so its overlay
+ * isn't clipped by the settings sheet. Communicates with the editor via
+ * window events:
+ *   add-section-open    →  modal opens with empty title
+ *   add-section-confirm {title}  →  editor patches snapshot
+ *   add-section-done    →  modal closes (editor fires on success/error)
+ */
+export const AddSectionPromptModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            title: '',
+            busy: false,
+            close() { this.show = false; this.title = ''; this.busy = false; },
+            cancel() { this.close(); },
+            submit() {
+                if (this.busy) return;
+                const t = (this.title || '').trim();
+                if (!t) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent('add-section-confirm', { detail: { title: t } }));
+            },
+        }"
+        {...{
+            'x-on:add-section-open.window': 'show = true; title = ""; busy = false; $nextTick(() => $refs.titleInput?.focus())',
+            'x-on:add-section-done.window':  'close()',
+            'x-on:keydown.escape.window':    'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <form
+                {...{ 'x-on:submit.prevent': 'submit()' }}
+                class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
+            >
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Add a section</h3>
+                    <p class="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                        Per-inspection only — the source template is unchanged.
+                    </p>
+                </div>
+                <div class="px-5 py-4">
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Section title</span>
+                        <input
+                            type="text"
+                            x-model="title"
+                            x-ref="titleInput"
+                            maxlength="50"
+                            required
+                            placeholder="e.g. Pool & Spa"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </label>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="submit"
+                        {...{ 'x-bind:disabled': "busy || !title.trim()" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Add section</button>
+                </div>
+            </form>
+        </div>
+    </div>
+);
+
+/**
+ * Feature #20 phase 2c — generic destructive-confirm modal.
+ *
+ * One reusable confirmation surface for delete-section, delete-item,
+ * save-back-to-template, and any future irreversible action. The opener
+ * dispatches `confirm-danger-open` with a payload describing the dialog
+ * (title, body, confirmText, eventName) and stashes context on the
+ * editor; on confirm the modal fires the caller's eventName so each
+ * action can route its own handler. No window.confirm.
+ *
+ * Event detail shape:
+ *   { title: string, body: string[],  // bullet lines
+ *     confirmText?: string,            // defaults to "Delete"
+ *     confirmEvent: string,            // event name to fire on confirm
+ *     tone?: 'danger' | 'warning' }    // styles the confirm button
+ */
+export const ConfirmDangerModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            title: '',
+            body: [],
+            confirmText: 'Delete',
+            confirmEvent: '',
+            tone: 'danger',
+            busy: false,
+            close() { this.show = false; this.busy = false; },
+            cancel() { this.close(); },
+            confirm() {
+                if (this.busy || !this.confirmEvent) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent(this.confirmEvent));
+            },
+        }"
+        {...{
+            'x-on:confirm-danger-open.window': 'show = true; busy = false; title = $event.detail.title || ""; body = $event.detail.body || []; confirmText = $event.detail.confirmText || "Delete"; confirmEvent = $event.detail.confirmEvent || ""; tone = $event.detail.tone || "danger"',
+            'x-on:confirm-danger-done.window': 'close()',
+            'x-on:keydown.escape.window': 'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <div class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700">
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100" x-text="title"></h3>
+                </div>
+                <div class="px-5 py-4">
+                    <ul class="space-y-1.5 text-[13px] leading-relaxed text-slate-700 dark:text-slate-300 list-disc pl-5">
+                        <template x-for="(line, i) in body" {...{ 'x-bind:key': 'i' }}>
+                            <li x-text="line"></li>
+                        </template>
+                    </ul>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="button"
+                        x-on:click="confirm()"
+                        {...{ 'x-bind:disabled': "busy" }}
+                        {...{ 'x-bind:class': "tone === 'warning' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-rose-600 hover:bg-rose-700'" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white disabled:opacity-50 transition-colors"
+                        x-text="confirmText"
+                    ></button>
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
+/**
+ * Feature #20 phase 3 — save-as-new-template modal.
+ *
+ * Lets the inspector freeze the current per-inspection snapshot as a
+ * brand-new template row in the tenant library. The new template
+ * becomes available for future inspections via the standard template
+ * picker. Source template (the one this inspection was originally
+ * cloned from) is unchanged.
+ */
+export const SaveAsNewTemplateModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            name: '',
+            busy: false,
+            close() { this.show = false; this.name = ''; this.busy = false; },
+            cancel() { this.close(); },
+            submit() {
+                if (this.busy) return;
+                const n = (this.name || '').trim();
+                if (!n) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent('save-as-template-confirm', { detail: { name: n } }));
+            },
+        }"
+        {...{
+            'x-on:save-as-template-open.window': 'show = true; name = $event.detail?.suggestedName || ""; busy = false; $nextTick(() => $refs.nameInput?.focus())',
+            'x-on:save-as-template-done.window': 'close()',
+            'x-on:keydown.escape.window': 'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <form
+                {...{ 'x-on:submit.prevent': 'submit()' }}
+                class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
+            >
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Save as new template</h3>
+                    <p class="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                        Freezes the current section + item structure (plus the rating system) into a new tenant template. Per-item ratings, notes, and photos on this inspection are NOT copied.
+                    </p>
+                </div>
+                <div class="px-5 py-4">
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Template name</span>
+                        <input
+                            type="text"
+                            x-model="name"
+                            x-ref="nameInput"
+                            maxlength="100"
+                            required
+                            placeholder="e.g. Coastal Properties — Standard"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </label>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="submit"
+                        {...{ 'x-bind:disabled': "busy || !name.trim()" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Save as template</button>
+                </div>
+            </form>
+        </div>
+    </div>
+);
+
+/**
+ * Feature #20 phase 2b — add-item prompt modal.
+ *
+ * Same event-bridge pattern as AddSectionPromptModal. Receives
+ * `add-item-open {sectionTitle}` to seed the dialog (the sectionId
+ * is held by the editor's _pendingAddItemSectionId so the modal
+ * doesn't need it), emits `add-item-confirm {label, type}` on submit.
+ *
+ * Item types mirror TemplateSchemaV2's discriminated union: rich (the
+ * standard rated item with 3 canned-comment tabs) plus 8 non-rich data
+ * collectors. We default to rich because that's what 90% of inspection
+ * items are; the type-picker only matters when the inspector wants a
+ * data point ("Year Built", "Foundation Type") rather than a rating.
+ */
+export const AddItemPromptModal = (): JSX.Element => (
+    <div
+        x-data="{
+            show: false,
+            label: '',
+            type: 'rich',
+            sectionTitle: '',
+            busy: false,
+            types: [
+                { value: 'rich',         label: 'Rated item (with canned comments)' },
+                { value: 'text',         label: 'Text field' },
+                { value: 'textarea',     label: 'Long text' },
+                { value: 'number',       label: 'Number' },
+                { value: 'select',       label: 'Single choice' },
+                { value: 'multi_select', label: 'Multi choice' },
+                { value: 'boolean',      label: 'Yes / No' },
+                { value: 'date',         label: 'Date' },
+                { value: 'photo_only',   label: 'Photos only' },
+            ],
+            close() { this.show = false; this.label = ''; this.type = 'rich'; this.busy = false; },
+            cancel() { this.close(); },
+            submit() {
+                if (this.busy) return;
+                const l = (this.label || '').trim();
+                if (!l) return;
+                this.busy = true;
+                window.dispatchEvent(new CustomEvent('add-item-confirm', { detail: { label: l, type: this.type } }));
+            },
+        }"
+        {...{
+            'x-on:add-item-open.window': 'show = true; label = ""; type = "rich"; busy = false; sectionTitle = $event.detail.sectionTitle || ""; $nextTick(() => $refs.labelInput?.focus())',
+            'x-on:add-item-done.window': 'close()',
+            'x-on:keydown.escape.window': 'show && cancel()',
+        }}
+    >
+        <div
+            x-show="show"
+            x-cloak
+            class="fixed inset-0 z-[70] flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div
+                x-on:click="cancel()"
+                class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            ></div>
+            <form
+                {...{ 'x-on:submit.prevent': 'submit()' }}
+                class="relative w-full max-w-md rounded-lg bg-white dark:bg-slate-800 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
+            >
+                <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100">Add an item</h3>
+                    <p class="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">
+                        Adding to <strong x-text="sectionTitle || 'this section'"></strong> — per-inspection only.
+                    </p>
+                </div>
+                <div class="px-5 py-4 space-y-4">
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Item label</span>
+                        <input
+                            type="text"
+                            x-model="label"
+                            x-ref="labelInput"
+                            maxlength="100"
+                            required
+                            placeholder="e.g. Pool Pump"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        />
+                    </label>
+                    <label class="block">
+                        <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Item type</span>
+                        <select
+                            x-model="type"
+                            class="mt-1 w-full h-10 px-3 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-[14px] font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        >
+                            <template x-for="t in types" {...{ 'x-bind:key': 't.value' }}>
+                                <option {...{ 'x-bind:value': 't.value' }} x-text="t.label"></option>
+                            </template>
+                        </select>
+                        <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Type is locked once the item is created. Pick "Rated item" for anything you want to mark Satisfactory / Defect; the rest collect a single data point.
+                        </p>
+                    </label>
+                </div>
+                <div class="px-5 py-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-on:click="cancel()"
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                    >Cancel</button>
+                    <button
+                        type="submit"
+                        {...{ 'x-bind:disabled': "busy || !label.trim()" }}
+                        class="h-9 px-3 rounded-md text-[12px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >Add item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+);

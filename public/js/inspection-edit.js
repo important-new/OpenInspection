@@ -817,6 +817,301 @@ function inspectionEditor(inspectionId) {
       this.batchSelected     = {};
     },
 
+    // Feature #20 phase 2b — open the AddSectionPromptModal. The modal
+    // handles its own state; on submit it fires `add-section-confirm`
+    // which the listener below routes to _addSection().
+    openAddSectionPrompt() {
+      this._ensureAddSectionListeners();
+      window.dispatchEvent(new CustomEvent('add-section-open'));
+    },
+
+    _ensureAddSectionListeners() {
+      if (this._addSectionInstalled) return;
+      this._addSectionInstalled = true;
+      window.addEventListener('add-section-confirm', (e) => {
+        const title = (e && e.detail && e.detail.title) || '';
+        this._addSection(title);
+      });
+    },
+
+    // Feature #20 phase 2b — + Add item flow. The modal sits at page root
+    // and only knows label + type; we stash the target section id here so
+    // the listener can patch the right place in the snapshot.
+    _pendingAddItemSectionId: '',
+
+    openAddItemPrompt() {
+      const sec = this.currentSection;
+      if (!sec) return;
+      this._pendingAddItemSectionId = sec.id;
+      this._ensureAddItemListeners();
+      window.dispatchEvent(new CustomEvent('add-item-open', { detail: { sectionTitle: sec.title } }));
+    },
+
+    _ensureAddItemListeners() {
+      if (this._addItemInstalled) return;
+      this._addItemInstalled = true;
+      window.addEventListener('add-item-confirm', (e) => {
+        const label = (e && e.detail && e.detail.label) || '';
+        const type  = (e && e.detail && e.detail.type)  || 'rich';
+        this._addItem(this._pendingAddItemSectionId, label, type);
+      });
+    },
+
+    async _addItem(sectionId, label, type) {
+      const cleanLabel = (label || '').trim();
+      if (!sectionId || !cleanLabel) {
+        window.dispatchEvent(new CustomEvent('add-item-done'));
+        return;
+      }
+      try {
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || []).map(s => this._stripRuntimeKeys(s)),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        const target = snapshot.sections.find(s => s.id === sectionId);
+        if (!target) throw new Error('Section not found in snapshot');
+        const newItem = this._buildNewItem(cleanLabel, type);
+        target.items.push(newItem);
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error('HTTP ' + res.status + (body ? ' — ' + body.slice(0, 200) : ''));
+        }
+        window.dispatchEvent(new CustomEvent('add-item-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Added item "' + cleanLabel + '"', false);
+        }
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('add-item-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Add item failed: ' + ((e && e.message) || 'unknown'), true);
+        }
+      }
+    },
+
+    // Build a minimum-viable v2 item for the given type. Rich items need
+    // ratingOptions + tabs to satisfy the discriminated union; everything
+    // else just needs id + label + type.
+    _buildNewItem(label, type) {
+      const id = 'item_' + (crypto.randomUUID ? crypto.randomUUID() : Date.now());
+      const base = { id, label, type };
+      if (type === 'rich') {
+        base.ratingOptions = (this.ratingLevels || []).map(l => l.id || l.label).filter(Boolean);
+        base.tabs          = { information: [], limitations: [], defects: [] };
+      }
+      return base;
+    },
+
+    // Feature #20 phase 2c — destructive section + item ops via the
+    // shared ConfirmDangerModal. Each opener stashes context on
+    // `_pendingDanger` and routes the confirm event to the right
+    // handler. Snapshot rewrites use the same allowlist-strip helper
+    // the + Add flows already exercise.
+    _pendingDanger: null,
+
+    openDeleteSectionPrompt(idx) {
+      const sec = (this.sections || [])[idx];
+      if (!sec) return;
+      const items = sec.items || [];
+      const ratedCount = items.filter(it => this.results?.[it.id]?.rating).length;
+      const noteCount  = items.filter(it => (this.results?.[it.id]?.notes || '').trim()).length;
+      const photoCount = items.reduce((acc, it) => acc + ((this.results?.[it.id]?.photos || []).length), 0);
+      this._pendingDanger = { kind: 'delete-section', sectionId: sec.id };
+      this._ensureDangerListeners();
+      const body = [
+        `Removes ${items.length} item${items.length === 1 ? '' : 's'} from this inspection.`,
+      ];
+      if (ratedCount)  body.push(`${ratedCount} rating${ratedCount === 1 ? '' : 's'} will be discarded.`);
+      if (noteCount)   body.push(`${noteCount} item${noteCount === 1 ? '' : 's'} with notes will lose them.`);
+      if (photoCount)  body.push(`${photoCount} photo${photoCount === 1 ? '' : 's'} will become orphaned (still in R2 storage but no longer linked).`);
+      body.push('The source template is unchanged.');
+      window.dispatchEvent(new CustomEvent('confirm-danger-open', { detail: {
+        title:        `Delete section "${sec.title}"?`,
+        body,
+        confirmText:  'Delete section',
+        confirmEvent: 'danger-confirm-delete-section',
+        tone:         'danger',
+      }}));
+    },
+
+    openDeleteItemPrompt(itemId) {
+      const sec = this.currentSection;
+      const item = sec?.items?.find(it => it.id === itemId);
+      if (!item) return;
+      const r = this.results?.[itemId] || {};
+      this._pendingDanger = { kind: 'delete-item', itemId };
+      this._ensureDangerListeners();
+      const body = [`Removes item from section "${sec.title}".`];
+      if (r.rating)  body.push(`Rating "${r.rating}" will be discarded.`);
+      if ((r.notes || '').trim()) body.push('Notes will be discarded.');
+      if ((r.photos || []).length) body.push(`${r.photos.length} photo${r.photos.length === 1 ? '' : 's'} will become orphaned.`);
+      body.push('The source template is unchanged.');
+      window.dispatchEvent(new CustomEvent('confirm-danger-open', { detail: {
+        title:        `Delete item "${item.label}"?`,
+        body,
+        confirmText:  'Delete item',
+        confirmEvent: 'danger-confirm-delete-item',
+        tone:         'danger',
+      }}));
+    },
+
+    _ensureDangerListeners() {
+      if (this._dangerInstalled) return;
+      this._dangerInstalled = true;
+      window.addEventListener('danger-confirm-delete-section', () => this._deleteSection());
+      window.addEventListener('danger-confirm-delete-item',    () => this._deleteItem());
+    },
+
+    async _deleteSection() {
+      const pending = this._pendingDanger;
+      if (!pending || pending.kind !== 'delete-section') return;
+      try {
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || [])
+                            .filter(s => s.id !== pending.sectionId)
+                            .map(s => this._stripRuntimeKeys(s)),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Section deleted', false);
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Delete failed: ' + ((e && e.message) || 'unknown'), true);
+      }
+    },
+
+    async _deleteItem() {
+      const pending = this._pendingDanger;
+      if (!pending || pending.kind !== 'delete-item') return;
+      try {
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || []).map(s => {
+            const stripped = this._stripRuntimeKeys(s);
+            stripped.items = stripped.items.filter(it => it.id !== pending.itemId);
+            return stripped;
+          }),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Item deleted', false);
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+        if (typeof window.showToast === 'function') window.showToast('Delete failed: ' + ((e && e.message) || 'unknown'), true);
+      }
+    },
+
+    async _addSection(title) {
+      const cleanTitle = (title || '').trim();
+      if (!cleanTitle) {
+        window.dispatchEvent(new CustomEvent('add-section-done'));
+        return;
+      }
+      try {
+        // Mutate the local snapshot so the editor refreshes optimistically.
+        // The server-side TemplateSchemaV2 validator demands `id`, `title`,
+        // and `items` on every section — keep the new node minimal.
+        const newSection = {
+          id:    'sec_' + (crypto.randomUUID ? crypto.randomUUID() : Date.now()),
+          title: cleanTitle,
+          items: [],
+        };
+        const snapshot = {
+          schemaVersion: 2,
+          sections:      (this.sections || []).map(s => this._stripRuntimeKeys(s)),
+          ratingSystem:  this._snapshotRatingSystem(),
+        };
+        snapshot.sections.push(newSection);
+        const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/template-snapshot', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ snapshot }),
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        window.dispatchEvent(new CustomEvent('add-section-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Added section "' + cleanTitle + '"', false);
+        }
+        // Hard-reload so the section list rebuilds against the new snapshot.
+        window.location.reload();
+      } catch (e) {
+        window.dispatchEvent(new CustomEvent('add-section-done'));
+        if (typeof window.showToast === 'function') {
+          window.showToast('Add section failed: ' + ((e && e.message) || 'unknown'), true);
+        }
+      }
+    },
+
+    // Helpers for snapshot rebuild — the editor tacks runtime computed
+    // fields onto each section / item (rating, ratingColor, severityBucket,
+    // notes, photos, recommendation, ...) that aren't part of the persisted
+    // TemplateSchemaV2 shape. The schema is `.strict()`, so any extra key
+    // makes the PATCH fail with ZodError("unrecognized_keys"). Use an
+    // allowlist that mirrors src/lib/validations/template.schema.ts.
+    _stripRuntimeKeys(section) {
+      const allowedBase = ['id','label','description','icon','number','required','isSafety','defaultRecommendation','defaultEstimateMin','defaultEstimateMax','attributes','source','type'];
+      const typeExtras = {
+        rich:         ['ratingOptions','tabs'],
+        text:         ['options'],
+        textarea:     ['options'],
+        number:       ['options'],
+        select:       ['options'],
+        multi_select: ['options'],
+        photo_only:   ['options'],
+        boolean:      [],
+        date:         [],
+      };
+      const sectionAllow = ['id','title','icon','identifier','items','disclaimerText','alwaysPageBreak','source'];
+      const pick = (obj, keys) => keys.reduce((acc, k) => {
+        if (obj[k] !== undefined && obj[k] !== null) acc[k] = obj[k];
+        return acc;
+      }, {});
+
+      const out = pick(section, sectionAllow.filter(k => k !== 'items'));
+      // Default a rich item to type 'rich' if missing (legacy templates).
+      out.items = (section.items || []).map(it => {
+        const itemType = it.type || 'rich';
+        const allowed = allowedBase.concat(typeExtras[itemType] || []);
+        const picked = pick(it, allowed);
+        picked.type = itemType;
+        return picked;
+      });
+      return out;
+    },
+
+    _snapshotRatingSystem() {
+      // Reconstruct a v2-conformant ratingSystem block from ratingLevels.
+      // The editor already normalised these on load via mapRatingSystemLevels.
+      const levels = (this.ratingLevels || []).map(l => {
+        const out = { id: l.id || l.label, label: l.label || l.id };
+        if (l.abbreviation) out.abbreviation = l.abbreviation;
+        if (l.color)        out.color        = l.color;
+        if (l.severity)     out.severity     = l.severity;
+        if (l.isDefect)     out.isDefect     = true;
+        return out;
+      });
+      return { levels };
+    },
+
     /**
      * Design's Property Info as a virtual section — clicking the row in
      * the section rail swaps the centre pane from the item list to a

@@ -37,7 +37,7 @@ import {
     MediaAttachRequestSchema,
     MediaAttachResponseSchema,
 } from '../lib/validations/inspection.schema';
-import { CreateTemplateSchema, UpdateTemplateSchema } from '../lib/validations/template.schema';
+import { CreateTemplateSchema, UpdateTemplateSchema, TemplateSchemaV2Schema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { AggregatedRecommendationsResponseSchema } from '../lib/validations/recommendation.schema';
 import { UpdateMediaAnnotationsSchema } from '../lib/validations/media.schema';
@@ -926,6 +926,92 @@ inspectionsRoutes.openapi(updateResultsRoute, async (c) => {
 });
 
 /**
+ * PATCH /api/inspections/:id/template-snapshot
+ *
+ * Feature #20 phase 1 — inline edits to the inspection's frozen template
+ * structure. The inspector swaps rating system / adds / removes / renames
+ * sections + items in the editor; we persist the whole next-state snapshot
+ * here without touching the source template row. (Save-back-to-template
+ * and save-as-new-template come in later phases.)
+ */
+const PatchTemplateSnapshotBodySchema = z.object({
+    snapshot: TemplateSchemaV2Schema.describe('Full v2 template structure to overwrite the inspection snapshot with'),
+});
+const updateTemplateSnapshotRoute = createRoute(withMcpMetadata({
+    method: 'patch',
+    path: '/{id}/template-snapshot',
+    tags: ["inspections"],
+    summary: 'Replace the per-inspection template snapshot',
+    description: 'Replaces the templateSnapshot JSON wholesale. Validated against TemplateSchemaV2. Used by the inspection editor for inline structural edits (rating system swap, add/remove section/item).',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid().describe('Inspection ID') }),
+        body: { content: { 'application/json': { schema: PatchTemplateSnapshotBodySchema } } },
+    },
+    responses: {
+        200: { content: { 'application/json': { schema: SuccessResponseSchema } }, description: 'Snapshot replaced' },
+    },
+    operationId: 'patchInspectionTemplateSnapshot',
+}, { scopes: ['write'], tier: 'extended' }));
+
+inspectionsRoutes.openapi(updateTemplateSnapshotRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const { snapshot } = c.req.valid('json');
+    await c.var.services.inspection.updateTemplateSnapshot(id, c.get('tenantId'), snapshot);
+    auditFromContext(c, 'inspection.template_snapshot.update', 'inspection', {
+        entityId: id,
+        metadata: { sectionCount: snapshot.sections?.length ?? 0 },
+    });
+    return c.json({ success: true, data: { success: true } }, 200);
+});
+
+/**
+ * POST /api/inspections/:id/switch-rating-system
+ *
+ * Feature #20 phase 2 — swaps the rating system on a per-inspection snapshot
+ * with controlled handling of existing item ratings (severity-bucket remap
+ * or clear). Also clears inspection_results.ratingSystemSnapshot so the new
+ * system re-freezes on next write. Notes / photos / canned comments are
+ * always preserved.
+ */
+const SwitchRatingSystemSchema = z.object({
+    ratingSystemId: z.string().uuid(),
+    mode:           z.enum(['remap', 'clear']).default('remap'),
+});
+const SwitchRatingSystemResultSchema = z.object({
+    remapped: z.number(),
+    cleared:  z.number(),
+    total:    z.number(),
+});
+const switchRatingSystemRoute = createRoute(withMcpMetadata({
+    method: 'post',
+    path: '/{id}/switch-rating-system',
+    tags: ["inspections"],
+    summary: 'Switch the rating system on the per-inspection snapshot',
+    description: 'Swaps the per-inspection ratingSystem to the target system. mode="remap" maps existing item ratings by severity bucket; mode="clear" wipes them. Notes/photos/canned comments preserved. Clears the inspection_results.ratingSystemSnapshot freeze so the new system applies end-to-end.',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().uuid().describe('Inspection ID') }),
+        body: { content: { 'application/json': { schema: SwitchRatingSystemSchema } } },
+    },
+    responses: {
+        200: { content: { 'application/json': { schema: createApiResponseSchema(SwitchRatingSystemResultSchema) } }, description: 'Rating system switched' },
+    },
+    operationId: 'switchInspectionRatingSystem',
+}, { scopes: ['write'], tier: 'extended' }));
+
+inspectionsRoutes.openapi(switchRatingSystemRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const { ratingSystemId, mode } = c.req.valid('json');
+    const stats = await c.var.services.inspection.switchRatingSystem(id, c.get('tenantId'), ratingSystemId, mode);
+    auditFromContext(c, 'inspection.rating_system.switch', 'inspection', {
+        entityId: id,
+        metadata: { ratingSystemId, mode, ...stats },
+    });
+    return c.json({ success: true, data: stats }, 200);
+});
+
+/**
  * GET /api/inspections/:id/recommendations
  * Flattens all attached recommendations across all items + computes totals.
  * Spec 3 report renderer will consume this to build the consolidated repair list.
@@ -1361,9 +1447,22 @@ inspectionsRoutes.get('/:id/report', async (c) => {
         const results = await db.select().from(inspectionResults)
             .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, resolved.tenantId))).get();
         const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
+        // Feature #20 — anonymous viewer must also see the per-inspection
+        // snapshot, not the source template's schema. Same logic as the
+        // authenticated viewer below.
+        const rawSnapPublic = (inspection as unknown as { templateSnapshot?: unknown }).templateSnapshot;
+        let publicTemplate: unknown = template;
+        if (rawSnapPublic) {
+            try {
+                const snap = typeof rawSnapPublic === 'string' ? JSON.parse(rawSnapPublic as string) : rawSnapPublic;
+                if (snap && Array.isArray((snap as { sections?: unknown }).sections) && (snap as { sections: unknown[] }).sections.length > 0) {
+                    publicTemplate = { ...(template || {}), schema: snap };
+                }
+            } catch { /* malformed snapshot — fall through */ }
+        }
         return c.html(renderProfessionalReport({
             inspection: { ...inspection, internalNotes: null, paymentStatus: null, paymentRequired: false } as never,
-            template: template as never,
+            template: publicTemplate as never,
             results: (results || { data: {} }) as never,
             branding: c.get('branding'),
             isAuthenticated: false,
@@ -1447,9 +1546,25 @@ inspectionsRoutes.get('/:id/report', async (c) => {
     } catch { /* no units / migration not applied — degrade silently */ }
 
     const resolvedTheme = c.var.services.branding.resolveReportTheme(inspection, c.get('branding'));
+    // Feature #20 — the report viewer reads `template.schema`. When the
+    // inspection's per-job snapshot has its own (possibly extended)
+    // structure, override the template schema with it so added sections /
+    // items / rating-system swaps are actually visible in the published
+    // view. The snapshot is the authoritative shape for THIS inspection;
+    // template.schema is the source row used for future inspections.
+    const rawSnap = (inspection as unknown as { templateSnapshot?: unknown }).templateSnapshot;
+    let viewerTemplate: unknown = template;
+    if (rawSnap) {
+        try {
+            const snap = typeof rawSnap === 'string' ? JSON.parse(rawSnap as string) : rawSnap;
+            if (snap && Array.isArray((snap as { sections?: unknown }).sections) && (snap as { sections: unknown[] }).sections.length > 0) {
+                viewerTemplate = { ...(template || {}), schema: snap };
+            }
+        } catch { /* malformed snapshot — fall back to source template */ }
+    }
     return c.html(renderProfessionalReport({
         inspection: { ...inspection, inspectorName } as never,
-        template: template as never,
+        template: viewerTemplate as never,
         results: (results || { data: {} }) as never,
         branding: c.get('branding'),
         isAuthenticated: true,

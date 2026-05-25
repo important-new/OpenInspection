@@ -15,7 +15,7 @@ import { ReconnectBanner } from '../components/reconnect-banner';
 import { SideRail } from '../components/side-rail';
 import { BreadcrumbDropdown } from '../components/breadcrumb-dropdown';
 import { UnitTree } from '../components/unit-tree';
-import { InspectionSettingsSheet } from '../components/inspection-settings-sheet';
+import { InspectionSettingsSheet, RatingSwitchConfirmModal, AddSectionPromptModal, AddItemPromptModal, ConfirmDangerModal, SaveAsNewTemplateModal } from '../components/inspection-settings-sheet';
 import { MintObserverLinkModal } from '../components/mint-observer-link-modal';
 import { InviteSeatModal } from '../components/invite-seat-modal';
 import type { BrandingConfig } from '../../types/auth';
@@ -1276,9 +1276,12 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                   Per-section progress sourced from sectionProgress() in
                   the editor factory; defect count from sectionDefectCount(). */}
               <template x-for="(sec, idx) in sections" x-bind:key="sec.id">
+                <div
+                  x-show="sectionMatchesSearch(sec)"
+                  class="relative group/sec"
+                >
                 <button
                   x-on:click="selectSection(idx)"
-                  x-show="sectionMatchesSearch(sec)"
                   class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm transition-all"
                   x-bind:class="currentSectionIdx === idx ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'"
                   x-bind:style="currentSectionIdx === idx ? 'color: var(--ih-primary, #6366f1)' : ''"
@@ -1316,7 +1319,34 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                     class="w-5 h-5 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center tabular-nums"
                     x-text="sectionDefectCount(sec.id)"></span>
                 </button>
+                {/* Feature #20 phase 2c — hover delete on section row.
+                    Click stops propagation so it doesn't also fire
+                    selectSection. Confirm modal handles the destructive
+                    action with item-count + data-impact preview. */}
+                <button
+                  {...{ 'x-on:click.stop': 'openDeleteSectionPrompt(idx)' }}
+                  class="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/sec:opacity-100 transition-opacity h-7 w-7 rounded-md flex items-center justify-center text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+                  title="Delete this section"
+                  aria-label="Delete section"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>
+                </button>
+                </div>
               </template>
+
+              {/* Feature #20 phase 2b — inline "+ Add section" button.
+                  Dispatches `add-section-open` window event to AddSectionPromptModal;
+                  on confirm, inspection-edit.js patches the snapshot and reloads. */}
+              <button
+                x-on:click="openAddSectionPrompt()"
+                class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-sm transition-all text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 mt-2 border border-dashed border-indigo-300 dark:border-indigo-700/50"
+                title="Add a new section to this inspection"
+              >
+                <span class="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden="true">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6" /></svg>
+                </span>
+                <span class="font-semibold">Add section</span>
+              </button>
             </div>
           </aside>
 
@@ -1700,12 +1730,23 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                       <h3 class="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" x-html="highlightSearchMatch(item.label)"></h3>
                       <span class="text-[10px] font-mono text-slate-300 dark:text-slate-500" x-text="item.number"></span>
                     </div>
-                    <span
-                      class="ih-pill"
-                      x-show="getItemRating(item.id)"
-                      x-text="getRatingLabel(getItemRating(item.id))"
-                      x-bind:style="'background:' + getRatingColor(getItemRating(item.id)) + '20; color:' + getRatingColor(getItemRating(item.id))"
-                    ></span>
+                    <div class="flex items-center gap-1">
+                      <span
+                        class="ih-pill"
+                        x-show="getItemRating(item.id)"
+                        x-text="getRatingLabel(getItemRating(item.id))"
+                        x-bind:style="'background:' + getRatingColor(getItemRating(item.id)) + '20; color:' + getRatingColor(getItemRating(item.id))"
+                      ></span>
+                      {/* Feature #20 phase 2c — hover delete on item card. */}
+                      <button
+                        {...{ 'x-on:click.stop': 'openDeleteItemPrompt(item.id)' }}
+                        class="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 rounded flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+                        title="Delete this item"
+                        aria-label="Delete item"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>
+                      </button>
+                    </div>
                   </div>
                   {/* Rating Buttons (R7-16 — full label on ≥640px, abbreviation
                       on mobile; aria-label preserves the full name for AT). */}
@@ -2057,6 +2098,20 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
                 <p class="text-sm text-slate-500 dark:text-slate-400">No matches for &ldquo;<span class="font-semibold text-slate-700 dark:text-slate-200" x-text="searchQuery"></span>&rdquo;.</p>
                 <button x-on:click="clearSearch()" class="mt-2 text-xs font-semibold text-indigo-600 hover:underline">Clear search</button>
               </div>
+              {/* Feature #20 phase 2b — inline "+ Add item" tile at end of
+                  current section's grid. Hidden when a search is active
+                  so the no-results message owns the empty state. Editor
+                  knows the active section index, so we don't pass an id
+                  here; openAddItemPrompt() resolves it on click. */}
+              <button
+                x-show="!hasSearchQuery && currentSection"
+                x-on:click="openAddItemPrompt()"
+                class="col-span-2 xl:col-span-3 rounded-md p-4 text-left border border-dashed border-indigo-300 dark:border-indigo-700/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 transition-colors flex items-center justify-center gap-2 font-bold text-sm"
+                title="Add a new item to this section"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6" /></svg>
+                <span>Add item to <span x-text="currentSection?.title || 'this section'"></span></span>
+              </button>
             </div>
             </div>{/* /activeView === 'items' */}
           </main>
@@ -2167,6 +2222,26 @@ export function InspectionEditPage({ inspectionId, branding, enableRepairList = 
           inspectionId={inspectionId}
           {...(customReferralSources ? { customReferralSources } : {})}
         />
+        {/* Feature #20 phase 2 — rating system switch confirmation modal.
+            Mounted at page root so its fixed-position overlay escapes the
+            settings sheet's clipping. Communicates with inspectionSettingsPage
+            via `rating-switch-open` / `-confirm` / `-cancel` window events. */}
+        <RatingSwitchConfirmModal />
+        {/* Feature #20 phase 2b — add-section prompt modal. Triggered by the
+            "+ Add section" button at the end of the section list. Editor
+            listens for `add-section-confirm` to patch the snapshot. */}
+        <AddSectionPromptModal />
+        {/* Feature #20 phase 2b — add-item prompt modal. Triggered by the
+            "+ Add item to <section>" button at the bottom of each section's
+            grid. Editor holds the active section id in
+            _pendingAddItemSectionId so the modal only needs label + type. */}
+        <AddItemPromptModal />
+        {/* Feature #20 phase 2c — generic destructive-confirm modal.
+            One modal for delete-section, delete-item, save-back-to-template.
+            Caller dispatches `confirm-danger-open` with title/body/confirmEvent. */}
+        <ConfirmDangerModal />
+        {/* Feature #20 phase 3 — save current snapshot as a new tenant template. */}
+        <SaveAsNewTemplateModal />
         {/* S3-6 — burst-camera modal lives at the page level so it stays
             mounted across item navigation. inspection-edit.js dispatches a
             `burst-camera:open` window event when the user taps a Camera

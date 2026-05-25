@@ -691,6 +691,154 @@ export class InspectionService {
     }
 
     /**
+     * Feature: inline template-snapshot edit.
+     *
+     * Replaces the per-inspection template snapshot wholesale — used by the
+     * editor when an inspector swaps rating system, adds/removes sections or
+     * items, or otherwise tailors the report structure for one job without
+     * touching the source template row. Validation happens upstream at the
+     * Zod boundary, so by the time we land here `snapshot` is a parsed v2
+     * schema object; we stringify on the way to D1.
+     */
+    async updateTemplateSnapshot(id: string, tenantId: string, snapshot: unknown) {
+        const db = this.getDrizzle();
+        const row = await db.select({ id: inspections.id }).from(inspections)
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)))
+            .get();
+        if (!row) throw Errors.NotFound('Inspection not found or access denied');
+        await db.update(inspections)
+            .set({ templateSnapshot: JSON.stringify(snapshot) as never })
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+    }
+
+    /**
+     * Feature #20 phase 2 — swap the rating system on a per-inspection
+     * snapshot, with controlled handling of already-saved item ratings.
+     *
+     * Mode:
+     *   'remap'  — try to map each existing rating to the new system by
+     *              severity bucket (good / marginal / significant). Levels
+     *              whose bucket has no match in the new system are cleared.
+     *   'clear'  — wipe every rating; preserve notes, photos, custom
+     *              comments.
+     *
+     * Also clears inspection_results.ratingSystemSnapshot so getReportData
+     * picks the new system from the template snapshot on the next read,
+     * and re-freezes against the new system on the next write.
+     */
+    async switchRatingSystem(
+        id: string,
+        tenantId: string,
+        ratingSystemId: string,
+        mode: 'remap' | 'clear',
+    ): Promise<{ remapped: number; cleared: number; total: number }> {
+        const db = this.getDrizzle();
+        const inspection = await db.select().from(inspections)
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)))
+            .get();
+        if (!inspection) throw Errors.NotFound('Inspection not found or access denied');
+
+        const { ratingSystems } = await import('../lib/db/schema');
+        const sysRow = await db.select().from(ratingSystems)
+            .where(and(eq(ratingSystems.id, ratingSystemId), eq(ratingSystems.tenantId, tenantId)))
+            .get();
+        if (!sysRow) throw Errors.NotFound('Rating system not found');
+
+        type SeedLevel = { id?: string; abbr?: string; label: string; color?: string; bucket: string };
+        const rawLevels = sysRow.levels as unknown;
+        const newLevels: SeedLevel[] = typeof rawLevels === 'string' ? JSON.parse(rawLevels) as SeedLevel[] : rawLevels as SeedLevel[];
+
+        // bucket → severity mapping (rating-systems table uses 'bucket',
+        // TemplateSchemaV2 uses 'severity' on the embedded ratingSystem)
+        const bucketToSeverity = (b: string): 'good' | 'marginal' | 'significant' | 'minor' => {
+            if (b === 'satisfactory') return 'good';
+            if (b === 'monitor') return 'marginal';
+            if (b === 'defect') return 'significant';
+            return 'minor';
+        };
+
+        // Build new embedded rating system for the snapshot
+        const newSnapLevels = newLevels.map(l => ({
+            id:           l.label,
+            label:        l.label,
+            ...(l.abbr ? { abbreviation: l.abbr } : {}),
+            ...(l.color ? { color: l.color } : {}),
+            severity:     bucketToSeverity(l.bucket),
+            isDefect:     l.bucket === 'defect',
+        }));
+
+        // Build remap: old level label/id → new level id, via bucket
+        const snapStr = inspection.templateSnapshot as unknown as string | null;
+        const oldSnapshot = snapStr ? JSON.parse(snapStr) as { ratingSystem?: { levels?: Array<{ id: string; label?: string; severity?: string }> }; [k: string]: unknown } : {};
+        const oldLevels = oldSnapshot.ratingSystem?.levels ?? [];
+        const severityToBucket = (s: string | undefined): string | null => {
+            if (s === 'good') return 'satisfactory';
+            if (s === 'marginal') return 'monitor';
+            if (s === 'significant') return 'defect';
+            return null;
+        };
+        const remap = new Map<string, string | null>();
+        for (const oldL of oldLevels) {
+            const bucket = severityToBucket(oldL.severity);
+            const newL = bucket ? newLevels.find(n => n.bucket === bucket) : null;
+            remap.set(oldL.id, newL?.label ?? null);
+            if (oldL.label && oldL.label !== oldL.id) remap.set(oldL.label, newL?.label ?? null);
+        }
+
+        // Overwrite snapshot
+        const newSnapshot = {
+            ...oldSnapshot,
+            ratingSystem: {
+                name:           sysRow.name,
+                defaultLevelId: newSnapLevels[0]?.id,
+                levels:         newSnapLevels,
+            },
+        };
+        await db.update(inspections)
+            .set({ templateSnapshot: JSON.stringify(newSnapshot) as never })
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)));
+
+        // Rewrite per-item ratings on inspection_results
+        const existing = await db.select().from(inspectionResults)
+            .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId)))
+            .get();
+        let remapped = 0, cleared = 0, total = 0;
+        if (existing) {
+            const data = { ...(existing.data as Record<string, Record<string, unknown>>) };
+            for (const itemId of Object.keys(data)) {
+                const it = data[itemId];
+                if (!it || !('rating' in it)) continue;
+                const oldRating = it.rating as string | null | undefined;
+                if (!oldRating) continue;
+                total++;
+                if (mode === 'clear') {
+                    it.rating = null;
+                    cleared++;
+                } else {
+                    const next = remap.has(oldRating) ? remap.get(oldRating) : null;
+                    if (next) {
+                        it.rating = next;
+                        remapped++;
+                    } else {
+                        it.rating = null;
+                        cleared++;
+                    }
+                }
+            }
+            // Clear the ratingSystemSnapshot freeze so the new one re-freezes
+            // on the next write.
+            await db.update(inspectionResults).set({
+                data,
+                ratingSystemId: null as never,
+                ratingSystemSnapshot: null as never,
+                lastSyncedAt: new Date(),
+            }).where(eq(inspectionResults.id, existing.id));
+        }
+
+        return { remapped, cleared, total };
+    }
+
+    /**
      * Multi-photo upload to R2.
      */
     async uploadPhoto(id: string, tenantId: string, itemId: string, file: File) {
@@ -1268,25 +1416,49 @@ export class InspectionService {
             };
         }
 
-        const rawSchema = template?.schema
-            ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema)
-            : { sections: [] };
+        // Feature #20 — prefer the per-inspection templateSnapshot over the
+        // source template.schema. The snapshot is the authoritative shape
+        // for the inspection once it's been created: rating-system swaps,
+        // inline added/removed sections + items, and per-job tweaks all
+        // land there. Falling back to template.schema preserves behavior
+        // for legacy inspections that pre-date the snapshot column.
+        const inspectionSnapshotRaw = (inspection as unknown as { templateSnapshot?: unknown }).templateSnapshot;
+        const inspectionSnapshot = inspectionSnapshotRaw
+            ? (typeof inspectionSnapshotRaw === 'string' ? JSON.parse(inspectionSnapshotRaw as string) : inspectionSnapshotRaw)
+            : null;
+        const hasInspectionSnapshot = inspectionSnapshot
+            && typeof inspectionSnapshot === 'object'
+            && Array.isArray((inspectionSnapshot as { sections?: unknown }).sections)
+            && (inspectionSnapshot as { sections: unknown[] }).sections.length > 0;
+        const rawSchema = hasInspectionSnapshot
+            ? inspectionSnapshot
+            : template?.schema
+                ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema)
+                : { sections: [] };
         // Support both formats: { sections: [...] } and flat array of items
         const schemaData: SchemaData = Array.isArray(rawSchema)
             ? { sections: [{ id: 'general', title: 'General', items: rawSchema }] }
             : (rawSchema as SchemaData).sections ? rawSchema as SchemaData : { sections: [] };
 
-        // Sprint 2 S2-1 — multi-rating system resolution. Order of precedence:
-        //   1. inspection_results.rating_system_snapshot (frozen at creation)
-        //   2. template.rating_system_id → live rating_systems row
-        //   3. legacy template.schema.ratingSystem.levels (pre-Sprint-2 templates)
-        // The fallback default 4-tier list lives at the bottom of this method.
+        // Sprint 2 S2-1 + Feature #20 — multi-rating system resolution.
+        // Order of precedence:
+        //   1. inspection_results.rating_system_snapshot (frozen at creation;
+        //      cleared when the inspector switches systems mid-inspection)
+        //   2. inspection.templateSnapshot.ratingSystem  ← phase 2 swap target
+        //   3. template.rating_system_id → live rating_systems row
+        //   4. legacy template.schema.ratingSystem.levels
         let levels: RatingLevel[] = [];
         const snapshotRaw = (resultsRow as unknown as { ratingSystemSnapshot?: unknown })?.ratingSystemSnapshot;
         if (snapshotRaw) {
             const snap = typeof snapshotRaw === 'string' ? JSON.parse(snapshotRaw) : snapshotRaw;
             if (snap && Array.isArray((snap as { levels?: unknown }).levels)) {
                 levels = mapRatingSystemLevels((snap as { levels: Array<Record<string, unknown>> }).levels);
+            }
+        }
+        if (levels.length === 0 && hasInspectionSnapshot) {
+            const snapLevels = (inspectionSnapshot as { ratingSystem?: { levels?: unknown[] } }).ratingSystem?.levels;
+            if (Array.isArray(snapLevels)) {
+                levels = mapRatingSystemLevels(snapLevels as Array<Record<string, unknown>>);
             }
         }
         if (levels.length === 0 && template && (template as unknown as { ratingSystemId?: string | null }).ratingSystemId) {

@@ -19,10 +19,21 @@ document.addEventListener('alpine:init', () => {
         templates: [],
         inspectors: [],
         currentTemplate: null,
+        // Feature #20 phase 2 — list of tenant rating systems (seed + custom).
+        // Loaded once on sheet open from /api/rating-systems; rendered in the
+        // Template fieldset as a dropdown bound to form.ratingSystemId.
+        ratingSystems: [],
         form: {
             date: '',
             inspectorId: '',
             templateId: '',
+            // Feature #20 phase 2 — current rating system id (UUID). Resolved
+            // on load() by matching the snapshot's ratingSystem.name against
+            // the rating-systems list. The user-facing select binds to this;
+            // the @change handler routes through switchRatingSystem() which
+            // calls the dedicated swap endpoint (NOT the generic save flow,
+            // because the swap has side-effects on inspection_results).
+            ratingSystemId: '',
             price: 0,
             paymentRequired: false,
             agreementRequired: false,
@@ -76,7 +87,7 @@ document.addEventListener('alpine:init', () => {
 
         async load() {
             try {
-                const [inspRes, tplRes, teamRes, peopleRes, factsRes] = await Promise.all([
+                const [inspRes, tplRes, teamRes, peopleRes, factsRes, rsRes] = await Promise.all([
                     window.authFetch('/api/inspections/' + this.inspectionId),
                     window.authFetch('/api/templates'),
                     window.authFetch('/api/team/members'),
@@ -84,6 +95,8 @@ document.addEventListener('alpine:init', () => {
                     window.authFetch('/api/inspections/' + this.inspectionId + '/people'),
                     // Round-2 backlog G1 — Property Facts strip.
                     window.authFetch('/api/inspections/' + this.inspectionId + '/property-facts'),
+                    // Feature #20 phase 2 — tenant rating systems for the dropdown.
+                    window.authFetch('/api/rating-systems'),
                 ]);
                 const inspJson = inspRes.ok ? await inspRes.json() : { data: {} };
                 const insp = (inspJson.data && (inspJson.data.inspection || inspJson.data)) || {};
@@ -98,6 +111,33 @@ document.addEventListener('alpine:init', () => {
                 this.form.closingDate    = insp.closingDate    || '';
                 this.form.orderId        = insp.orderId        || '';
                 this.form.referralSource = insp.referralSource || '';
+
+                // Feature #20 phase 2 — populate ratingSystems + resolve the
+                // active one from the inspection's templateSnapshot. We match
+                // by name because the snapshot embeds the system inline
+                // rather than carrying a foreign-key id.
+                if (rsRes && rsRes.ok) {
+                    const rsJson = await rsRes.json();
+                    this.ratingSystems = (rsJson && rsJson.data) || [];
+                    try {
+                        const snapRaw = insp.templateSnapshot;
+                        if (snapRaw) {
+                            const snap = typeof snapRaw === 'string' ? JSON.parse(snapRaw) : snapRaw;
+                            const activeName = snap?.ratingSystem?.name;
+                            const match = activeName
+                                ? this.ratingSystems.find(rs => rs.name === activeName)
+                                : null;
+                            if (match) {
+                                this.form.ratingSystemId = match.id;
+                                // Snapshot the current id so the cancel branch of the
+                                // switch-confirm modal can revert. Alpine 2-way binds
+                                // mutate form.ratingSystemId BEFORE @change fires, so
+                                // we need this side-channel.
+                                this._lastConfirmedRatingSystemId = match.id;
+                            }
+                        }
+                    } catch (e) { /* snapshot may be missing/legacy — leave default */ }
+                }
 
                 if (tplRes && tplRes.ok) {
                     const tplJson = await tplRes.json();
@@ -254,6 +294,211 @@ document.addEventListener('alpine:init', () => {
                 console.error('autofill failed', e);
                 this.autofillState = 'error';
                 this.autofillMessage = (e && e.message) || 'Auto-fill failed';
+            }
+        },
+
+        // Feature #20 phase 2 — rating-system swap.
+        //
+        // The <select>'s @change fires openRatingSwitchPrompt(newId), which
+        // dispatches a `rating-switch-open` window event to the modal (it
+        // lives at the page root because the sheet's transform/clipping
+        // would otherwise trap a nested fixed overlay). The modal raises
+        // `rating-switch-confirm {mode}` on its three buttons or
+        // `rating-switch-cancel` on backdrop/Cancel; we listen for both
+        // below via _ratingSwitchListeners installed once on first open.
+        // Hard-reload after success so editor + viewer rebuild from the
+        // new snapshot.
+        //
+        // No window.confirm/alert/prompt anywhere.
+        _pendingRatingSwitchId: '',
+
+        openRatingSwitchPrompt(newId) {
+            // _lastConfirmedRatingSystemId is set in load() + after every
+            // successful confirm; represents the id the snapshot actually
+            // sits at. Bouncing back to the current value is a no-op.
+            if (!newId || newId === this._lastConfirmedRatingSystemId) return;
+            const target = this.ratingSystems.find(rs => rs.id === newId);
+            if (!target) return;
+            this._pendingRatingSwitchId = newId;
+            this._ensureRatingSwitchListeners();
+            // Best-effort count of currently rated items from the editor's
+            // Alpine root. Falls back to 0 on legacy / no-editor pages.
+            let ratedCount = 0;
+            try {
+                const editor = document.querySelector('[x-data*="inspectionEditor"]');
+                const editorData = editor && window.Alpine && window.Alpine.$data(editor);
+                const results = (editorData && editorData.results) || {};
+                ratedCount = Object.values(results).filter(r => r && r.rating).length;
+            } catch (_) { /* non-fatal */ }
+            window.dispatchEvent(new CustomEvent('rating-switch-open', { detail: {
+                targetName:       target.name,
+                targetLevelCount: (target.levels && target.levels.length) || 0,
+                ratedCount,
+                newId,
+            }}));
+        },
+
+        _ensureRatingSwitchListeners() {
+            if (this._ratingSwitchInstalled) return;
+            this._ratingSwitchInstalled = true;
+            window.addEventListener('rating-switch-cancel', () => {
+                // Revert the dropdown to the last persisted value.
+                this.form.ratingSystemId = this._lastConfirmedRatingSystemId || '';
+                this._pendingRatingSwitchId = '';
+            });
+            window.addEventListener('rating-switch-confirm', (e) => {
+                const mode = (e && e.detail && e.detail.mode) || 'remap';
+                this._doRatingSwitch(mode);
+            });
+        },
+
+        // Feature #20 phase 3 — Save the current snapshot's structure
+        // back to the source template, or save it as a new template.
+        // Both read the snapshot off the editor's Alpine root (since
+        // the structural edit lives there, not in this sheet's state).
+        // Reuses the shared ConfirmDangerModal for the save-back warning
+        // and the dedicated SaveAsNewTemplateModal for the new-name prompt.
+
+        _captureSnapshotFromEditor() {
+            const editor = document.querySelector('[x-data*="inspectionEditor"]');
+            const data = editor && window.Alpine && window.Alpine.$data(editor);
+            if (!data) return null;
+            return {
+                schemaVersion: 2,
+                sections:      (data.sections || []).map(s => data._stripRuntimeKeys(s)),
+                ratingSystem:  data._snapshotRatingSystem(),
+            };
+        },
+
+        openSaveBackPrompt() {
+            const templateId = this.form.templateId;
+            if (!templateId) {
+                if (typeof window.showToast === 'function') window.showToast('No source template attached to this inspection', true);
+                return;
+            }
+            const tpl = (this.templates || []).find(t => t.id === templateId);
+            this._ensureSaveListeners();
+            window.dispatchEvent(new CustomEvent('confirm-danger-open', { detail: {
+                title:        'Save back to source template?',
+                body: [
+                    `This rewrites the template "${tpl ? tpl.name : templateId.slice(0, 8)}" with this inspection's section + item structure and rating system.`,
+                    'Future inspections created from this template will get the new structure.',
+                    'Already-published inspections keep their frozen snapshot and are unaffected.',
+                    'Per-item ratings / notes / photos from THIS inspection are NOT copied to the template.',
+                ],
+                confirmText:  'Overwrite template',
+                confirmEvent: 'danger-confirm-save-back',
+                tone:         'warning',
+            }}));
+        },
+
+        openSaveAsNewPrompt() {
+            this._ensureSaveListeners();
+            const tpl = (this.templates || []).find(t => t.id === this.form.templateId);
+            const suggested = tpl ? (tpl.name + ' (custom)') : 'New custom template';
+            window.dispatchEvent(new CustomEvent('save-as-template-open', { detail: { suggestedName: suggested } }));
+        },
+
+        _ensureSaveListeners() {
+            if (this._saveInstalled) return;
+            this._saveInstalled = true;
+            window.addEventListener('danger-confirm-save-back', () => this._saveBackToTemplate());
+            window.addEventListener('save-as-template-confirm', (e) => {
+                const name = (e && e.detail && e.detail.name) || '';
+                this._saveAsNewTemplate(name);
+            });
+        },
+
+        async _saveBackToTemplate() {
+            const templateId = this.form.templateId;
+            if (!templateId) return;
+            const snapshot = this._captureSnapshotFromEditor();
+            if (!snapshot) {
+                window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+                if (typeof window.showToast === 'function') window.showToast('Could not read the editor snapshot', true);
+                return;
+            }
+            try {
+                const res = await window.authFetch('/api/inspections/templates/' + templateId, {
+                    method:  'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ schema: snapshot }),
+                });
+                if (!res.ok) {
+                    const txt = await res.text();
+                    throw new Error('HTTP ' + res.status + (txt ? ' — ' + txt.slice(0, 200) : ''));
+                }
+                window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+                if (typeof window.showToast === 'function') window.showToast('Template updated', false);
+            } catch (e) {
+                window.dispatchEvent(new CustomEvent('confirm-danger-done'));
+                if (typeof window.showToast === 'function') window.showToast('Save back failed: ' + ((e && e.message) || 'unknown'), true);
+            }
+        },
+
+        async _saveAsNewTemplate(name) {
+            const cleanName = (name || '').trim();
+            if (!cleanName) {
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                return;
+            }
+            const snapshot = this._captureSnapshotFromEditor();
+            if (!snapshot) {
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                if (typeof window.showToast === 'function') window.showToast('Could not read the editor snapshot', true);
+                return;
+            }
+            try {
+                const res = await window.authFetch('/api/inspections/templates', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ name: cleanName, schema: snapshot }),
+                });
+                if (!res.ok) {
+                    const txt = await res.text();
+                    throw new Error('HTTP ' + res.status + (txt ? ' — ' + txt.slice(0, 200) : ''));
+                }
+                const j = await res.json();
+                const newId = j?.data?.template?.id || '';
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                if (typeof window.showToast === 'function') window.showToast('Saved as new template "' + cleanName + '"', false);
+                // Optionally refresh the templates list so the new one appears.
+                if (newId) this.templates.push({ id: newId, name: cleanName });
+            } catch (e) {
+                window.dispatchEvent(new CustomEvent('save-as-template-done'));
+                if (typeof window.showToast === 'function') window.showToast('Save as new failed: ' + ((e && e.message) || 'unknown'), true);
+            }
+        },
+
+        async _doRatingSwitch(mode) {
+            const newId = this._pendingRatingSwitchId;
+            if (!newId) return;
+            this.saveState = 'saving';
+            try {
+                const res = await window.authFetch('/api/inspections/' + this.inspectionId + '/switch-rating-system', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ratingSystemId: newId, mode }),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const j = await res.json();
+                const stats = (j && j.data) || { remapped: 0, cleared: 0, total: 0 };
+                this._lastConfirmedRatingSystemId = newId;
+                this.saveState = 'saved';
+                if (typeof window.showToast === 'function') {
+                    const verb = mode === 'clear'
+                        ? stats.cleared + ' ratings cleared'
+                        : stats.remapped + ' remapped, ' + stats.cleared + ' cleared';
+                    window.showToast('Rating system switched — ' + verb + ' (of ' + stats.total + ').', false);
+                }
+                // Hard reload so editor + viewer rebuild from the new snapshot.
+                window.location.reload();
+            } catch (e) {
+                this.saveState = 'error';
+                window.dispatchEvent(new CustomEvent('rating-switch-done')); // close modal
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Switch failed: ' + ((e && e.message) || 'unknown'), true);
+                }
             }
         },
 
