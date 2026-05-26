@@ -13,25 +13,22 @@
 
 ---
 
-<!-- Screenshots are committed after the trial workspace ships. Captured at 1440x900. -->
-
-> **Screenshot gallery — to be captured:**
-> - `screenshots/dashboard.png` — Portfolio view with defect distribution + attention thresholds
-> - `screenshots/inspection-edit.png` — 3-pane editor with section nav, item editor, canned comments + photos
-> - `screenshots/report-viewer.png` — Left sidebar with defect badges, top tabs (Full / Summary / Safety), Share + PDF dropdowns
-> - `screenshots/marketplace.png` — Community templates and comment libraries with one-click import
-
----
-
 ## What it is
 
 A complete home inspection software stack: inspector dashboard, public booking widget, mobile field form, professional HTML reports with e-signatures, AI assistance, multi-tenant routing, and PWA offline support — all running on Cloudflare's edge.
+
+### Architecture
+
+- **API Worker** (`api/`) — Hono + Drizzle + D1, handles all business logic
+- **Frontend Worker** (`frontend/`) — Remix + React 18 + Tailwind v4, SSR on CF Workers
+- **Shared UI** (`packages/shared-ui/`) — Design System 0523 token-based components
+- Both deploy as independent CF Workers; frontend calls API via Service Binding (zero-latency)
 
 ### Inspector workflow
 - 3-pane editor with 248 canned comments, slash-trigger snippet picker, AI rewrite
 - Keyboard-driven: 1-5 ratings, ⌘K palette, `/` snippet picker, `?` HUD
 - Offline-capable PWA with photo upload queue
-- Migrate from Spectora in under 5 minutes via paste-JSON [import](docs/inspectors/07_importing_from_spectora.md)
+- Migrate from Spectora in under 5 minutes via paste-JSON import
 
 ### Customer experience
 - Public booking widget with Turnstile bot protection
@@ -54,7 +51,7 @@ A complete home inspection software stack: inspector dashboard, public booking w
 - **Yours**: fork it, change templates, add integrations. No vendor lock-in.
 - **Fast**: edge-deployed, < 100 ms response times globally
 - **Compliant**: PBKDF2-SHA256 password hashing, Ed25519 audit chain on e-signatures, multi-tenant data isolation
-- **Modern**: Hono + JSX + Drizzle + Tailwind — small surface, easy to read
+- **Modern**: Remix + React 18 + Hono API + Drizzle + Tailwind v4 — small surface, easy to read
 
 ## Quick start
 
@@ -62,13 +59,19 @@ A complete home inspection software stack: inspector dashboard, public booking w
 
 Not ready to commit to running infrastructure? Spin up a managed workspace at [**inspectorhub.io/register**](https://inspectorhub.io/register) — 30-day free trial, no card. Useful for evaluating the editor, report viewer, and booking flow before you decide to self-host. You can export your data and move to a self-hosted deploy at any time.
 
-### Option 1: Zero-Setup (Web-First)
-1. Click the **Deploy to Cloudflare** button above
-2. Follow the dashboard prompts to create your D1 database, R2 bucket, and KV namespace
-3. Visit your Worker URL (e.g., `https://openinspection.workers.dev/setup`)
-4. A 6-digit setup code is generated and logged. Enter it to initialize your admin account.
+### Option 1: One-Click Deploy
 
-> If you don't see the setup code in your deployment logs, run `npm run setup:cloudflare -- --refresh-setup-code` to generate a new one.
+1. Click the **Deploy to Cloudflare** button above — this deploys the API Worker
+2. Follow the dashboard prompts to create your D1 database, R2 bucket, and KV namespace
+3. Deploy the frontend Worker:
+   ```bash
+   cd frontend
+   npm install && npm run deploy
+   ```
+4. Visit your API Worker URL → `/setup` (e.g., `https://openinspection.your-account.workers.dev/setup`)
+5. A 6-digit setup code is generated and logged on first boot. Enter it to initialize your admin account.
+
+> The frontend connects to the API via a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) (zero-latency, no network hop). Both workers are configured in their respective `wrangler.toml` files.
 
 ### Option 2: CLI-First
 ```bash
@@ -88,24 +91,24 @@ npm run setup:cloudflare -- --local    # provisions a local dev environment
 npm run dev
 ```
 
-Detailed setup: [`docs/deploy.md`](docs/deploy.md). Architecture overview: [`docs/architecture.md`](docs/architecture.md). Extension cookbook: [`docs/extending.md`](docs/extending.md).
+Detailed setup: [`docs/developers/02_deploy.md`](docs/developers/02_deploy.md). Architecture overview: [`docs/developers/01_architecture.md`](docs/developers/01_architecture.md).
 
 ## Documentation
 
-- [Deploy](docs/deploy.md) — first-time setup on Cloudflare
-- [Architecture](docs/architecture.md) — module map, request flow, cost model
-- [Extending](docs/extending.md) — recipes for templates, payments, automation, themes
+- [Deploy](docs/developers/02_deploy.md) — first-time setup on Cloudflare
+- [Architecture](docs/developers/01_architecture.md) — module map, request flow, cost model
 - [Contributing](CONTRIBUTING.md) — code conventions and PR process
 - [Community](docs/community.md) — Discussions categories and where to talk
 
 ## Tech stack
 
-- **Cloudflare Workers**: edge runtime
-- **Hono** with hono/jsx: routing + server-rendered HTML
+- **Cloudflare Workers**: edge runtime (dual Worker deploy — API + Frontend)
+- **Remix** + React 18: frontend SSR on Workers
+- **Hono** + Zod OpenAPI: typed API layer
 - **Drizzle ORM** + Cloudflare D1: SQLite at the edge
 - **Cloudflare R2 / KV**: object storage and config cache
-- **Alpine.js** + Tailwind CSS: client-side interactivity and styling
-- **Optional**: Gemini AI, Stripe Connect, Resend email, Mapbox geocoding
+- **Tailwind CSS v4**: design system tokens + utility CSS
+- **Optional**: Gemini AI, Stripe Connect, Resend email, Google Places
 
 ## Community
 
