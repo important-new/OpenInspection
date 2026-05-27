@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { HonoConfig } from '../../types/hono';
 import { logger } from '../../lib/logger';
-import { verifyM2mAuth } from '../../lib/m2m-auth';
+import { isServiceBindingCall } from '../../portal/service-binding-guard';
 import { resolveByFixedTenant } from './resolve-by-fixed-tenant';
 import { resolveByPathParam } from './resolve-by-path-param';
 import { resolveBySubdomain } from './resolve-by-subdomain';
@@ -45,8 +45,7 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     }
 
     const headerSubdomain = c.req.header('x-tenant-subdomain');
-    if (headerSubdomain
-        && verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+    if (headerSubdomain && isServiceBindingCall(c)) {
         subdomain = headerSubdomain;
     }
 

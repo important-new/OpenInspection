@@ -4,7 +4,7 @@ import { syncOutbox } from '../lib/db/schema';
 import { logger } from '../lib/logger';
 
 /**
- * Core → Portal sync outbox.
+ * Core -> Portal sync outbox.
  *
  * Append captures a single user-lifecycle event in the same DB write
  * that produced the underlying mutation (callers should batch the
@@ -116,22 +116,17 @@ export class OutboxService {
 
 /**
  * One pass of the scheduled flush. Posts each pending row to the
- * portal receiver. The worker (src/scheduled.ts) wraps this and gates
- * how often it runs.
+ * portal receiver via Service Binding. The worker (src/scheduled.ts)
+ * wraps this and gates how often it runs.
  *
- * - 2xx → markDone
+ * - 2xx -> markDone
  * - 4xx (except 409 conflict-on-dedup-id, which means portal already
- *   has this event and we should also mark done) → markFailed permanent
- * - 5xx / network → markFailed transient (attempts++)
- *
- * The HMAC scheme reuses the existing portal-↔-core M2M secret
- * (PORTAL_M2M_SECRET_V*). Portal validates the same way it validates
- * its own outbound calls to core.
+ *   has this event and we should also mark done) -> markFailed permanent
+ * - 5xx / network -> markFailed transient (attempts++)
  */
 export async function flushOutboxOnce(
     db: D1Database,
-    portalBaseUrl: string,
-    m2mSecret: string,
+    portalService: Fetcher,
     limit = 50,
 ): Promise<{ posted: number; pending: number; failed: number }> {
     const svc = new OutboxService(db);
@@ -147,15 +142,12 @@ export async function flushOutboxOnce(
             payload: JSON.parse(row.payload),
             attempt: row.attempts + 1,
         });
-        const ts = Math.floor(Date.now() / 1000).toString();
-        const sig = await hmacSign(m2mSecret, `${ts}.${body}`);
 
         try {
-            const res = await fetch(`${portalBaseUrl}/api/integration/from-core`, {
+            const res = await portalService.fetch('https://portal/api/integration/from-core', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-portal-signature': `${ts}.${sig}`,
                 },
                 body,
             });
@@ -182,15 +174,4 @@ export async function flushOutboxOnce(
         logger.info('[outbox] flush pass', { posted, pending, failed, total: rows.length });
     }
     return { posted, pending, failed };
-}
-
-async function hmacSign(secret: string, message: string): Promise<string> {
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-        'raw', enc.encode(secret),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false, ['sign'],
-    );
-    const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
-    return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }

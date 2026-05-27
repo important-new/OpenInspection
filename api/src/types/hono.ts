@@ -80,21 +80,9 @@ export interface AppEnv {
     // Spec 5H — Public verifier base URL embedded in Certificate of Completion
     ESIGN_PUBLIC_VERIFY_BASE?: string;
 
-    // SaaS Portal Integration
+    // SaaS Portal Integration (browser redirects)
     PORTAL_API_URL?: string;
-    /** Legacy single-secret M2M binding. Kept as a transitional fallback so
-     *  deployments that have not yet provisioned the V<N> keyring keep
-     *  working. New deployments populate PORTAL_M2M_SECRET_V<N> instead. */
-    PORTAL_M2M_SECRET?: string;
-    /** Multi-version PORTAL_M2M_SECRET keyring (see src/lib/m2m-auth.ts).
-     *  Portal-> core M2M calls are verified against every active V<N> so
-     *  the shared bearer/HMAC secret can be rotated with an overlap window.
-     *  PORTAL_M2M_CURRENT_KID names the version Portal sends; core just
-     *  accepts any V<N> that matches. */
-    PORTAL_M2M_CURRENT_KID?: string;
-    PORTAL_M2M_SECRET_V1?: string;
-    PORTAL_M2M_SECRET_V2?: string;
-    PORTAL_M2M_SECRET_V3?: string;
+    PORTAL_SERVICE?: Fetcher;
 
     // Spec 5D — Address Autofill. Server-side proxy holds the API key so it
     // never leaks to the client. Optional: when absent, dashboard.tsx falls
@@ -118,7 +106,7 @@ export interface AppEnv {
 import { AdminService } from '../services/admin.service';
 import { AIService } from '../services/ai.service';
 import { AuthService } from '../services/auth.service';
-import { OutboxService } from '../services/outbox.service';
+import { OutboxService } from '../portal/outbox.service';
 import { BookingService, AvailabilityService } from '../services/booking.service';
 import { BrandingService } from '../services/branding.service';
 import { EmailService } from '../services/email.service';

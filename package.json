@@ -25,7 +25,6 @@
     "backup": "node scripts/backup.js",
     "restore": "node scripts/restore.js",
     "rotate:jwt": "node scripts/rotate-jwt-keys.js",
-    "rotate:m2m": "node scripts/rotate-m2m-secret.js",
     "css:build": "npx tailwindcss -c api/tailwind.config.js -i api/src/styles/input.css -o api/public/styles.css --minify",
     "css:watch": "npx tailwindcss -c api/tailwind.config.js -i api/src/styles/input.css -o api/public/styles.css --watch",
     "db:migrate": "npx wrangler d1 migrations apply DB --local",

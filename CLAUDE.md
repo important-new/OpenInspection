@@ -114,8 +114,8 @@ The frontend uses a **Token Relay BFF** pattern: the Remix server holds the JWT 
 | `PRIMARY_COLOR` | No | Custom branding color |
 | `SINGLE_TENANT_ID` | No | Fixed tenant ID for standalone mode |
 | `SETUP_CODE` | No | Verification code for first-time setup |
-| `PORTAL_API_URL` | No | Portal URL for M2M sync callbacks |
-| `PORTAL_M2M_SECRET`| No | Shared secret for M2M auth (`Authorization: Bearer {secret}`) |
+| `PORTAL_API_URL` | No | Portal URL for browser redirects (login bounce, billing, workspace switch) |
+| `PORTAL_SERVICE` | No | Service Binding to portal worker (SaaS mode only, declared in `wrangler.saas.toml`). Replaces HTTP+HMAC M2M auth. |
 | `STRIPE_SECRET_KEY` | No | Stripe API key (for Connect payments) |
 | `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook HMAC verification |
 | `GA_MEASUREMENT_ID` | No | Google Analytics tracking ID |
@@ -137,7 +137,7 @@ These rules are **mandatory** for any code that touches authentication. Violatio
 - **ES256 keyring**: All JWT signing and verification MUST go through `api/src/lib/jwt-keyring.ts`. Direct `sign()` / `verify()` calls from `hono/jwt` are FORBIDDEN — the keyring pins the algorithm to ES256 (ECDSA P-256 SHA-256), stamps the `kid` header, and enforces multi-version verification. Per-request keyrings are pre-built in `diMiddleware` and exposed as `await c.var.keyringPromise`.
 - **kid required**: Every JWT MUST carry a `kid` header. `signJwt()` sets it from `JWT_CURRENT_KID`; `verifyJwt()` rejects tokens with no kid, or with a kid that is not in the keyring.
 - **iat claim**: `signJwt()` auto-injects `iat: Math.floor(Date.now() / 1000)` when the caller omits it. Without `iat`, KV session invalidation (`pwchanged:{userId}`) cannot work.
-- **No HS256 fallback**: There is NO legacy HS256 path. Pre-launch architectural choice — see rotation scripts and docs. The remaining `JWT_SECRET` env binding is now used only as KDF input for `config-crypto`, `qbo-crypto`, audit signing-key encryption, and M2M Bearer auth — never for JWT signing.
+- **No HS256 fallback**: There is NO legacy HS256 path. Pre-launch architectural choice — see rotation scripts and docs. The remaining `JWT_SECRET` env binding is now used only as KDF input for `config-crypto`, `qbo-crypto`, and audit signing-key encryption — never for JWT signing.
 - **Key rotation flow**: To rotate, provision `JWT_PRIVATE_KEY_V<N+1>` + `JWT_PUBLIC_KEY_V<N+1>` first (verify-only window), then flip `JWT_CURRENT_KID` to the new version. Old tokens remain verifiable until V<N> is retired.
 - **Token NOT in response body**: Login, setup, and join endpoints MUST NOT return the JWT in the JSON response. Tokens are delivered exclusively via `Set-Cookie` (HttpOnly).
 - **Cookie name**: Always use `__Host-inspector_token` (enforces `Secure`, `Path=/`, no `Domain`).

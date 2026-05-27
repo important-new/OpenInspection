@@ -39,7 +39,7 @@ import integrationsApiRoutes from './api/integrations';
 import analyticsRoutes from './api/analytics';
 import guestRoutes from './api/guest';
 import billingRoutes from './api/billing';
-import integrationRoutes from './api/integration';
+import integrationRoutes from './portal/integration.routes';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
 import aiRoutes from './api/ai';

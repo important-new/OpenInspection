@@ -1,57 +1,17 @@
 import { Hono } from 'hono';
-import { Context } from 'hono';
 import { HonoConfig } from '../types/hono';
 import { TenantUpdateParams } from '../lib/integration';
 import { TenantStatusBodySchema, StripeConnectBodySchema } from '../lib/validations/admin.schema';
 import { logger } from '../lib/logger';
-import { verifyM2mSignature } from '../lib/m2m-auth';
+import { requireServiceBinding } from './service-binding-guard';
 
 const api = new Hono<HonoConfig>();
-
-/**
- * Middleware to verify M2M signature from Portal.
- *
- * Delegates to `verifyM2mSignature` which iterates every active
- * PORTAL_M2M_SECRET_V<N> + legacy PORTAL_M2M_SECRET, enabling
- * zero-downtime overlap-window secret rotation. The legacy single-secret
- * check was removed in favour of the keyring helper.
- */
-async function verifyPortalSignature(c: Context<HonoConfig>, next: () => Promise<void>) {
-    const env = c.env as unknown as Record<string, string | undefined>;
-    const hasAnySecret = !!env['PORTAL_M2M_SECRET']
-        || Object.keys(env).some(k => /^PORTAL_M2M_SECRET_V\d+$/.test(k) && env[k]);
-    if (!hasAnySecret) {
-        logger.error('No PORTAL_M2M_SECRET[_V<N>] configured');
-        return c.json({ success: false, error: { message: 'Integration not configured' } }, 501);
-    }
-
-    const signature = c.req.header('x-portal-signature');
-    if (!signature) {
-        return c.json({ success: false, error: { message: 'Missing signature' } }, 401);
-    }
-
-    const rawBody = await c.req.raw.clone().text();
-    let body: string;
-    try {
-        // Normalize JSON to prevent whitespace issues between environments
-        body = JSON.stringify(JSON.parse(rawBody));
-    } catch {
-        body = rawBody;
-    }
-
-    const isValid = await verifyM2mSignature(signature, body, env);
-    if (!isValid) {
-        return c.json({ success: false, error: { message: 'Invalid signature' } }, 401);
-    }
-
-    return next();
-}
 
 /**
  * PATCH /api/integration/tenants/:subdomain
  * Triggered by Portal when tenant information changes.
  */
-api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
+api.patch('/tenants/:subdomain', requireServiceBinding, async (c) => {
     const subdomain = c.req.param('subdomain');
     const parsed = TenantStatusBodySchema.safeParse(await c.req.json());
     if (!parsed.success) {
@@ -77,7 +37,7 @@ api.patch('/tenants/:subdomain', verifyPortalSignature, async (c) => {
  * POST /api/integration/tenants/:subdomain/stripe-connect
  * Triggered by Portal when Stripe Connect is completed.
  */
-api.post('/tenants/:subdomain/stripe-connect', verifyPortalSignature, async (c) => {
+api.post('/tenants/:subdomain/stripe-connect', requireServiceBinding, async (c) => {
     const subdomain = c.req.param('subdomain');
     const parsed = StripeConnectBodySchema.safeParse(await c.req.json());
     if (!parsed.success) {
@@ -99,7 +59,7 @@ api.post('/tenants/:subdomain/stripe-connect', verifyPortalSignature, async (c) 
  * POST /api/integration/tenants/:subdomain/data-export
  * Triggered by Portal during offboarding workflow. Returns ZIP stream.
  */
-api.post('/tenants/:subdomain/data-export', verifyPortalSignature, async (c) => {
+api.post('/tenants/:subdomain/data-export', requireServiceBinding, async (c) => {
     const subdomain = c.req.param('subdomain');
     const { drizzle } = await import('drizzle-orm/d1');
     const { eq } = await import('drizzle-orm');
@@ -113,7 +73,7 @@ api.post('/tenants/:subdomain/data-export', verifyPortalSignature, async (c) => 
     try {
         const { buffer, manifest } = await svc.buildZip(t.id as string);
         // Wrap Uint8Array in Blob (BodyInit-compatible across Node + Workers)
-        const blob = new Blob([buffer as BlobPart], { type: 'application/zip' });
+        const blob = new Blob([buffer as unknown as ArrayBuffer], { type: 'application/zip' });
         return new Response(blob, {
             headers: {
                 'content-type':        'application/zip',
@@ -131,7 +91,7 @@ api.post('/tenants/:subdomain/data-export', verifyPortalSignature, async (c) => 
  * POST /api/integration/tenants/:subdomain/purge
  * Triggered by Portal at end of offboarding grace period. Cascade-deletes all tenant data.
  */
-api.post('/tenants/:subdomain/purge', verifyPortalSignature, async (c) => {
+api.post('/tenants/:subdomain/purge', requireServiceBinding, async (c) => {
     const subdomain = c.req.param('subdomain');
     const { drizzle } = await import('drizzle-orm/d1');
     const { eq } = await import('drizzle-orm');
@@ -165,7 +125,7 @@ api.post('/tenants/:subdomain/purge', verifyPortalSignature, async (c) => {
  * No JWT material in the body — only the lookup tuple — so an
  * exposed code can't be replayed indefinitely.
  */
-api.post('/sso-handoff', verifyPortalSignature, async (c) => {
+api.post('/sso-handoff', requireServiceBinding, async (c) => {
     const body = await c.req.json().catch(() => ({})) as {
         tenantId?: string;
         email?: string;

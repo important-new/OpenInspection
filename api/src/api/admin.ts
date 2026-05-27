@@ -11,7 +11,7 @@ import { agreementSignUrl } from '../lib/public-urls';
 import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
-import { verifyM2mAuth } from '../lib/m2m-auth';
+import { isServiceBindingCall } from '../portal/service-binding-guard';
 import {
     UpdateBrandingSchema,
     InviteMemberSchema,
@@ -1475,7 +1475,7 @@ adminRoutes.openapi(icsTokenRoute, async (c) => {
  * One-shot M2M endpoint: loops through every tenant and seeds the 7 default templates
  * (idempotent — TemplateSeedService.bulkSeed skips existing names per tenant).
  *
- * Auth: PORTAL_M2M_SECRET via Authorization: Bearer.
+ * Auth: Service Binding (cf-worker header).
  * Use case: existing tenants that pre-date Spec 4F's auto-seed-on-tenant-init hook.
  */
 adminRoutes.openapi(withMcpMetadata({
@@ -1490,7 +1490,7 @@ adminRoutes.openapi(withMcpMetadata({
         401: { description: 'Unauthorized' },
     },
 }, { scopes: [], tier: 'excluded' }), async (c) => {
-    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+    if (!isServiceBindingCall(c)) {
         throw Errors.Unauthorized();
     }
 
@@ -1743,7 +1743,7 @@ adminRoutes.openapi(tenantConfigPatchRoute, async (c) => {
  * Updates `tenants.max_users` so the seat-guard middleware + Guest-
  * InviteService.claim see the new cap on the next request.
  *
- * Auth: `Authorization: Bearer <PORTAL_M2M_SECRET>` (or any active V<N>).
+ * Auth: Service Binding (cf-worker header).
  */
 adminRoutes.openapi(withMcpMetadata({
     method: 'post',
@@ -1759,7 +1759,7 @@ adminRoutes.openapi(withMcpMetadata({
         404: { description: 'Tenant not found' },
     },
 }, { scopes: [], tier: 'excluded' }), async (c) => {
-    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+    if (!isServiceBindingCall(c)) {
         throw Errors.Unauthorized();
     }
 
@@ -1792,7 +1792,7 @@ adminRoutes.openapi(withMcpMetadata({
  * rating-systems / marketplace defaults). Idempotent — safe to retry on
  * workflow re-run.
  *
- * Auth: `Authorization: Bearer <PORTAL_M2M_SECRET>` (or any active V<N>);
+ * Auth: Service Binding (cf-worker header);
  * matches the other portal → core M2M endpoints in this file.
  */
 adminRoutes.openapi(withMcpMetadata({
@@ -1812,7 +1812,7 @@ adminRoutes.openapi(withMcpMetadata({
         404: { description: 'Tenant not found' },
     },
 }, { scopes: [], tier: 'excluded' }), async (c) => {
-    if (!verifyM2mAuth(c.req.header('authorization'), c.env as unknown as Record<string, string | undefined>)) {
+    if (!isServiceBindingCall(c)) {
         throw Errors.Unauthorized();
     }
 

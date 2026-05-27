@@ -1,9 +1,9 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
-import { tenants, users, recommendations } from '../db/schema';
-import { IntegrationProvider, TenantUpdateParams } from '../integration';
-import { logger } from '../logger';
-import { RECOMMENDATION_SEEDS } from '../../data/recommendation-seeds';
+import { tenants, users, recommendations } from '../lib/db/schema';
+import { IntegrationProvider, TenantUpdateParams } from '../lib/integration';
+import { logger } from '../lib/logger';
+import { RECOMMENDATION_SEEDS } from '../data/recommendation-seeds';
 
 /**
  * Portal implementation of IntegrationProvider.
@@ -60,7 +60,7 @@ export class PortalProvider implements IntegrationProvider {
 
             // Spec 4D — Auto-seed default event types
             try {
-                const { EventService } = await import('../../services/event.service');
+                const { EventService } = await import('../services/event.service');
                 const eventSvc = new EventService(this.db);
                 await eventSvc.bulkSeed(newTenantId);
             } catch (seedErr) {
@@ -69,7 +69,7 @@ export class PortalProvider implements IntegrationProvider {
 
             // Spec 4F — Auto-seed default 6 templates
             try {
-                const { TemplateSeedService } = await import('../../services/template-seed.service');
+                const { TemplateSeedService } = await import('../services/template-seed.service');
                 const seedSvc = new TemplateSeedService(this.db);
                 await seedSvc.bulkSeed(newTenantId);
             } catch (seedErr) {
@@ -110,7 +110,7 @@ export class PortalProvider implements IntegrationProvider {
                 });
             } else {
                 await db.update(users)
-                    .set({ 
+                    .set({
                         passwordHash: adminPasswordHash,
                         tenantId: finalTenantId // Ensure it's correctly linked
                     })
@@ -130,7 +130,7 @@ export class PortalProvider implements IntegrationProvider {
         await db.update(tenants)
             .set({ stripeConnectAccountId: accountId })
             .where(eq(tenants.subdomain, subdomain));
-        
+
         if (this.kv) {
             await this.kv.delete(`tenant:${subdomain}`);
         }
