@@ -123,7 +123,7 @@ async function renderPdfToR2(env: AppEnv, opts: { renderUrl: string; r2Key: stri
 }
 
 function baseUrl(env: AppEnv): string {
-    return env.APP_BASE_URL || 'https://openinspection-standalone.important-new.workers.dev';
+    return env.APP_BASE_URL || 'https://openinspection-api.important-new.workers.dev';
 }
 
 function baseHost(env: AppEnv): string {

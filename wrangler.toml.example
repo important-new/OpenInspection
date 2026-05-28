@@ -1,4 +1,4 @@
-name = "openinspection-standalone"
+name = "openinspection-api"
 main = "api/src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -29,7 +29,7 @@ TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 # The SaaS topology typically uses a single
 # large D1 + a TENANT_CACHE KV partitioned by subdomain key prefix.
 [env.saas]
-name = "openinspection-saas"
+name = "openinspection-saas-api"
 [env.saas.vars]
 ENVIRONMENT = "production"
 APP_MODE = "saas"
