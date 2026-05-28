@@ -288,6 +288,10 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     viewedAt: integer('viewed_at', { mode: 'timestamp' }),
     sentAt: integer('sent_at', { mode: 'timestamp' }),
     lastError: text('last_error'),
+    // Spec 5H D1 — optional inspector pre-sign. NULL until inspector signs.
+    inspectorSignatureBase64: text('inspector_signature_base64'),
+    inspectorSignedAt:        integer('inspector_signed_at', { mode: 'timestamp' }),
+    inspectorUserId:          text('inspector_user_id').references(() => users.id),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
