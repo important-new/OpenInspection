@@ -1,0 +1,88 @@
+import { Hono } from 'hono';
+import { drizzle } from 'drizzle-orm/d1';
+import { eq } from 'drizzle-orm';
+import * as schema from '../lib/db/schema';
+import type { HonoConfig } from '../types/hono';
+
+const HTML_HEAD = `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body { font: 14px/1.5 -apple-system, system-ui, sans-serif; color: #0f172a; max-width: 720px; margin: 32px auto; padding: 0 16px; }
+  h1 { font-size: 18px; margin: 0 0 24px 0; }
+  .body { white-space: pre-wrap; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; }
+  .sig-block { margin-top: 32px; padding-top: 16px; border-top: 2px solid #0f172a; }
+  .sig-row { display: flex; gap: 24px; margin-top: 16px; }
+  .sig-cell { flex: 1; }
+  .sig-cell img { max-width: 200px; max-height: 80px; background: #fafafa; padding: 4px; border: 1px solid #cbd5e1; }
+  .sig-cell .meta { margin-top: 4px; font-size: 12px; color: #475569; }
+  .sig-cell .label { font-weight: 600; margin-bottom: 8px; }
+  @media print { body { margin: 0; padding: 0; } }
+</style></head><body>`;
+const HTML_FOOT = `</body></html>`;
+
+const escapeHtml = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * Pure render handler exported for unit testing. Takes a D1Database and the
+ * URL path params; the live route in index.ts wraps this with tenant routing
+ * resolution.
+ *
+ * NOTE: Inspector pre-sign signature rendering is deferred to Phase 2 once
+ * the schema columns (inspector_signature_base64, inspector_signed_at,
+ * inspector_user_id) exist on agreement_requests. This handler currently
+ * renders the client signature only.
+ */
+export async function agreementRenderHandler(
+  d1: D1Database,
+  tenantSlug: string,
+  token: string,
+): Promise<Response> {
+  const db = drizzle(d1, { schema });
+  const reqRow = await db.select().from(schema.agreementRequests)
+    .where(eq(schema.agreementRequests.token, token)).get();
+  if (!reqRow || reqRow.status !== 'signed' || !reqRow.signatureBase64) {
+    return new Response('Not Found', { status: 404 });
+  }
+  const tenant = await db.select({ subdomain: schema.tenants.subdomain })
+    .from(schema.tenants).where(eq(schema.tenants.id, reqRow.tenantId)).get();
+  if (!tenant || tenant.subdomain !== tenantSlug) {
+    return new Response('Not Found', { status: 404 });
+  }
+  const agreement = await db.select().from(schema.agreements)
+    .where(eq(schema.agreements.id, reqRow.agreementId)).get();
+  if (!agreement) return new Response('Not Found', { status: 404 });
+
+  const clientName = reqRow.clientName ? escapeHtml(reqRow.clientName) : escapeHtml(reqRow.clientEmail);
+  const signedAt = reqRow.signedAt ? new Date(reqRow.signedAt).toUTCString() : '';
+  const sigData = reqRow.signatureBase64.startsWith('data:')
+    ? reqRow.signatureBase64
+    : `data:image/png;base64,${reqRow.signatureBase64}`;
+
+  const html = HTML_HEAD +
+    `<h1>${escapeHtml(agreement.name)}</h1>` +
+    `<div class="body">${escapeHtml(agreement.content)}</div>` +
+    `<div class="sig-block">` +
+      `<div class="sig-row">` +
+        `<div class="sig-cell">` +
+          `<div class="label">Client</div>` +
+          `<img src="${sigData}" alt="Client signature">` +
+          `<div class="meta">${clientName} · ${escapeHtml(signedAt)}</div>` +
+        `</div>` +
+      `</div>` +
+    `</div>` +
+    HTML_FOOT;
+
+  return new Response(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+}
+
+const agreementsRenderRoutes = new Hono<HonoConfig>();
+agreementsRenderRoutes.get('/agreement-render/:tenant/:token', async (c) => {
+  const tenant = c.req.param('tenant');
+  const token = c.req.param('token');
+  return agreementRenderHandler(c.env.DB, tenant, token);
+});
+
+export default agreementsRenderRoutes;

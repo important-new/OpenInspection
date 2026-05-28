@@ -81,6 +81,7 @@ import conciergeRoutes from './api/concierge';
 import sessionContextRoutes from './api/session-context';
 import qboRoutes from './api/qbo';
 import qboWebhookRoutes from './api/qbo-webhook';
+import agreementsRenderRoutes from './api/agreements-render';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -470,6 +471,8 @@ const routes = app
   .route('/api/notifications', notificationsRoutes)
   .route('/settings/integrations/qbo', qboRoutes)
   .route('/api/integrations/qbo/webhook', qboWebhookRoutes)
+  // Spec 5H — signed agreement render for Browser-Run PDF export (token-in-URL, no JWT).
+  .route('/m2m', agreementsRenderRoutes)
   // Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
   .route('/setup', setupWizardRoutes())
 ;
