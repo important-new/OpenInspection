@@ -1,9 +1,9 @@
 #!/bin/bash
-# Build + deploy Remix frontend to CF Workers
+# Build + deploy React Router v7 frontend to CF Workers
 # Usage: npm run deploy
 set -e
 
-echo "[1/3] Building Remix frontend..."
+echo "[1/3] Building React Router v7 frontend..."
 npx react-router build
 
 echo "[2/3] Creating SSR worker entry..."

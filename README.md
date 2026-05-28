@@ -1,6 +1,10 @@
-# OpenInspection
+<p align="center">
+  <img src="frontend/public/logo.svg" alt="OpenInspection" width="140" />
+</p>
 
-> The first open-source SaaS-grade home inspection app. Self-host on Cloudflare for ~$0/month.
+<h1 align="center">OpenInspection</h1>
+
+<p align="center">The first open-source SaaS-grade home inspection app. Self-host on Cloudflare for ~$0/month.</p>
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/InspectorHub/OpenInspection)
 [![GitHub Discussions](https://img.shields.io/github/discussions/InspectorHub/OpenInspection)](https://github.com/InspectorHub/OpenInspection/discussions)
@@ -20,7 +24,7 @@ A complete home inspection software stack: inspector dashboard, public booking w
 ### Architecture
 
 - **API Worker** (`api/`) — Hono + Drizzle + D1, handles all business logic
-- **Frontend Worker** (`frontend/`) — Remix + React 18 + Tailwind v4, SSR on CF Workers
+- **Frontend Worker** (`frontend/`) — React Router v7 + React 18 + Tailwind v4, SSR on CF Workers
 - **Shared UI** (`packages/shared-ui/`) — Design System 0523 token-based components
 - Both deploy as independent CF Workers; frontend calls API via Service Binding (zero-latency)
 
@@ -51,7 +55,7 @@ A complete home inspection software stack: inspector dashboard, public booking w
 - **Yours**: fork it, change templates, add integrations. No vendor lock-in.
 - **Fast**: edge-deployed, < 100 ms response times globally
 - **Compliant**: PBKDF2-SHA256 password hashing, Ed25519 audit chain on e-signatures, multi-tenant data isolation
-- **Modern**: Remix + React 18 + Hono API + Drizzle + Tailwind v4 — small surface, easy to read
+- **Modern**: React Router v7 + React 18 + Hono API + Drizzle + Tailwind v4 — small surface, easy to read
 
 ## Quick start
 
@@ -62,16 +66,19 @@ Not ready to commit to running infrastructure? Spin up a managed workspace at [*
 ### Option 1: One-Click Deploy
 
 1. Click the **Deploy to Cloudflare** button above — this deploys the API Worker
-2. Follow the dashboard prompts to create your D1 database, R2 bucket, and KV namespace
+2. Follow the dashboard prompts to provision the bindings declared in `wrangler.toml.example`: one D1 database, two R2 buckets (`PHOTOS` + `REPORTS`), and one KV namespace (`TENANT_CACHE`). The standalone profile additionally declares two Durable Object classes and one Workflow — Cloudflare creates these on first deploy.
 3. Deploy the frontend Worker:
    ```bash
    cd frontend
-   npm install && npm run deploy
+   npm install && bash scripts/deploy.sh
    ```
+   (`scripts/deploy.sh` builds the React Router v7 app and patches `wrangler.json`'s `main` field before invoking `wrangler deploy` — running `wrangler deploy` directly will fail.)
 4. Visit your API Worker URL → `/setup` (e.g., `https://openinspection.your-account.workers.dev/setup`)
-5. A 6-digit setup code is generated and logged on first boot. Enter it to initialize your admin account.
+5. A 6-digit setup code is generated on first boot. The code itself is **not** printed in logs — recover it with one of:
+   - **Recommended**: set `SETUP_CODE=<any 6-digit value>` as a Worker secret before deploying, then use that value at `/setup`
+   - Or read the generated code from KV: `wrangler kv key get setup_verification_code --binding TENANT_CACHE` (1-hour TTL)
 
-> The frontend connects to the API via a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) (zero-latency, no network hop). Both workers are configured in their respective `wrangler.toml` files.
+> The frontend calls the API via a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) (zero-latency, no network hop). The API Worker is configured by the root `wrangler.toml` (copy from `wrangler.toml.example`); the Frontend Worker's `wrangler.json` is generated at build time by `scripts/deploy.sh`.
 
 ### Option 2: CLI-First
 ```bash
@@ -103,11 +110,11 @@ Detailed setup: [`docs/developers/02_deploy.md`](docs/developers/02_deploy.md). 
 ## Tech stack
 
 - **Cloudflare Workers**: edge runtime (dual Worker deploy — API + Frontend)
-- **Remix** + React 18: frontend SSR on Workers
+- **React Router v7** + React 18: frontend SSR on Workers
 - **Hono** + Zod OpenAPI: typed API layer
 - **Drizzle ORM** + Cloudflare D1: SQLite at the edge
 - **Cloudflare R2 / KV**: object storage and config cache
-- **Tailwind CSS v4**: design system tokens + utility CSS
+- **Tailwind CSS**: v4 (frontend, design system tokens + utility CSS) · v3 (API Worker, SSR report pages)
 - **Optional**: Gemini AI, Stripe Connect, Resend email, Google Places
 
 ## Community

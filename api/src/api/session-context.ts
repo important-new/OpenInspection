@@ -8,7 +8,7 @@ import { logger } from '../lib/logger';
 import type { HonoConfig } from '../types/hono';
 
 /**
- * Session context endpoint for the Remix frontend layout.
+ * Session context endpoint for the React Router v7 frontend layout.
  *
  * Returns branding, user info, and deployment context so the
  * client-side layout can conditionally render features like:

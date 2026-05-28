@@ -84,7 +84,7 @@ import qboWebhookRoutes from './api/qbo-webhook';
 
 const app = new OpenAPIHono<HonoConfig>();
 
-// CORS — allows Remix frontend (separate origin in dev) to call API endpoints.
+// CORS — allows React Router v7 frontend (separate origin in dev) to call API endpoints.
 // In production both share the same origin; this is primarily for local dev
 // where Vite runs on :5173 and the API Worker runs on :8787.
 app.use('/api/*', cors({
@@ -442,7 +442,7 @@ const routes = app
   .route('/api/agent-signup', agentSignupRoutes)
   // Agent Accounts A3 — concierge magic-link confirmation (public, no JWT)
   .route('/api/concierge', conciergeRoutes)
-  // Remix frontend session context (branding + user + deployment info)
+  // React Router v7 frontend session context (branding + user + deployment info)
   .route('/api/session', sessionContextRoutes)
   .route('/api/places', placesRoutes)
   .route('/api/availability', availabilityRoutes)
@@ -543,7 +543,7 @@ app.get('/ui', (c) => {
     `);
 });
 
-// ---------- SSR page handlers removed — Remix frontend serves all HTML pages ----------
+// ---------- SSR page handlers removed — React Router v7 frontend serves all HTML pages ----------
 
 
 
@@ -711,7 +711,7 @@ app.get('/api/public/verify/:envelopeId/audit-trail', async (c) => {
 app.get('/', (c) => c.redirect('/dashboard'));
 
 // Global catch-all 404. API requests get JSON; everything else gets plain text
-// (the Remix frontend handles HTML 404 rendering).
+// (the React Router v7 frontend handles HTML 404 rendering).
 app.notFound((c) => {
     const url = new URL(c.req.url);
     if (url.pathname.startsWith('/api/')) {
@@ -743,7 +743,7 @@ export { TenantPresenceDO     } from './durable-objects/tenant-presence';
 // inspects the doc without needing a live request.
 export { app };
 
-// Remix migration — typed RPC client for the frontend Remix app.
+// React Router v7 migration — typed RPC client for the frontend React Router v7 app.
 // `routes` carries the accumulated path schemas from all chained `.route()`
 // calls. Currently the sub-routers use void `.openapi()` calls (not chained),
 // so request/response types are blank. Once sub-routers also chain their

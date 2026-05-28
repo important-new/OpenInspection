@@ -1426,7 +1426,7 @@ inspectionsRoutes.openapi(updateMediaAnnotationsRoute, async (c) => {
 
 /**
  * Report View (HTML) — REMOVED.
- * The Remix frontend now handles report rendering via /report/:tenant/:id.
+ * The React Router v7 frontend now handles report rendering via /report/:tenant/:id.
  * Use GET /api/inspections/:id/report-data for the JSON data endpoint.
  */
 inspectionsRoutes.get('/:id/report', async (c) => {
@@ -1434,7 +1434,7 @@ inspectionsRoutes.get('/:id/report', async (c) => {
         success: false,
         error: {
             code: 'MOVED',
-            message: 'HTML report rendering has moved to the Remix frontend. Use GET /api/inspections/:id/report-data for JSON data.',
+            message: 'HTML report rendering has moved to the React Router v7 frontend. Use GET /api/inspections/:id/report-data for JSON data.',
         },
     }, 410);
 });

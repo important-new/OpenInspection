@@ -8,7 +8,7 @@ OpenInspection is a multi-tenant home inspection app deployed as two independent
 |---|---|
 | Edge runtime | Cloudflare Workers (Free tier sufficient for solo inspectors) |
 | API routing | [Hono](https://hono.dev) + Zod OpenAPI (typed JSON API) |
-| Frontend | [Remix](https://remix.run) (React Router v7) + React 18 + Vite |
+| Frontend | [React Router v7](https://reactrouter.com) + React 18 + Vite |
 | ORM + DB | [Drizzle](https://orm.drizzle.team) + Cloudflare D1 (SQLite) |
 | Object storage | Cloudflare R2 (photos, future PDFs) |
 | KV cache | Cloudflare Workers KV (tenant config, signed tokens, rate-limit counters) |
@@ -27,7 +27,7 @@ OpenInspection runs as two independent Cloudflare Workers:
 ```
                     ┌─────────────────────────┐
   Browser ────────► │  Frontend Worker         │
-                    │  Remix + React 18        │
+                    │  React Router v7 + React 18        │
                     │  SSR on CF Workers       │
                     │                          │
                     │  Token Relay BFF:        │
@@ -46,19 +46,19 @@ OpenInspection runs as two independent Cloudflare Workers:
 ```
 
 - **API Worker** (`api/`) — Hono + Drizzle + D1. Handles all business logic, authentication, and data access. Exposes a typed JSON API.
-- **Frontend Worker** (`frontend/`) — Remix + React 18 + Tailwind v4. Server-side renders the React UI. Calls API Worker via Service Binding (no network hop in production) or HTTP proxy (in local dev).
+- **Frontend Worker** (`frontend/`) — React Router v7 + React 18 + Tailwind v4. Server-side renders the React UI. Calls API Worker via Service Binding (no network hop in production) or HTTP proxy (in local dev).
 - **Shared UI** (`packages/shared-ui/`) — Design System 0523 token-based React components (Button, Pill, Card, etc.).
 - **API Types** (`packages/api-types/`) — Re-exports the Hono app type so the frontend's `hono/client` gets full end-to-end type safety.
 
-The frontend uses a **Token Relay BFF** pattern: the Remix server holds the JWT cookie and forwards it to the API Worker on every request, so the browser never sees the token directly.
+The frontend uses a **Token Relay BFF** pattern: the React Router v7 server holds the JWT cookie and forwards it to the API Worker on every request, so the browser never sees the token directly.
 
-### Why Remix (React Router v7)
+### Why React Router v7
 
 - **SPA navigation**: page transitions without full reload — inspectors switch between editor/dashboard/templates frequently
 - **React 18**: future React Native app can reuse hooks and state logic (useInspection, useFindings, useSync)
 - **SSR on Workers**: full server rendering at the edge, same latency as static HTML
-- **hono/client**: Hono exports `AppType`, Remix uses `hono/client` for compile-time type-safe API calls — zero handwritten API client
-- **CF Free Tier safe**: Remix SSR adds ~1-3ms CPU per request, well within 10ms limit
+- **hono/client**: Hono exports `AppType`, React Router v7 uses `hono/client` for compile-time type-safe API calls — zero handwritten API client
+- **CF Free Tier safe**: React Router v7 SSR adds ~1-3ms CPU per request, well within 10ms limit
 
 ## Module map
 
@@ -88,9 +88,9 @@ apps/core/
 │   └── tests/                     # API unit + integration + E2E tests
 ├── frontend/
 │   ├── app/
-│   │   ├── root.tsx               # Remix root layout
+│   │   ├── root.tsx               # React Router v7 root layout
 │   │   ├── routes.ts              # Route configuration
-│   │   ├── entry.server.tsx       # Remix CF Workers entry
+│   │   ├── entry.server.tsx       # React Router v7 CF Workers entry
 │   │   ├── routes/                # 75 route files (loader + action + component)
 │   │   ├── components/            # 61 React components
 │   │   ├── hooks/                 # 9 React hooks
@@ -106,14 +106,14 @@ apps/core/
 
 ## Request flow
 
-### Frontend (Remix) flow
+### Frontend (React Router v7) flow
 
 ```
 Browser request
    ↓
 Cloudflare edge → Frontend Worker fetch handler
    ↓
-Remix server (SSR):
+React Router v7 server (SSR):
    1. Route matched → loader() or action() executes
    2. Reads session cookie (Token Relay BFF)
    3. Calls API Worker via Service Binding (hono/client)
@@ -169,7 +169,7 @@ Tenant resolution lives in `api/src/features/tenant-routing/` (entry point `inde
 - Each request: middleware verifies JWT signature + checks `iat >= KV[pwchanged:userId]`
 - Password change: writes `pwchanged:userId = now()` to KV → invalidates all prior tokens server-side
 - Browser JS never sees the token (HttpOnly enforced); same-origin `fetch()` sends the cookie automatically.
-- Frontend Worker uses Token Relay BFF: Remix server reads the cookie and forwards it via Service Binding to the API Worker.
+- Frontend Worker uses Token Relay BFF: React Router v7 server reads the cookie and forwards it via Service Binding to the API Worker.
 
 ## Service layer
 
@@ -191,7 +191,7 @@ The DI proxy in `api/src/lib/middleware/di.ts` lazy-instantiates each service on
 
 ## Frontend layer
 
-- **Remix SSR**: Routes in `frontend/app/routes/` use `loader()` for data fetching and `action()` for mutations. Full server-side rendering on Cloudflare Workers.
+- **React Router v7 SSR**: Routes in `frontend/app/routes/` use `loader()` for data fetching and `action()` for mutations. Full server-side rendering on Cloudflare Workers.
 - **React components**: 59 components in `frontend/app/components/`, organized by domain (inspection, template, booking, etc.).
 - **Hooks**: 9 custom hooks handle complex state — `useInspection` (866 LOC), `useFindings`, `useKeyboard` (shortcuts), `useCannedComments`, `useOfflineQueue`, `usePresence` (WebSocket), `useTheme`, `useUnsavedChanges`, `useSessionContext`.
 - **Design tokens**: Tailwind v4 with Design System 0523 tokens in `frontend/app/styles/tailwind.css`.
@@ -238,4 +238,4 @@ A solo inspector doing 50 inspections/month uses approximately 1-2% of Free tier
 | D1 reads | 5M/day | — |
 | R2 storage | 10 GB | — |
 
-Remix SSR adds ~1-3ms CPU per request. The API Worker bundle is ~250KB gzip, well within limits. Browser Rendering (server-side PDF) requires Workers Paid ($5/mo); the default uses `window.print()` which is free.
+React Router v7 SSR adds ~1-3ms CPU per request. The API Worker bundle is ~250KB gzip, well within limits. Browser Rendering (server-side PDF) requires Workers Paid ($5/mo); the default uses `window.print()` which is free.

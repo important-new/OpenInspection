@@ -1,6 +1,6 @@
 # CLAUDE.md — OpenInspection (Open Source Edition)
 
-The open-source inspection engine. Dual-deploy architecture: a Hono API Worker + a Remix frontend Worker, both on Cloudflare.
+The open-source inspection engine. Dual-deploy architecture: a Hono API Worker + a React Router v7 frontend Worker, both on Cloudflare.
 
 **Docs**: `docs/developers/` (architecture, deploy, testing, API ref) · `docs/getting-started.md` (user guide)
 
@@ -19,8 +19,8 @@ npm run deploy       # Build CSS + deploy API Worker to Cloudflare Workers
 # Frontend Worker (frontend/)
 cd frontend
 npm install
-npm run dev          # Start Remix dev server (port 5173, proxies API to 8788)
-npm run build        # Build Remix frontend for production
+npm run dev          # Start React Router v7 dev server (port 5173, proxies API to 8788)
+npm run build        # Build React Router v7 frontend for production
 bash scripts/deploy.sh  # Build + deploy Frontend Worker to Cloudflare Workers
 npm run type-check   # Frontend TypeScript checks
 
@@ -41,7 +41,7 @@ cd frontend && npm run test   # Frontend E2E tests (frontend/tests/)
 | `api/src/services/` | Business logic, DB queries (Drizzle) |
 | `api/migrations/` | D1 database migration SQL files |
 | `api/tests/` | API unit + integration + E2E tests |
-| `frontend/app/routes/` | 75 Remix React route files |
+| `frontend/app/routes/` | 75 React Router v7 route files |
 | `frontend/app/components/` | 61 React components |
 | `frontend/app/hooks/` | 9 React hooks (useInspection, useFindings, useKeyboard, etc.) |
 | `frontend/app/lib/` | API client (hono/client), session management, helpers |
@@ -58,11 +58,11 @@ cd frontend && npm run test   # Frontend E2E tests (frontend/tests/)
 OpenInspection runs as two independent Cloudflare Workers:
 
 - **API Worker** (`api/`) — Hono + Drizzle + D1. Handles all business logic, authentication, and data access. Exposes a typed JSON API.
-- **Frontend Worker** (`frontend/`) — Remix + React 18 + Tailwind v4. Server-side renders the React UI on Cloudflare Workers. Calls the API Worker via Service Binding (zero-latency, no network hop).
+- **Frontend Worker** (`frontend/`) — React Router v7 + React 18 + Tailwind v4. Server-side renders the React UI on Cloudflare Workers. Calls the API Worker via Service Binding (zero-latency, no network hop).
 - **Shared UI** (`packages/shared-ui/`) — Design System 0523 token-based React components shared between frontend and any future consumers.
 - **API Types** (`packages/api-types/`) — Re-exports the Hono app type so the frontend's `hono/client` gets full end-to-end type safety.
 
-The frontend uses a **Token Relay BFF** pattern: the Remix server holds the JWT cookie and forwards it to the API Worker on every request, so the browser never sees the token.
+The frontend uses a **Token Relay BFF** pattern: the React Router v7 server holds the JWT cookie and forwards it to the API Worker on every request, so the browser never sees the token.
 
 ### Authentication
 - JWT-based authentication (ES256 / ECDSA P-256, HttpOnly cookie `__Host-inspector_token`). Multi-version keyring with `kid` header support for safe rotation — see `api/src/lib/jwt-keyring.ts`.
@@ -85,10 +85,10 @@ The frontend uses a **Token Relay BFF** pattern: the Remix server holds the JWT 
 
 ## Frontend Architecture
 
-- **Framework**: Remix (React Router v7) on Cloudflare Workers with Vite.
-- **Rendering**: Full SSR — Remix server renders on the edge, hydrates on the client.
+- **Framework**: React Router v7 on Cloudflare Workers with Vite.
+- **Rendering**: Full SSR — React Router v7 server renders on the edge, hydrates on the client.
 - **Styling**: Tailwind CSS v4 with Design System 0523 tokens (`frontend/app/styles/tailwind.css`).
-- **API calls**: `hono/client` with end-to-end type safety via `packages/api-types/`. The Remix loader/action functions call the API Worker through a Service Binding (in production) or HTTP proxy (in dev).
+- **API calls**: `hono/client` with end-to-end type safety via `packages/api-types/`. The React Router v7 loader/action functions call the API Worker through a Service Binding (in production) or HTTP proxy (in dev).
 - **State management**: React hooks — `useInspection` (866 LOC), `useFindings`, `useKeyboard`, `useCannedComments`, `useOfflineQueue`, `usePresence`, `useTheme`, `useUnsavedChanges`.
 - **Component library**: `packages/shared-ui/` provides 12 design-system components (Button, Pill, Card, etc.) consumed by the frontend.
 - **Dark mode**: `data-color-scheme` attribute on `<html>`, managed by `useTheme` hook (auto/light/dark).
@@ -125,7 +125,7 @@ The frontend uses a **Token Relay BFF** pattern: the Remix server holds the JWT 
 ---
 
 - **API Framework**: [Hono](https://hono.dev/) with Zod OpenAPI.
-- **Frontend Framework**: [Remix](https://remix.run/) (React Router v7) + React 18.
+- **Frontend Framework**: [React Router v7](https://reactrouter.com/) + React 18.
 - **ORM**: [Drizzle ORM](https://orm.drizzle.team/) with D1.
 - **CSS**: [Tailwind CSS v4](https://tailwindcss.com/) with Design System 0523 tokens.
 - **Testing**: Vitest for unit tests; Playwright for E2E.

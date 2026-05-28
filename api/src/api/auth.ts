@@ -148,7 +148,7 @@ coreAuthRoutes.openapi(loginRoute, async (c) => {
 
     setCookie(c, '__Host-inspector_token', token, authCookieOptions());
 
-    // Token Relay BFF: when the Remix SSR frontend (server-to-server) calls
+    // Token Relay BFF: when the React Router v7 SSR frontend (server-to-server) calls
     // this endpoint, Workers fetch() may strip Set-Cookie. The BFF signals
     // itself via X-Token-Relay header; we return the JWT in the body so the
     // BFF can store it in its own session cookie. The browser never sees this

@@ -1,11 +1,11 @@
 /**
- * Remix Frontend Browser Tests
+ * React Router v7 Frontend Browser Tests
  *
- * Adapted from api/tests/standalone-browser.spec.ts for the Remix frontend.
+ * Adapted from api/tests/standalone-browser.spec.ts for the React Router v7 frontend.
  * Tests page rendering, SPA navigation, shared-ui components, and UI interactions.
  *
  * Covers: Auth via form POST, SPA navigation, shared-ui components, page rendering
- * Run: npx playwright test frontend/tests/e2e/remix-browser.spec.ts
+ * Run: npx playwright test frontend/tests/e2e/frontend-browser.spec.ts
  */
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
@@ -79,7 +79,7 @@ const JARGON = [
 
 // --- Tests ------------------------------------------------------------------
 
-test.describe.serial('Remix Frontend Browser Tests', () => {
+test.describe.serial('React Router v7 Frontend Browser Tests', () => {
   // -- Auth Setup ------------------------------------------------------------
 
   test('SETUP: Login as admin and inspector', async ({ request }) => {

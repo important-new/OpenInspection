@@ -47,7 +47,7 @@ After deploying (see [`developers/02_deploy.md`](developers/02_deploy.md)), visi
 
 ```
 api/                  Hono API Worker (business logic, D1, R2)
-frontend/             Remix Frontend Worker (React SSR on CF Workers)
+frontend/             React Router v7 Frontend Worker (React SSR on CF Workers)
 packages/shared-ui/   Design System 0523 components (Button, Card, Pill, etc.)
 packages/api-types/   Hono app type re-export for end-to-end type safety
 docs/developers/      Architecture, deploy, API ref, testing
@@ -72,7 +72,7 @@ npm run dev                    # http://localhost:5173 (proxies API)
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start API Worker (port 8788) |
-| `cd frontend && npm run dev` | Start Remix dev server (port 5173) |
+| `cd frontend && npm run dev` | Start React Router v7 dev server (port 5173) |
 | `npm run db:migrate` | Apply D1 migrations locally |
 | `npm run deploy` | Deploy API Worker to Cloudflare |
 | `cd frontend && bash scripts/deploy.sh` | Deploy Frontend Worker |
@@ -84,7 +84,7 @@ npm run dev                    # http://localhost:5173 (proxies API)
 Two independent Cloudflare Workers connected via Service Binding:
 
 ```
-Browser → Frontend Worker (Remix SSR) → Service Binding → API Worker (Hono + D1)
+Browser → Frontend Worker (React Router v7 SSR) → Service Binding → API Worker (Hono + D1)
 ```
 
 - **Frontend** holds the session cookie, relays JWT to API (Token Relay BFF pattern)
