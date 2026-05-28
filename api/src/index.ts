@@ -82,6 +82,7 @@ import sessionContextRoutes from './api/session-context';
 import qboRoutes from './api/qbo';
 import qboWebhookRoutes from './api/qbo-webhook';
 import agreementsRenderRoutes from './api/agreements-render';
+import evidenceRoutes from './api/evidence';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -434,6 +435,8 @@ const routes = app
   // UC-C-7 — public share-token mint (customer Forward report flow).
   .route('/api/public', publicShareRoutes)
   .route('/api/admin', adminRoutes)
+  // Evidence download — GET /api/admin/agreement-requests/:id/pdf + certificate.pdf
+  .route('/api/admin', evidenceRoutes)
   // Secret UI化 — GET/PUT/POST /api/admin/secrets for all 14 integration keys
   .route('/api/admin', secretsRoutes)
   .route('/api/agent', agentRoutes)
