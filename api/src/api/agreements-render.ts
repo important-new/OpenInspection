@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import * as schema from '../lib/db/schema';
 import type { HonoConfig } from '../types/hono';
 
@@ -78,11 +78,63 @@ export async function agreementRenderHandler(
   });
 }
 
+export async function certRenderHandler(
+  d1: D1Database,
+  token: string,
+): Promise<Response> {
+  const db = drizzle(d1, { schema });
+  const reqRow = await db.select().from(schema.agreementRequests)
+    .where(eq(schema.agreementRequests.token, token)).get();
+  if (!reqRow || reqRow.status !== 'signed') {
+    return new Response('Not Found', { status: 404 });
+  }
+  const auditRows = await db.select().from(schema.esignAuditLogs)
+    .where(and(
+      eq(schema.esignAuditLogs.tenantId, reqRow.tenantId),
+      eq(schema.esignAuditLogs.requestId, reqRow.id),
+    ))
+    .orderBy(asc(schema.esignAuditLogs.createdAt))
+    .all();
+  const keyFingerprint = auditRows[0]?.keyFingerprint ?? 'unknown';
+  const clientLabel = reqRow.clientName ?? reqRow.clientEmail;
+
+  const rowsHtml = auditRows.map((r) => `
+    <tr>
+      <td style="padding:4px 8px">${escapeHtml(new Date(r.createdAt).toUTCString())}</td>
+      <td style="padding:4px 8px">${escapeHtml(r.event)}</td>
+      <td style="padding:4px 8px"><code>${escapeHtml(r.hash.slice(0, 16))}…</code></td>
+    </tr>`).join('');
+
+  const html = HTML_HEAD +
+    `<h1>Certificate of Completion</h1>` +
+    `<p><strong>Document:</strong> Signed agreement for ${escapeHtml(clientLabel)}</p>` +
+    `<p><strong>Envelope ID:</strong> <code>${escapeHtml(reqRow.id)}</code></p>` +
+    `<p><strong>Audit chain:</strong> ${auditRows.length} events · key <code>${escapeHtml(keyFingerprint)}</code></p>` +
+    `<table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:12px">` +
+    `<thead><tr style="border-bottom:1px solid #cbd5e1;text-align:left">` +
+      `<th style="padding:4px 8px">Time (UTC)</th>` +
+      `<th style="padding:4px 8px">Event</th>` +
+      `<th style="padding:4px 8px">Hash</th>` +
+    `</tr></thead>` +
+    `<tbody>${rowsHtml}</tbody></table>` +
+    `<p style="margin-top:32px;font-size:11px;color:#64748b">` +
+      `All chain events were signed with Ed25519 and chained via SHA-256.` +
+    `</p>` +
+    HTML_FOOT;
+
+  return new Response(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+}
+
 const agreementsRenderRoutes = new Hono<HonoConfig>();
 agreementsRenderRoutes.get('/agreement-render/:tenant/:token', async (c) => {
   const tenant = c.req.param('tenant');
   const token = c.req.param('token');
   return agreementRenderHandler(c.env.DB, tenant, token);
 });
+agreementsRenderRoutes.get('/cert-render/:token', async (c) =>
+  certRenderHandler(c.env.DB, c.req.param('token')));
 
 export default agreementsRenderRoutes;
