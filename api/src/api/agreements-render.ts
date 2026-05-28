@@ -58,6 +58,19 @@ export async function agreementRenderHandler(
     ? reqRow.signatureBase64
     : `data:image/png;base64,${reqRow.signatureBase64}`;
 
+  const inspectorBlock = reqRow.inspectorSignatureBase64 ? (() => {
+      const sig = reqRow.inspectorSignatureBase64!;
+      const sigData = sig.startsWith('data:') ? sig : `data:image/png;base64,${sig}`;
+      const at = reqRow.inspectorSignedAt
+          ? escapeHtml(new Date(reqRow.inspectorSignedAt).toUTCString())
+          : '';
+      return `<div class="sig-cell">` +
+          `<div class="label">Inspector</div>` +
+          `<img src="${sigData}" alt="Inspector signature">` +
+          `<div class="meta">${at}</div>` +
+      `</div>`;
+  })() : '';
+
   const html = HTML_HEAD +
     `<h1>${escapeHtml(agreement.name)}</h1>` +
     `<div class="body">${escapeHtml(agreement.content)}</div>` +
@@ -68,6 +81,7 @@ export async function agreementRenderHandler(
           `<img src="${sigData}" alt="Client signature">` +
           `<div class="meta">${clientName} · ${escapeHtml(signedAt)}</div>` +
         `</div>` +
+        inspectorBlock +
       `</div>` +
     `</div>` +
     HTML_FOOT;

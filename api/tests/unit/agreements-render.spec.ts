@@ -74,6 +74,41 @@ describe('agreement-render handler', () => {
     const res = await agreementRenderHandler({} as D1Database, 'wrongslug', TOKEN_A);
     expect(res.status).toBe(404);
   });
+
+  it('renders inspector block when inspector pre-signed', async () => {
+    await db.insert(schema.agreementRequests).values({
+      id: REQ_ID, tenantId: TENANT_A, agreementId: AGR_ID,
+      clientEmail: 'jane@x', clientName: 'Jane Doe',
+      token: TOKEN_A, status: 'signed',
+      signatureBase64: 'data:image/png;base64,clientsig',
+      signedAt: new Date(),
+      inspectorSignatureBase64: 'data:image/png;base64,inspectorsig',
+      inspectorSignedAt: new Date(),
+      createdAt: new Date(),
+    });
+    const res = await agreementRenderHandler({} as D1Database, 'acme', TOKEN_A);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('clientsig');
+    expect(body).toContain('inspectorsig');
+    expect(body).toContain('Inspector');
+  });
+
+  it('renders only client block when inspector did NOT pre-sign', async () => {
+    await db.insert(schema.agreementRequests).values({
+      id: REQ_ID, tenantId: TENANT_A, agreementId: AGR_ID,
+      clientEmail: 'jane@x', clientName: 'Jane Doe',
+      token: TOKEN_A, status: 'signed',
+      signatureBase64: 'data:image/png;base64,clientsig',
+      signedAt: new Date(),
+      createdAt: new Date(),
+    });
+    const res = await agreementRenderHandler({} as D1Database, 'acme', TOKEN_A);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('clientsig');
+    expect(body).not.toContain('Inspector');
+  });
 });
 
 describe('cert-render handler', () => {
