@@ -346,3 +346,15 @@ export const InspectorSignSchema = z.object({
         .describe('Inspector signature as data URI with base64-encoded PNG/JPEG/SVG body.'),
 }).openapi('InspectorSign');
 
+/**
+ * Spec 5H D2 — save the authenticated user's default signature image.
+ * Reused for auto-sign on publish + as the SignaturePad default starting state
+ * in Settings → Profile.
+ */
+export const UserDefaultSignatureSchema = z.object({
+    signatureBase64: z.string().min(50).max(500_000)
+        .regex(/^data:image\/(png|jpeg|svg\+xml);base64,/)
+        .openapi({ example: 'data:image/png;base64,iVBORw0KGgo...' })
+        .describe('Inspector\'s saved signature as data URI. Reused for auto-sign on publish + as the SignaturePad default starting state.'),
+}).openapi('UserDefaultSignature');
+
