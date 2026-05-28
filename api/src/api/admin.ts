@@ -2020,7 +2020,7 @@ const brSmokeRoute = createRoute(withMcpMetadata({
 adminRoutes.openapi(brSmokeRoute, async (c) => {
     const { url } = c.req.valid('query');
     const probedUrl = url ?? 'https://example.com';
-    const browser = c.env.BROWSER as Fetcher | undefined;
+    const browser = c.env.BROWSER;
 
     if (!browser) {
         return c.json({
@@ -2047,10 +2047,7 @@ adminRoutes.openapi(brSmokeRoute, async (c) => {
     let body: ArrayBuffer | null = null;
 
     try {
-        const res = await browser.fetch(probedUrl, {
-            method: 'GET',
-            headers: { 'Accept': 'application/pdf' },
-        });
+        const res = await browser.quickAction('pdf', { url: probedUrl });
         status = res.status;
         contentType = res.headers.get('content-type');
         body = await res.arrayBuffer();
@@ -2065,7 +2062,7 @@ adminRoutes.openapi(brSmokeRoute, async (c) => {
 
     let hint: string;
     if (error) {
-        hint = `Call threw before returning: ${error}. Likely Worker runtime issue, not a CF account state issue.`;
+        hint = `Call threw before returning: ${error}. Likely a TypeError (binding misconfigured) or compatibility_date too old (need >= "2026-03-24" for .quickAction()).`;
     } else if (status === 404) {
         const bodyPreview = body ? new TextDecoder().decode(body.slice(0, 64)) : '';
         hint = bodyPreview.startsWith('Not Found')

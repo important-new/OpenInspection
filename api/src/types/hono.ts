@@ -1,4 +1,18 @@
 /**
+ * Cloudflare Browser Run "Quick Actions" Worker binding (post-rebrand from
+ * "Browser Rendering"). Minimal local declaration — the official
+ * @cloudflare/workers-types package shipping in this repo predates the
+ * Quick Actions surface. Full action list per
+ * https://developers.cloudflare.com/browser-run/quick-actions/
+ */
+export interface BrowserRun {
+    quickAction(
+        action: 'pdf' | 'screenshot' | 'content' | 'markdown' | 'snapshot' | 'scrape' | 'json' | 'links' | 'crawl',
+        options: { url?: string; html?: string; [key: string]: unknown },
+    ): Promise<Response>;
+}
+
+/**
  * Global environment bindings for the Cloudflare Worker.
  * Defines the expected resources from wrangler.toml.
  */
@@ -61,8 +75,12 @@ export interface AppEnv {
     // Rate Limiting
     RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 
-    // PDF Generation (Cloudflare Browser Rendering — beta)
-    BROWSER?: Fetcher;
+    // PDF Generation (Cloudflare Browser Run — formerly Browser Rendering).
+    // Quick Actions API: env.BROWSER.quickAction("pdf", { url }) → Response.
+    // Requires wrangler `compatibility_date >= "2026-03-24"`. The official
+    // workers-types package predates the rebrand, so we declare a minimal
+    // shape locally.
+    BROWSER?: BrowserRun;
 
     // Report PDF storage (Spec 5A) — pre-rendered Summary + Full Report PDFs.
     // Optional during local dev so the worker boots without the binding.

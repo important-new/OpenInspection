@@ -90,22 +90,18 @@ export class SignCompletionWorkflow extends WorkflowEntrypoint<AppEnv, SignCompl
 }
 
 /**
- * Use Browser Rendering to capture a URL as PDF, write to R2, return key + sha256.
- * The internal render URLs (/m2m/agreement-render/{token}, /m2m/cert-render/{token})
- * are gated by M2M auth (Bearer JWT_SECRET) — see src/index.ts. Browser Rendering
- * fetches them with the Authorization header set via the launch options.
+ * Use Browser Run Quick Actions to capture a URL as PDF, write to R2,
+ * return key + sha256. The internal render URLs
+ * (/m2m/agreement-render/{tenant}/{token}, /m2m/cert-render/{token}) are
+ * gated by the token-in-URL secret (no Authorization header needed —
+ * Browser Run does not reliably forward custom headers).
  */
 async function renderPdfToR2(env: AppEnv, opts: { renderUrl: string; r2Key: string }): Promise<{ r2Key: string; sha256: string; sizeBytes: number }> {
     if (!env.REPORTS) throw new Error('REPORTS R2 bucket not configured');
     if (!env.BROWSER) throw new Error('BROWSER binding not configured');
 
-    // DIAGNOSTIC ROUND 20.2: call BR directly + capture full response body.
-    // This bypasses pdf.ts so we can see the raw error.
-    console.info('[sign-workflow] BR fetch', { renderUrl: opts.renderUrl });
-    const res = await env.BROWSER.fetch(opts.renderUrl, {
-        method: 'GET',
-        headers: { 'Accept': 'application/pdf' },
-    });
+    console.info('[sign-workflow] BR quickAction("pdf")', { renderUrl: opts.renderUrl });
+    const res = await env.BROWSER.quickAction('pdf', { url: opts.renderUrl });
     if (!res.ok) {
         const body = await res.text().catch(() => '<unreadable>');
         console.error('[sign-workflow] BR error', { status: res.status, headers: Object.fromEntries(res.headers.entries()), body: body.slice(0, 1000) });
