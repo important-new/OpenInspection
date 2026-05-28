@@ -67,6 +67,9 @@ export const inspections = sqliteTable('inspections', {
     cancelNotes:         text('cancel_notes'),  // Spec 3A
     paymentRequired:     integer('payment_required', { mode: 'boolean' }).notNull().default(false),
     agreementRequired:   integer('agreement_required', { mode: 'boolean' }).notNull().default(false),
+    // Spec 5H D2 — when true, InspectionService.publish() auto-injects the
+    // inspector's users.default_signature_base64 into inspection_results.data._inspector_signature.
+    autoSignOnPublish:   integer('auto_sign_on_publish', { mode: 'boolean' }).notNull().default(false),
     discountCodeId:      text('discount_code_id'),
     discountAmount:      integer('discount_amount'),
     closingDate:         text('closing_date'),
