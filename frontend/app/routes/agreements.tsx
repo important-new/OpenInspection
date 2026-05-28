@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { useLoaderData } from "react-router";
+import { useState, useEffect } from "react";
+import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import type { Route } from "./+types/agreements";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState } from "@core/shared-ui";
+import { SignaturePad } from "~/components/SignaturePad";
 
 export function meta() {
   return [{ title: "Agreements - OpenInspection" }];
@@ -27,6 +28,30 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
+export async function action({ request }: Route.ActionArgs) {
+  const token = await requireToken(request);
+  const formData = await request.formData();
+  const envelopeId = String(formData.get("envelopeId") ?? "");
+  const signatureBase64 = String(formData.get("signatureBase64") ?? "");
+  if (!envelopeId || !signatureBase64) {
+    return { ok: false, error: "Missing envelopeId or signatureBase64" };
+  }
+  const res = await apiFetch(
+    `/api/admin/agreement-requests/${encodeURIComponent(envelopeId)}/inspector-sign`,
+    {
+      token,
+      method: "POST",
+      body: JSON.stringify({ signatureBase64 }),
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    return { ok: false, error: `API returned ${res.status}: ${text.slice(0, 200)}` };
+  }
+  return { ok: true };
+}
+
 const TABS = [
   { id: "templates", label: "Templates" },
   { id: "signing", label: "Signing" },
@@ -45,6 +70,26 @@ function pillLabelFor(status: string): string {
 export default function AgreementsPage() {
   const { templates, requests } = useLoaderData<typeof loader>();
   const [activeTab, setActiveTab] = useState("templates");
+  const [signingId, setSigningId] = useState<string | null>(null);
+  const fetcher = useFetcher<typeof action>();
+  const revalidator = useRevalidator();
+
+  useEffect(() => {
+    if (fetcher.data?.ok) {
+      setSigningId(null);
+      revalidator.revalidate();
+    }
+  }, [fetcher.data, revalidator]);
+
+  const submitSignature = async (dataUri: string) => {
+    await new Promise<void>((resolve) => {
+      fetcher.submit(
+        { envelopeId: signingId ?? "", signatureBase64: dataUri },
+        { method: "post" },
+      );
+      resolve();
+    });
+  };
 
   const showingTemplates = activeTab === "templates";
   const rows = showingTemplates ? templates : requests;
@@ -133,6 +178,13 @@ export default function AgreementsPage() {
                               Certificate
                             </a>
                           </div>
+                        ) : r.status === "pending" ? (
+                          <button
+                            className="text-[13px] text-ih-primary hover:opacity-80 font-semibold"
+                            onClick={() => setSigningId(r.id)}
+                          >
+                            Sign now
+                          </button>
                         ) : (
                           <button className="text-[13px] text-ih-fg-3 hover:opacity-80">View</button>
                         )}
@@ -142,6 +194,21 @@ export default function AgreementsPage() {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {signingId && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-3">Inspector signature</h3>
+            <p className="text-sm text-ih-fg-3 mb-4">
+              Draw your signature below. This will pre-sign the agreement; the client signs separately after you send it.
+            </p>
+            <SignaturePad onSubmit={submitSignature} onCancel={() => setSigningId(null)} label="Save signature" />
+            {fetcher.data?.ok === false && (
+              <p className="text-sm text-red-600 mt-3">{fetcher.data.error}</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
