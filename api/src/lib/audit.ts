@@ -39,6 +39,7 @@ export type AuditAction =
     | 'agreement.viewed'
     | 'agreement.declined'
     | 'agreement.expired'
+    | 'agreement.inspector_signed'
     | 'recommendation.created'
     | 'recommendation.updated'
     | 'recommendation.deleted'

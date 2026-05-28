@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, inArray, sql, desc } from 'drizzle-orm';
 import { agreements, agreementRequests, inspections } from '../lib/db/schema';
+import * as schema from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 
@@ -401,4 +402,38 @@ export class AgreementService {
         logger.info('AgreementService.expireOlderThan', { days, count });
         return count;
     }
+}
+
+/**
+ * Spec 5H D1 — Inspector pre-sign.
+ *
+ * Writes the inspector's signature, userId, and timestamp onto the
+ * agreement request row while it is still in 'pending' status (before
+ * it is sent to the client). Tenant-scoped; throws if the envelope is
+ * not found, belongs to a different tenant, or is not in 'pending' status.
+ */
+export async function applyInspectorPreSign(
+    d1: D1Database,
+    tenantId: string,
+    envelopeId: string,
+    inspectorUserId: string,
+    signatureBase64: string,
+): Promise<void> {
+    const db = drizzle(d1, { schema });
+    const row = await db.select().from(schema.agreementRequests)
+        .where(and(
+            eq(schema.agreementRequests.id, envelopeId),
+            eq(schema.agreementRequests.tenantId, tenantId),
+        )).get();
+    if (!row) throw new Error('agreement request not found');
+    if (row.status !== 'pending') {
+        throw new Error('can only pre-sign while status is pending');
+    }
+    await db.update(schema.agreementRequests)
+        .set({
+            inspectorSignatureBase64: signatureBase64,
+            inspectorSignedAt: new Date(),
+            inspectorUserId,
+        })
+        .where(eq(schema.agreementRequests.id, envelopeId));
 }

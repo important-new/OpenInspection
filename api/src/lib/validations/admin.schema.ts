@@ -335,3 +335,14 @@ export const SeedStarterContentResponseSchema = createApiResponseSchema(z.object
     marketplaceLibrariesSeeded: z.number().int().nonnegative().describe('TODO describe marketplaceLibrariesSeeded field for the OpenInspection MCP integration'),
 })).openapi('SeedStarterContentResponse');
 
+/**
+ * Validation schema for inspector pre-sign request body.
+ * Spec 5H D1 — optional inspector signature before sending to client.
+ */
+export const InspectorSignSchema = z.object({
+    signatureBase64: z.string().min(50).max(500_000)
+        .regex(/^data:image\/(png|jpeg|svg\+xml);base64,/)
+        .openapi({ example: 'data:image/png;base64,iVBORw0KGgo...' })
+        .describe('Inspector signature as data URI with base64-encoded PNG/JPEG/SVG body.'),
+}).openapi('InspectorSign');
+
