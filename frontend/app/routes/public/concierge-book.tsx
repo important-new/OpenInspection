@@ -27,10 +27,10 @@ interface ConciergeBookData {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, params, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch(`/api/concierge/book-info`, { token });
+    const res = await apiFetch(context, `/api/concierge/book-info`, { token });
     const body = res.ok ? await res.json() : {};
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
     return { data: (Object.keys(d).length > 0 ? d : null) as ConciergeBookData | null, error: res.ok ? null : "Not found" };
@@ -43,8 +43,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const fd = await request.formData();
   const body = {
     tenantId: fd.get("tenantId"),
@@ -59,7 +59,7 @@ export async function action({ request }: Route.ActionArgs) {
     paymentRequired: fd.get("paymentRequired") === "on",
   };
 
-  const res = await apiFetch("/api/concierge/book", {
+  const res = await apiFetch(context, "/api/concierge/book", {
     token,
     method: "POST",
     body: JSON.stringify(body),

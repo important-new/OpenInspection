@@ -172,12 +172,12 @@ function matchesWorkflow(i: Inspection, tab: TabKey): boolean {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
     const [dashRes, tagsRes] = await Promise.all([
-      apiFetch("/api/inspections/dashboard", { token }),
-      apiFetch("/api/tags", { token }).catch(() => null),
+      apiFetch(context, "/api/inspections/dashboard", { token }),
+      apiFetch(context, "/api/tags", { token }).catch(() => null),
     ]);
     const json = dashRes.ok ? ((await dashRes.json()) as Record<string, unknown>) : {};
     const d = (json.data ?? {}) as unknown as DashboardData | undefined;
@@ -228,21 +228,21 @@ function getGreeting() {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
   if (intent === "delete") {
     const id = formData.get("id") as string;
-    const res = await apiFetch(`/api/inspections/${id}`, { token, method: "DELETE" });
+    const res = await apiFetch(context, `/api/inspections/${id}`, { token, method: "DELETE" });
     return { ok: res.ok, intent: "delete" };
   }
   if (intent === "archive") {
     const ids = (formData.get("ids") as string).split(",");
     const results = await Promise.all(
       ids.map((id) =>
-        apiFetch(`/api/inspections/${id}`, {
+        apiFetch(context, `/api/inspections/${id}`, {
           token,
           method: "PATCH",
           body: JSON.stringify({ status: "cancelled" }),
@@ -254,7 +254,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "status") {
     const id = formData.get("id") as string;
     const status = formData.get("status") as string;
-    const res = await apiFetch(`/api/inspections/${id}`, {
+    const res = await apiFetch(context, `/api/inspections/${id}`, {
       token,
       method: "PATCH",
       body: JSON.stringify({ status }),

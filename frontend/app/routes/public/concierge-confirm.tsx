@@ -31,7 +31,7 @@ interface ConfirmData {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
   if (!token) {
@@ -39,6 +39,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
   try {
     const res = await apiFetch(
+      context,
       `/api/concierge/confirm-info?token=${encodeURIComponent(token)}`,
     );
     const body = res.ok ? await res.json() : {};
@@ -56,11 +57,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
   const token = fd.get("token") as string;
 
-  const res = await apiFetch("/api/concierge/confirm", {
+  const res = await apiFetch(context, "/api/concierge/confirm", {
     method: "POST",
     body: JSON.stringify({ token }),
   });

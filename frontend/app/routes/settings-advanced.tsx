@@ -19,14 +19,14 @@ interface AdvancedConfig {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
 
   // Fetch Stripe connect status + secrets in parallel
   const [stripeRes, aiRes, secretsRes] = await Promise.all([
-    apiFetch("/api/admin/payments/status", { token }).catch(() => null),
-    apiFetch("/api/admin/ai/status", { token }).catch(() => null),
-    apiFetch("/api/admin/secrets", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/payments/status", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/ai/status", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
   ]);
 
   let stripeConnected = false;
@@ -63,8 +63,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const fd = await request.formData();
   const intent = fd.get("intent");
 
@@ -73,7 +73,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!accountId || typeof accountId !== "string" || !accountId.startsWith("acct_")) {
       return { success: false, error: "Please enter a valid Stripe account ID (starts with acct_)." };
     }
-    const res = await apiFetch("/api/admin/payments/connect", {
+    const res = await apiFetch(context, "/api/admin/payments/connect", {
       token,
       method: "POST",
       body: JSON.stringify({ accountId }),
@@ -86,7 +86,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (intent === "disconnect-stripe") {
-    const res = await apiFetch("/api/admin/payments/disconnect", {
+    const res = await apiFetch(context, "/api/admin/payments/disconnect", {
       token,
       method: "POST",
     });
@@ -101,7 +101,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!geminiApiKey || typeof geminiApiKey !== "string" || !geminiApiKey.trim()) {
       return { success: false, error: "API key is required." };
     }
-    const res = await apiFetch("/api/admin/secrets", {
+    const res = await apiFetch(context, "/api/admin/secrets", {
       token,
       method: "PUT",
       body: JSON.stringify({ GEMINI_API_KEY: geminiApiKey }),
@@ -120,7 +120,7 @@ export async function action({ request }: Route.ActionArgs) {
       if (val && typeof val === "string" && val.trim()) body[key] = val;
     }
     if (Object.keys(body).length > 0) {
-      const res = await apiFetch("/api/admin/secrets", {
+      const res = await apiFetch(context, "/api/admin/secrets", {
         token,
         method: "PUT",
         body: JSON.stringify(body),

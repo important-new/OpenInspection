@@ -22,14 +22,14 @@ interface InviteData {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
   if (!token) {
     return { invite: null, error: "no-token" as const };
   }
   try {
-    const res = await apiFetch(`/api/agents/invite-info?token=${encodeURIComponent(token)}`);
+    const res = await apiFetch(context, `/api/agents/invite-info?token=${encodeURIComponent(token)}`);
     const body = res.ok ? await res.json() : {};
     if (!res.ok) {
       return { invite: null, error: "expired" as const };
@@ -48,7 +48,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
   const body = {
     token: fd.get("token"),
@@ -56,7 +56,7 @@ export async function action({ request }: Route.ActionArgs) {
     name: fd.get("name"),
   };
 
-  const res = await apiFetch("/api/agents/accept", {
+  const res = await apiFetch(context, "/api/agents/accept", {
     method: "POST",
     body: JSON.stringify(body),
   });

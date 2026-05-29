@@ -31,9 +31,10 @@ interface ReportData {
  inspectorSignature?: InspectorSignature | null;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
  try {
  const res = await apiFetch(
+ context,
  `/api/public/report/${params.tenant}/${params.id}`,
  );
  const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};

@@ -34,10 +34,10 @@ interface Template {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/inspections/templates", { token });
+    const res = await apiFetch(context, "/api/inspections/templates", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     const templates = (body.data ?? []) as Template[];
     return { templates, token };
@@ -50,15 +50,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
   if (intent === "create") {
     const name = (formData.get("name") as string)?.trim();
     if (!name) return { error: "Name is required" };
-    const res = await apiFetch("/api/inspections/templates", {
+    const res = await apiFetch(context, "/api/inspections/templates", {
       token,
       method: "POST",
       body: JSON.stringify({ name, schema: { schemaVersion: 2, sections: [] } }),
@@ -78,7 +78,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "delete") {
     const id = formData.get("id") as string;
-    const res = await apiFetch(`/api/inspections/templates/${id}`, { token, method: "DELETE" });
+    const res = await apiFetch(context, `/api/inspections/templates/${id}`, { token, method: "DELETE" });
     return { ok: res.ok, intent: "delete" };
   }
 
@@ -86,7 +86,7 @@ export async function action({ request }: Route.ActionArgs) {
     const id = formData.get("id") as string;
     const name = formData.get("name") as string;
     const schema = formData.get("schema") as string;
-    const res = await apiFetch("/api/inspections/templates", {
+    const res = await apiFetch(context, "/api/inspections/templates", {
       token,
       method: "POST",
       body: JSON.stringify({
@@ -112,7 +112,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!name || !payload) return { error: "Name and JSON are required" };
     let parsed: unknown;
     try { parsed = JSON.parse(payload); } catch (e) { return { error: "Invalid JSON" }; }
-    const res = await apiFetch("/api/inspections/templates/import-spectora", {
+    const res = await apiFetch(context, "/api/inspections/templates/import-spectora", {
       token,
       method: "POST",
       body: JSON.stringify({ name, spectora: parsed }),

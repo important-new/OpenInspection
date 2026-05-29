@@ -8,10 +8,10 @@ export function meta() {
   return [{ title: "Notifications - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/notifications", { token });
+    const res = await apiFetch(context, "/api/notifications", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return {
       notifications: (body.data ?? []) as unknown[],

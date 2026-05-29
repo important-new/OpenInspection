@@ -24,10 +24,10 @@ interface Discount {
   active: boolean;
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/admin/services", { token });
+    const res = await apiFetch(context, "/api/admin/services", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
     const d = (body.data ?? {}) as Record<string, unknown>;
     return {
@@ -39,13 +39,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const form = await request.formData();
   const intent = form.get("intent");
 
   if (intent === "create-service") {
-    await apiFetch("/api/admin/services", {
+    await apiFetch(context, "/api/admin/services", {
       token,
       method: "POST",
       body: JSON.stringify({
@@ -57,7 +57,7 @@ export async function action({ request }: Route.ActionArgs) {
   } else if (intent === "toggle-service") {
     const id = form.get("id");
     const active = form.get("active") === "true";
-    await apiFetch(`/api/admin/services/${id}`, {
+    await apiFetch(context, `/api/admin/services/${id}`, {
       token,
       method: "PATCH",
       body: JSON.stringify({ active: !active }),

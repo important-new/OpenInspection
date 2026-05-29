@@ -7,14 +7,14 @@ export function meta() {
   return [{ title: "Setup - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   // If already authenticated, skip setup
-  const token = await getToken(request);
+  const token = await getToken(context, request);
   if (token) return redirect("/dashboard");
 
   // Check if workspace is already set up
   try {
-    const res = await apiFetch("/api/auth/setup-status");
+    const res = await apiFetch(context, "/api/auth/setup-status");
     const body = res.ok ? await res.json() : {};
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
     if (d?.isSetUp) {
@@ -26,7 +26,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { ready: true };
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const formData = await request.formData();
   const workspaceName = String(formData.get("workspaceName") || "");
   const adminName = String(formData.get("adminName") || "");
@@ -35,7 +35,7 @@ export async function action({ request }: Route.ActionArgs) {
   const setupCode = String(formData.get("setupCode") || "");
 
   try {
-    const res = await apiFetch("/api/auth/setup", {
+    const res = await apiFetch(context, "/api/auth/setup", {
       method: "POST",
       body: JSON.stringify({ workspaceName, adminName, email, password, setupCode }),
       csrf: true,
@@ -58,7 +58,7 @@ export async function action({ request }: Route.ActionArgs) {
     const jwt = tokenMatch?.[1];
 
     if (jwt) {
-      return createSessionWithToken(jwt, "/dashboard");
+      return createSessionWithToken(context, jwt, "/dashboard");
     }
 
     return { error: "Setup succeeded but no session was created" };

@@ -64,14 +64,14 @@ interface ItemResult {
 /* Loader */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request, params }: Route.LoaderArgs) {
- const token = await requireToken(request);
+export async function loader({ request, params, context }: Route.LoaderArgs) {
+ const token = await requireToken(context, request);
  const id = params.id;
 
  try {
  const [inspRes, resultsRes] = await Promise.all([
- apiFetch(`/api/inspections/${id}`, { token }),
- apiFetch(`/api/inspections/${id}/results`, { token }).catch(() => null),
+ apiFetch(context, `/api/inspections/${id}`, { token }),
+ apiFetch(context, `/api/inspections/${id}/results`, { token }).catch(() => null),
  ]);
  const inspBody = inspRes.ok ? await inspRes.json() : {};
  const data = ((inspBody as Record<string, unknown>).data ?? {}) as Record<string, unknown> | undefined;
@@ -137,15 +137,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 /* Action */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request, params }: Route.ActionArgs) {
- const token = await requireToken(request);
+export async function action({ request, params, context }: Route.ActionArgs) {
+ const token = await requireToken(context, request);
  const formData = await request.formData();
  const intent = formData.get("intent");
 
  if (intent === "save") {
  const results = formData.get("results") as string;
  if (!results) return { error: "No results" };
- const res = await apiFetch(`/api/inspections/${params.id}/results/batch`, {
+ const res = await apiFetch(context, `/api/inspections/${params.id}/results/batch`, {
  method: "POST",
  token,
  body: results,
@@ -155,7 +155,7 @@ export async function action({ request, params }: Route.ActionArgs) {
  }
 
  if (intent === "complete") {
- const res = await apiFetch(`/api/inspections/${params.id}/complete`, {
+ const res = await apiFetch(context, `/api/inspections/${params.id}/complete`, {
  method: "POST",
  token,
  });

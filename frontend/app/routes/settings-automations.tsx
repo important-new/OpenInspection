@@ -34,10 +34,10 @@ const ACTION_LABELS: Record<string, string> = {
   notify_agent: "Notify agent",
 };
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/admin/automations", { token });
+    const res = await apiFetch(context, "/api/admin/automations", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return { rules: (body.data ?? []) as AutomationRule[] };
   } catch {
@@ -45,15 +45,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const form = await request.formData();
   const intent = form.get("intent");
 
   if (intent === "toggle") {
     const id = form.get("id");
     const active = form.get("active") === "true";
-    await apiFetch(`/api/admin/automations/${id}`, {
+    await apiFetch(context, `/api/admin/automations/${id}`, {
       token,
       method: "PATCH",
       body: JSON.stringify({ active: !active }),

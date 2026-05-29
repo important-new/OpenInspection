@@ -8,10 +8,10 @@ export function meta() {
   return [{ title: "Invoices - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/invoices", { token });
+    const res = await apiFetch(context, "/api/invoices", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return {
       invoices: (body.data ?? []) as unknown[],

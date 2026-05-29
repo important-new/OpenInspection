@@ -9,14 +9,14 @@ export function meta() {
   return [{ title: "Contacts - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   const url = new URL(request.url);
   const filterType = url.searchParams.get("type") || "";
   try {
     const [contactsRes, agentsRes] = await Promise.all([
-      apiFetch(`/api/contacts${filterType ? `?type=${filterType}` : ""}`, { token }),
-      apiFetch("/api/agents", { token }),
+      apiFetch(context, `/api/contacts${filterType ? `?type=${filterType}` : ""}`, { token }),
+      apiFetch(context, "/api/agents", { token }),
     ]);
     const contactsBody = contactsRes.ok ? ((await contactsRes.json()) as Record<string, unknown>) : { data: [] };
     const agentsBody = agentsRes.ok ? ((await agentsRes.json()) as Record<string, unknown>) : { data: [] };
@@ -30,8 +30,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const form = await request.formData();
   const intent = form.get("intent") as string;
 
@@ -45,20 +45,20 @@ export async function action({ request }: Route.ActionArgs) {
       type: form.get("type"),
     };
     const res = id
-      ? await apiFetch(`/api/contacts/${id}`, { token, method: "PUT", body: JSON.stringify(body) })
-      : await apiFetch("/api/contacts", { token, method: "POST", body: JSON.stringify(body) });
+      ? await apiFetch(context, `/api/contacts/${id}`, { token, method: "PUT", body: JSON.stringify(body) })
+      : await apiFetch(context, "/api/contacts", { token, method: "POST", body: JSON.stringify(body) });
     return { ok: res.ok };
   }
 
   if (intent === "delete") {
     const id = form.get("id") as string;
-    const res = await apiFetch(`/api/contacts/${id}`, { token, method: "DELETE" });
+    const res = await apiFetch(context, `/api/contacts/${id}`, { token, method: "DELETE" });
     return { ok: res.ok };
   }
 
   if (intent === "csv-import") {
     const csvText = form.get("csvText") as string;
-    const res = await apiFetch("/api/contacts/import", {
+    const res = await apiFetch(context, "/api/contacts/import", {
       token,
       method: "POST",
       body: JSON.stringify({ csv: csvText }),
@@ -69,7 +69,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "csv-preview") {
     const csvText = form.get("csvText") as string;
-    const res = await apiFetch("/api/contacts/import/preview", {
+    const res = await apiFetch(context, "/api/contacts/import/preview", {
       token,
       method: "POST",
       body: JSON.stringify({ csv: csvText }),

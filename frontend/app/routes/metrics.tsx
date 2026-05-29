@@ -18,12 +18,12 @@ interface MetricsData {
   heatmap: { section: string; satisfactory: number; monitor: number; defect: number }[];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   const url = new URL(request.url);
   const period = url.searchParams.get("period") || "6m";
   try {
-    const res = await apiFetch(`/api/metrics?period=${encodeURIComponent(period)}`, { token });
+    const res = await apiFetch(context, `/api/metrics?period=${encodeURIComponent(period)}`, { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
     const d = (body.data ?? {}) as Record<string, unknown>;
     return { data: (Object.keys(d).length > 0 ? d : null) as MetricsData | null, period };

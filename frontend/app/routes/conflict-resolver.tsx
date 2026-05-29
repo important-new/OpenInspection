@@ -26,8 +26,8 @@ interface Conflict {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   const url = new URL(request.url);
   const inspectionId = url.searchParams.get("inspection") || "";
 
@@ -37,6 +37,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   try {
     const res = await apiFetch(
+      context,
       `/api/inspections/${inspectionId}/conflicts`,
       { token },
     );
@@ -58,8 +59,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const formData = await request.formData();
   const inspectionId = String(formData.get("inspectionId") || "");
   const resolutions: Record<string, string> = {};
@@ -72,6 +73,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   try {
     const res = await apiFetch(
+      context,
       `/api/inspections/${inspectionId}/conflicts/resolve`,
       {
         method: "POST",

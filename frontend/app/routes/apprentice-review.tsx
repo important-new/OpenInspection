@@ -21,10 +21,10 @@ interface ReviewItem {
   decision: string | null;
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/team/apprentice-reviews", { token });
+    const res = await apiFetch(context, "/api/team/apprentice-reviews", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return { items: (body.data ?? []) as ReviewItem[] };
   } catch {

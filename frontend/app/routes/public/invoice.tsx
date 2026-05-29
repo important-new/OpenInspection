@@ -17,9 +17,9 @@ interface InvoiceData {
  total: number;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
  try {
- const res = await apiFetch(`/api/public/r/${params.id}/invoice`);
+ const res = await apiFetch(context, `/api/public/r/${params.id}/invoice`);
  const body = res.ok ? await res.json() : {};
  const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
  return {

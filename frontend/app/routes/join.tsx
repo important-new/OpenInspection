@@ -7,7 +7,7 @@ export function meta() {
   return [{ title: "Accept Invite - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") || "";
 
@@ -16,7 +16,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   try {
-    const res = await apiFetch(`/api/auth/invite/validate?token=${encodeURIComponent(token)}`);
+    const res = await apiFetch(context, `/api/auth/invite/validate?token=${encodeURIComponent(token)}`);
     if (!res.ok) {
       return { valid: false, error: "Invalid or expired invite link", invite: null };
     }
@@ -32,14 +32,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const formData = await request.formData();
   const token = String(formData.get("token") || "");
   const password = String(formData.get("password") || "");
   const name = String(formData.get("name") || "");
 
   try {
-    const res = await apiFetch("/api/auth/invite/accept", {
+    const res = await apiFetch(context, "/api/auth/invite/accept", {
       method: "POST",
       body: JSON.stringify({ token, password, name }),
       csrf: true,
@@ -64,7 +64,7 @@ export async function action({ request }: Route.ActionArgs) {
       const { createSessionWithToken: createSession } = await import(
         "~/lib/session.server"
       );
-      return createSession(jwt, "/dashboard");
+      return createSession(context, jwt, "/dashboard");
     }
 
     return redirect("/login");

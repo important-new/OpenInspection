@@ -133,10 +133,10 @@ const ITEM_TYPES = ["rich", "boolean", "text", "textarea", "number", "select", "
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, params, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   const id = params.id;
-  const res = await apiFetch(`/api/inspections/templates/${id}`, { token });
+  const res = await apiFetch(context, `/api/inspections/templates/${id}`, { token });
   const body = res.ok ? await res.json() : {};
   const raw = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
   const tpl = raw?.template ? (raw.template as Record<string, unknown>) : raw;
@@ -172,13 +172,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request, params }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, params, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const formData = await request.formData();
   const name = formData.get("name") as string;
   const schemaStr = formData.get("schema") as string;
   if (!schemaStr) return { error: "No schema" };
-  const res = await apiFetch(`/api/inspections/templates/${params.id}`, {
+  const res = await apiFetch(context, `/api/inspections/templates/${params.id}`, {
     token,
     method: "PUT",
     body: JSON.stringify({ name, schema: JSON.parse(schemaStr) }),

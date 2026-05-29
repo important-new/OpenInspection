@@ -24,11 +24,12 @@ interface EmbedData {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ params, request }: Route.LoaderArgs) {
+export async function loader({ params, request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const style = url.searchParams.get("style") === "compact" ? "compact" : "full";
   try {
     const res = await apiFetch(
+      context,
       `/api/public/book/${params.tenant}/${params.slug}`,
     );
     const body = res.ok ? await res.json() : {};

@@ -30,9 +30,10 @@ interface GateData {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ params, request }: Route.LoaderArgs) {
+export async function loader({ params, request, context }: Route.LoaderArgs) {
   try {
     const res = await apiFetch(
+      context,
       `/api/public/report-gate/${params.tenant}/${params.id}`,
     );
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
