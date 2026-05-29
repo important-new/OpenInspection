@@ -28,6 +28,7 @@ import { PropertyInfoForm } from "~/components/editor/PropertyInfoForm";
 import { InspectionSettingsSheet } from "~/components/editor/InspectionSettingsSheet";
 import { SignaturePad } from "~/components/SignaturePad";
 import { PublishGateModal } from "~/components/editor/PublishGateModal";
+import { ToastPortal } from "~/components/Toast";
 import type { PublishReadiness, PublishBlockingDefect } from "~/lib/types";
 
 export function meta() {
@@ -820,6 +821,7 @@ export default function InspectionEditPage() {
 
  return (
  <div className="flex h-screen bg-ih-bg-card">
+ <ToastPortal />
  {/* Hidden photo input */}
  <input
  ref={photoInputRef}
