@@ -74,6 +74,19 @@ export function SideRail({ activeItem, activeResult, ratingLevels, getRatingColo
                       .flatMap(tab => (tab.comments || [])
                         .filter(c => c.included)
                         .map(c => ({ ...c, tabName: tab.name } as Record<string, unknown> & { tabName: string | undefined })));
+                    // Item attribute values (brand, year, etc.) feed Mustache tokens
+                    // alongside the defect-level fields below.
+                    const attrVars: Record<string, string | null> = {};
+                    const attrs = activeResult.attributes;
+                    if (attrs && typeof attrs === "object") {
+                      for (const [k, v] of Object.entries(attrs as Record<string, unknown>)) {
+                        if (v === null || v === undefined) attrVars[k] = null;
+                        else if (typeof v === "string") attrVars[k] = v.length > 0 ? v : null;
+                        else if (typeof v === "number" && Number.isFinite(v)) attrVars[k] = String(v);
+                        else if (typeof v === "boolean") attrVars[k] = v ? "yes" : "no";
+                        else attrVars[k] = null;
+                      }
+                    }
                     return included.length > 0 ? (
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">Comments</span>
@@ -86,6 +99,7 @@ export function SideRail({ activeItem, activeResult, ratingLevels, getRatingColo
                               trade:     (c.trade     as string | undefined) ? DEFECT_TRADE_LABELS[c.trade as keyof typeof DEFECT_TRADE_LABELS]         : null,
                               deadline:  (c.deadline  as string | undefined) ? DEFECT_DEADLINE_LABELS[c.deadline as keyof typeof DEFECT_DEADLINE_LABELS] : null,
                               timeframe: (c.timeframe as string | undefined) ? DEFECT_TIMEFRAME_LABELS[c.timeframe as keyof typeof DEFECT_TIMEFRAME_LABELS] : null,
+                              ...attrVars,
                             }) : text;
                             return (
                               <li key={i} className="text-[11px] text-ih-fg-2 pl-2 border-l-2 border-ih-border">{rendered}</li>

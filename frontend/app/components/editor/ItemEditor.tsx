@@ -278,11 +278,26 @@ export function ItemEditor({
  {(() => {
  const isDefectIncluded = activeTab === "defects" && isIncluded;
  const st = isDefectIncluded ? (defectStates?.get(entry.id) ?? {}) : null;
+ // Mustache vars: defect-level fields plus the item's attribute values
+ // (brand, year, etc.) so canned-comment prose like "{{brand}} water heater"
+ // renders the inspector's filled-in value.
+ const attrEntries = result.attributes && typeof result.attributes === "object"
+ ? Object.entries(result.attributes as Record<string, unknown>)
+ : [];
+ const attrVars: Record<string, string | null> = {};
+ for (const [k, v] of attrEntries) {
+ if (v === null || v === undefined) attrVars[k] = null;
+ else if (typeof v === "string") attrVars[k] = v.length > 0 ? v : null;
+ else if (typeof v === "number" && Number.isFinite(v)) attrVars[k] = String(v);
+ else if (typeof v === "boolean") attrVars[k] = v ? "yes" : "no";
+ else attrVars[k] = null;
+ }
  const vars = st ? {
  location:  st.location ?? null,
  trade:     st.trade     ? DEFECT_TRADE_LABELS[st.trade]         : null,
  deadline:  st.deadline  ? DEFECT_DEADLINE_LABELS[st.deadline]   : null,
  timeframe: st.timeframe ? DEFECT_TIMEFRAME_LABELS[st.timeframe] : null,
+ ...attrVars,
  } : null;
  return (
  <>

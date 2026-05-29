@@ -136,19 +136,35 @@ function mapRatingSystemLevels(levels: Array<Record<string, unknown>>): RatingLe
  * canned-comment prose. Falls back to the template's default `location`
  * when the inspector hasn't filled an inspection-specific override.
  */
+function stringifyAttributeValue(v: unknown): string | null {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'string') return v.length > 0 ? v : null;
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+    if (typeof v === 'boolean') return v ? 'yes' : 'no';
+    return null;
+}
+
 function resolveDefectMustacheVars(
     st: DefectCommentState | undefined,
     d: CannedDefect,
+    itemAttributes?: Record<string, unknown>,
 ): Record<string, string | null> {
     const location = (typeof st?.location === 'string' && st.location.length > 0)
         ? st.location
         : (d.location || null);
-    return {
+    const vars: Record<string, string | null> = {
         location,
         trade:     st?.trade     ? DEFECT_TRADE_LABELS[st.trade]         : null,
         deadline:  st?.deadline  ? DEFECT_DEADLINE_LABELS[st.deadline]   : null,
         timeframe: st?.timeframe ? DEFECT_TIMEFRAME_LABELS[st.timeframe] : null,
     };
+    if (itemAttributes) {
+        for (const [k, v] of Object.entries(itemAttributes)) {
+            if (k in vars) continue; // defect-level vars take precedence
+            vars[k] = stringifyAttributeValue(v);
+        }
+    }
+    return vars;
 }
 
 export interface PublishBlockingDefect {
@@ -185,9 +201,15 @@ export function computePublishReadinessFromState(
         for (const item of section.items ?? []) {
             if (item.type !== 'rich') continue;
             const defectsTpl = item.tabs?.defects ?? [];
-            const entry = results[item.id] as { tabs?: { defects?: DefectCommentState[] } } | undefined;
+            const entry = results[item.id] as { tabs?: { defects?: DefectCommentState[] }; attributes?: Record<string, unknown> } | undefined;
             const stateRows = entry?.tabs?.defects ?? [];
             const stateById = new Map(stateRows.map(d => [d.cannedId, d]));
+            const itemAttrVars: Record<string, string | null> = {};
+            if (entry?.attributes) {
+                for (const [k, v] of Object.entries(entry.attributes)) {
+                    itemAttrVars[k] = stringifyAttributeValue(v);
+                }
+            }
             for (const d of defectsTpl) {
                 const st = stateById.get(d.id);
                 const included = st ? !!st.included : !!d.default;
@@ -203,6 +225,7 @@ export function computePublishReadinessFromState(
                     trade:     st?.trade     ?? null,
                     deadline:  st?.deadline  ?? null,
                     timeframe: st?.timeframe ?? null,
+                    ...itemAttrVars,
                 });
                 if (missing.length === 0 && unresolved.length === 0) continue;
                 blocking.push({
@@ -1549,6 +1572,7 @@ export class InspectionService {
             recommendation?: string;
             estimateMin?:    number;
             estimateMax?:    number;
+            attributes?:     Record<string, unknown>;
             tabs?: {
                 information?: CannedState[];
                 limitations?: CannedState[];
@@ -1688,7 +1712,7 @@ export class InspectionService {
                     return {
                         ...d,
                         included,
-                        effectiveComment: renderTemplate(override ?? d.comment, resolveDefectMustacheVars(st as DefectCommentState | undefined, d as CannedDefect)),
+                        effectiveComment: renderTemplate(override ?? d.comment, resolveDefectMustacheVars(st as DefectCommentState | undefined, d as CannedDefect, res.attributes)),
                         effectiveCategory: st?.category ?? d.category,
                         effectiveLocation: (typeof st?.location === 'string' && st.location.length > 0) ? st.location : d.location,
                         defectPhotos: (st?.photos ?? []).map(p => {

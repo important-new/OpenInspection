@@ -133,6 +133,8 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  field: "cannedToggle",
  value: { tabName, cannedId, included },
  sectionId,
+ expectedVersion: 0,
+ force: true,
  }),
  });
  }
