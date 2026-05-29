@@ -37,6 +37,8 @@ export const users = sqliteTable('users', {
     // completed their profile yet. `serviceAreas` stores a JSON array of
     // {city, state, zip} objects; parsed/validated in UserService.getProfileBySlug.
     photoUrl: text('photo_url'),
+    // Spec 5H D2 — saved signature used for auto-sign on publish + Settings prefill.
+    defaultSignatureBase64: text('default_signature_base64'),
     bio: text('bio'),
     serviceAreas: text('service_areas'),
     // Booking #7 Sprint A — per-tenant unique inspector slug used for /book/<slug>.
@@ -199,6 +201,9 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     // PDF generation at publish time + the Refresh PDFs / Download PDF
     // dropdown in the report viewer.
     enablePdfPipeline: integer('enable_pdf_pipeline', { mode: 'boolean' }).notNull().default(false),
+    // Spec 5H D2 — tenant-default for newly-created inspections'
+    // auto_sign_on_publish flag. False by default.
+    autoSignOnPublishDefault: integer('auto_sign_on_publish_default', { mode: 'boolean' }).notNull().default(false),
     // Design System 0520 subsystem C P10 — /team Defaults section toggles.
     teamModeDefault:          integer('team_mode_default',          { mode: 'boolean' }).notNull().default(false),
     apprenticeReviewRequired: integer('apprentice_review_required', { mode: 'boolean' }).notNull().default(false),

@@ -30,8 +30,9 @@ cd apps/core
 npm run rotate:jwt
 
 # 2. Redeploy both workers so they pick up the new env var bindings
-npm run deploy           # openinspection-standalone
-npm run deploy:saas      # inspectorhub-core-shared
+npm run deploy           # openinspection-api (OSS one-click default)
+npm run deploy:standalone # openinspection-api (test environment, real CF IDs)
+npm run deploy:saas      # openinspection-saas-api
 cd ../portal && npm run deploy
 
 # 3. Wait at least the maximum JWT TTL since rotation

@@ -39,7 +39,11 @@ import {
     DashboardColumnPrefsResponseSchema,
     SeedStarterContentBodySchema,
     SeedStarterContentResponseSchema,
+    InspectorSignSchema,
 } from '../lib/validations/admin.schema';
+import { applyInspectorPreSign } from '../services/agreement.service';
+import { SigningKeyService } from '../services/signing-key.service';
+import { AuditLogService } from '../services/audit-log.service';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
@@ -2020,7 +2024,7 @@ const brSmokeRoute = createRoute(withMcpMetadata({
 adminRoutes.openapi(brSmokeRoute, async (c) => {
     const { url } = c.req.valid('query');
     const probedUrl = url ?? 'https://example.com';
-    const browser = c.env.BROWSER as Fetcher | undefined;
+    const browser = c.env.BROWSER;
 
     if (!browser) {
         return c.json({
@@ -2047,10 +2051,7 @@ adminRoutes.openapi(brSmokeRoute, async (c) => {
     let body: ArrayBuffer | null = null;
 
     try {
-        const res = await browser.fetch(probedUrl, {
-            method: 'GET',
-            headers: { 'Accept': 'application/pdf' },
-        });
+        const res = await browser.quickAction('pdf', { url: probedUrl });
         status = res.status;
         contentType = res.headers.get('content-type');
         body = await res.arrayBuffer();
@@ -2065,7 +2066,7 @@ adminRoutes.openapi(brSmokeRoute, async (c) => {
 
     let hint: string;
     if (error) {
-        hint = `Call threw before returning: ${error}. Likely Worker runtime issue, not a CF account state issue.`;
+        hint = `Call threw before returning: ${error}. Likely a TypeError (binding misconfigured) or compatibility_date too old (need >= "2026-03-24" for .quickAction()).`;
     } else if (status === 404) {
         const bodyPreview = body ? new TextDecoder().decode(body.slice(0, 64)) : '';
         hint = bodyPreview.startsWith('Not Found')
@@ -2141,6 +2142,47 @@ adminRoutes.openapi(togglePdfPipelineRoute, async (c) => {
         success: true as const,
         data: { tenantId, enabled },
     }, 200);
+});
+
+const inspectorSignRoute = createRoute(withMcpMetadata({
+    method: 'post', path: '/agreement-requests/{id}/inspector-sign',
+    tags: ['admin'],
+    summary: 'Inspector pre-signs an agreement before sending to client',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
+    request: {
+        params: z.object({ id: z.string() }),
+        body: { content: { 'application/json': { schema: InspectorSignSchema } } },
+    },
+    responses: {
+        200: { content: { 'application/json': { schema: z.object({ success: z.literal(true) }) } }, description: 'Signed' },
+        409: { description: 'Envelope not in pending status' },
+    },
+    operationId: 'inspectorPreSignAgreement',
+    description: 'Spec 5H D1 — optional inspector pre-sign. Allowed only while envelope is pending.',
+}, { scopes: ['admin'], tier: 'extended' }));
+
+adminRoutes.openapi(inspectorSignRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const { signatureBase64 } = c.req.valid('json');
+    const tenantId = c.get('tenantId') as string;
+    const userId = c.get('user')?.sub ?? '';
+    try {
+        await applyInspectorPreSign(c.env.DB, tenantId, id, userId, signatureBase64);
+    } catch (e) {
+        const msg = (e as Error).message;
+        if (msg.includes('not found')) throw Errors.NotFound(msg);
+        if (msg.includes('can only pre-sign')) {
+            return c.json({ success: false, error: { code: 'invalid_state', message: msg } }, 409);
+        }
+        throw e;
+    }
+    const signing = new SigningKeyService(c.env.DB, c.env.KEY_ENCRYPTION_SECRET || c.env.JWT_SECRET);
+    const auditLog = new AuditLogService(c.env.DB, signing);
+    await auditLog.append(tenantId, id, 'agreement.inspector_signed', {
+        inspectorUserId: userId,
+        tsMs: Date.now(),
+    });
+    return c.json({ success: true as const }, 200);
 });
 
 export default adminRoutes;

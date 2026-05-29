@@ -6,6 +6,9 @@ import { users } from '../lib/db/schema';
 import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
+import { requireRole } from '../lib/middleware/rbac';
+import { UserDefaultSignatureSchema } from '../lib/validations/admin.schema';
+import { saveUserDefaultSignature } from '../services/user.service';
 
 const userRoutes = new OpenAPIHono<HonoConfig>();
 
@@ -73,6 +76,33 @@ userRoutes.openapi(setOnboardingRoute, async (c) => {
     await db.update(users).set({ onboardingState: newState })
         .where(and(eq(users.id, jwtUser.sub), eq(users.tenantId, tenantId)));
     return c.json({ success: true }, 200);
+});
+
+/**
+ * POST /api/users/me/signature
+ * Spec 5H D2 — save the authenticated user's default signature image.
+ */
+const saveSignatureRoute = createRoute(withMcpMetadata({
+    method: 'post', path: '/me/signature',
+    tags: ['users'],
+    summary: 'Save the authenticated user\'s default signature image',
+    middleware: [requireRole(['owner', 'admin', 'inspector', 'lead'])],
+    request: {
+        body: { content: { 'application/json': { schema: UserDefaultSignatureSchema } } },
+    },
+    responses: {
+        200: { content: { 'application/json': { schema: z.object({ success: z.literal(true) }) } }, description: 'Saved' },
+    },
+    operationId: 'saveUserDefaultSignature',
+    description: 'Stores users.default_signature_base64 for the authenticated user. Reused by D2 auto-sign-on-publish + Settings -> Profile pad.',
+}, { scopes: [], tier: 'extended' }));
+
+userRoutes.openapi(saveSignatureRoute, async (c) => {
+    const jwtUser = c.get('user');
+    if (!jwtUser?.sub) throw Errors.Unauthorized('Authentication required');
+    const { signatureBase64 } = c.req.valid('json');
+    await saveUserDefaultSignature(c.env.DB, jwtUser.sub, signatureBase64);
+    return c.json({ success: true as const }, 200);
 });
 
 export default userRoutes;
