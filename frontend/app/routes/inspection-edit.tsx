@@ -13,6 +13,7 @@ import { useUnsavedChanges } from "~/hooks/useUnsavedChanges";
 import { usePresence } from "~/hooks/usePresence";
 import { useTheme } from "~/hooks/useTheme";
 import { SectionRail } from "~/components/editor/SectionRail";
+import { ProgressStripText } from "~/components/editor/ProgressStripText";
 import { ItemList } from "~/components/editor/ItemList";
 import { ItemEditor } from "~/components/editor/ItemEditor";
 import type { DefectFieldsValue } from "~/components/editor/DefectFieldsRow";
@@ -1279,17 +1280,18 @@ export default function InspectionEditPage() {
  </button>
 
  {/* Completion progress */}
- <div className="flex items-center gap-2">
- <div className="w-24 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
- <div
- className="h-full bg-ih-primary dark:bg-indigo-500 rounded-full transition-all duration-300"
- style={{ width: `${state.progress.pct}%` }}
+ {(() => {
+ const stats = state.overallStats();
+ return (
+ <ProgressStripText
+ rated={stats.rated}
+ total={stats.total}
+ defects={stats.defect}
+ monitor={stats.monitor}
+ etaMinutes={stats.etaMinutes}
  />
- </div>
- <span className="text-[11px] font-mono text-ih-fg-3 whitespace-nowrap">
- {state.progress.rated}/{state.progress.total}
- </span>
- </div>
+ );
+ })()}
 
  {/* Save status indicator */}
  {state.saveStatus !== "idle" && (
