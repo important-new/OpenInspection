@@ -13,6 +13,7 @@ export interface RatingLevel {
   severity?: string;
   isDefect?: boolean;
   description?: string;
+  pausesAdvance?: boolean;
 }
 
 export interface SchemaItem {
