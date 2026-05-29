@@ -12,7 +12,9 @@ OpenInspection is a multi-tenant home inspection app deployed as two independent
 | ORM + DB | [Drizzle](https://orm.drizzle.team) + Cloudflare D1 (SQLite) |
 | Object storage | Cloudflare R2 (photos, future PDFs) |
 | KV cache | Cloudflare Workers KV (tenant config, signed tokens, rate-limit counters) |
-| Background jobs | Cloudflare Workflow (onboarding) + Cron Triggers (automation sweeps) |
+| Background jobs | Cloudflare Workflow (onboarding, sign-completion) + Cron Triggers (automation sweeps) |
+| PDF rendering | Cloudflare Browser Run — `env.BROWSER.quickAction("pdf", { url })` (free tier, 10 min/day) |
+| E-signatures | Ed25519 per-tenant keypair + SHA-256 hash-chained audit log (ESIGN Act + UETA) |
 | Styling | Tailwind CSS v4 + Design System 0523 tokens |
 | Shared components | `packages/shared-ui/` — 12 token-based React components |
 | AI | Google Gemini API (optional) |
@@ -171,6 +173,40 @@ Tenant resolution lives in `api/src/features/tenant-routing/` (entry point `inde
 - Browser JS never sees the token (HttpOnly enforced); same-origin `fetch()` sends the cookie automatically.
 - Frontend Worker uses Token Relay BFF: React Router v7 server reads the cookie and forwards it via Service Binding to the API Worker.
 
+## E-signature (Spec 5H)
+
+### Trust model
+
+Per-tenant Ed25519 keypair generated on first use (`SigningKeyService.ensureKeypair`). The private key is AES-GCM encrypted with `KEY_ENCRYPTION_SECRET` and stored in D1; the public key is exposed unauthenticated at `/.well-known/openinspection/tenant-keys/:slug` (1-hour cache) so any third party can verify signatures independently.
+
+### Audit chain
+
+Each signature event appends a row to `esign_audit_logs` whose `prev_hash` = SHA-256 of the canonical JSON of the previous row. Editing any row invalidates the chain from that point onward — detectable by re-deriving hashes. The chain is signed with the tenant's Ed25519 private key at every append, not just at sign time.
+
+### Sign flow
+
+Customer signs at `/agreements/sign/:tenant/:token` → API writes an `agreement.signed` audit row, generates a `verificationToken`, and fires `SignCompletionWorkflow` asynchronously. The synchronous response to the customer is immediate; PDF generation happens in the background.
+
+### Workflow steps (`SignCompletionWorkflow`)
+
+1. Render `signed.pdf` via `env.BROWSER.quickAction("pdf", { url })` (Browser Run) → store in R2.
+2. Render `certificate.pdf` the same way → store in R2.
+3. Assemble `evidence.zip` (signed.pdf + certificate.pdf + audit-log JSON).
+4. Append `workflow.complete` audit row recording the SHA-256 hashes of all three artifacts.
+5. Email the client via Resend with `signed.pdf` and `evidence.zip` as attachments.
+
+Browser Run requires `compatibility_date >= "2026-03-24"` in `wrangler.toml` and uses the free tier (10 browser-minutes/day — sufficient for typical inspection volume). Admin download endpoints for signed.pdf, certificate.pdf, and evidence.zip are Worker-proxied from R2.
+
+### Verification flow
+
+- **Public verifier** (`/v/:verificationToken`): SSR page resolves the token to an envelope, runs a server-side audit-chain integrity check and Ed25519 signature check, and displays the result with download links. QR code on signed.pdf and certificate.pdf points here.
+- **Offline self-verify** (`/verify`): accepts an `evidence.zip` upload and re-runs SHA-256 chain re-derivation + Ed25519 signature verification entirely in the browser via Web Crypto API — no server involvement, court-friendly independence from the operator.
+
+### Optional features
+
+- **D1 — Inspector pre-sign**: inspector can sign the agreement before sending to the client via `POST /api/admin/agreement-requests/:id/inspector-sign`. The render handler conditionally adds an inspector signature block when present.
+- **D2 — Auto-sign on publish**: per-inspection `auto_sign_on_publish` flag (plus a tenant-level default). When an inspector has a saved `users.default_signature_base64` and the flag is set, `InspectionService.publishInspection` auto-injects the inspector's signature into `inspection_results.data` at publish time. The report viewer and print output render the signature block automatically.
+
 ## Service layer
 
 Each domain has a service class with:
@@ -227,7 +263,7 @@ The DI proxy in `api/src/lib/middleware/di.ts` lazy-instantiates each service on
 | KV reads | 100k/day | < 10/request avg |
 | Workflows | 100k/day | one per booking |
 
-A solo inspector doing 50 inspections/month uses approximately 1-2% of Free tier limits. Browser Rendering (server-side PDF generation) requires Workers Paid ($5/mo); the default report PDF uses browser `window.print()` which is free and produces near-identical output via the `@media print` stylesheet.
+A solo inspector doing 50 inspections/month uses approximately 1-2% of Free tier limits. Browser Run (server-side PDF generation) is included on the Free tier with 10 browser-minutes/day — sufficient for typical inspection volume. Wrangler `compatibility_date >= "2026-03-24"` is required to enable the `.quickAction()` API.
 
 ## CF Workers constraints
 
@@ -238,4 +274,4 @@ A solo inspector doing 50 inspections/month uses approximately 1-2% of Free tier
 | D1 reads | 5M/day | — |
 | R2 storage | 10 GB | — |
 
-React Router v7 SSR adds ~1-3ms CPU per request. The API Worker bundle is ~250KB gzip, well within limits. Browser Rendering (server-side PDF) requires Workers Paid ($5/mo); the default uses `window.print()` which is free.
+React Router v7 SSR adds ~1-3ms CPU per request. The API Worker bundle is ~250KB gzip, well within limits. Browser Run (server-side PDF) is on the Free tier (10 min/day); requires `compatibility_date >= "2026-03-24"` and the `[browser]` binding in `wrangler.toml`.
