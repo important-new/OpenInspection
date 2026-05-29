@@ -24,6 +24,7 @@ import { BurstCamera } from "~/components/editor/BurstCamera";
 import { PhotoStudio } from "~/components/editor/PhotoStudio";
 import { PropertyInfoForm } from "~/components/editor/PropertyInfoForm";
 import { InspectionSettingsSheet } from "~/components/editor/InspectionSettingsSheet";
+import { SignaturePad } from "~/components/SignaturePad";
 
 export function meta() {
  return [{ title: "Edit Inspection - OpenInspection" }];
@@ -151,6 +152,26 @@ export async function action({ request, params }: Route.ActionArgs) {
  });
  }
 
+ if (intent === "toggle-auto-sign") {
+ const autoSignOnPublish = formData.get("autoSignOnPublish") === "true";
+ await apiFetch(`/api/inspections/${params.id}`, {
+ method: "PATCH",
+ token,
+ body: JSON.stringify({ autoSignOnPublish }),
+ });
+ }
+
+ if (intent === "sign-inspector") {
+ const signatureBase64 = String(formData.get("signatureBase64") ?? "");
+ if (signatureBase64) {
+ await apiFetch(`/api/inspections/${params.id}/inspector-signature`, {
+ method: "POST",
+ token,
+ body: JSON.stringify({ signatureBase64, signedAt: new Date().toISOString() }),
+ });
+ }
+ }
+
  return { ok: true };
 }
 
@@ -228,6 +249,43 @@ export default function InspectionEditPage() {
  /* ---------------------------------------------------------------- */
 
  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+
+ /* ---------------------------------------------------------------- */
+ /* Auto-sign toggle + manual sign modal */
+ /* ---------------------------------------------------------------- */
+
+ const signFetcher = useFetcher<{ ok: boolean }>();
+ const [autoSign, setAutoSign] = useState<boolean>(
+  !!(state.inspection as Record<string, unknown>).autoSignOnPublish,
+ );
+ const [signModalOpen, setSignModalOpen] = useState(false);
+
+ // Sync autoSign local state from loader data when inspection changes
+ useEffect(() => {
+  setAutoSign(!!(state.inspection as Record<string, unknown>).autoSignOnPublish);
+ }, [state.inspection]);
+
+ const handleAutoSignToggle = useCallback(
+  (checked: boolean) => {
+   setAutoSign(checked);
+   signFetcher.submit(
+    { intent: "toggle-auto-sign", autoSignOnPublish: String(checked) },
+    { method: "post" },
+   );
+  },
+  [signFetcher],
+ );
+
+ const handleSignSubmit = useCallback(
+  async (dataUri: string) => {
+   signFetcher.submit(
+    { intent: "sign-inspector", signatureBase64: dataUri },
+    { method: "post" },
+   );
+   setSignModalOpen(false);
+  },
+  [signFetcher],
+ );
 
  /* Photo studio state */
  const [photoStudioOpen, setPhotoStudioOpen] = useState(false);
@@ -761,6 +819,27 @@ export default function InspectionEditPage() {
  </div>
  )}
 
+ {/* Inspector sign modal */}
+ {signModalOpen && (
+ <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+ <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSignModalOpen(false)} />
+ <div className="relative bg-ih-bg-card rounded-xl shadow-2xl p-6 max-w-md w-full border border-ih-border">
+ <h3 className="text-[16px] font-bold text-ih-fg-1">Inspector Signature</h3>
+ <p className="text-[13px] text-ih-fg-3 mt-2 mb-4">
+ Sign this inspection. The signature will be saved and can be included in the published report.
+ </p>
+ <SignaturePad
+ onSubmit={handleSignSubmit}
+ onCancel={() => setSignModalOpen(false)}
+ label="Save signature"
+ />
+ {signFetcher.data && !(signFetcher.data as { ok: boolean }).ok && (
+ <p className="text-sm text-red-600 mt-2">Failed to save signature. Please try again.</p>
+ )}
+ </div>
+ </div>
+ )}
+
  {/* Comment library drawer */}
  {state.showCommentLibrary && (
  <div className="fixed inset-0 z-[80] flex">
@@ -1144,6 +1223,29 @@ export default function InspectionEditPage() {
  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
  />
  </svg>
+ </button>
+
+ {/* Auto-sign toggle */}
+ <label className="hidden lg:inline-flex items-center gap-1.5 text-[11px] font-medium text-ih-fg-3 cursor-pointer select-none">
+ <input
+ type="checkbox"
+ checked={autoSign}
+ onChange={(e) => handleAutoSignToggle(e.target.checked)}
+ className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+ />
+ Auto-sign
+ </label>
+
+ {/* Sign now button */}
+ <button
+ onClick={() => setSignModalOpen(true)}
+ className="hidden lg:inline-flex h-9 px-3 rounded-md border border-ih-border text-[12px] font-bold text-ih-fg-2 hover:bg-slate-100 dark:hover:bg-slate-800 items-center gap-1.5"
+ title="Sign this inspection now"
+ >
+ <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+ </svg>
+ Sign now
  </button>
 
  {/* Publish button */}
