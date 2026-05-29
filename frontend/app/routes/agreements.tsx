@@ -177,6 +177,14 @@ export default function AgreementsPage() {
                             >
                               Certificate
                             </a>
+                            <a
+                              className="text-[13px] text-ih-primary hover:opacity-80 font-semibold"
+                              href={`/api/admin/agreement-requests/${r.id}/evidence.zip`}
+                              download={`evidence-${r.id.slice(0, 8)}.zip`}
+                              rel="noopener noreferrer"
+                            >
+                              Evidence pack
+                            </a>
                           </div>
                         ) : r.status === "pending" ? (
                           <button

@@ -3,6 +3,10 @@ import type { AppEnv } from '../types/hono';
 import { SigningKeyService } from '../services/signing-key.service';
 import { AuditLogService } from '../services/audit-log.service';
 import { m2mAgreementRenderUrl } from '../lib/public-urls';
+import { buildEvidencePack } from '../services/evidence-pack.service';
+import { drizzle } from 'drizzle-orm/d1';
+import { and, eq } from 'drizzle-orm';
+import * as schema from '../lib/db/schema';
 
 export interface SignCompletionParams {
     requestId: string;
@@ -18,11 +22,11 @@ export interface SignCompletionParams {
  * audit row + flips DB status. Builds the canonical evidence artifacts
  * asynchronously so the client UX is sub-200ms ("Certificate emailed shortly").
  *
- * Steps (P1 ships steps 1-2 + 4; steps 3 + 5 land in P2):
+ * Steps (P1 ships steps 1-2 + 4; step 5 lands in P2):
  *   1. render-canonical-pdf      — Browser Rendering -> R2 signed.pdf
  *   2. render-certificate-pdf    — Browser Rendering -> R2 certificate.pdf
- *   3. build-evidence-pack       [P2] zip in worker memory -> R2 evidence.zip
- *   4. append-workflow-complete  — extend audit chain with doc + cert hashes
+ *   3. build-evidence-pack       — zip in worker memory -> R2 evidence.zip
+ *   4. append-workflow-complete  — extend audit chain with doc + cert + zip hashes
  *   5. email-parties             [P2] Resend send to client + admin
  *
  * Failure semantics: each step has its own retry policy. If any step fails
@@ -68,6 +72,58 @@ export class SignCompletionWorkflow extends WorkflowEntrypoint<AppEnv, SignCompl
             }
         });
 
+        // Step 3 — assemble evidence.zip (best-effort; gracefully tolerated)
+        const evidenceZipMeta = await step.do('build-evidence-pack', async () => {
+            try {
+                if (!env.REPORTS) return null;
+                const signing = new SigningKeyService(env.DB, env.KEY_ENCRYPTION_SECRET || env.JWT_SECRET);
+                const pubKey = await signing.getPublicKey(tenantId);
+                if (!pubKey) return null;
+                const db = drizzle(env.DB, { schema });
+                const auditRows = await db.select().from(schema.esignAuditLogs)
+                    .where(and(
+                        eq(schema.esignAuditLogs.tenantId, tenantId),
+                        eq(schema.esignAuditLogs.requestId, requestId),
+                    ))
+                    .all();
+                const auditPayload = {
+                    envelopeId: requestId,
+                    algorithm: 'Ed25519',
+                    publicKeyPem: pubKey.pem,
+                    keyFingerprint: pubKey.fingerprint,
+                    events: auditRows.map((r) => ({
+                        id: r.id,
+                        event: r.event,
+                        createdAt: r.createdAt,
+                        payloadJson: r.payloadJson,
+                        prevHash: r.prevHash,
+                        hash: r.hash,
+                        signature: r.signature,
+                        keyFingerprint: r.keyFingerprint,
+                    })),
+                };
+                const zipBuf = await buildEvidencePack({
+                    r2: env.REPORTS,
+                    auditTrailJson: JSON.stringify(auditPayload, null, 2),
+                    publicKeyPem: pubKey.pem,
+                    tenantId,
+                    envelopeId: requestId,
+                });
+                const r2Key = `tenants/${tenantId}/agreements/${requestId}/evidence.zip`;
+                const bytes = new Uint8Array(zipBuf);
+                const hashBuf = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer));
+                const sha256 = Array.from(hashBuf).map((b) => b.toString(16).padStart(2, '0')).join('');
+                await env.REPORTS.put(r2Key, bytes, {
+                    httpMetadata: { contentType: 'application/zip' },
+                    customMetadata: { sha256 },
+                });
+                return { r2Key, sha256, sizeBytes: bytes.byteLength };
+            } catch (e) {
+                console.warn('[sign-workflow] build-evidence-pack failed', { error: (e as Error).message });
+                return null;
+            }
+        });
+
         // Step 4 — append workflow.complete to the audit chain regardless of
         // PDF render success. The legally-meaningful 'agreement.signed' row is
         // already in the chain; this row records the post-sign workflow status.
@@ -77,7 +133,7 @@ export class SignCompletionWorkflow extends WorkflowEntrypoint<AppEnv, SignCompl
             await auditLog.append(tenantId, requestId, 'workflow.complete', {
                 certPdfHash: certPdfMeta ? `sha256:${certPdfMeta.sha256}` : null,
                 envelopeId: requestId,
-                evidenceZipHash: null, // filled in P2
+                evidenceZipHash: evidenceZipMeta ? `sha256:${evidenceZipMeta.sha256}` : null,
                 pdfRenderStatus: signedPdfMeta && certPdfMeta ? 'ok' : 'failed_pdf_render',
                 signedPdfHash: signedPdfMeta ? `sha256:${signedPdfMeta.sha256}` : null,
                 tsMs: Date.now(),

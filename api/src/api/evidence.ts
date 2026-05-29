@@ -63,6 +63,32 @@ export async function downloadCertPdf(
     });
 }
 
+export async function downloadEvidenceZip(
+    d1: D1Database,
+    r2: R2Bucket | undefined,
+    envelopeId: string,
+    tenantId: string,
+): Promise<Response> {
+    if (!r2) return new Response('REPORTS bucket not configured', { status: 500 });
+    const db = drizzle(d1, { schema });
+    const row = await db.select().from(schema.agreementRequests)
+        .where(eq(schema.agreementRequests.id, envelopeId)).get();
+    if (!row || row.tenantId !== tenantId) {
+        return new Response('Not Found', { status: 404 });
+    }
+    const key = `tenants/${tenantId}/agreements/${envelopeId}/evidence.zip`;
+    const obj = await r2.get(key);
+    if (!obj) return new Response('Not Found', { status: 404 });
+    return new Response(obj.body, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename="evidence-${envelopeId.slice(0, 8)}.zip"`,
+            'Cache-Control': 'private, max-age=300',
+        },
+    });
+}
+
 const evidenceRoutes = new OpenAPIHono<HonoConfig>();
 
 const downloadAgreementRoute = createRoute(withMcpMetadata({
@@ -105,6 +131,27 @@ evidenceRoutes.openapi(downloadCertRoute, async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
     return downloadCertPdf(c.env.DB, c.env.REPORTS, id, tenantId);
+});
+
+const downloadEvidenceRoute = createRoute(withMcpMetadata({
+    method: 'get',
+    path: '/agreement-requests/{id}/evidence.zip',
+    tags: ['admin'],
+    summary: 'Download evidence pack zip',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])],
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+        200: { content: { 'application/zip': { schema: z.any() } }, description: 'evidence zip' },
+        404: { description: 'Missing' },
+    },
+    operationId: 'downloadEvidencePack',
+    description: 'Returns evidence.zip from R2 (signed.pdf + certificate.pdf + audit-trail.json + public-key.pem).',
+}, { scopes: ['read'], tier: 'extended' }));
+
+evidenceRoutes.openapi(downloadEvidenceRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId') as string;
+    return downloadEvidenceZip(c.env.DB, c.env.REPORTS, id, tenantId);
 });
 
 export default evidenceRoutes;
