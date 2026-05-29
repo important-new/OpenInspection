@@ -24,7 +24,7 @@
     "deploy:api:standalone": "node scripts/gen-version.js && npx wrangler d1 migrations apply DB --remote -c wrangler.standalone.toml && npm run css:build && npx wrangler deploy -c wrangler.standalone.toml",
     "deploy:api:saas": "node scripts/gen-version.js && npx wrangler d1 migrations apply DB --remote -c wrangler.saas.toml && npm run css:build && npx wrangler deploy -c wrangler.saas.toml",
     "deploy:web:standalone": "cd frontend && npx react-router build && npx wrangler deploy",
-    "deploy:web:saas": "npm run deploy:web:standalone",
+    "deploy:web:saas": "cd frontend && npx react-router build && npx wrangler deploy --env saas",
     "setup:cloudflare": "node scripts/setup-cloudflare.js",
     "setup:local": "node scripts/setup-cloudflare.js --local",
     "teardown:cloudflare": "node scripts/teardown-cloudflare.js",
