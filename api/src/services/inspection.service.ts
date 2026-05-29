@@ -17,7 +17,10 @@ import { computePreflightFromData } from '../lib/preflight';
 import { decideFieldWrite, applyFieldWrite } from '../lib/field-version';
 import { ApprenticeService } from './apprentice.service';
 import { findingKey, parseFindingKey, DEFAULT_UNIT } from '../lib/finding-key';
-import { isDefectTrade, isDefectDeadline, isDefectTimeframe } from '../types/defect-fields';
+import { isDefectTrade, isDefectDeadline, isDefectTimeframe, DEFECT_TRADE_LABELS, DEFECT_DEADLINE_LABELS, DEFECT_TIMEFRAME_LABELS } from '../types/defect-fields';
+import { renderTemplate } from '../lib/mustache';
+import type { DefectCommentState } from '../types/inspection-item-state';
+import type { CannedDefect } from '../types/template-schema';
 
 /** Slug → label map for resolving aggregated recommendation badges in
  *  getReportData. Built once at module load. */
@@ -125,6 +128,27 @@ function mapRatingSystemLevels(levels: Array<Record<string, unknown>>): RatingLe
                 ...(typeof lvl.description === 'string' ? { description: lvl.description } : {}),
             };
         });
+}
+
+/**
+ * Resolve a defect-state row into the variables consumed by the Mustache
+ * renderer when substituting tokens like `{{location}}` / `{{trade}}` in
+ * canned-comment prose. Falls back to the template's default `location`
+ * when the inspector hasn't filled an inspection-specific override.
+ */
+function resolveDefectMustacheVars(
+    st: DefectCommentState | undefined,
+    d: CannedDefect,
+): Record<string, string | null> {
+    const location = (typeof st?.location === 'string' && st.location.length > 0)
+        ? st.location
+        : (d.location || null);
+    return {
+        location,
+        trade:     st?.trade     ? DEFECT_TRADE_LABELS[st.trade]         : null,
+        deadline:  st?.deadline  ? DEFECT_DEADLINE_LABELS[st.deadline]   : null,
+        timeframe: st?.timeframe ? DEFECT_TIMEFRAME_LABELS[st.timeframe] : null,
+    };
 }
 
 type Inspection = z.infer<typeof InspectionSchema>;
@@ -1412,7 +1436,7 @@ export class InspectionService {
         interface PhotoEntry        { key: string; annotatedKey?: string; annotationsJson?: string }
         // Sprint 2 S2-3 / S2-4 — per-defect recommendation slug + repair
         // estimate range (cents). All optional so legacy defects render.
-        interface DefectState       { cannedId: string; included: boolean; comment?: string | null; category?: 'maintenance' | 'recommendation' | 'safety'; location?: string | null; photos?: PhotoEntry[]; recommendationId?: string | null; estimateLow?: number | null; estimateHigh?: number | null }
+        interface DefectState       { cannedId: string; included: boolean; comment?: string | null; category?: 'maintenance' | 'recommendation' | 'safety'; location?: string | null; photos?: PhotoEntry[]; recommendationId?: string | null; estimateLow?: number | null; estimateHigh?: number | null; trade?: string | null; deadline?: string | null; timeframe?: string | null }
         interface CannedState       { cannedId: string; included: boolean; comment?: string | null }
         interface ResultEntry {
             rating?:         string;
@@ -1560,7 +1584,7 @@ export class InspectionService {
                     return {
                         ...d,
                         included,
-                        effectiveComment: override ?? d.comment,
+                        effectiveComment: renderTemplate(override ?? d.comment, resolveDefectMustacheVars(st as DefectCommentState | undefined, d as CannedDefect)),
                         effectiveCategory: st?.category ?? d.category,
                         effectiveLocation: (typeof st?.location === 'string' && st.location.length > 0) ? st.location : d.location,
                         defectPhotos: (st?.photos ?? []).map(p => {
