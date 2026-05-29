@@ -91,10 +91,10 @@ const loginRoute = createRoute(withMcpMetadata({
 }, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(loginRoute, async (c) => {
-    // Shared-SaaS deploys disable the local password form — see the
-    // matching guard on GET /login. Returning Gone (410) + a redirect
-    // hint lets stale clients (cached SPA build, scripted callers) bail
-    // out cleanly instead of attempting credential validation against
+    // SaaS deploys disable the local password form (login via portal) —
+    // see the matching guard on GET /login. Returning Gone (410) + a
+    // redirect hint lets stale clients (cached SPA build, scripted callers)
+    // bail out cleanly instead of attempting credential validation against
     // a per-(tenant_id,email) row they can't disambiguate.
     const profile = c.var.profile;
     if (profile?.mode === 'saas') {
@@ -103,7 +103,7 @@ coreAuthRoutes.openapi(loginRoute, async (c) => {
             success: false,
             error: {
                 code: 'LOGIN_MOVED_TO_PORTAL',
-                message: 'Sign in via the workspace portal; this tenant runs in shared-SaaS mode.',
+                message: 'Sign in via the workspace portal.',
                 ...(portal ? { details: { redirect: `${portal}/login` } } : {}),
             },
         }, 410);
@@ -346,15 +346,16 @@ const forgotPasswordRoute = createRoute(withMcpMetadata({
             content: {
                 'application/json': { schema: z.object({ success: z.literal(false), error: z.object({ code: z.string(), message: z.string() }) }) }
             },
-            description: 'Password reset disabled — shared-SaaS tenants must use the workspace portal'
+            description: 'Password reset disabled — SaaS tenants must use the workspace portal'
         }
     }
 }, { scopes: [], tier: 'excluded' }));
 
 coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
-    // Shared-SaaS deploys disable the local password form — see the matching
-    // guard on POST /api/auth/login. Password resets must go through the
-    // workspace portal which owns the identity layer for shared tenants.
+    // SaaS deploys disable the local password form (password reset via
+    // portal) — see the matching guard on POST /api/auth/login. Password
+    // resets must go through the workspace portal which owns the identity
+    // layer for SaaS tenants.
     const profile = c.var.profile;
     if (profile?.mode === 'saas') {
         return c.json({
