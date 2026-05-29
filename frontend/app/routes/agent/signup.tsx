@@ -81,7 +81,7 @@ export default function AgentSignupPage() {
         <div className="absolute w-[480px] h-[480px] -right-[120px] -top-[160px] bg-ih-primary blur-[140px] opacity-35 pointer-events-none" />
         <div className="relative z-10 max-w-[460px] mx-auto">
           <div className="flex items-center gap-3 mb-12">
-            <img src="/logo.svg" alt="" className="w-8 h-8" />
+            <img src="/logo.svg" alt="" className="w-8 h-8" width={32} height={32} />
             <span className="font-serif font-bold text-lg tracking-tight">
               OpenInspection
             </span>
