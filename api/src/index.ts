@@ -42,6 +42,7 @@ import billingRoutes from './api/billing';
 import integrationRoutes from './portal/integration.routes';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
+import inspectionPrefsRoutes from './api/inspection-prefs';
 import aiRoutes from './api/ai';
 import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
@@ -437,6 +438,10 @@ const routes = app
   // (one WS per dashboard tab). Per-inspection presence is mounted inline on
   // inspectionsRoutes above as /api/inspections/:id/presence/ws.
   .route('/api/tenant', tenantPresenceRoutes)
+  // Workflow shortcuts PR — tenant-scoped editor preferences (clone defaults,
+  // auto-advance delay, pinned tag ids). GET returns merged defaults; PATCH
+  // validates and persists.
+  .route('/api/tenant/inspection-prefs', inspectionPrefsRoutes)
   .route('/api/inspections', inspectionSyncRoutes)
   // Sprint 3 S3-3 — tag link/unlink endpoints share the /api/inspections root
   // so the URL carries inspection id + item id directly. Mounted before the
