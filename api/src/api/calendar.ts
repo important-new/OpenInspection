@@ -1,16 +1,16 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { users } from '../lib/db/schema/tenant';
 import { availabilityOverrides } from '../lib/db/schema/inspection';
-import { HonoConfig } from '../types/hono';
 import { CalendarSyncResponseSchema, CalendarCallbackQuerySchema } from '../lib/validations/calendar.schema';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { logger } from '../lib/logger';
 import { getBaseUrl } from '../lib/url';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
 
-const calendarRoutes = new OpenAPIHono<HonoConfig>();
+const calendarRoutes = createApiRouter();
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';

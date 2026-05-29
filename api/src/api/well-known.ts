@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
+import { HonoConfig } from '../types/hono';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import * as schema from '../lib/db/schema';
 import { SigningKeyService } from '../services/signing-key.service';
-import type { HonoConfig } from '../types/hono';
 
 const wellKnownRoutes = new Hono<HonoConfig>();
 

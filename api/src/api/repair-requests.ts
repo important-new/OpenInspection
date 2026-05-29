@@ -16,18 +16,18 @@
  * abuse profile applies (public, unauthenticated, sends email to a user-
  * supplied address).
  */
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { inspections, agreementRequests, tenantConfigs, users } from '../lib/db/schema';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { checkRateLimit } from '../lib/rate-limit';
 import { logger } from '../lib/logger';
 import { writeAuditLog } from '../lib/audit';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const repairRequestRoutes = new OpenAPIHono<HonoConfig>();
+const repairRequestRoutes = createApiRouter();
 
 const EmailRequestSchema = z.object({
     inspectionId:     z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }).describe('TODO describe inspectionId field for the OpenInspection MCP integration'),

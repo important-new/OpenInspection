@@ -7,12 +7,12 @@
  * JWT-guarded; tenant scope from the JWT claim. Both responses are
  * read-only and safe to cache for ~60 seconds at the edge.
  */
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { Errors } from '../lib/errors';
-import type { HonoConfig } from '../types/hono';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const analyticsRoutes = new OpenAPIHono<HonoConfig>();
+const analyticsRoutes = createApiRouter();
 
 const growthRoute = createRoute(withMcpMetadata({
     method:  'get',

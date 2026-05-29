@@ -4,12 +4,12 @@
  * `GET /api/integrations/status` returns the six-row snapshot the
  * grid page renders. JWT-guarded; tenant scope from the JWT claim.
  */
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { Errors } from '../lib/errors';
-import type { HonoConfig } from '../types/hono';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const integrationsRoutes = new OpenAPIHono<HonoConfig>();
+const integrationsRoutes = createApiRouter();
 
 const statusRoute = createRoute(withMcpMetadata({
     method:  'get',

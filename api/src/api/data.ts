@@ -1,10 +1,10 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
+import {} from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
-import { HonoConfig } from '../types/hono';
 import { DataService } from '../services/data.service';
 import { Errors } from '../lib/errors';
 
-const dataRoutes = new OpenAPIHono<HonoConfig>();
+const dataRoutes = createApiRouter();
 
 // GET /api/data/export/inspections — CSV download
 dataRoutes.get('/export/inspections', requireRole(['owner', 'admin']), async (c) => {

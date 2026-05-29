@@ -9,16 +9,16 @@
  * Read-only — does not call Stripe. Subscription mutations land via
  * the portal's checkout + webhook pipeline (P7 + P8).
  */
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { tenants, users as usersTbl } from '../lib/db/schema';
 import { summariseSeats } from '../lib/billing-summary';
 import { Errors } from '../lib/errors';
-import type { HonoConfig } from '../types/hono';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const billingRoutes = new OpenAPIHono<HonoConfig>();
+const billingRoutes = createApiRouter();
 
 const summaryRoute = createRoute(withMcpMetadata({
     method:  'get',

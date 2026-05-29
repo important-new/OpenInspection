@@ -8,8 +8,8 @@
  * Routes mounted at `/api/tags` (library) and a small parallel set under
  * `/api/inspections/:id/items/:itemId/tags` (item links).
  */
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { Errors } from '../lib/errors';
@@ -24,7 +24,7 @@ import {
 } from '../lib/validations/tag.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const tagsRoutes = new OpenAPIHono<HonoConfig>();
+const tagsRoutes = createApiRouter();
 
 const IdParamSchema = z.object({ id: z.string().min(1).describe('TODO describe id field for the OpenInspection MCP integration') });
 
@@ -155,7 +155,7 @@ export default tagsRoutes;
 // inspection id + item id directly. We keep them in this file so all
 // tag endpoints live together.
 
-export const inspectionTagRoutes = new OpenAPIHono<HonoConfig>();
+export const inspectionTagRoutes = createApiRouter();
 
 const InspectionItemTagParamsSchema = z.object({
     id:     z.string().min(1).describe('TODO describe id field for the OpenInspection MCP integration'),

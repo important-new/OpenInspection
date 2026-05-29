@@ -1,10 +1,10 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import { CreateInvoiceSchema, InvoiceResponseSchema } from '../lib/validations/invoice.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const invoiceRoutes = new OpenAPIHono<HonoConfig>();
+const invoiceRoutes = createApiRouter();
 
 const listInvoicesRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/',

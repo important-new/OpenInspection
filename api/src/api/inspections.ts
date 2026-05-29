@@ -1,9 +1,10 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { HonoConfig } from '../types/hono';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { getBookingHost } from '../lib/url';
 import { reportUrl as buildReportUrl } from '../lib/public-urls';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { generatePdfFromUrl } from '../lib/pdf';
@@ -48,7 +49,7 @@ import type { Context } from 'hono';
 import type { SignatureUser } from '../lib/inspector-signature';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const inspectionsRoutes = new OpenAPIHono<HonoConfig>();
+const inspectionsRoutes = createApiRouter();
 
 /**
  * Sprint B-4a — resolves the inspector record for an inspection so outbound

@@ -10,14 +10,15 @@
  *
  * Switch and link write to audit_logs via AuditLogService when available.
  */
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
+import { HonoConfig } from '../types/hono';
 import type { Context } from 'hono';
 import { setCookie } from 'hono/cookie';
 import { Errors } from '../lib/errors';
-import type { HonoConfig } from '../types/hono';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
 
-const identityRoutes = new OpenAPIHono<HonoConfig>();
+const identityRoutes = createApiRouter();
 
 function getCallerUserId(c: Context<HonoConfig>): string {
     const sub = (c.get('user') as { sub?: string } | undefined)?.sub;

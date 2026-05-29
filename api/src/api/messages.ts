@@ -1,12 +1,12 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
-import type { HonoConfig } from '../types/hono';
 import { requireRole } from '../lib/middleware/rbac';
 import { Errors } from '../lib/errors';
 import { detectMime } from '../lib/file-validation';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const messageRoutes = new OpenAPIHono<HonoConfig>();
+const messageRoutes = createApiRouter();
 
 const AttachmentSchema = z.object({
     id: z.string().describe('TODO describe id field for the OpenInspection MCP integration'),

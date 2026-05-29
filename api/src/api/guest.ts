@@ -10,16 +10,16 @@
  * This route is JWT-exempt: the JWT middleware in `src/index.ts` adds
  * `/api/guest/` to its public-path list.
  */
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { guestInvites, tenants } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { sendSuccess } from '../lib/response';
-import type { HonoConfig } from '../types/hono';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-export const guestRoutes = new OpenAPIHono<HonoConfig>();
+export const guestRoutes = createApiRouter();
 
 const claimRoute = createRoute(withMcpMetadata({
     method:  'post',

@@ -1,11 +1,11 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq, sql } from 'drizzle-orm';
 import { requireRole } from '../lib/middleware/rbac';
 import { inspections } from '../lib/db/schema/inspection';
 import { contacts } from '../lib/db/schema/contact';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import {
     AgentReportsQuerySchema,
@@ -18,7 +18,7 @@ import {
 } from '../lib/validations/agent.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const agentRoutes = new OpenAPIHono<HonoConfig>();
+const agentRoutes = createApiRouter();
 
 /**
  * GET /api/agents/my-reports

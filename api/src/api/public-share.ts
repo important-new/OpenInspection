@@ -8,18 +8,18 @@
 // validates it. Calling it `share-token` here is just nomenclature; one
 // service method serves both inspector- and customer-side share flows.
 
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { inspections } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
-import type { HonoConfig } from '../types/hono';
 import { sendSuccess } from '../lib/response';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const publicShareRoutes = new OpenAPIHono<HonoConfig>();
+const publicShareRoutes = createApiRouter();
 
 const shareTokenRoute = createRoute(withMcpMetadata({
     method: 'post',

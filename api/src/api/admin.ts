@@ -1,4 +1,5 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, like, eq as eqDz, asc as ascDz, desc as descDz } from 'drizzle-orm';
 import * as schema from '../lib/db/schema';
@@ -8,7 +9,6 @@ import { safeISODate } from '../lib/date';
 import { getBaseUrl, getBookingHost } from '../lib/url';
 import { escapeLikePattern } from '../lib/db/like-escape';
 import { agreementSignUrl } from '../lib/public-urls';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { isServiceBindingCall } from '../portal/service-binding-guard';
@@ -49,7 +49,7 @@ import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const adminRoutes = new OpenAPIHono<HonoConfig>();
+const adminRoutes = createApiRouter();
 
 /**
  * GET /api/admin/export

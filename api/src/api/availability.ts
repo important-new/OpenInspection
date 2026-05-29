@@ -1,8 +1,8 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and } from 'drizzle-orm';
 import { availability, availabilityOverrides } from '../lib/db/schema';
-import { HonoConfig } from '../types/hono';
 import { safeISODate } from '../lib/date';
 import { Errors } from '../lib/errors';
 import { requireRole } from '../lib/middleware/rbac';
@@ -16,7 +16,7 @@ import {
 import { SuccessResponseSchema, createApiResponseSchema } from '../lib/validations/shared.schema';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
 
-const availabilityRoutes = new OpenAPIHono<HonoConfig>();
+const availabilityRoutes = createApiRouter();
 
 /**
  * GET /api/availability

@@ -1,12 +1,12 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
 import { agreementSignPath } from '../lib/public-urls';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const conciergeRoutes = new OpenAPIHono<HonoConfig>();
+const conciergeRoutes = createApiRouter();
 
 /**
  * Agent Accounts A3 — POST /api/concierge/confirm

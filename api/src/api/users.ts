@@ -1,16 +1,16 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq } from 'drizzle-orm';
 import { users } from '../lib/db/schema';
-import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
 import { requireRole } from '../lib/middleware/rbac';
 import { UserDefaultSignatureSchema } from '../lib/validations/admin.schema';
 import { saveUserDefaultSignature } from '../services/user.service';
 
-const userRoutes = new OpenAPIHono<HonoConfig>();
+const userRoutes = createApiRouter();
 
 const getOnboardingRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/me/onboarding',

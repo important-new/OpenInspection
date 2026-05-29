@@ -1,5 +1,5 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { HonoConfig } from '../types/hono';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import { checkRateLimit } from '../lib/rate-limit';
 import {
@@ -14,7 +14,7 @@ import {
 } from '../lib/validations/ai.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const aiRoutes = new OpenAPIHono<HonoConfig>();
+const aiRoutes = createApiRouter();
 
 /**
  * POST /api/ai/comment-assist

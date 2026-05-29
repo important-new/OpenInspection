@@ -1,7 +1,7 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq } from 'drizzle-orm';
-import type { HonoConfig } from '../types/hono';
 import { ErrorCode, Errors } from '../lib/errors';
 import { SetSlugRequestSchema } from '../lib/validations/profile.schema';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
@@ -14,7 +14,7 @@ import { withMcpMetadata } from '../lib/route-metadata-standards';
  * `/api/profile/*`. JWT middleware populates tenantId/userId; availability
  * is re-checked inside the handler to close the optimistic-UI race.
  */
-const app = new OpenAPIHono<HonoConfig>();
+const app = createApiRouter();
 
 const getProfileRoute = createRoute(withMcpMetadata({
     method: 'get',
@@ -49,7 +49,7 @@ app.openapi(getProfileRoute, async (c) => {
     const tenantId = c.get('tenantId');
     if (!userId || !tenantId) throw Errors.Unauthorized();
 
-    const row = await drizzle(c.env.DB as any).select({
+    const row = await drizzle(c.env.DB as never).select({
         name: users.name,
         email: users.email,
         phone: users.phone,
@@ -66,7 +66,7 @@ app.openapi(getProfileRoute, async (c) => {
 
     let parsedAreas = null;
     if (row.serviceAreas) {
-        try { parsedAreas = JSON.parse(row.serviceAreas); } catch {}
+        try { parsedAreas = JSON.parse(row.serviceAreas); } catch { /* malformed JSON — fall through to null */ }
     }
 
     return c.json({
@@ -156,7 +156,7 @@ app.openapi(patchProfileRoute, async (c) => {
     }
 
     if (Object.keys(updates).length > 0) {
-        await drizzle(c.env.DB as any).update(users)
+        await drizzle(c.env.DB as never).update(users)
             .set(updates)
             .where(and(eq(users.id, userId), eq(users.tenantId, tenantId)));
     }

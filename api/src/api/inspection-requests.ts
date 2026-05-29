@@ -9,8 +9,8 @@
  *   POST   /api/inspection-requests/:id/inspections — append a sub-inspection
  */
 
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import { Errors } from '../lib/errors';
 import {
@@ -23,7 +23,7 @@ import {
 } from '../lib/validations/inspection-request.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const inspectionRequestsRoutes = new OpenAPIHono<HonoConfig>();
+const inspectionRequestsRoutes = createApiRouter();
 
 const listRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/',

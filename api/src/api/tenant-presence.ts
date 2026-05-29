@@ -6,10 +6,10 @@
  * in-progress inspections for the tenant. See TenantPresenceDO for the
  * back-end behaviour.
  */
-import { OpenAPIHono } from '@hono/zod-openapi';
-import type { HonoConfig } from '../types/hono';
+import {} from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 
-export const tenantPresenceRoutes = new OpenAPIHono<HonoConfig>();
+export const tenantPresenceRoutes = createApiRouter();
 
 tenantPresenceRoutes.get('/presence/ws', async (c) => {
     if (c.req.header('Upgrade') !== 'websocket') {

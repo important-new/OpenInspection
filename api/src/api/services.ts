@@ -1,7 +1,7 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from 'zod';
 import { requireRole } from '../lib/middleware/rbac';
-import type { HonoConfig } from '../types/hono';
 import {
     CreateServiceSchema, UpdateServiceSchema, ServiceResponseSchema,
     ServiceListResponseSchema, CreateDiscountCodeSchema, UpdateDiscountCodeSchema,
@@ -10,7 +10,7 @@ import {
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const servicesRoutes = new OpenAPIHono<HonoConfig>();
+const servicesRoutes = createApiRouter();
 
 // GET /api/services
 servicesRoutes.openapi(createRoute(withMcpMetadata({

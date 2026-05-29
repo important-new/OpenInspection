@@ -6,14 +6,14 @@
  * (backwards compatibility); DB secrets are the fallback for self-hosted
  * tenants who configure keys via the Settings UI.
  */
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import { tenantConfigs } from '../lib/db/schema';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { encryptSecrets, decryptSecrets, maskSecret, isMasked } from '../lib/config-crypto';
-import { HonoConfig } from '../types/hono';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 /**
@@ -48,7 +48,7 @@ const SecretsResponseSchema = z.object({
 const SecretsInputSchema = z.record(z.string(), z.string().optional())
     .openapi('SecretsInput');
 
-const secretsRoutes = new OpenAPIHono<HonoConfig>();
+const secretsRoutes = createApiRouter();
 
 // ─── GET /secrets ──────────────────────────────────────────────────────────
 const getSecretsRoute = createRoute(withMcpMetadata({

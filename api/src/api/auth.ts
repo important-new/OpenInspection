@@ -1,9 +1,9 @@
-import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, sql } from 'drizzle-orm';
 import { users } from '../lib/db/schema';
 import { setCookie, deleteCookie } from 'hono/cookie';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { getBaseUrl } from '../lib/url';
@@ -59,7 +59,7 @@ export interface AuthPayload {
     iat?: number;
 }
 
-const coreAuthRoutes = new OpenAPIHono<HonoConfig>();
+const coreAuthRoutes = createApiRouter();
 
 // --- Routes ---
 

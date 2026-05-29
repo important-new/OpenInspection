@@ -1,7 +1,7 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { requireRole } from '../lib/middleware/rbac';
-import type { HonoConfig } from '../types/hono';
 import { Errors, AppError } from '../lib/errors';
 import { auditFromContext } from '../lib/audit';
 import { withKvLock, KvLockHeldError } from '../lib/kv-lock';
@@ -12,7 +12,7 @@ import {
 import type { MigrateResult } from '../services/template-migration.service';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const templateMigrationRoutes = new OpenAPIHono<HonoConfig>();
+const templateMigrationRoutes = createApiRouter();
 
 /**
  * Sprint 2 S2-6 — POST /api/templates/:oldId/migrate-to/:newId

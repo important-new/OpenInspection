@@ -1,11 +1,11 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, count, inArray } from 'drizzle-orm';
 import { requireRole } from '../lib/middleware/rbac';
 import { requireSeatAvailable } from '../features/seat-quota';
 import { getBaseUrl } from '../lib/url';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { tenantConfigs, users, apprenticeReviews, inspections } from '../lib/db/schema';
 import {
@@ -16,7 +16,7 @@ import {
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const teamRoutes = new OpenAPIHono<HonoConfig>();
+const teamRoutes = createApiRouter();
 
 /**
  * GET /api/team/members

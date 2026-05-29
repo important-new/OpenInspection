@@ -1,10 +1,10 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
+import {} from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { requireRole } from '../lib/middleware/rbac';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 
-const routes = new OpenAPIHono<HonoConfig>();
+const routes = createApiRouter();
 
 const TypeBody = z.object({
     name:               z.string().min(1).describe('TODO describe name field for the OpenInspection MCP integration'),

@@ -1,11 +1,11 @@
-import { OpenAPIHono } from '@hono/zod-openapi';
+import {} from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq } from 'drizzle-orm';
 import { users } from '../lib/db/schema';
 import { getSeatUsage } from '../features/seat-quota';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
-import type { HonoConfig } from '../types/hono';
 
 /**
  * Session context endpoint for the React Router v7 frontend layout.
@@ -21,7 +21,7 @@ import type { HonoConfig } from '../types/hono';
  *
  * Mounted at `/api/session/context` — requires JWT auth.
  */
-const app = new OpenAPIHono<HonoConfig>();
+const app = createApiRouter();
 
 app.get('/context', async (c) => {
     const user = c.get('user');

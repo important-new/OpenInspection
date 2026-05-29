@@ -1,8 +1,8 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { setCookie } from 'hono/cookie';
 import { drizzle } from 'drizzle-orm/d1';
 import { desc, eq } from 'drizzle-orm';
-import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { requireRole } from '../lib/middleware/rbac';
 import { signJwt } from '../lib/jwt-keyring';
@@ -15,7 +15,7 @@ import { withMcpMetadata } from "../lib/route-metadata-standards";
  * "my-reports" and "leaderboard". These plural /api/agents routes own the
  * invite + accept lifecycle for the new global-agent persona.
  */
-const agentsRoutes = new OpenAPIHono<HonoConfig>();
+const agentsRoutes = createApiRouter();
 
 const InviteBodySchema = z
     .object({

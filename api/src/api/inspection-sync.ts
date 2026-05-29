@@ -1,7 +1,7 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq } from 'drizzle-orm';
-import type { HonoConfig } from '../types/hono';
 import { requireRole } from '../lib/middleware/rbac';
 import { Errors } from '../lib/errors';
 import { auditFromContext } from '../lib/audit';
@@ -16,7 +16,7 @@ import {
 import { inspections, inspectionResults, templates } from '../lib/db/schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const syncRoutes = new OpenAPIHono<HonoConfig>();
+const syncRoutes = createApiRouter();
 
 /* ── POST /api/inspections/:id/results/merge ──────────────────────────────── */
 syncRoutes.openapi(createRoute(withMcpMetadata({

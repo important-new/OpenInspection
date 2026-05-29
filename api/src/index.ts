@@ -85,7 +85,31 @@ import agreementsRenderRoutes from './api/agreements-render';
 import evidenceRoutes from './api/evidence';
 import wellKnownRoutes from './api/well-known';
 
-const app = new OpenAPIHono<HonoConfig>();
+const app = new OpenAPIHono<HonoConfig>({
+    // Intercept Zod validation failures so the response body carries a readable
+    // `error.message` + per-field map, instead of the default ZodError dump that
+    // leaks `[ { expected, code, path, message } ]` to the UI.
+    defaultHook: (result, c) => {
+        if (result.success) return;
+        const issues = result.error.issues;
+        const fields: Record<string, string> = {};
+        for (const i of issues) {
+            const key = i.path.length ? i.path.join('.') : '_';
+            if (!fields[key]) fields[key] = i.message;
+        }
+        const summary = issues
+            .map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message))
+            .join('; ');
+        return c.json({
+            success: false,
+            error: {
+                code: 'VALIDATION_ERROR',
+                message: summary || 'Validation failed',
+                fields,
+            },
+        }, 400);
+    },
+});
 
 // CORS — allows React Router v7 frontend (separate origin in dev) to call API endpoints.
 // In production both share the same origin; this is primarily for local dev
@@ -396,6 +420,7 @@ app.use('/api/*', requireActiveSubscription);
 //
 // Middleware `.use()` and inline `.get()` handlers are kept as separate `app.*`
 // statements (above and below) since they don't affect the route type signature.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- referenced via `typeof routes` on line 800 (CoreApiType export)
 const routes = app
   // Mount auth routes at canonical API path AND at root so that /setup, /login (POST), /join (POST) work without redirects
   .route('/api/auth', coreAuthRoutes)

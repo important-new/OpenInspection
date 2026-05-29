@@ -1,10 +1,10 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import * as schema from '../lib/db/schema';
 import { requireRole } from '../lib/middleware/rbac';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
-import type { HonoConfig } from '../types/hono';
 
 /**
  * Pure download helpers exported for unit testing. The OpenAPIHono route
@@ -89,7 +89,7 @@ export async function downloadEvidenceZip(
     });
 }
 
-const evidenceRoutes = new OpenAPIHono<HonoConfig>();
+const evidenceRoutes = createApiRouter();
 
 const downloadAgreementRoute = createRoute(withMcpMetadata({
     method: 'get',

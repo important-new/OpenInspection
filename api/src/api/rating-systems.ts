@@ -7,8 +7,8 @@
  * All mutations live behind the global JWT middleware + role gate. Reads
  * are open to inspectors so the Library page is browseable.
  */
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { Errors } from '../lib/errors';
@@ -21,7 +21,7 @@ import {
 } from '../lib/validations/rating-system.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const ratingSystemsRoutes = new OpenAPIHono<HonoConfig>();
+const ratingSystemsRoutes = createApiRouter();
 
 const IdParamSchema = z.object({ id: z.string().min(1).describe('TODO describe id field for the OpenInspection MCP integration') });
 

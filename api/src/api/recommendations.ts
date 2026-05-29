@@ -1,5 +1,5 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import type { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { Errors } from '../lib/errors';
@@ -13,7 +13,7 @@ import {
 import { RECOMMENDATION_SEEDS } from '../data/recommendation-seeds';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const recommendationsRoutes = new OpenAPIHono<HonoConfig>();
+const recommendationsRoutes = createApiRouter();
 
 /* ── GET /api/recommendations ─────────────────────────────────────────────── */
 recommendationsRoutes.openapi(createRoute(withMcpMetadata({

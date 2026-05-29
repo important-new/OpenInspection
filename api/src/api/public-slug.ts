@@ -1,7 +1,7 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq, isNull } from 'drizzle-orm';
-import type { HonoConfig } from '../types/hono';
 import { SlugAvailabilityResponseSchema } from '../lib/validations/profile.schema';
 import { createApiResponseSchema } from '../lib/validations/shared.schema';
 import { users, slugReservations } from '../lib/db/schema/tenant';
@@ -24,7 +24,7 @@ import { withMcpMetadata } from "../lib/route-metadata-standards";
  * `UserService.checkSlug` (reservations + uniqueness) and `SlugSchema`
  * (client-side format check).
  */
-const app = new OpenAPIHono<HonoConfig>();
+const app = createApiRouter();
 
 const checkSlugRoute = createRoute(withMcpMetadata({
     method: 'get',

@@ -1,5 +1,5 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { requireRole } from '../lib/middleware/rbac';
 import {
     CreateContactSchema, UpdateContactSchema,
@@ -7,7 +7,7 @@ import {
 } from '../lib/validations/contact.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const contactRoutes = new OpenAPIHono<HonoConfig>();
+const contactRoutes = createApiRouter();
 
 const listContactsRoute = createRoute(withMcpMetadata({
     method: 'get', path: '/',

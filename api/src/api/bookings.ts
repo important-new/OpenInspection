@@ -1,10 +1,10 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, inArray } from 'drizzle-orm';
 import { users, inspections, services as servicesTable, agentTenantLinks, tenants } from '../lib/db/schema';
 import { isNull } from 'drizzle-orm';
 import { createCalendarEvent } from './calendar';
-import { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { checkRateLimit } from '../lib/rate-limit';
 import { logger } from '../lib/logger';
@@ -17,7 +17,7 @@ import {
 } from '../lib/validations/booking.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const bookingsRoutes = new OpenAPIHono<HonoConfig>();
+const bookingsRoutes = createApiRouter();
 
 /**
  * GET /api/public/inspectors

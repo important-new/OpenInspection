@@ -1,5 +1,5 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
-import { HonoConfig } from '../types/hono';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { Errors } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
@@ -22,7 +22,7 @@ import { withMcpMetadata } from "../lib/route-metadata-standards";
  * Autocomplete session (~$0.017) instead of one per keystroke. The
  * proxy passes the `sessiontoken` straight through to Google.
  */
-const placesRoutes = new OpenAPIHono<HonoConfig>();
+const placesRoutes = createApiRouter();
 
 const GOOGLE_BASE = 'https://maps.googleapis.com/maps/api/place';
 

@@ -1,6 +1,6 @@
-import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { createRoute, z } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { setCookie } from 'hono/cookie';
-import type { HonoConfig } from '../types/hono';
 import { Errors } from '../lib/errors';
 import { verifyTurnstile } from '../lib/middleware/bot-protection';
 import { signJwt } from '../lib/jwt-keyring';
@@ -15,7 +15,7 @@ import { withMcpMetadata } from "../lib/route-metadata-standards";
  * to fold in any tenants where this email already lives as an agent contact,
  * and returns Set-Cookie + redirect to /agent-dashboard.
  */
-const agentSignupRoutes = new OpenAPIHono<HonoConfig>();
+const agentSignupRoutes = createApiRouter();
 
 const SignupBodySchema = z
     .object({

@@ -1,10 +1,10 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, gte, lt } from 'drizzle-orm';
 import { inspections } from '../lib/db/schema/inspection';
 import { users } from '../lib/db/schema/tenant';
-import type { HonoConfig } from '../types/hono';
 import { requireRole } from '../lib/middleware/rbac';
 import { logger } from '../lib/logger';
 import { getCalendarEventStyle } from '../lib/calendar-event-style';
@@ -44,7 +44,7 @@ async function refreshGoogleToken(clientId: string, clientSecret: string, refres
     return data.access_token;
 }
 
-const calendarEventsRoutes = new OpenAPIHono<HonoConfig>();
+const calendarEventsRoutes = createApiRouter();
 
 const eventsRoute = createRoute(withMcpMetadata({
     method: 'get',

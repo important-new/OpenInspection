@@ -1,7 +1,7 @@
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { createRoute } from '@hono/zod-openapi';
+import { createApiRouter } from '../lib/openapi-router';
 import { z } from '@hono/zod-openapi';
 import { requireRole } from '../lib/middleware/rbac';
-import { HonoConfig } from '../types/hono';
 import { Errors, AppError } from '../lib/errors';
 import { auditFromContext } from '../lib/audit';
 import {
@@ -13,7 +13,7 @@ import {
 } from '../lib/validations/import-history.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const marketplaceRoutes = new OpenAPIHono<HonoConfig>();
+const marketplaceRoutes = createApiRouter();
 
 // GET /api/templates/marketplace
 marketplaceRoutes.openapi(createRoute(withMcpMetadata({
