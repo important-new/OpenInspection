@@ -70,15 +70,15 @@ Not ready to commit to running infrastructure? Spin up a managed workspace at [*
 3. Deploy the frontend Worker:
    ```bash
    cd frontend
-   npm install && bash scripts/deploy.sh
+   cp wrangler.toml.example wrangler.toml   # then edit API_URL + SESSION_SECRET
+   npm install && npm run deploy            # = react-router build && wrangler deploy
    ```
-   (`scripts/deploy.sh` builds the React Router v7 app and patches `wrangler.json`'s `main` field before invoking `wrangler deploy` — running `wrangler deploy` directly will fail.)
 4. Visit your API Worker URL → `/setup` (e.g., `https://openinspection.your-account.workers.dev/setup`)
 5. A 6-digit setup code is generated on first boot. The code itself is **not** printed in logs — recover it with one of:
    - **Recommended**: set `SETUP_CODE=<any 6-digit value>` as a Worker secret before deploying, then use that value at `/setup`
    - Or read the generated code from KV: `wrangler kv key get setup_verification_code --binding TENANT_CACHE` (1-hour TTL)
 
-> The frontend calls the API via a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) (zero-latency, no network hop). The API Worker is configured by the root `wrangler.toml` (copy from `wrangler.toml.example`); the Frontend Worker's `wrangler.json` is generated at build time by `scripts/deploy.sh`.
+> The frontend calls the API via a [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/) (zero-latency, no network hop). The API Worker is configured by the root `wrangler.toml` (copy from `wrangler.toml.example`); the Frontend Worker uses `frontend/wrangler.toml` (copy from `frontend/wrangler.toml.example`) with `main = "./workers/app.ts"` — the standard `wrangler deploy` flow handles the rest.
 
 ### Option 2: CLI-First
 ```bash

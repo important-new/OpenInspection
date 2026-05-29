@@ -75,7 +75,7 @@ npm run dev                    # http://localhost:5173 (proxies API)
 | `cd frontend && npm run dev` | Start React Router v7 dev server (port 5173) |
 | `npm run db:migrate` | Apply D1 migrations locally |
 | `npm run deploy` | Deploy API Worker to Cloudflare |
-| `cd frontend && bash scripts/deploy.sh` | Deploy Frontend Worker |
+| `cd frontend && npm run deploy` | Deploy Frontend Worker (= `react-router build && wrangler deploy`) |
 | `npm run test:unit` | API unit tests (Vitest) |
 | `npm run lint` | ESLint across all workspaces |
 

@@ -21,7 +21,7 @@ cd frontend
 npm install
 npm run dev          # Start React Router v7 dev server (port 5173, proxies API to 8788)
 npm run build        # Build React Router v7 frontend for production
-bash scripts/deploy.sh  # Build + deploy Frontend Worker to Cloudflare Workers
+npm run deploy       # Build + deploy Frontend Worker to Cloudflare Workers
 npm run type-check   # Frontend TypeScript checks
 
 # E2E Tests
@@ -47,7 +47,7 @@ cd frontend && npm run test   # Frontend E2E tests (frontend/tests/)
 | `frontend/app/lib/` | API client (hono/client), session management, helpers |
 | `frontend/app/styles/tailwind.css` | Design System 0523 token layer (Tailwind v4) |
 | `frontend/public/` | Static assets (fonts, logo, service worker, widget) |
-| `frontend/scripts/deploy.sh` | Build + patch wrangler.json + deploy Frontend Worker |
+| `frontend/workers/app.ts` | Worker entry — passes cloudflare context to React Router request handler |
 | `frontend/tests/` | Frontend E2E + unit tests |
 | `packages/shared-ui/src/` | 12 shared React components (Button, Pill, Card, etc.) |
 | `packages/api-types/` | CoreApiType re-export for hono/client |
