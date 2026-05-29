@@ -17,6 +17,7 @@ import { computePreflightFromData } from '../lib/preflight';
 import { decideFieldWrite, applyFieldWrite } from '../lib/field-version';
 import { ApprenticeService } from './apprentice.service';
 import { findingKey, parseFindingKey, DEFAULT_UNIT } from '../lib/finding-key';
+import { isDefectTrade, isDefectDeadline, isDefectTimeframe } from '../types/defect-fields';
 
 /** Slug → label map for resolving aggregated recommendation badges in
  *  getReportData. Built once at module load. */
@@ -38,7 +39,7 @@ const RECOMMENDATION_CATEGORY_LABELS = new Map<string, string>(
  * does not reject the whole patch. Mirrors the canned-comment + photo merge
  * strategy used elsewhere in updateResults().
  */
-function sanitizeDefectStates(data: Record<string, unknown>): void {
+export function sanitizeDefectStates(data: Record<string, unknown>): void {
     const validSlugs = new Set<string>(RECOMMENDATION_CATEGORY_IDS);
     for (const key of Object.keys(data)) {
         const entry = data[key] as { tabs?: { defects?: unknown } } | null | undefined;
@@ -62,6 +63,16 @@ function sanitizeDefectStates(data: Record<string, unknown>): void {
                         d[side] = null;
                     }
                 }
+            }
+            // trade / deadline / timeframe — enum or null (drop unknown values)
+            if ('trade' in d) {
+                d.trade = isDefectTrade(d.trade) ? d.trade : null;
+            }
+            if ('deadline' in d) {
+                d.deadline = isDefectDeadline(d.deadline) ? d.deadline : null;
+            }
+            if ('timeframe' in d) {
+                d.timeframe = isDefectTimeframe(d.timeframe) ? d.timeframe : null;
             }
         }
     }
