@@ -36,6 +36,8 @@ export interface KeyboardHandlers {
   onSave: () => void;
   onPublish: () => void;
   onRepeatRating: () => void;
+  /** Workflow shortcuts PR — preferred over onRepeatRating when present. */
+  onCloneLast?: () => void;
   onSaveAsSnippet: () => void;
   onToggleCheatsheet: () => void;
 
@@ -280,10 +282,15 @@ export function useKeyboard(
         return;
       }
 
-      // R = repeat previous rating
+      // R = clone last (uses tenant default scope, set by inspection-edit).
+      // Falls back to legacy onRepeatRating until callers fully migrate.
       if (e.key === "r" || e.key === "R") {
         e.preventDefault();
-        h.onRepeatRating();
+        if (h.onCloneLast) {
+          h.onCloneLast();
+        } else {
+          h.onRepeatRating();
+        }
         return;
       }
 

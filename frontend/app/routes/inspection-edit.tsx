@@ -831,6 +831,7 @@ export default function InspectionEditPage() {
  state.currentSectionItems,
  );
  },
+ onCloneLast: () => handleCloneLast(inspectionPrefs.cloneDefault),
  onSaveAsSnippet: () => {
  if (!state.activeItemId) return;
  const r = state.getResult(state.activeItemId);
