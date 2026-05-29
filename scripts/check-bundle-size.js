@@ -60,11 +60,13 @@ function checkBundle({ label, cwd, args }) {
 }
 
 (async () => {
+    // Measure against the standalone configs; saas bundle is functionally
+    // identical (same source files, different env vars + worker name).
     console.log('  →  Bundle size: API');
     const apiOk = await checkBundle({
         label: 'API',
         cwd: process.cwd(),
-        args: ['wrangler', 'deploy', '--dry-run', '--outdir', 'dist', '--config', 'api/wrangler.toml'],
+        args: ['wrangler', 'deploy', '--dry-run', '--outdir', 'dist', '--config', 'wrangler.standalone.toml'],
     });
 
     console.log('  →  Bundle size: Web');
@@ -74,6 +76,11 @@ function checkBundle({ label, cwd, args }) {
     if (!existsSync(frontendBuild)) {
         console.log('  ⚠  Web: frontend/build/client missing — run `cd frontend && npx react-router build` for an accurate measurement (skipped).');
     } else {
+        // Default wrangler.toml lookup (no --config) is required for
+        // wrangler's react-router framework auto-detection to resolve
+        // `virtual:react-router/server-build`. The base config is the
+        // standalone deploy; the saas bundle is byte-identical at the
+        // source level, so checking once is sufficient.
         webOk = await checkBundle({
             label: 'Web',
             cwd: frontendDir,
