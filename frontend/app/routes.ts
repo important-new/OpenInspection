@@ -22,6 +22,8 @@ export default [
     ),
     route("r/:id/invoice", "routes/public/invoice.tsx"),
     route("verify/:envelopeId", "routes/public/verify.tsx"),
+    route("verify", "routes/public/verify-offline.tsx"),
+    route("v/:token", "routes/public/verify-token.tsx"),
     route("observe/inspections/:id", "routes/public/observe.tsx"),
     route(
       "concierge/book/:tenant/:slug",
