@@ -627,7 +627,11 @@ bookingsRoutes.openapi(signAgreementRoute, async (c) => {
         }
     }
 
-    const signed = await svc.signRequest(token, signatureBase64);
+    // Spec 5H P2 — opaque verifier token (independent from the write-permission token).
+    const verificationToken = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    const signed = await svc.signRequest(token, signatureBase64, verificationToken);
 
     // Spec 5H P1 — trigger async sign-completion workflow (renders signed.pdf
     // + Certificate of Completion + appends 'workflow.complete' to audit chain).

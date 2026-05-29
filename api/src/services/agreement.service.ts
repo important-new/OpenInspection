@@ -231,14 +231,14 @@ export class AgreementService {
      * Records a client signature on a signing request (legacy route handler API).
      * Use markSigned() for state-machine flows with explicit signedAtMs.
      */
-    async signRequest(token: string, signatureBase64: string) {
+    async signRequest(token: string, signatureBase64: string, verificationToken?: string) {
         const request = await this.getRequestByToken(token);
         if (!request) throw Errors.NotFound('Signing request not found');
         if (request.status === 'signed') throw Errors.Conflict('Agreement already signed');
 
         await this.getDrizzle()
             .update(agreementRequests)
-            .set({ status: 'signed', signatureBase64, signedAt: new Date() })
+            .set({ status: 'signed', signatureBase64, signedAt: new Date(), verificationToken: verificationToken ?? null })
             .where(eq(agreementRequests.token, token));
         return { ...request, status: 'signed' as const, signatureBase64, signedAt: new Date() };
     }

@@ -295,6 +295,8 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     inspectorSignatureBase64: text('inspector_signature_base64'),
     inspectorSignedAt:        integer('inspector_signed_at', { mode: 'timestamp' }),
     inspectorUserId:          text('inspector_user_id').references(() => users.id),
+    // Spec 5H P2 — opaque public-verifier token. Set on the sign event.
+    verificationToken: text('verification_token'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
