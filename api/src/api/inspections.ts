@@ -1722,6 +1722,55 @@ inspectionsRoutes.openapi(getReportDataRoute, async (c) => {
 });
 
 /**
+ * GET /api/inspections/:id/publish-readiness
+ *
+ * Task 12 — pre-publish gate: reports which included defects are missing
+ * required fields (location + trade). The frontend pre-publish modal
+ * consumes this before allowing the inspector to publish the report.
+ */
+const publishReadinessRoute = createRoute(withMcpMetadata({
+    method: 'get',
+    path: '/{id}/publish-readiness',
+    tags: ['inspections'],
+    summary: 'Check whether an inspection is ready to publish (required defect fields filled)',
+    request: {
+        params: z.object({ id: z.string().min(1) }),
+    },
+    responses: {
+        200: {
+            description: 'Readiness payload',
+            content: {
+                'application/json': {
+                    schema: z.object({
+                        ready: z.boolean(),
+                        blockingDefects: z.array(z.object({
+                            sectionId:        z.string(),
+                            sectionTitle:     z.string(),
+                            itemId:           z.string(),
+                            itemLabel:        z.string(),
+                            cannedId:         z.string(),
+                            cannedTitle:      z.string(),
+                            missing:          z.array(z.enum(['location', 'trade'])),
+                            unresolvedTokens: z.array(z.string()),
+                        })),
+                    }),
+                },
+            },
+        },
+    },
+    operationId: 'getInspectionPublishReadiness',
+    description: 'Returns ready=true when every included defect on the inspection has location and trade filled. Blocking defects are listed with the specific missing fields.',
+}, { scopes: ['read'], tier: 'extended' }));
+
+inspectionsRoutes.openapi(publishReadinessRoute, async (c) => {
+    const tenantId = c.get('tenantId') as string;
+    const { id } = c.req.valid('param');
+    const service = c.var.services.inspection;
+    const readiness = await service.computePublishReadiness(id, tenantId);
+    return c.json(readiness, 200);
+});
+
+/**
  * GET /api/inspections/:id/repair-list
  *
  * Track E1 (ITB §11, UC-ITB-07) — flat punch-list of every defect-rated

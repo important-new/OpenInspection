@@ -18,9 +18,9 @@ import { decideFieldWrite, applyFieldWrite } from '../lib/field-version';
 import { ApprenticeService } from './apprentice.service';
 import { findingKey, parseFindingKey, DEFAULT_UNIT } from '../lib/finding-key';
 import { isDefectTrade, isDefectDeadline, isDefectTimeframe, DEFECT_TRADE_LABELS, DEFECT_DEADLINE_LABELS, DEFECT_TIMEFRAME_LABELS } from '../types/defect-fields';
-import { renderTemplate } from '../lib/mustache';
+import { renderTemplate, listUnresolved } from '../lib/mustache';
 import type { DefectCommentState } from '../types/inspection-item-state';
-import type { CannedDefect } from '../types/template-schema';
+import type { CannedDefect, TemplateSchemaV2 } from '../types/template-schema';
 
 /** Slug → label map for resolving aggregated recommendation badges in
  *  getReportData. Built once at module load. */
@@ -149,6 +149,76 @@ function resolveDefectMustacheVars(
         deadline:  st?.deadline  ? DEFECT_DEADLINE_LABELS[st.deadline]   : null,
         timeframe: st?.timeframe ? DEFECT_TIMEFRAME_LABELS[st.timeframe] : null,
     };
+}
+
+export interface PublishBlockingDefect {
+    sectionId:        string;
+    sectionTitle:     string;
+    itemId:           string;
+    itemLabel:        string;
+    cannedId:         string;
+    cannedTitle:      string;
+    missing:          Array<'location' | 'trade'>;
+    unresolvedTokens: string[];
+}
+
+export interface PublishReadiness {
+    ready: boolean;
+    blockingDefects: PublishBlockingDefect[];
+}
+
+/**
+ * Task 12 — pure function: walks the template schema + inspection results
+ * and returns the set of included defects that are missing required fields
+ * (location and/or trade). Unresolved Mustache tokens in the rendered comment
+ * are also reported.
+ *
+ * Required: location + trade.
+ * Advisory (not blocking): deadline, timeframe.
+ */
+export function computePublishReadinessFromState(
+    schema: TemplateSchemaV2,
+    results: Record<string, unknown>,
+): PublishReadiness {
+    const blocking: PublishBlockingDefect[] = [];
+    for (const section of schema.sections ?? []) {
+        for (const item of section.items ?? []) {
+            if (item.type !== 'rich') continue;
+            const defectsTpl = item.tabs?.defects ?? [];
+            const entry = results[item.id] as { tabs?: { defects?: DefectCommentState[] } } | undefined;
+            const stateRows = entry?.tabs?.defects ?? [];
+            const stateById = new Map(stateRows.map(d => [d.cannedId, d]));
+            for (const d of defectsTpl) {
+                const st = stateById.get(d.id);
+                const included = st ? !!st.included : !!d.default;
+                if (!included) continue;
+                const missing: Array<'location' | 'trade'> = [];
+                const hasLocation = (typeof st?.location === 'string' && st.location.length > 0)
+                    || (typeof d.location === 'string' && d.location.length > 0);
+                if (!hasLocation) missing.push('location');
+                if (!st?.trade) missing.push('trade');
+                const effectiveComment = (st?.comment && st.comment.length > 0) ? st.comment : d.comment;
+                const unresolved = listUnresolved(effectiveComment, {
+                    location:  hasLocation ? 'x' : null,
+                    trade:     st?.trade     ?? null,
+                    deadline:  st?.deadline  ?? null,
+                    timeframe: st?.timeframe ?? null,
+                });
+                if (missing.length === 0 && unresolved.length === 0) continue;
+                blocking.push({
+                    sectionId:        section.id,
+                    sectionTitle:     section.title,
+                    itemId:           item.id,
+                    itemLabel:        item.label,
+                    cannedId:         d.id,
+                    cannedTitle:      d.title,
+                    missing,
+                    unresolvedTokens: unresolved,
+                });
+            }
+        }
+    }
+    return { ready: blocking.length === 0, blockingDefects: blocking };
 }
 
 type Inspection = z.infer<typeof InspectionSchema>;
@@ -2640,6 +2710,63 @@ export class InspectionService {
         if (!val) return null;
         const [inspectionId, tenantId] = val.split(':');
         return { inspectionId, tenantId };
+    }
+
+    /**
+     * Task 12 — check whether an inspection has all required defect fields
+     * filled in for every included defect (location + trade). Returns the
+     * PublishReadiness payload so the pre-publish gate can surface blocking
+     * defects to the inspector.
+     *
+     * Schema resolution mirrors getReportData: inspection templateSnapshot
+     * takes precedence over the live template.schema.
+     */
+    async computePublishReadiness(inspectionId: string, tenantId: string): Promise<PublishReadiness> {
+        const db = this.getDrizzle();
+
+        const inspection = await db.select().from(inspections)
+            .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)))
+            .get();
+        if (!inspection) throw Errors.NotFound('Inspection not found');
+
+        const template = inspection.templateId
+            ? await db.select().from(templates)
+                .where(and(eq(templates.id, inspection.templateId as string), eq(templates.tenantId, tenantId)))
+                .get()
+            : null;
+
+        const resultsRow = await db.select().from(inspectionResults)
+            .where(and(eq(inspectionResults.inspectionId, inspectionId), eq(inspectionResults.tenantId, tenantId)))
+            .get();
+
+        // Prefer per-inspection snapshot over live template schema (mirrors getReportData).
+        const inspectionSnapshotRaw = (inspection as unknown as { templateSnapshot?: unknown }).templateSnapshot;
+        const inspectionSnapshot = inspectionSnapshotRaw
+            ? (typeof inspectionSnapshotRaw === 'string' ? JSON.parse(inspectionSnapshotRaw as string) : inspectionSnapshotRaw)
+            : null;
+        const hasInspectionSnapshot = inspectionSnapshot
+            && typeof inspectionSnapshot === 'object'
+            && Array.isArray((inspectionSnapshot as { sections?: unknown }).sections)
+            && (inspectionSnapshot as { sections: unknown[] }).sections.length > 0;
+
+        const rawSchema = hasInspectionSnapshot
+            ? inspectionSnapshot
+            : template?.schema
+                ? (typeof template.schema === 'string' ? JSON.parse(template.schema) : template.schema)
+                : { sections: [] };
+
+        interface RawSchemaData { sections?: unknown[] }
+        const schemaData: TemplateSchemaV2 = Array.isArray(rawSchema)
+            ? ({ schemaVersion: 2, sections: [{ id: 'general', title: 'General', items: rawSchema }] } as unknown as TemplateSchemaV2)
+            : (rawSchema as RawSchemaData).sections
+                ? rawSchema as TemplateSchemaV2
+                : ({ schemaVersion: 2, sections: [] } as unknown as TemplateSchemaV2);
+
+        const resultData: Record<string, unknown> = resultsRow?.data
+            ? (typeof resultsRow.data === 'string' ? JSON.parse(resultsRow.data) : resultsRow.data) as Record<string, unknown>
+            : {};
+
+        return computePublishReadinessFromState(schemaData, resultData);
     }
 }
 
