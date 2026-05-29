@@ -83,6 +83,7 @@ export default [
     layout("routes/settings-layout.tsx", [
       route("settings", "routes/settings-hub.tsx"),
       route("settings/profile", "routes/settings-profile.tsx"),
+      route("settings/inspection", "routes/settings-inspection.tsx"),
       route("settings/workspace", "routes/settings-workspace.tsx"),
       route("settings/services", "routes/settings-services.tsx"),
       route("settings/communication", "routes/settings-communication.tsx"),
