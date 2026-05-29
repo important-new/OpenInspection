@@ -33,7 +33,6 @@ name = "openinspection-saas-api"
 [env.saas.vars]
 ENVIRONMENT = "production"
 APP_MODE = "saas"
-SAAS_TOPOLOGY = "shared"
 PORTAL_API_URL = "https://portal.your-domain.com"
 TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 [[env.saas.d1_databases]]
