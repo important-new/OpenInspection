@@ -31,6 +31,7 @@ import {
     CommentResponseSchema,
     UpdateCommentSchema,
     ListCommentsQuerySchema,
+    CommentTouchResponseSchema,
     StripeConnectAccountSchema,
     AttentionThresholdsSchema,
     AttentionThresholdsResponseSchema,
@@ -47,6 +48,7 @@ import { AuditLogService } from '../services/audit-log.service';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
+import { commentUsage } from '../lib/db/schema/inspection';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const adminRoutes = createApiRouter();
@@ -1260,6 +1262,63 @@ adminRoutes.openapi(updateCommentRoute, async (c) => {
         },
     });
     return c.json({ success: true as const, data: { comment: commentRowToResponse(updated) } }, 200);
+});
+
+// Comments Library Upgrade — per-user usage counter. Inspectors call this
+// after dropping a snippet into a report; the count drives the "frequent"
+// sort + AUTO filter mode in the Library drawer.
+const touchCommentRoute = createRoute(withMcpMetadata({
+    method: 'post',
+    path:   '/comments/{id}/touch',
+    tags:   ['admin'],
+    summary: "Record an inspector's use of a snippet (per-user counter)",
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: { params: z.object({ id: z.string().min(1) }) },
+    responses: {
+        200: {
+            description: 'Updated usage row',
+            content: { 'application/json': { schema: CommentTouchResponseSchema } },
+        },
+    },
+    security: [{ bearerAuth: [] }],
+    operationId: "touchTenantComment",
+    description: "Increment per-user usage counter for a comment library entry.",
+}, { scopes: ['admin'], tier: 'extended' }));
+
+adminRoutes.openapi(touchCommentRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    // Convention in this file: auth middleware stashes the decoded JWT under
+    // the 'user' key with `.sub` as the user id (see lines ~866, ~2169).
+    const userId = c.get('user')?.sub ?? '';
+    if (!userId) throw Errors.Unauthorized();
+    const now = Math.floor(Date.now() / 1000);
+    const db = drizzle(c.env.DB);
+
+    const existing = await db.select().from(commentUsage)
+        .where(and(
+            eq(commentUsage.tenantId,  tenantId),
+            eq(commentUsage.userId,    userId),
+            eq(commentUsage.commentId, id),
+        ))
+        .get();
+
+    if (existing) {
+        const nextCount = existing.useCount + 1;
+        await db.update(commentUsage)
+            .set({ useCount: nextCount, lastUsedAt: now })
+            .where(and(
+                eq(commentUsage.tenantId,  tenantId),
+                eq(commentUsage.userId,    userId),
+                eq(commentUsage.commentId, id),
+            ));
+        return c.json({ success: true as const, data: { commentId: id, useCount: nextCount } }, 200);
+    }
+
+    await db.insert(commentUsage).values({
+        tenantId, userId, commentId: id, useCount: 1, lastUsedAt: now,
+    });
+    return c.json({ success: true as const, data: { commentId: id, useCount: 1 } }, 200);
 });
 
 // --- Widget Origin Allowlist ---
