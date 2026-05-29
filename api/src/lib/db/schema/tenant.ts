@@ -161,6 +161,10 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
         .$type<{ agreement_unsigned_h: number; invoice_overdue_h: number; report_unpublished_h: number }>()
         .notNull()
         .default(sql`'{"agreement_unsigned_h":72,"invoice_overdue_h":72,"report_unpublished_h":72}'`),
+    // Workflow shortcuts PR — { cloneDefault, autoAdvanceDelayMs, pinnedTagIds }
+    // Nullable; server applies hard-coded defaults when NULL.
+    inspectionPrefs: text('inspection_prefs', { mode: 'json' })
+        .$type<{ cloneDefault: 'rating' | 'rating_notes' | 'all'; autoAdvanceDelayMs: number; pinnedTagIds: string[] }>(),
     // Sprint 2 S2-4 — when true, published reports render the per-defect
     // "Estimated cost: $X – $Y" badge.
     showEstimates: integer('show_estimates', { mode: 'boolean' }).notNull().default(false),
