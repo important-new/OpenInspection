@@ -4,6 +4,7 @@ import { SigningKeyService } from '../services/signing-key.service';
 import { AuditLogService } from '../services/audit-log.service';
 import { m2mAgreementRenderUrl } from '../lib/public-urls';
 import { buildEvidencePack } from '../services/evidence-pack.service';
+import { EmailService } from '../services/email.service';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq } from 'drizzle-orm';
 import * as schema from '../lib/db/schema';
@@ -22,12 +23,12 @@ export interface SignCompletionParams {
  * audit row + flips DB status. Builds the canonical evidence artifacts
  * asynchronously so the client UX is sub-200ms ("Certificate emailed shortly").
  *
- * Steps (P1 ships steps 1-2 + 4; step 5 lands in P2):
+ * Steps (all five ship in P4):
  *   1. render-canonical-pdf      — Browser Rendering -> R2 signed.pdf
  *   2. render-certificate-pdf    — Browser Rendering -> R2 certificate.pdf
  *   3. build-evidence-pack       — zip in worker memory -> R2 evidence.zip
  *   4. append-workflow-complete  — extend audit chain with doc + cert + zip hashes
- *   5. email-parties             [P2] Resend send to client + admin
+ *   5. email-parties             — Resend: deliver signed.pdf + evidence.zip to client
  *
  * Failure semantics: each step has its own retry policy. If any step fails
  * permanently, the audit chain remains intact (the prior 'agreement.signed'
@@ -139,6 +140,41 @@ export class SignCompletionWorkflow extends WorkflowEntrypoint<AppEnv, SignCompl
                 tsMs: Date.now(),
                 workflowId: event.instanceId,
             });
+        });
+
+        // Step 5 — email the client with signed.pdf + evidence.zip attachments.
+        // Best-effort: skip cleanly if Resend not configured or any artifact is missing.
+        await step.do('email-parties', async () => {
+            try {
+                if (!evidenceZipMeta || !signedPdfMeta) return;
+                if (!env.RESEND_API_KEY) return;
+                if (!env.REPORTS) return;
+                const db = drizzle(env.DB, { schema });
+                const req = await db.select().from(schema.agreementRequests)
+                    .where(eq(schema.agreementRequests.id, requestId)).get();
+                if (!req) return;
+                const [signedObj, evidenceObj] = await Promise.all([
+                    env.REPORTS.get(signedPdfMeta.r2Key),
+                    env.REPORTS.get(evidenceZipMeta.r2Key),
+                ]);
+                if (!signedObj || !evidenceObj) return;
+                const signedBytes = new Uint8Array(await new Response(signedObj.body).arrayBuffer());
+                const evidenceBytes = new Uint8Array(await new Response(evidenceObj.body).arrayBuffer());
+                const verifyUrl = req.verificationToken
+                    ? `${baseUrl(env)}/v/${req.verificationToken}`
+                    : `${baseUrl(env)}/api/public/verify/${requestId}`;
+                const email = new EmailService(env.RESEND_API_KEY, env.SENDER_EMAIL || 'noreply@openinspection.io', env.APP_NAME || 'OpenInspection');
+                await email.sendEvidencePack({
+                    to: req.clientEmail,
+                    clientName: req.clientName ?? 'Customer',
+                    envelopeId: requestId,
+                    verifyUrl,
+                    signedPdfBytes: signedBytes,
+                    evidenceZipBytes: evidenceBytes,
+                });
+            } catch (e) {
+                console.warn('[sign-workflow] email-parties failed', { error: (e as Error).message });
+            }
         });
 
         return { signedPdfMeta, certPdfMeta };
