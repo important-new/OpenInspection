@@ -17,10 +17,10 @@ interface AgentProfile {
   notifyOnPaid: boolean;
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/agent/profile", { token });
+    const res = await apiFetch(context, "/api/agent/profile", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
     const d = (body.data ?? {}) as Record<string, unknown>;
     return {

@@ -23,12 +23,13 @@ interface DiffEntry {
 /* Loader */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request, params }: Route.LoaderArgs) {
- const token = await requireToken(request);
+export async function loader({ request, params, context }: Route.LoaderArgs) {
+ const token = await requireToken(context, request);
  const { id, n } = params;
 
  try {
  const res = await apiFetch(
+ context,
  `/api/inspections/${id}/versions/${n}/diff`,
  { token },
  );

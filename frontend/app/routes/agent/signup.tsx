@@ -11,7 +11,7 @@ export function meta() {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
   const body = {
     name: fd.get("name"),
@@ -20,7 +20,7 @@ export async function action({ request }: Route.ActionArgs) {
     turnstileToken: fd.get("cf-turnstile-response") || undefined,
   };
 
-  const res = await apiFetch("/api/agent-signup", {
+  const res = await apiFetch(context, "/api/agent-signup", {
     method: "POST",
     body: JSON.stringify(body),
     csrf: true,

@@ -16,7 +16,7 @@ interface InspectorProfile {
   services: { id: string; name: string; price: number; duration: number }[];
 }
 
-export async function loader({ params, request }: Route.LoaderArgs) {
+export async function loader({ params, request, context }: Route.LoaderArgs) {
   // F7 — capture agent referral slug from ?ref= query parameter
   const url = new URL(request.url);
   const refRaw = url.searchParams.get("ref");
@@ -27,6 +27,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   try {
     const res = await apiFetch(
+      context,
       `/api/public/book/${params.tenant}/${params.slug}`,
     );
     const body = res.ok ? await res.json() : {};

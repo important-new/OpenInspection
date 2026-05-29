@@ -70,18 +70,19 @@ That bootstraps your first admin account.
 
 ```bash
 cd frontend
+cp wrangler.toml.example wrangler.toml   # edit API_URL + SESSION_SECRET
 npm install
-bash scripts/deploy.sh   # builds React Router v7, patches build/client/wrangler.json, deploys
+npm run deploy                            # = react-router build && wrangler deploy
 ```
 
-`scripts/deploy.sh` is required because Vite emits `build/client/wrangler.json` with an empty `main` field; the script patches in a generated SSR entry before invoking `wrangler deploy`. **Running `wrangler deploy` directly will fail.**
+The Worker entry at `frontend/workers/app.ts` calls `createRequestHandler` with `import("virtual:react-router/server-build")` and passes `{ cloudflare: { env, ctx } }` as the React Router `AppLoadContext`. `@cloudflare/vite-plugin` integrates the React Router SSR build with wrangler, so the standard `wrangler deploy` pipeline works without a custom script.
 
-The Service Binding to the API Worker (`API_WORKER`, see table above) is declared inside that generated `build/client/wrangler.json`. Ensure the API Worker is deployed first so the binding resolves at deploy time.
+The Service Binding to the API Worker (`API_WORKER`, see table above) is declared in `frontend/wrangler.toml`. Ensure the API Worker is deployed first so the binding resolves at deploy time.
 
 ### Deploy order
 
-1. Deploy the **API Worker** first (`npm run deploy` from root)
-2. Deploy the **Frontend Worker** second (`cd frontend && bash scripts/deploy.sh`)
+1. Deploy the **API Worker** first (`npm run deploy:standalone` from root)
+2. Deploy the **Frontend Worker** second (`cd frontend && npm run deploy`)
 3. Point your domain's DNS to the Frontend Worker (it is the public-facing entry point)
 
 ### Local development

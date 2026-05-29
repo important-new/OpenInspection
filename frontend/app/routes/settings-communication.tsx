@@ -21,13 +21,13 @@ interface EmailTemplate {
   active: boolean;
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
 
   // Fetch communication config + secrets in parallel
   const [commRes, secretsRes] = await Promise.all([
-    apiFetch("/api/admin/communication", { token }).catch(() => null),
-    apiFetch("/api/admin/secrets", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/communication", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
   ]);
 
   const commBody = commRes?.ok ? ((await commRes.json()) as Record<string, unknown>) : {};
@@ -54,13 +54,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const form = await request.formData();
   const intent = form.get("intent");
 
   if (intent === "save-email") {
-    await apiFetch("/api/admin/communication", {
+    await apiFetch(context, "/api/admin/communication", {
       token,
       method: "PATCH",
       body: JSON.stringify({
@@ -78,7 +78,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (senderEmail && typeof senderEmail === "string" && senderEmail.trim()) body.SENDER_EMAIL = senderEmail;
 
     if (Object.keys(body).length > 0) {
-      const res = await apiFetch("/api/admin/secrets", {
+      const res = await apiFetch(context, "/api/admin/secrets", {
         token,
         method: "PUT",
         body: JSON.stringify(body),
@@ -98,7 +98,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (clientSecret && typeof clientSecret === "string" && clientSecret.trim()) body.GOOGLE_CLIENT_SECRET = clientSecret;
 
     if (Object.keys(body).length > 0) {
-      const res = await apiFetch("/api/admin/secrets", {
+      const res = await apiFetch(context, "/api/admin/secrets", {
         token,
         method: "PUT",
         body: JSON.stringify(body),

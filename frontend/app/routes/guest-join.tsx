@@ -7,7 +7,7 @@ export function meta() {
   return [{ title: "Join as Guest - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") || "";
 
@@ -17,7 +17,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   try {
 
-    const res = await apiFetch(`/api/auth/guest/validate?token=${encodeURIComponent(token)}`);
+    const res = await apiFetch(context, `/api/auth/guest/validate?token=${encodeURIComponent(token)}`);
     if (!res.ok) {
       return { valid: false, error: "Invalid or expired guest link", invite: null };
     }
@@ -33,14 +33,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const formData = await request.formData();
   const token = String(formData.get("token") || "");
   const name = String(formData.get("name") || "");
 
   try {
 
-    const res = await apiFetch("/api/auth/guest/accept", {
+    const res = await apiFetch(context, "/api/auth/guest/accept", {
       method: "POST",
       body: JSON.stringify({ token, name }),
       csrf: true,
@@ -64,7 +64,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (jwt) {
 
 
-      return createSessionWithToken(jwt, "/dashboard");
+      return createSessionWithToken(context, jwt, "/dashboard");
     }
 
     return redirect("/dashboard");

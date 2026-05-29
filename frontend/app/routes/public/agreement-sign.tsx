@@ -15,9 +15,10 @@ interface AgreementData {
  signedAt: string | null;
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
  try {
  const res = await apiFetch(
+ context,
  `/api/public/agreements/sign/${params.tenant}/${params.token}`,
  );
  const body = res.ok ? await res.json() : {};

@@ -34,14 +34,14 @@ export function meta() {
 /* Loader */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request, params }: Route.LoaderArgs) {
- const token = await requireToken(request);
+export async function loader({ request, params, context }: Route.LoaderArgs) {
+ const token = await requireToken(context, request);
  const id = params.id;
 
  const [inspRes, resultsRes, reportRes] = await Promise.all([
- apiFetch(`/api/inspections/${id}`, { token }),
- apiFetch(`/api/inspections/${id}/results`, { token }),
- apiFetch(`/api/inspections/${id}/report-data`, { token }),
+ apiFetch(context, `/api/inspections/${id}`, { token }),
+ apiFetch(context, `/api/inspections/${id}/results`, { token }),
+ apiFetch(context, `/api/inspections/${id}/report-data`, { token }),
  ]);
 
  const inspBody = inspRes.ok ? await inspRes.json() : {};
@@ -90,8 +90,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 /* Action (BFF relay for client mutations) */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request, params }: Route.ActionArgs) {
- const token = await requireToken(request);
+export async function action({ request, params, context }: Route.ActionArgs) {
+ const token = await requireToken(context, request);
  const formData = await request.formData();
  const intent = formData.get("intent");
 
@@ -99,7 +99,7 @@ export async function action({ request, params }: Route.ActionArgs) {
  const itemId = String(formData.get("itemId"));
  const sectionId = String(formData.get("sectionId"));
  const rating = String(formData.get("rating"));
- await apiFetch(`/api/inspections/${params.id}/items/${itemId}/field`, {
+ await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
  body: JSON.stringify({ field: "rating", value: rating, sectionId }),
@@ -110,7 +110,7 @@ export async function action({ request, params }: Route.ActionArgs) {
  const itemId = String(formData.get("itemId"));
  const sectionId = String(formData.get("sectionId"));
  const notes = String(formData.get("notes"));
- await apiFetch(`/api/inspections/${params.id}/items/${itemId}/field`, {
+ await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
  body: JSON.stringify({ field: "notes", value: notes, sectionId }),
@@ -123,7 +123,7 @@ export async function action({ request, params }: Route.ActionArgs) {
  const tabName = String(formData.get("tabName"));
  const cannedId = String(formData.get("cannedId"));
  const included = formData.get("included") === "true";
- await apiFetch(`/api/inspections/${params.id}/items/${itemId}/field`, {
+ await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
  body: JSON.stringify({
@@ -137,7 +137,7 @@ export async function action({ request, params }: Route.ActionArgs) {
  if (intent === "save-all") {
  const data = formData.get("data");
  if (data) {
- await apiFetch(`/api/inspections/${params.id}/results`, {
+ await apiFetch(context, `/api/inspections/${params.id}/results`, {
  method: "PATCH",
  token,
  body: JSON.stringify({ data: JSON.parse(String(data)) }),
@@ -146,7 +146,7 @@ export async function action({ request, params }: Route.ActionArgs) {
  }
 
  if (intent === "publish") {
- await apiFetch(`/api/inspections/${params.id}/publish`, {
+ await apiFetch(context, `/api/inspections/${params.id}/publish`, {
  method: "POST",
  token,
  });
@@ -154,7 +154,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
  if (intent === "toggle-auto-sign") {
  const autoSignOnPublish = formData.get("autoSignOnPublish") === "true";
- await apiFetch(`/api/inspections/${params.id}`, {
+ await apiFetch(context, `/api/inspections/${params.id}`, {
  method: "PATCH",
  token,
  body: JSON.stringify({ autoSignOnPublish }),
@@ -164,7 +164,7 @@ export async function action({ request, params }: Route.ActionArgs) {
  if (intent === "sign-inspector") {
  const signatureBase64 = String(formData.get("signatureBase64") ?? "");
  if (signatureBase64) {
- await apiFetch(`/api/inspections/${params.id}/inspector-signature`, {
+ await apiFetch(context, `/api/inspections/${params.id}/inspector-signature`, {
  method: "POST",
  token,
  body: JSON.stringify({ signatureBase64, signedAt: new Date().toISOString() }),

@@ -10,12 +10,12 @@ export function meta() {
   return [{ title: "Agreements - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
     const [tplRes, reqRes] = await Promise.all([
-      apiFetch("/api/admin/agreements", { token }),
-      apiFetch("/api/admin/agreements/requests", { token }),
+      apiFetch(context, "/api/admin/agreements", { token }),
+      apiFetch(context, "/api/admin/agreements/requests", { token }),
     ]);
     const tplBody = tplRes.ok ? ((await tplRes.json()) as Record<string, unknown>) : { data: [] };
     const reqBody = reqRes.ok ? ((await reqRes.json()) as Record<string, unknown>) : { data: [] };
@@ -28,8 +28,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const formData = await request.formData();
   const envelopeId = String(formData.get("envelopeId") ?? "");
   const signatureBase64 = String(formData.get("signatureBase64") ?? "");
@@ -37,6 +37,7 @@ export async function action({ request }: Route.ActionArgs) {
     return { ok: false, error: "Missing envelopeId or signatureBase64" };
   }
   const res = await apiFetch(
+    context,
     `/api/admin/agreement-requests/${encodeURIComponent(envelopeId)}/inspector-sign`,
     {
       token,

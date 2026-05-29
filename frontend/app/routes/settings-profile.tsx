@@ -24,9 +24,9 @@ interface Profile {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
-  const res = await apiFetch("/api/profile", { token });
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
+  const res = await apiFetch(context, "/api/profile", { token });
   const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
   return { profile: (body.data ?? {}) as Profile };
 }
@@ -35,8 +35,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const fd = await request.formData();
   const intent = fd.get("intent") as string | null;
 
@@ -46,7 +46,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!signatureBase64) {
       return { success: false, error: "No signature data provided", intent };
     }
-    const res = await apiFetch("/api/users/me/signature", {
+    const res = await apiFetch(context, "/api/users/me/signature", {
       token,
       method: "POST",
       body: JSON.stringify({ signatureBase64 }),
@@ -64,7 +64,7 @@ export async function action({ request }: Route.ActionArgs) {
     const v = fd.get(key);
     if (v !== null) body[key] = v;
   }
-  const res = await apiFetch("/api/profile", {
+  const res = await apiFetch(context, "/api/profile", {
     token,
     method: "PATCH",
     body: JSON.stringify(body),

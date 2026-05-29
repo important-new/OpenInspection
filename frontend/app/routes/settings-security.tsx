@@ -18,12 +18,12 @@ interface AuthMe {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
 
   const [meRes, secretsRes] = await Promise.all([
-    apiFetch("/api/auth/me", { token }),
-    apiFetch("/api/admin/secrets", { token }).catch(() => null),
+    apiFetch(context, "/api/auth/me", { token }),
+    apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
   ]);
 
   const meBody = meRes.ok ? ((await meRes.json()) as Record<string, unknown>) : {};
@@ -42,8 +42,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const fd = await request.formData();
   const intent = fd.get("intent");
 
@@ -58,7 +58,7 @@ export async function action({ request }: Route.ActionArgs) {
       return { success: false, error: "New passwords do not match." };
     }
 
-    const res = await apiFetch("/api/auth/change-password", {
+    const res = await apiFetch(context, "/api/auth/change-password", {
       token,
       method: "POST",
       body: JSON.stringify(body),
@@ -73,7 +73,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "save-turnstile") {
     const val = fd.get("TURNSTILE_SECRET_KEY");
     if (val && typeof val === "string" && val.trim()) {
-      const res = await apiFetch("/api/admin/secrets", {
+      const res = await apiFetch(context, "/api/admin/secrets", {
         token,
         method: "PUT",
         body: JSON.stringify({ TURNSTILE_SECRET_KEY: val }),

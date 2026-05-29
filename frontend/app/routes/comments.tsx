@@ -9,10 +9,10 @@ export function meta() {
   return [{ title: "Comments Library - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/admin/comments", { token });
+    const res = await apiFetch(context, "/api/admin/comments", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return { comments: (body.data ?? []) as unknown[] };
   } catch {

@@ -24,9 +24,10 @@ interface AgreementData {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   try {
     const res = await apiFetch(
+      context,
       `/api/internal/agreement-render/${params.token}`,
     );
     const body = res.ok ? await res.json() : {};

@@ -18,9 +18,9 @@ interface AccountInfo {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
-  const res = await apiFetch("/api/auth/me", { token });
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
+  const res = await apiFetch(context, "/api/auth/me", { token });
   const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
   return { account: (body.data ?? {}) as AccountInfo };
 }
@@ -29,13 +29,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const fd = await request.formData();
   const intent = fd.get("intent");
 
   if (intent === "export-data") {
-    const res = await apiFetch("/api/account/export", { token, method: "POST" });
+    const res = await apiFetch(context, "/api/account/export", { token, method: "POST" });
     if (!res.ok) {
       return { success: false, error: "Data export failed. Please try again." };
     }
@@ -47,7 +47,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!password) {
       return { success: false, error: "Password is required to delete your account." };
     }
-    const res = await apiFetch("/api/account/delete", {
+    const res = await apiFetch(context, "/api/account/delete", {
       token,
       method: "POST",
       body: JSON.stringify({ password }),

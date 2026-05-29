@@ -19,10 +19,10 @@ export function meta() {
   return [{ title: "Event Types - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/admin/event-types", { token });
+    const res = await apiFetch(context, "/api/admin/event-types", { token });
     if (!res.ok) return { types: [] };
     const body = await res.json();
     return { types: ((body as Record<string, unknown>).data ?? []) as EventType[] };

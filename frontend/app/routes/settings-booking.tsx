@@ -29,13 +29,13 @@ export function meta() {
   return [{ title: "Online Booking - Settings - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   const [availRes, overridesRes, configRes, originsRes] = await Promise.all([
-    apiFetch("/api/availability", { token }).catch(() => null),
-    apiFetch("/api/availability/overrides", { token }).catch(() => null),
-    apiFetch("/api/admin/tenant-config", { token }).catch(() => null),
-    apiFetch("/api/admin/widget/origins", { token }).catch(() => null),
+    apiFetch(context, "/api/availability", { token }).catch(() => null),
+    apiFetch(context, "/api/availability/overrides", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/tenant-config", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/widget/origins", { token }).catch(() => null),
   ]);
 
   let slots: AvailabilitySlot[] = [];

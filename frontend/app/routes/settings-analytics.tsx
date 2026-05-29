@@ -31,10 +31,10 @@ interface AnalyticsData {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
   try {
-    const res = await apiFetch("/api/analytics/dashboard", { token });
+    const res = await apiFetch(context, "/api/analytics/dashboard", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
     const d = (body.data ?? {}) as unknown as AnalyticsData | undefined;
     return {

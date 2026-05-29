@@ -15,9 +15,10 @@ interface VerifyData {
   auditTrail: { action: string; timestamp: string; actor: string }[];
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   try {
     const res = await apiFetch(
+      context,
       `/api/public/verify/${params.envelopeId}`,
     );
     const body = res.ok ? await res.json() : {};

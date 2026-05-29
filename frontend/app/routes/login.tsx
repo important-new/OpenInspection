@@ -7,19 +7,19 @@ export function meta() {
   return [{ title: "Sign In - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await getToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await getToken(context, request);
   if (token) return redirect("/dashboard");
   return null;
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const formData = await request.formData();
   const email = String(formData.get("email") || "");
   const password = String(formData.get("password") || "");
 
   try {
-    const res = await apiFetch("/api/auth/login", {
+    const res = await apiFetch(context, "/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
       csrf: true,
@@ -42,7 +42,7 @@ export async function action({ request }: Route.ActionArgs) {
     const jwt = body?.data?.token as string | undefined;
 
     if (jwt) {
-      return createSessionWithToken(jwt, "/dashboard");
+      return createSessionWithToken(context, jwt, "/dashboard");
     }
 
     if (body?.data?.requires2fa) {

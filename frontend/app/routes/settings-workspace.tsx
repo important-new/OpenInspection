@@ -23,9 +23,9 @@ const THEMES = ["modern", "classic", "minimal"] as const;
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
-  const res = await apiFetch("/api/admin/branding", { token });
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
+  const res = await apiFetch(context, "/api/admin/branding", { token });
   const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
   return { branding: (body.data ?? {}) as Branding };
 }
@@ -34,8 +34,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 /*  Action                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const fd = await request.formData();
   const body: Record<string, unknown> = {};
 
@@ -53,7 +53,7 @@ export async function action({ request }: Route.ActionArgs) {
       .filter(Boolean);
   }
 
-  const res = await apiFetch("/api/admin/branding", {
+  const res = await apiFetch(context, "/api/admin/branding", {
     token,
     method: "POST",
     body: JSON.stringify(body),

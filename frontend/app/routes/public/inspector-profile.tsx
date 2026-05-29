@@ -43,9 +43,10 @@ interface LoaderResult {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   try {
     const res = await apiFetch(
+      context,
       `/api/public/inspector/${params.tenant}/${params.slug}`,
     );
     const body = res.ok ? await res.json() : {};

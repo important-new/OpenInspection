@@ -18,12 +18,12 @@ export function meta() {
   return [{ title: "QuickBooks Integration - OpenInspection" }];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
 
   const [qboRes, secretsRes] = await Promise.all([
-    apiFetch("/api/qbo/status", { token }).catch(() => null),
-    apiFetch("/api/admin/secrets", { token }).catch(() => null),
+    apiFetch(context, "/api/qbo/status", { token }).catch(() => null),
+    apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
   ]);
 
   let status: QboStatus | null = null;
@@ -46,8 +46,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const token = await requireToken(request);
+export async function action({ request, context }: Route.ActionArgs) {
+  const token = await requireToken(context, request);
   const fd = await request.formData();
   const intent = fd.get("intent");
 
@@ -58,7 +58,7 @@ export async function action({ request }: Route.ActionArgs) {
       if (val && typeof val === "string" && val.trim()) body[key] = val;
     }
     if (Object.keys(body).length > 0) {
-      const res = await apiFetch("/api/admin/secrets", {
+      const res = await apiFetch(context, "/api/admin/secrets", {
         token,
         method: "PUT",
         body: JSON.stringify(body),

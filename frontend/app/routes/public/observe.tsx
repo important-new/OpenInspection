@@ -14,9 +14,10 @@ interface ObserveData {
   sections: { name: string; completedItems: number; totalItems: number }[];
 }
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params, context }: Route.LoaderArgs) {
   try {
     const res = await apiFetch(
+      context,
       `/api/public/observe/inspections/${params.id}`,
     );
     const body = res.ok ? await res.json() : {};

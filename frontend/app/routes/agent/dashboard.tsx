@@ -17,10 +17,10 @@ interface Referral {
  inspectorName: string | null;
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
- const token = await requireToken(request);
+export async function loader({ request, context }: Route.LoaderArgs) {
+ const token = await requireToken(context, request);
  try {
- const res = await apiFetch("/api/agent/referrals", { token });
+ const res = await apiFetch(context, "/api/agent/referrals", { token });
  const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
  return {
  referrals: (body.data ?? []) as Referral[],

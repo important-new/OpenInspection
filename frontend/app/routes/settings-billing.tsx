@@ -22,9 +22,9 @@ interface BillingSummary {
 /*  Loader                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const token = await requireToken(request);
-  const res = await apiFetch("/api/billing/summary", { token });
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const token = await requireToken(context, request);
+  const res = await apiFetch(context, "/api/billing/summary", { token });
   const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
   return { billing: (body.data ?? {}) as BillingSummary };
 }
