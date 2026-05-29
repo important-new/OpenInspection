@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { TabStrip } from "@core/shared-ui";
 import { DefectFieldsRow, type DefectFieldsValue } from "./DefectFieldsRow";
+import { ItemAttributesPanel } from "./ItemAttributesPanel";
+import type { ItemAttribute } from "../../lib/types";
 import { renderTemplate } from "../../lib/mustache";
 import {
  DEFECT_TRADE_LABELS,
@@ -81,7 +83,7 @@ const CANNED_TABS: Array<{ id: CannedTabId; label: string }> = [
 /* ------------------------------------------------------------------ */
 
 interface ItemEditorProps {
- item: { id: string; label: string; type: string; tabs?: unknown } | undefined;
+ item: { id: string; label: string; type: string; tabs?: unknown; attributes?: ItemAttribute[] } | undefined;
  sectionTitle: string | undefined;
  result: Record<string, unknown>;
  onRating: (rating: string) => void;
@@ -92,6 +94,7 @@ interface ItemEditorProps {
  locationSuggestions?: string[];
  onDefectFields?: (cannedId: string, patch: Partial<DefectFieldsValue>) => void;
  missingFields?: Map<string, { location: boolean; trade: boolean }>;
+ onItemAttribute?: (itemId: string, attributeId: string, value: string | number | boolean | null) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -110,6 +113,7 @@ export function ItemEditor({
  locationSuggestions,
  onDefectFields,
  missingFields,
+ onItemAttribute,
 }: ItemEditorProps) {
  const [activeTab, setActiveTab] = useState<CannedTabId>("information");
 
@@ -165,6 +169,16 @@ export function ItemEditor({
  </div>
  <h2 className="text-[19px] font-bold mt-1">{item.label}</h2>
  </div>
+
+ {/* Item attributes (equipment fields: brand, year, model, etc.) */}
+ {item.attributes && item.attributes.length > 0 && (
+ <ItemAttributesPanel
+ itemId={item.id}
+ attributes={item.attributes}
+ values={(result.attributes as Record<string, string | number | boolean | null>) ?? {}}
+ onChange={onItemAttribute ?? (() => {})}
+ />
+ )}
 
  {/* Rating buttons */}
  {item.type === "rich" && (

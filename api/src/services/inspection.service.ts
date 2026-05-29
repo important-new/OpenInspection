@@ -1372,6 +1372,14 @@ export class InspectionService {
             mutableValue = { ...tabs, defects: nextDefects };
             mutableField = 'tabs';
         }
+        if (field === 'itemAttribute' && value && typeof value === 'object' && 'attributeId' in (value as Record<string, unknown>)) {
+            const v = value as { attributeId: string; value: unknown };
+            const base = (cur ?? {}) as Record<string, unknown>;
+            const attrs = (base.attributes ?? {}) as Record<string, unknown>;
+            const nextAttrs = { ...attrs, [v.attributeId]: v.value };
+            mutableField = 'attributes' as typeof field;
+            mutableValue = nextAttrs;
+        }
 
         const decision = decideFieldWrite(cur, mutableField, mutableValue, expectedVersion, { force: opts?.force ?? false });
         if (decision.kind === 'conflict') return decision;

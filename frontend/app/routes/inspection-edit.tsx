@@ -155,6 +155,22 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  });
  }
 
+ if (intent === "set-item-attribute") {
+ const itemId = String(formData.get("itemId"));
+ const attributeId = String(formData.get("attributeId"));
+ const value = JSON.parse(String(formData.get("value")));
+ await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
+ method: "PATCH",
+ token,
+ body: JSON.stringify({
+ field: "itemAttribute",
+ value: { attributeId, value },
+ expectedVersion: 0,
+ force: true,
+ }),
+ });
+ }
+
  if (intent === "save-all") {
  const data = formData.get("data");
  if (data) {
@@ -390,6 +406,22 @@ export default function InspectionEditPage() {
   }
   state.setShowPublishModal(true);
  }, [state.inspection.id, state.setShowPublishModal]);
+
+ /* ---------------------------------------------------------------- */
+ /* Item attribute handler */
+ /* ---------------------------------------------------------------- */
+
+ const handleItemAttribute = useCallback((itemId: string, attributeId: string, value: string | number | boolean | null) => {
+  fetcher.submit(
+   {
+    intent: 'set-item-attribute',
+    itemId,
+    attributeId,
+    value: JSON.stringify(value),
+   },
+   { method: 'POST' },
+  );
+ }, [fetcher]);
 
  /* Photo studio state */
  const [photoStudioOpen, setPhotoStudioOpen] = useState(false);
@@ -1566,6 +1598,7 @@ export default function InspectionEditPage() {
  );
  }
  }}
+ onItemAttribute={handleItemAttribute}
  />
  ) : (
  <div className="flex items-center justify-center h-full text-slate-400">

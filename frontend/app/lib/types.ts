@@ -13,3 +13,12 @@ export interface PublishReadiness {
     ready: boolean;
     blockingDefects: PublishBlockingDefect[];
 }
+
+export interface ItemAttribute {
+    id: string;
+    name: string;
+    type: 'boolean' | 'text' | 'number' | 'select' | 'multi_select' | 'date';
+    choices?: string[];
+    unit?: string;
+    required?: boolean;
+}
