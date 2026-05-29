@@ -339,9 +339,10 @@ function DateOverrides({ initialOverrides }: { initialOverrides: DateOverride[] 
         <button
           onClick={handleAdd}
           disabled={adding || !newDate}
-          className="h-8 px-3 rounded-md bg-ih-primary text-white font-bold text-[12px] hover:bg-ih-primary-600 transition-colors disabled:opacity-50"
+          title={!adding && !newDate ? "Pick a date in the field on the left first" : ""}
+          className="h-8 px-3 rounded-md bg-ih-primary text-white font-bold text-[12px] hover:bg-ih-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {adding ? "Adding..." : "Block date"}
+          {adding ? "Adding..." : newDate ? "Block date" : "Pick a date first"}
         </button>
       </div>
     </section>
