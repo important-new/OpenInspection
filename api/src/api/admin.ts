@@ -1,7 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, like, eq as eqDz, asc as ascDz, desc as descDz } from 'drizzle-orm';
+import { eq, and, like, eq as eqDz, asc as ascDz, desc as descDz, sql as sqlTpl } from 'drizzle-orm';
+import { buildMeta } from '../lib/validations/pagination.schema';
 import * as schema from '../lib/db/schema';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
@@ -1118,7 +1119,7 @@ const listCommentsRoute = createRoute(withMcpMetadata({
 
 adminRoutes.openapi(listCommentsRoute, async (c) => {
     const tenantId = c.get('tenantId');
-    const { rating, section, sectionId, triggerCode, search, sort, filterMode, itemLabel, limit } = c.req.valid('query');
+    const { rating, section, sectionId, triggerCode, search, sort, filterMode, itemLabel, page, pageSize } = c.req.valid('query');
     // Per-user usage join — needs the JWT subject (same convention as the
     // touch endpoint above and the rest of admin.ts).
     const userId = c.get('user')?.sub ?? '';
@@ -1175,8 +1176,20 @@ adminRoutes.openapi(listCommentsRoute, async (c) => {
         ))
         .where(and(...conditions))
         .orderBy(...orderByExpr)
-        .limit(limit)
+        .limit(pageSize)
+        .offset((page - 1) * pageSize)
         .all();
+
+    // Total count for pagination meta. `search` is applied in JS after the
+    // limit query (legacy behavior) so the COUNT is necessarily an upper bound
+    // when search is present — for the no-search case (the common one) it is
+    // exact.
+    const totalRow = await db
+        .select({ c: sqlTpl<number>`count(*)` })
+        .from(comments)
+        .where(and(...conditions))
+        .get();
+    const total = totalRow?.c ?? 0;
     if (search && search.trim()) {
         const needle = search.trim().toLowerCase();
         rows = rows.filter(r => r.text.toLowerCase().includes(needle));
@@ -1190,7 +1203,11 @@ adminRoutes.openapi(listCommentsRoute, async (c) => {
         // commentUsage.lastUsedAt is a UNIX seconds integer (see touch handler).
         lastUsedAt: r.lastUsedAt != null ? new Date(r.lastUsedAt * 1000).toISOString() : null,
     }));
-    return c.json({ success: true as const, data }, 200);
+    return c.json({
+        success: true as const,
+        data,
+        meta: buildMeta({ total, page, pageSize }),
+    }, 200);
 });
 
 const createCommentRoute = createRoute(withMcpMetadata({

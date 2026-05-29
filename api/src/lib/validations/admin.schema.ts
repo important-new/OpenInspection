@@ -290,7 +290,12 @@ export const ListCommentsQuerySchema = z.object({
     sort: z.enum(['relevance', 'recent', 'created', 'frequent', 'alpha']).optional().default('relevance'),
     filterMode: z.enum(['auto', 'all']).optional().default('all'),
     itemLabel: z.string().max(120).optional(),
-    limit: z.coerce.number().int().min(1).max(500).optional().default(200),
+    // List Pagination PR — replace the old single-`limit` knob with shared
+    // pagination params. page is 1-indexed; pageSize ∈ {12,25,50,100}, default 50.
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int()
+        .refine((n) => [12, 25, 50, 100].includes(n), { message: 'pageSize must be one of 12, 25, 50, 100' })
+        .default(50),
 }).openapi('ListCommentsQuery');
 
 export const CommentTouchResponseSchema = z.object({
