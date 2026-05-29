@@ -16,7 +16,7 @@ const listContactsRoute = createRoute(withMcpMetadata({
     request: { query: ContactListQuerySchema.describe('TODO describe query field for the OpenInspection MCP integration') },
     responses: {
         200: {
-            content: { 'application/json': { schema: z.object({ success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'), data: z.object({ contacts: z.array(ContactResponseSchema).describe('TODO describe contacts field for the OpenInspection MCP integration'), total: z.number().describe('TODO describe total field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration') }) } },
+            content: { 'application/json': { schema: z.object({ success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'), data: z.array(ContactResponseSchema).describe('TODO describe data field for the OpenInspection MCP integration'), meta: z.object({ total: z.number().describe('TODO describe total field for the OpenInspection MCP integration') }).describe('TODO describe meta field for the OpenInspection MCP integration') }) } },
             description: 'Success',
         },
     },

@@ -12,7 +12,7 @@ const listInvoicesRoute = createRoute(withMcpMetadata({
     middleware: [requireRole(['owner', 'admin'])],
     responses: {
         200: {
-            content: { 'application/json': { schema: z.object({ success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'), data: z.object({ invoices: z.array(InvoiceResponseSchema).describe('TODO describe invoices field for the OpenInspection MCP integration') }).describe('TODO describe data field for the OpenInspection MCP integration') }) } },
+            content: { 'application/json': { schema: z.object({ success: z.literal(true).describe('TODO describe success field for the OpenInspection MCP integration'), data: z.array(InvoiceResponseSchema).describe('TODO describe data field for the OpenInspection MCP integration') }) } },
             description: 'Success',
         },
     },

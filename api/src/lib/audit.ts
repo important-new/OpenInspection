@@ -65,6 +65,8 @@ export type AuditAction =
     | 'tag.linked'
     | 'tag.unlinked'
     | 'inspection.property_facts.autofill'
+    | 'inspection.template_snapshot.update'
+    | 'inspection.rating_system.switch'
     | 'admin.migrate_finding_keys';
 
 export interface AuditParams {

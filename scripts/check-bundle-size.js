@@ -1,62 +1,85 @@
 import { spawn, execSync } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import os from 'os';
 
-console.log('  →  Bundle size check');
-
+const LIMIT_KB = 1024;
 const isWin = os.platform() === 'win32';
 const cmd = isWin ? 'npx.cmd' : 'npx';
 
-const child = spawn(cmd, ['wrangler', 'deploy', '--dry-run', '--outdir', 'dist'], {
-    env: { ...process.env, CI: 'true' },
-    shell: isWin,
-    detached: !isWin // use detached on posix to kill process group
-});
+function checkBundle({ label, cwd, args }) {
+    return new Promise((resolve) => {
+        const child = spawn(cmd, args, {
+            cwd,
+            env: { ...process.env, CI: 'true' },
+            shell: isWin,
+            detached: !isWin,
+        });
+        let output = '';
+        let killed = false;
+        const finish = (ok, line) => {
+            killed = true;
+            try {
+                if (isWin) execSync(`taskkill /pid ${child.pid} /T /F >nul 2>&1`);
+                else process.kill(-child.pid);
+            } catch {}
+            console.log(line);
+            resolve(ok);
+        };
 
-let output = '';
-let killed = false;
+        child.stdout.on('data', (data) => {
+            if (killed) return;
+            output += data.toString();
+            const match = output.match(/Total Upload:.*?gzip:\s*([\d.]+)/);
+            if (match) {
+                const sizeKb = parseFloat(match[1]);
+                if (sizeKb >= LIMIT_KB) {
+                    finish(false, `  ✗  ${label}: ${sizeKb} KiB gzip exceeds ${LIMIT_KB} KiB limit`);
+                } else {
+                    finish(true, `  ✓  ${label}: ${sizeKb} KiB gzip (limit ${LIMIT_KB} KiB)`);
+                }
+            }
+        });
 
-child.stdout.on('data', (data) => {
-    if (killed) return;
-    output += data.toString();
-    const match = output.match(/Total Upload:.*?gzip:\s*([\d.]+)/);
-    if (match) {
-        killed = true;
-        const sizeKb = parseFloat(match[1]);
-        if (sizeKb >= 1024) {
-            console.error(`\n  ✗  Bundle too large: ${sizeKb} KiB gzip (limit: 1024 KiB)`);
-            killProcessAndExit(1);
-        } else {
-            console.log(`\n  ✓  Bundle size: ${sizeKb} KiB gzip (limit: 1024 KiB)`);
-            killProcessAndExit(0);
-        }
-    }
-});
+        child.stderr.on('data', (data) => {
+            if (!killed) output += data.toString();
+        });
 
-child.stderr.on('data', (data) => {
-    if (!killed) output += data.toString();
-});
+        child.on('close', () => {
+            if (!killed) {
+                console.error(`  ✗  ${label}: wrangler dry-run failed or "Total Upload" line not found`);
+                resolve(false);
+            }
+        });
 
-child.on('close', (code) => {
-    if (!killed) {
-        console.error('  ✗  Bundle build failed or "Total Upload" line not found');
-        process.exit(1);
-    }
-});
-
-child.on('error', (err) => {
-    console.error('  ✗  Failed to start wrangler:', err);
-    process.exit(1);
-});
-
-function killProcessAndExit(exitCode) {
-    try {
-        if (isWin) {
-            execSync(`taskkill /pid ${child.pid} /T /F >nul 2>&1`);
-        } else {
-            process.kill(-child.pid);
-        }
-    } catch (e) {
-        // ignore errors during kill
-    }
-    process.exit(exitCode);
+        child.on('error', (err) => {
+            console.error(`  ✗  ${label}: wrangler spawn error:`, err.message);
+            resolve(false);
+        });
+    });
 }
+
+(async () => {
+    console.log('  →  Bundle size: API');
+    const apiOk = await checkBundle({
+        label: 'API',
+        cwd: process.cwd(),
+        args: ['wrangler', 'deploy', '--dry-run', '--outdir', 'dist', '--config', 'api/wrangler.toml'],
+    });
+
+    console.log('  →  Bundle size: Web');
+    const frontendDir = join(process.cwd(), 'frontend');
+    const frontendBuild = join(frontendDir, 'build', 'client');
+    let webOk = true;
+    if (!existsSync(frontendBuild)) {
+        console.log('  ⚠  Web: frontend/build/client missing — run `cd frontend && npx react-router build` for an accurate measurement (skipped).');
+    } else {
+        webOk = await checkBundle({
+            label: 'Web',
+            cwd: frontendDir,
+            args: ['wrangler', 'deploy', '--dry-run', '--outdir', 'dist'],
+        });
+    }
+
+    process.exit(apiOk && webOk ? 0 : 1);
+})();

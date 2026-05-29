@@ -238,7 +238,6 @@ calendarRoutes.openapi(syncRoute, async (c) => {
     );
 
     if (!eventsRes.ok) {
-        const err = await eventsRes.json() as { error?: { message?: string } };
         return c.json({ success: false, error: { message: 'Failed to fetch Google Calendar events' } }, 500);
     }
 
