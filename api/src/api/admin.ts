@@ -31,6 +31,7 @@ import {
     CommentResponseSchema,
     UpdateCommentSchema,
     ListCommentsQuerySchema,
+    CommentTouchResponseSchema,
     StripeConnectAccountSchema,
     AttentionThresholdsSchema,
     AttentionThresholdsResponseSchema,
@@ -47,6 +48,7 @@ import { AuditLogService } from '../services/audit-log.service';
 import { SuccessResponseSchema } from '../lib/validations/shared.schema';
 import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { templates, agreements as agreementTable, agreements as agreementsTable, agreementRequests as agreementRequestsTable, inspections, inspectionResults, comments, tenantConfigs } from '../lib/db/schema';
+import { commentUsage } from '../lib/db/schema/inspection';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const adminRoutes = createApiRouter();
@@ -1116,26 +1118,79 @@ const listCommentsRoute = createRoute(withMcpMetadata({
 
 adminRoutes.openapi(listCommentsRoute, async (c) => {
     const tenantId = c.get('tenantId');
-    const { rating, section, sectionId, triggerCode, search } = c.req.valid('query');
+    const { rating, section, sectionId, triggerCode, search, sort, filterMode, itemLabel, limit } = c.req.valid('query');
+    // Per-user usage join — needs the JWT subject (same convention as the
+    // touch endpoint above and the rest of admin.ts).
+    const userId = c.get('user')?.sub ?? '';
+    const auto = filterMode === 'auto';
     const db = drizzle(c.env.DB);
     // Filters layered defensively: tenantId always first (multi-tenant
-    // isolation rule from CLAUDE.md), then optional rating bucket / section
-    // / free-text search.
+    // isolation rule from CLAUDE.md). `sectionId` / `triggerCode` are
+    // explicit user-typed filters and always apply; `rating` / `section`
+    // / `itemLabel` are context-derived and only apply when filterMode=auto
+    // (filterMode=all means "ignore inspection context, show everything").
     const conditions = [eq(comments.tenantId, tenantId)];
-    if (rating) conditions.push(eq(comments.ratingBucket, rating));
-    if (section) conditions.push(eq(comments.section, section));
     if (sectionId) {
         conditions.push(like(comments.sectionIds, `%"${escapeLikePattern(sectionId)}"%`));
     }
     if (triggerCode) {
         conditions.push(eq(comments.triggerCode, triggerCode));
     }
-    let rows = await db.select().from(comments).where(and(...conditions)).all();
+    if (auto && rating) conditions.push(eq(comments.ratingBucket, rating));
+    if (auto && section) conditions.push(eq(comments.section, section));
+    if (auto && itemLabel) conditions.push(eq(comments.itemLabel, itemLabel));
+
+    // ORDER BY by sort. SQLite treats NULL as smaller than any value, so
+    // descDz(commentUsage.lastUsedAt) naturally puts user-touched rows first
+    // and untouched rows last — matches the `recent` / `frequent` specs.
+    const orderByExpr =
+        sort === 'recent'   ? [descDz(commentUsage.lastUsedAt)]
+      : sort === 'created'  ? [descDz(comments.createdAt)]
+      : sort === 'frequent' ? [descDz(commentUsage.useCount), descDz(commentUsage.lastUsedAt)]
+      : sort === 'alpha'    ? [ascDz(comments.text)]
+      :                       [ascDz(comments.ratingBucket), descDz(comments.createdAt)];
+
+    let rows = await db.select({
+        id:             comments.id,
+        tenantId:       comments.tenantId,
+        text:           comments.text,
+        category:       comments.category,
+        ratingBucket:   comments.ratingBucket,
+        section:        comments.section,
+        sectionIds:     comments.sectionIds,
+        itemLabels:     comments.itemLabels,
+        itemLabel:      comments.itemLabel,
+        triggerCode:    comments.triggerCode,
+        searchKeywords: comments.searchKeywords,
+        libraryId:      comments.libraryId,
+        createdAt:      comments.createdAt,
+        useCount:       commentUsage.useCount,
+        lastUsedAt:     commentUsage.lastUsedAt,
+    })
+        .from(comments)
+        .leftJoin(commentUsage, and(
+            eq(commentUsage.commentId, comments.id),
+            eq(commentUsage.tenantId,  tenantId),
+            eq(commentUsage.userId,    userId),
+        ))
+        .where(and(...conditions))
+        .orderBy(...orderByExpr)
+        .limit(limit)
+        .all();
     if (search && search.trim()) {
         const needle = search.trim().toLowerCase();
         rows = rows.filter(r => r.text.toLowerCase().includes(needle));
     }
-    return c.json({ success: true as const, data: rows.map(commentRowToResponse) }, 200);
+    // `commentRowToResponse` is exported via the local helper above and used
+    // by the create / update routes — we extend in-place at the route to
+    // avoid touching the create / update signatures.
+    const data = rows.map(r => ({
+        ...commentRowToResponse(r),
+        useCount:   r.useCount ?? 0,
+        // commentUsage.lastUsedAt is a UNIX seconds integer (see touch handler).
+        lastUsedAt: r.lastUsedAt != null ? new Date(r.lastUsedAt * 1000).toISOString() : null,
+    }));
+    return c.json({ success: true as const, data }, 200);
 });
 
 const createCommentRoute = createRoute(withMcpMetadata({
@@ -1173,6 +1228,7 @@ adminRoutes.openapi(createCommentRoute, async (c) => {
         itemLabels: null as string | null,
         triggerCode: null as string | null,
         searchKeywords: null as string | null,
+        itemLabel: null as string | null,
         createdAt: new Date(),
     };
     await db.insert(comments).values(row);
@@ -1259,6 +1315,63 @@ adminRoutes.openapi(updateCommentRoute, async (c) => {
         },
     });
     return c.json({ success: true as const, data: { comment: commentRowToResponse(updated) } }, 200);
+});
+
+// Comments Library Upgrade — per-user usage counter. Inspectors call this
+// after dropping a snippet into a report; the count drives the "frequent"
+// sort + AUTO filter mode in the Library drawer.
+const touchCommentRoute = createRoute(withMcpMetadata({
+    method: 'post',
+    path:   '/comments/{id}/touch',
+    tags:   ['admin'],
+    summary: "Record an inspector's use of a snippet (per-user counter)",
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: { params: z.object({ id: z.string().min(1) }) },
+    responses: {
+        200: {
+            description: 'Updated usage row',
+            content: { 'application/json': { schema: CommentTouchResponseSchema } },
+        },
+    },
+    security: [{ bearerAuth: [] }],
+    operationId: "touchTenantComment",
+    description: "Increment per-user usage counter for a comment library entry.",
+}, { scopes: ['admin'], tier: 'extended' }));
+
+adminRoutes.openapi(touchCommentRoute, async (c) => {
+    const { id } = c.req.valid('param');
+    const tenantId = c.get('tenantId');
+    // Convention in this file: auth middleware stashes the decoded JWT under
+    // the 'user' key with `.sub` as the user id (see lines ~866, ~2169).
+    const userId = c.get('user')?.sub ?? '';
+    if (!userId) throw Errors.Unauthorized();
+    const now = Math.floor(Date.now() / 1000);
+    const db = drizzle(c.env.DB);
+
+    const existing = await db.select().from(commentUsage)
+        .where(and(
+            eq(commentUsage.tenantId,  tenantId),
+            eq(commentUsage.userId,    userId),
+            eq(commentUsage.commentId, id),
+        ))
+        .get();
+
+    if (existing) {
+        const nextCount = existing.useCount + 1;
+        await db.update(commentUsage)
+            .set({ useCount: nextCount, lastUsedAt: now })
+            .where(and(
+                eq(commentUsage.tenantId,  tenantId),
+                eq(commentUsage.userId,    userId),
+                eq(commentUsage.commentId, id),
+            ));
+        return c.json({ success: true as const, data: { commentId: id, useCount: nextCount } }, 200);
+    }
+
+    await db.insert(commentUsage).values({
+        tenantId, userId, commentId: id, useCount: 1, lastUsedAt: now,
+    });
+    return c.json({ success: true as const, data: { commentId: id, useCount: 1 } }, 200);
 });
 
 // --- Widget Origin Allowlist ---

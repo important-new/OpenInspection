@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
 import { tenants, users } from './tenant';
 
 // Sprint 2 S2-1 — tenant-scoped rating systems library. The level list
@@ -274,8 +274,25 @@ export const comments = sqliteTable('comments', {
     itemLabels: text('item_labels'),
     triggerCode: text('trigger_code'),
     searchKeywords: text('search_keywords'),
+    // Comments Library Upgrade — canonical single item label for the sort
+    // + filter UI in the inspection-edit Library drawer. Distinct from the
+    // existing plural `itemLabels` which stores all matched labels.
+    itemLabel: text('item_label'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
+
+// Comments Library Upgrade — per-user usage tracking. Drives the "most-used by
+// you" sort option + AUTO filter mode in the Library drawer. Composite PK on
+// (tenant, user, comment) gives O(1) upsert per touch.
+export const commentUsage = sqliteTable('comment_usage', {
+    tenantId:   text('tenant_id').notNull(),
+    userId:     text('user_id').notNull(),
+    commentId:  text('comment_id').notNull(),
+    useCount:   integer('use_count').notNull().default(0),
+    lastUsedAt: integer('last_used_at'),
+}, (table) => ({
+    pk: primaryKey({ columns: [table.tenantId, table.userId, table.commentId] }),
+}));
 
 export const agreementRequests = sqliteTable('agreement_requests', {
     id: text('id').primaryKey(),

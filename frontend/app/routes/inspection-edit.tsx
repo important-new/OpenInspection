@@ -220,6 +220,19 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+function formatRelativeTime(epochSec: number): string {
+ const diffDays = Math.floor((Date.now() / 1000 - epochSec) / 86400);
+ if (diffDays <= 0) return 'today';
+ if (diffDays === 1) return '1 day ago';
+ if (diffDays < 7)   return `${diffDays} days ago`;
+ if (diffDays < 30)  return `${Math.floor(diffDays / 7)} wk ago`;
+ return `${Math.floor(diffDays / 30)} mo ago`;
+}
+
+/* ------------------------------------------------------------------ */
 /* Component */
 /* ------------------------------------------------------------------ */
 
@@ -355,6 +368,40 @@ export default function InspectionEditPage() {
  inspectionId: String(state.inspection.id),
  bucketForRatingId: state.bucketForRatingId,
  });
+
+ /* ---------------------------------------------------------------- */
+ /* Server-fetched comments for the library drawer (sort/filter aware) */
+ /* ---------------------------------------------------------------- */
+
+ const [serverComments, setServerComments] = useState<Array<{
+ id: string; text: string; useCount?: number; lastUsedAt?: number | null;
+ }>>([]);
+
+ useEffect(() => {
+ if (!state.showCommentLibrary) { setServerComments([]); return; }
+ const ctx: { itemLabel?: string; section?: string; ratingBucket?: string } = {};
+ if (comments.filterMode === 'auto' && state.activeItem) {
+ ctx.itemLabel = (state.activeItem.label || state.activeItem.name || '') as string;
+ ctx.section   = state.currentSection?.title;
+ const r = state.activeItemId ? state.getResult(state.activeItemId)?.rating : null;
+ if (r && state.bucketForRatingId) {
+ ctx.ratingBucket = state.bucketForRatingId(r as string);
+ }
+ }
+ comments.fetchFiltered(ctx).then((rows) => {
+ setServerComments(rows as Array<{ id: string; text: string; useCount?: number; lastUsedAt?: number | null }>);
+ });
+ }, [
+ state.showCommentLibrary,
+ comments.sort,
+ comments.filterMode,
+ state.activeItemId,
+ state.activeItem,
+ state.currentSection,
+ comments.fetchFiltered,
+ state.getResult,
+ state.bucketForRatingId,
+ ]);
 
  /* ---------------------------------------------------------------- */
  /* Offline queue */
@@ -796,7 +843,7 @@ export default function InspectionEditPage() {
  state.setCommentLibrarySelectedIdx(
  Math.min(
  state.commentLibrarySelectedIdx + 1,
- commentLibraryItems.length - 1,
+ Math.max(serverComments.length, commentLibraryItems.length) - 1,
  ),
  );
  },
@@ -806,13 +853,15 @@ export default function InspectionEditPage() {
  );
  },
  onLibrarySelect: () => {
- const sel = commentLibraryItems[state.commentLibrarySelectedIdx];
+ const sel = serverComments[state.commentLibrarySelectedIdx]
+ ?? commentLibraryItems[state.commentLibrarySelectedIdx];
  if (sel && state.activeItemId && state.currentSection) {
  findings.insertComment(
  state.currentSection.id,
  state.activeItemId,
  sel.text,
  );
+ if ('id' in sel && sel.id) comments.touchSnippet(sel.id as string);
  state.setShowCommentLibrary(false);
  }
  },
@@ -831,7 +880,7 @@ export default function InspectionEditPage() {
  if (!notes) return;
  const bucket = state.bucketForRatingId(r?.rating as string);
  const section = state.currentSection?.title || "";
- comments.saveSnippet(notes, bucket, section);
+ comments.saveSnippet(notes, bucket, section, undefined, (state.activeItem?.label || state.activeItem?.name || undefined) as string | undefined);
  },
  onToggleCheatsheet: () =>
  state.setShowCheatsheet(!state.showCheatsheet),
@@ -861,6 +910,7 @@ export default function InspectionEditPage() {
  speedRate,
  comments,
  commentLibraryItems,
+ serverComments,
  ],
  );
 
@@ -1066,6 +1116,58 @@ export default function InspectionEditPage() {
  </button>
  </div>
 
+ {/* Sort + Filter mode header */}
+ <div className="flex items-center gap-3 px-3 py-2 border-b border-ih-border">
+ <div className="flex items-center gap-1.5">
+ <span className="text-[10px] uppercase tracking-[0.1em] text-slate-400">Filter</span>
+ <select
+ value={comments.filterMode}
+ onChange={e => comments.setFilterMode(e.target.value as 'auto' | 'all')}
+ className="px-2 py-1 rounded border border-ih-border bg-ih-bg-app text-[11px]"
+ >
+ <option value="auto">Auto</option>
+ <option value="all">All</option>
+ </select>
+ </div>
+ <div className="flex items-center gap-1.5 ml-auto">
+ <span className="text-[10px] uppercase tracking-[0.1em] text-slate-400">Sort</span>
+ <select
+ value={comments.sort}
+ onChange={e => comments.setSort(e.target.value)}
+ className="px-2 py-1 rounded border border-ih-border bg-ih-bg-app text-[11px]"
+ >
+ <option value="relevance">Relevance</option>
+ <option value="recent">Recent use</option>
+ <option value="created">Recently added</option>
+ <option value="frequent">Most used</option>
+ <option value="alpha">A–Z</option>
+ </select>
+ </div>
+ </div>
+
+ {/* Context strip (auto mode + active item) */}
+ {comments.filterMode === 'auto' && state.activeItem && (
+ <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] bg-ih-bg-muted border-b border-ih-border">
+ <span className="text-slate-400">Context:</span>
+ <span>
+ {state.currentSection?.title} › {(state.activeItem.label || state.activeItem.name) as string}
+ </span>
+ {Boolean(state.activeItemId && state.getResult(state.activeItemId)?.rating) && (
+ <>
+ <span className="text-slate-400">·</span>
+ <span>
+ {state.getRatingLabel?.(state.getResult(state.activeItemId as string)?.rating as string) ?? ''}
+ </span>
+ </>
+ )}
+ <button
+ onClick={() => comments.setFilterMode('all')}
+ className="ml-auto text-slate-400 hover:text-slate-600"
+ aria-label="Clear filter"
+ >×</button>
+ </div>
+ )}
+
  {/* Filter chips */}
  <div className="flex gap-1 px-4 py-2 border-b border-ih-border flex-wrap">
  {[
@@ -1107,42 +1209,45 @@ export default function InspectionEditPage() {
  autoFocus
  />
  <p className="text-[10px] text-slate-400 mt-1">
- {commentLibraryItems.length} comments
+ {serverComments.length} comments
  </p>
  </div>
 
- {/* Comment list */}
- <div className="flex-1 overflow-y-auto px-4 space-y-1 pb-4">
- {commentLibraryItems.map((entry, idx) => (
- <button
- key={`${entry.text.slice(0, 30)}-${idx}`}
+ {/* Comment list (server-fetched, sort/filter aware) */}
+ <div className="flex-1 overflow-y-auto pb-2">
+ <ul className="divide-y divide-ih-border">
+ {serverComments.map((c, idx) => (
+ <li
+ key={c.id}
  onClick={() => {
- if (state.activeItemId && state.currentSection) {
+ if (!state.currentSection || !state.activeItemId) return;
  findings.insertComment(
  state.currentSection.id,
  state.activeItemId,
- entry.text,
+ c.text,
  );
+ comments.touchSnippet(c.id);
  state.setShowCommentLibrary(false);
- }
  }}
- className={`w-full text-left p-2.5 rounded-lg text-[12px] transition-colors ${
+ className={`cursor-pointer ${
  idx === state.commentLibrarySelectedIdx
- ? "bg-ih-primary-tint ring-1 ring-indigo-200 dark:ring-indigo-700"
- : "hover:bg-slate-50 dark:hover:bg-slate-800"
+ ? "bg-ih-primary-tint ring-1 ring-inset ring-indigo-200 dark:ring-indigo-700"
+ : ""
  }`}
  >
- <span className="text-ih-fg-2 leading-relaxed">
- {entry.text}
+ <div className="flex items-start gap-2 p-2.5 hover:bg-ih-bg-muted">
+ <p className="flex-1 text-[12px] text-ih-fg-2 leading-relaxed">
+ {c.text}
+ </p>
+ <span className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">
+ {comments.sort === 'recent'   && c.lastUsedAt ? formatRelativeTime(c.lastUsedAt) : ''}
+ {comments.sort === 'frequent' && c.useCount   ? `${c.useCount}×`               : ''}
  </span>
- {entry.section && (
- <span className="block text-[10px] text-slate-400 mt-0.5">
- {entry.section}
- </span>
- )}
- </button>
+ </div>
+ </li>
  ))}
- {commentLibraryItems.length === 0 && (
+ </ul>
+ {serverComments.length === 0 && (
  <p className="text-[13px] text-ih-fg-3 text-center py-8">
  No comments match the current filter.
  </p>

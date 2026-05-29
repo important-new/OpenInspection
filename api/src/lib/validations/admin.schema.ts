@@ -255,6 +255,8 @@ export const CommentSchema = z.object({
     category: z.string().max(50).optional().nullable().openapi({ example: 'Roofing' }).describe('TODO describe category field for the OpenInspection MCP integration'),
     ratingBucket: RatingBucketSchema.optional().nullable().openapi({ example: 'defect' }).describe('TODO describe ratingBucket field for the OpenInspection MCP integration'),
     section: z.string().max(64).optional().nullable().openapi({ example: 'Roof' }).describe('TODO describe section field for the OpenInspection MCP integration'),
+    // Comments Library Upgrade — canonical single item label drives sort/filter.
+    itemLabel: z.string().max(120).optional().nullable().openapi({ example: 'Roof Covering' }),
 }).openapi('Comment');
 
 export const UpdateCommentSchema = z.object({
@@ -262,6 +264,7 @@ export const UpdateCommentSchema = z.object({
     category: z.string().max(50).nullable().optional().openapi({ example: 'Roofing' }).describe('TODO describe category field for the OpenInspection MCP integration'),
     ratingBucket: RatingBucketSchema.nullable().optional().openapi({ example: 'defect' }).describe('TODO describe ratingBucket field for the OpenInspection MCP integration'),
     section: z.string().max(64).nullable().optional().openapi({ example: 'Roof' }).describe('TODO describe section field for the OpenInspection MCP integration'),
+    itemLabel: z.string().max(120).optional().nullable(),
 }).openapi('UpdateComment');
 
 export const CommentResponseSchema = z.object({
@@ -271,6 +274,9 @@ export const CommentResponseSchema = z.object({
     category: z.string().nullable().describe('TODO describe category field for the OpenInspection MCP integration'),
     ratingBucket: RatingBucketSchema.nullable().describe('TODO describe ratingBucket field for the OpenInspection MCP integration'),
     section: z.string().nullable().describe('TODO describe section field for the OpenInspection MCP integration'),
+    itemLabel: z.string().nullable().optional(),
+    useCount: z.number().int().optional(),
+    lastUsedAt: z.string().nullable().optional(),
     createdAt: z.string().describe('TODO describe createdAt field for the OpenInspection MCP integration'),
 }).openapi('CommentResponse');
 
@@ -280,7 +286,20 @@ export const ListCommentsQuerySchema = z.object({
     sectionId: z.string().max(64).optional().openapi({ example: 'roof-general' }).describe('Filter by section ID (matches within the section_ids JSON array)'),
     triggerCode: z.string().max(64).optional().openapi({ example: 'NI' }).describe('Filter by trigger code'),
     search: z.string().max(200).optional().describe('TODO describe search field for the OpenInspection MCP integration'),
+    // Comments Library Upgrade — new sort + filter mode + context filters.
+    sort: z.enum(['relevance', 'recent', 'created', 'frequent', 'alpha']).optional().default('relevance'),
+    filterMode: z.enum(['auto', 'all']).optional().default('all'),
+    itemLabel: z.string().max(120).optional(),
+    limit: z.coerce.number().int().min(1).max(500).optional().default(200),
 }).openapi('ListCommentsQuery');
+
+export const CommentTouchResponseSchema = z.object({
+    success: z.literal(true),
+    data:    z.object({
+        commentId: z.string(),
+        useCount:  z.number().int(),
+    }),
+}).openapi('CommentTouchResponse');
 
 // handoff-decisions §1 — attention thresholds (in hours, 1..720 = 30 days max)
 export const AttentionThresholdsSchema = z.object({
