@@ -1173,6 +1173,7 @@ adminRoutes.openapi(createCommentRoute, async (c) => {
         itemLabels: null as string | null,
         triggerCode: null as string | null,
         searchKeywords: null as string | null,
+        itemLabel: null as string | null,
         createdAt: new Date(),
     };
     await db.insert(comments).values(row);
