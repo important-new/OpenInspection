@@ -1213,7 +1213,7 @@ export class InspectionService {
         inspectionId: string,
         tenantId: string,
         itemId: string,
-        field: 'rating' | 'notes' | 'value',
+        field: 'rating' | 'notes' | 'value' | 'cannedToggle' | 'defectFields' | 'itemAttribute',
         value: unknown,
         expectedVersion: number,
         userId: string,
@@ -1251,7 +1251,7 @@ export class InspectionService {
                 if (u?.role === 'apprentice') {
                     const apprenticeSvc = new ApprenticeService(this.db);
                     const queued = await apprenticeSvc.submitForReview(
-                        tenantId, userId, inspectionId, itemId, field, value,
+                        tenantId, userId, inspectionId, itemId, field as 'rating' | 'notes' | 'value', value,
                     );
                     return queued;
                 }
@@ -1278,12 +1278,38 @@ export class InspectionService {
 
         const key = sectionId ? findingKey(DEFAULT_UNIT, sectionId, itemId) : itemId;
         const cur = data[key] ?? data[itemId]; // fallback for legacy
-        const decision = decideFieldWrite(cur, field, value, expectedVersion, { force: opts?.force ?? false });
+
+        // Compound writes: defectFields / itemAttribute mutate nested shapes
+        // inside the item entry instead of overwriting a single scalar field.
+        // We translate them into a normalized entry update on the umbrella
+        // sub-key (`tabs` or `attributes`), then let applyFieldWrite handle
+        // the version bump on that sub-key so the optimistic-concurrency
+        // counter is preserved.
+        let mutableField: string = field;
+        let mutableValue: unknown = value;
+        if (field === 'defectFields' && value && typeof value === 'object' && 'cannedId' in (value as Record<string, unknown>)) {
+            const v = value as { cannedId: string; location?: string | null; trade?: string | null; deadline?: string | null; timeframe?: string | null };
+            const base = (cur ?? {}) as Record<string, unknown>;
+            const tabs = (base.tabs ?? {}) as Record<string, unknown>;
+            const defects = Array.isArray(tabs.defects) ? (tabs.defects as Array<Record<string, unknown>>) : [];
+            const idx = defects.findIndex(d => d?.cannedId === v.cannedId);
+            const next: Record<string, unknown> = idx >= 0 ? { ...defects[idx] } : { cannedId: v.cannedId, included: true };
+            if ('location'  in v) next.location  = v.location;
+            if ('trade'     in v) next.trade     = v.trade;
+            if ('deadline'  in v) next.deadline  = v.deadline;
+            if ('timeframe' in v) next.timeframe = v.timeframe;
+            const nextDefects = idx >= 0 ? defects.map((d, i) => i === idx ? next : d) : [...defects, next];
+            mutableValue = { ...tabs, defects: nextDefects };
+            mutableField = 'tabs';
+        }
+
+        const decision = decideFieldWrite(cur, mutableField, mutableValue, expectedVersion, { force: opts?.force ?? false });
         if (decision.kind === 'conflict') return decision;
 
         const now = Math.floor(Date.now() / 1000);
-        const { entry, newVersion } = applyFieldWrite(cur, field, value, userId, now);
+        const { entry, newVersion } = applyFieldWrite(cur, mutableField, mutableValue, userId, now);
         data[key] = entry;
+        sanitizeDefectStates(data);
         if (key !== itemId) delete data[itemId]; // migrate on write
 
         if (existing) {
