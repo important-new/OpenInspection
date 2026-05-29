@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "react-router build",
+    "deploy": "npm run build && npx wrangler deploy",
     "type-check": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
