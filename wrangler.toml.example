@@ -6,7 +6,7 @@ workers_dev = true
 preview_urls = true
 
 [triggers]
-crons = ["* * * * *", "0 2 * * *", "0 * * * *"]
+crons = ["*/5 * * * *"]  # single tick — scheduled.ts runs ALL jobs each call
 
 [assets]
 directory = "./api/public"
