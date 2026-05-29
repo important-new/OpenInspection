@@ -15,6 +15,7 @@ import { useTheme } from "~/hooks/useTheme";
 import { SectionRail } from "~/components/editor/SectionRail";
 import { ItemList } from "~/components/editor/ItemList";
 import { ItemEditor } from "~/components/editor/ItemEditor";
+import type { DefectFieldsValue } from "~/components/editor/DefectFieldsRow";
 import { SideRail } from "~/components/editor/SideRail";
 import { SpeedMode } from "~/components/editor/SpeedMode";
 import { FooterBar } from "~/components/editor/FooterBar";
@@ -134,6 +135,24 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  });
  }
 
+ if (intent === "set-defect-fields") {
+ const itemId = String(formData.get("itemId"));
+ const sectionId = String(formData.get("sectionId"));
+ const cannedId = String(formData.get("cannedId"));
+ const patch = JSON.parse(String(formData.get("patch")));
+ await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
+ method: "PATCH",
+ token,
+ body: JSON.stringify({
+ field: "defectFields",
+ value: { cannedId, ...patch },
+ sectionId,
+ expectedVersion: 0,
+ force: true,
+ }),
+ });
+ }
+
  if (intent === "save-all") {
  const data = formData.get("data");
  if (data) {
@@ -207,6 +226,47 @@ export default function InspectionEditPage() {
  setSaveStatus: state.setSaveStatus,
  inspectionId: String(state.inspection.id),
  });
+
+ /* ---------------------------------------------------------------- */
+ /* Defect structured fields — local-state projections for ItemEditor */
+ /* ---------------------------------------------------------------- */
+
+ const activeResult = state.activeItemId
+ ? findings.getResult(state.activeItemId, state.currentSection?.id)
+ : null;
+
+ const defectStates = useMemo(() => {
+ const map = new Map<string, DefectFieldsValue>();
+ const defects = (activeResult as Record<string, unknown> | null)?.tabs as
+ | { defects?: Array<Record<string, unknown>> }
+ | undefined;
+ const rows = Array.isArray(defects?.defects) ? defects!.defects : [];
+ for (const d of rows) {
+ const cannedId = typeof d.cannedId === "string" ? d.cannedId : "";
+ if (!cannedId) continue;
+ map.set(cannedId, {
+ location:  typeof d.location  === "string" ? d.location  : null,
+ trade:     typeof d.trade     === "string" ? (d.trade     as DefectFieldsValue["trade"])     : null,
+ deadline:  typeof d.deadline  === "string" ? (d.deadline  as DefectFieldsValue["deadline"])  : null,
+ timeframe: typeof d.timeframe === "string" ? (d.timeframe as DefectFieldsValue["timeframe"]) : null,
+ });
+ }
+ return map;
+ }, [activeResult]);
+
+ const locationSuggestions = useMemo(() => {
+ const set = new Set<string>();
+ for (const value of Object.values(state.results)) {
+ const tabs = (value as Record<string, unknown> | null)?.tabs as
+ | { defects?: Array<Record<string, unknown>> }
+ | undefined;
+ const rows = Array.isArray(tabs?.defects) ? tabs!.defects : [];
+ for (const d of rows) {
+ if (typeof d.location === "string" && d.location.length > 0) set.add(d.location);
+ }
+ }
+ return Array.from(set);
+ }, [state.results]);
 
  /* ---------------------------------------------------------------- */
  /* Canned comments library */
@@ -1429,6 +1489,18 @@ export default function InspectionEditPage() {
  tabName,
  cannedId,
  included,
+ );
+ }
+ }}
+ defectStates={defectStates}
+ locationSuggestions={locationSuggestions}
+ onDefectFields={(cannedId, patch) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.setDefectFields(
+ state.currentSection.id,
+ state.activeItemId,
+ cannedId,
+ patch,
  );
  }
  }}
