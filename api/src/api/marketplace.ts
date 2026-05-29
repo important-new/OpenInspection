@@ -39,13 +39,13 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for listMarketplaces (GET /, marketplace domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: ['read'], tier: 'primary' })), async (c) => {
     const q = c.req.valid('query');
-    const data = await c.var.services.marketplace.list({
+    const { rows, total } = await c.var.services.marketplace.list({
         ...(q.search   !== undefined ? { search:   q.search }   : {}),
         ...(q.category !== undefined ? { category: q.category } : {}),
         ...(q.page     !== undefined ? { page:     q.page }     : {}),
         ...(q.pageSize !== undefined ? { pageSize: q.pageSize } : {}),
     });
-    return c.json({ success: true, data });
+    return c.json({ success: true, data: rows, total });
 });
 
 // POST /api/templates/marketplace/:id/import
