@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { TabStrip } from "@core/shared-ui";
+import { CloneLastButton } from "./CloneLastButton";
 import { DefectFieldsRow, type DefectFieldsValue } from "./DefectFieldsRow";
 import { ItemAttributesPanel } from "./ItemAttributesPanel";
 import type { ItemAttribute } from "../../lib/types";
@@ -95,6 +96,9 @@ interface ItemEditorProps {
  onDefectFields?: (cannedId: string, patch: Partial<DefectFieldsValue>) => void;
  missingFields?: Map<string, { location: boolean; trade: boolean }>;
  onItemAttribute?: (itemId: string, attributeId: string, value: string | number | boolean | null) => void;
+ onCloneLast?: (scope: 'rating' | 'rating_notes' | 'all') => void;
+ cloneDefaultScope?: 'rating' | 'rating_notes' | 'all';
+ tagChipRow?: React.ReactNode;
 }
 
 /* ------------------------------------------------------------------ */
@@ -114,6 +118,9 @@ export function ItemEditor({
  onDefectFields,
  missingFields,
  onItemAttribute,
+ onCloneLast,
+ cloneDefaultScope,
+ tagChipRow,
 }: ItemEditorProps) {
  const [activeTab, setActiveTab] = useState<CannedTabId>("information");
 
@@ -180,6 +187,16 @@ export function ItemEditor({
  />
  )}
 
+ {/* Clone last button */}
+ {item.type === "rich" && onCloneLast && (
+ <div className="flex justify-end mb-1">
+ <CloneLastButton
+ defaultScope={cloneDefaultScope ?? 'rating_notes'}
+ onClone={onCloneLast}
+ />
+ </div>
+ )}
+
  {/* Rating buttons */}
  {item.type === "rich" && (
  <div className="flex gap-2">
@@ -216,12 +233,14 @@ export function ItemEditor({
  </span>
  </div>
  <textarea
+ id="notes-textarea"
  value={(result.notes as string) || ""}
  onChange={(e) => onNotes(e.target.value)}
  onBlur={(e) => onNotesBlur(e.target.value)}
  placeholder="Add notes — type / for snippets"
  className="w-full h-28 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-indigo-500 outline-none"
  />
+ {tagChipRow}
  </div>
 
  {/* Canned comments tabs */}
