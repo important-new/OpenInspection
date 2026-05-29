@@ -9,9 +9,12 @@ const cmd = isWin ? 'npx.cmd' : 'npx';
 
 function checkBundle({ label, cwd, args }) {
     return new Promise((resolve) => {
+        // Note: do NOT set CI=true — newer wrangler (4.81+) reads CI as a
+        // hint to also run `wrangler types`, which searches for the legacy
+        // api/wrangler.toml path and ENOENT-aborts when we use -c with a
+        // non-default config name. --dry-run is already non-interactive.
         const child = spawn(cmd, args, {
             cwd,
-            env: { ...process.env, CI: 'true' },
             shell: isWin,
             detached: !isWin,
         });
@@ -46,10 +49,25 @@ function checkBundle({ label, cwd, args }) {
         });
 
         child.on('close', () => {
-            if (!killed) {
-                console.error(`  ✗  ${label}: wrangler dry-run failed or "Total Upload" line not found`);
-                resolve(false);
+            if (killed) return;
+            // Windows + shell:true spawn can fire `close` before the final
+            // stdout chunks land on the data event. Re-check the accumulated
+            // output one more time before reporting failure.
+            const match = output.match(/Total Upload:.*?gzip:\s*([\d.]+)/);
+            if (match) {
+                const sizeKb = parseFloat(match[1]);
+                if (sizeKb >= LIMIT_KB) {
+                    console.log(`  ✗  ${label}: ${sizeKb} KiB gzip exceeds ${LIMIT_KB} KiB limit`);
+                    resolve(false);
+                } else {
+                    console.log(`  ✓  ${label}: ${sizeKb} KiB gzip (limit ${LIMIT_KB} KiB)`);
+                    resolve(true);
+                }
+                return;
             }
+            console.error(`  ✗  ${label}: wrangler dry-run failed or "Total Upload" line not found`);
+            console.error(`  …  last 500 chars of output: ${output.slice(-500).replace(/\n/g, '\\n')}`);
+            resolve(false);
         });
 
         child.on('error', (err) => {
