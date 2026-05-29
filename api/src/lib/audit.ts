@@ -21,6 +21,7 @@ export type AuditAction =
     | 'inspection.share_agent'
     | 'inspection.property_facts.update'
     | 'inspection.media.attach'
+    | 'inspection.inspector_signed'
     | 'persistence.granted'
     | 'persistence.denied'
     | 'template.create'

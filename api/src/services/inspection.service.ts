@@ -2103,6 +2103,42 @@ export class InspectionService {
         // below — all four paths now block on trigger).
         await fireAutomation(this.db, tenantId, inspectionId, 'report.published');
 
+        // Spec 5H D2 — auto-sign on publish: if the inspection has the flag
+        // enabled AND the assigned inspector has a saved signature, inject
+        // _inspector_signature into inspection_results.data so the published
+        // report renders with the signature without requiring a manual step.
+        const inspForSign = await db.select().from(inspections)
+            .where(and(eq(inspections.id, inspectionId), eq(inspections.tenantId, tenantId)))
+            .get();
+        if (inspForSign?.autoSignOnPublish && inspForSign.inspectorId) {
+            const inspector = await db.select().from(users)
+                .where(eq(users.id, inspForSign.inspectorId)).get();
+            if (inspector?.defaultSignatureBase64) {
+                const resultsRow = await db.select().from(inspectionResults)
+                    .where(eq(inspectionResults.inspectionId, inspectionId)).get();
+                const data: Record<string, unknown> = (resultsRow?.data as Record<string, unknown>) ?? {};
+                data._inspector_signature = {
+                    signatureBase64: inspector.defaultSignatureBase64,
+                    signedAt:        Date.now(),
+                    userId:          inspector.id,
+                    auto:            true,
+                };
+                if (resultsRow) {
+                    await db.update(inspectionResults)
+                        .set({ data: data as object, lastSyncedAt: new Date() })
+                        .where(eq(inspectionResults.id, resultsRow.id));
+                } else {
+                    await db.insert(inspectionResults).values({
+                        id:           crypto.randomUUID(),
+                        tenantId,
+                        inspectionId,
+                        data:         data as object,
+                        lastSyncedAt: new Date(),
+                    });
+                }
+            }
+        }
+
         const tenantRow = await db.select({ subdomain: tenants.subdomain })
             .from(tenants).where(eq(tenants.id, tenantId)).get();
         const tenantSlug = tenantRow?.subdomain ?? '';
