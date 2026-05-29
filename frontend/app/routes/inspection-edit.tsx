@@ -15,6 +15,7 @@ import { useTheme } from "~/hooks/useTheme";
 import { SectionRail } from "~/components/editor/SectionRail";
 import { ItemList } from "~/components/editor/ItemList";
 import { ItemEditor } from "~/components/editor/ItemEditor";
+import type { DefectFieldsValue } from "~/components/editor/DefectFieldsRow";
 import { SideRail } from "~/components/editor/SideRail";
 import { SpeedMode } from "~/components/editor/SpeedMode";
 import { FooterBar } from "~/components/editor/FooterBar";
@@ -25,6 +26,8 @@ import { PhotoStudio } from "~/components/editor/PhotoStudio";
 import { PropertyInfoForm } from "~/components/editor/PropertyInfoForm";
 import { InspectionSettingsSheet } from "~/components/editor/InspectionSettingsSheet";
 import { SignaturePad } from "~/components/SignaturePad";
+import { PublishGateModal } from "~/components/editor/PublishGateModal";
+import type { PublishReadiness, PublishBlockingDefect } from "~/lib/types";
 
 export function meta() {
  return [{ title: "Edit Inspection - OpenInspection" }];
@@ -130,6 +133,42 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  field: "cannedToggle",
  value: { tabName, cannedId, included },
  sectionId,
+ expectedVersion: 0,
+ force: true,
+ }),
+ });
+ }
+
+ if (intent === "set-defect-fields") {
+ const itemId = String(formData.get("itemId"));
+ const sectionId = String(formData.get("sectionId"));
+ const cannedId = String(formData.get("cannedId"));
+ const patch = JSON.parse(String(formData.get("patch")));
+ await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
+ method: "PATCH",
+ token,
+ body: JSON.stringify({
+ field: "defectFields",
+ value: { cannedId, ...patch },
+ sectionId,
+ expectedVersion: 0,
+ force: true,
+ }),
+ });
+ }
+
+ if (intent === "set-item-attribute") {
+ const itemId = String(formData.get("itemId"));
+ const attributeId = String(formData.get("attributeId"));
+ const value = JSON.parse(String(formData.get("value")));
+ await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
+ method: "PATCH",
+ token,
+ body: JSON.stringify({
+ field: "itemAttribute",
+ value: { attributeId, value },
+ expectedVersion: 0,
+ force: true,
  }),
  });
  }
@@ -209,6 +248,66 @@ export default function InspectionEditPage() {
  });
 
  /* ---------------------------------------------------------------- */
+ /* Publish gate state (declared early — used in missingFields memo below) */
+ /* ---------------------------------------------------------------- */
+
+ const [publishReadiness, setPublishReadiness] = useState<PublishReadiness | null>(null);
+ const [showPublishGate, setShowPublishGate] = useState(false);
+
+ /* ---------------------------------------------------------------- */
+ /* Defect structured fields — local-state projections for ItemEditor */
+ /* ---------------------------------------------------------------- */
+
+ const activeResult = state.activeItemId
+ ? findings.getResult(state.activeItemId, state.currentSection?.id)
+ : null;
+
+ const defectStates = useMemo(() => {
+ const map = new Map<string, DefectFieldsValue>();
+ const defects = (activeResult as Record<string, unknown> | null)?.tabs as
+ | { defects?: Array<Record<string, unknown>> }
+ | undefined;
+ const rows = Array.isArray(defects?.defects) ? defects!.defects : [];
+ for (const d of rows) {
+ const cannedId = typeof d.cannedId === "string" ? d.cannedId : "";
+ if (!cannedId) continue;
+ map.set(cannedId, {
+ location:  typeof d.location  === "string" ? d.location  : null,
+ trade:     typeof d.trade     === "string" ? (d.trade     as DefectFieldsValue["trade"])     : null,
+ deadline:  typeof d.deadline  === "string" ? (d.deadline  as DefectFieldsValue["deadline"])  : null,
+ timeframe: typeof d.timeframe === "string" ? (d.timeframe as DefectFieldsValue["timeframe"]) : null,
+ });
+ }
+ return map;
+ }, [activeResult]);
+
+ const locationSuggestions = useMemo(() => {
+ const set = new Set<string>();
+ for (const value of Object.values(state.results)) {
+ const tabs = (value as Record<string, unknown> | null)?.tabs as
+ | { defects?: Array<Record<string, unknown>> }
+ | undefined;
+ const rows = Array.isArray(tabs?.defects) ? tabs!.defects : [];
+ for (const d of rows) {
+ if (typeof d.location === "string" && d.location.length > 0) set.add(d.location);
+ }
+ }
+ return Array.from(set);
+ }, [state.results]);
+
+ const missingFields = useMemo(() => {
+ const map = new Map<string, { location: boolean; trade: boolean }>();
+ if (!publishReadiness) return map;
+ for (const b of publishReadiness.blockingDefects) {
+  map.set(b.cannedId, {
+   location: b.missing.includes('location'),
+   trade:    b.missing.includes('trade'),
+  });
+ }
+ return map;
+ }, [publishReadiness]);
+
+ /* ---------------------------------------------------------------- */
  /* Canned comments library */
  /* ---------------------------------------------------------------- */
 
@@ -286,6 +385,45 @@ export default function InspectionEditPage() {
   },
   [signFetcher],
  );
+
+ /* ---------------------------------------------------------------- */
+ /* Publish pre-flight */
+ /* ---------------------------------------------------------------- */
+
+ const handlePublishClick = useCallback(async () => {
+  try {
+   const res = await fetch(`/api/inspections/${state.inspection.id}/publish-readiness`, {
+    credentials: 'include',
+   });
+   if (res.ok) {
+    const readiness = await res.json() as PublishReadiness;
+    if (!readiness.ready) {
+     setPublishReadiness(readiness);
+     setShowPublishGate(true);
+     return;
+    }
+   }
+  } catch {
+   // Network/server error — fall through to publish (don't block UX on a flaky readiness check)
+  }
+  state.setShowPublishModal(true);
+ }, [state.inspection.id, state.setShowPublishModal]);
+
+ /* ---------------------------------------------------------------- */
+ /* Item attribute handler */
+ /* ---------------------------------------------------------------- */
+
+ const handleItemAttribute = useCallback((itemId: string, attributeId: string, value: string | number | boolean | null) => {
+  fetcher.submit(
+   {
+    intent: 'set-item-attribute',
+    itemId,
+    attributeId,
+    value: JSON.stringify(value),
+   },
+   { method: 'POST' },
+  );
+ }, [fetcher]);
 
  /* Photo studio state */
  const [photoStudioOpen, setPhotoStudioOpen] = useState(false);
@@ -1041,6 +1179,23 @@ export default function InspectionEditPage() {
  </div>
  )}
 
+ {/* Publish gate modal */}
+ <PublishGateModal
+  open={showPublishGate}
+  readiness={publishReadiness}
+  onClose={() => setShowPublishGate(false)}
+  onJump={(b: PublishBlockingDefect) => {
+   state.selectSectionById(b.sectionId);
+   state.setActiveItemId(b.itemId);
+   setShowPublishGate(false);
+   setTimeout(() => {
+    const sel = b.missing[0] === 'trade' ? 'select' : 'input[type="text"]';
+    const el = document.querySelector<HTMLElement>(`[data-defect-id="${b.cannedId}"] ${sel}`);
+    if (el) el.focus();
+   }, 100);
+  }}
+ />
+
  {/* ------------------------------------------------------------ */}
  {/* Fixed top header with progress bar */}
  {/* ------------------------------------------------------------ */}
@@ -1250,7 +1405,7 @@ export default function InspectionEditPage() {
 
  {/* Publish button */}
  <button
- onClick={() => state.setShowPublishModal(true)}
+ onClick={handlePublishClick}
  className="h-9 px-4 rounded-md bg-emerald-600 text-white font-bold text-[12px] hover:bg-emerald-700 transition-colors inline-flex items-center gap-1.5"
  >
  <svg
@@ -1432,6 +1587,20 @@ export default function InspectionEditPage() {
  );
  }
  }}
+ defectStates={defectStates}
+ locationSuggestions={locationSuggestions}
+ missingFields={missingFields}
+ onDefectFields={(cannedId, patch) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.setDefectFields(
+ state.currentSection.id,
+ state.activeItemId,
+ cannedId,
+ patch,
+ );
+ }
+ }}
+ onItemAttribute={handleItemAttribute}
  />
  ) : (
  <div className="flex items-center justify-center h-full text-slate-400">

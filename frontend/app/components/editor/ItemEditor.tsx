@@ -1,5 +1,14 @@
 import { useState, useMemo } from "react";
 import { TabStrip } from "@core/shared-ui";
+import { DefectFieldsRow, type DefectFieldsValue } from "./DefectFieldsRow";
+import { ItemAttributesPanel } from "./ItemAttributesPanel";
+import type { ItemAttribute } from "../../lib/types";
+import { renderTemplate } from "../../lib/mustache";
+import {
+ DEFECT_TRADE_LABELS,
+ DEFECT_DEADLINE_LABELS,
+ DEFECT_TIMEFRAME_LABELS,
+} from "../../lib/defect-fields";
 
 const RATINGS = [
  {
@@ -74,20 +83,38 @@ const CANNED_TABS: Array<{ id: CannedTabId; label: string }> = [
 /* ------------------------------------------------------------------ */
 
 interface ItemEditorProps {
- item: { id: string; label: string; type: string; tabs?: unknown } | undefined;
+ item: { id: string; label: string; type: string; tabs?: unknown; attributes?: ItemAttribute[] } | undefined;
  sectionTitle: string | undefined;
  result: Record<string, unknown>;
  onRating: (rating: string) => void;
  onNotes: (notes: string) => void;
  onNotesBlur: (notes: string) => void;
  onToggleCanned?: (tabName: string, cannedId: string, included: boolean) => void;
+ defectStates?: Map<string, DefectFieldsValue>;
+ locationSuggestions?: string[];
+ onDefectFields?: (cannedId: string, patch: Partial<DefectFieldsValue>) => void;
+ missingFields?: Map<string, { location: boolean; trade: boolean }>;
+ onItemAttribute?: (itemId: string, attributeId: string, value: string | number | boolean | null) => void;
 }
 
 /* ------------------------------------------------------------------ */
 /* Component */
 /* ------------------------------------------------------------------ */
 
-export function ItemEditor({ item, sectionTitle, result, onRating, onNotes, onNotesBlur, onToggleCanned }: ItemEditorProps) {
+export function ItemEditor({
+ item,
+ sectionTitle,
+ result,
+ onRating,
+ onNotes,
+ onNotesBlur,
+ onToggleCanned,
+ defectStates,
+ locationSuggestions,
+ onDefectFields,
+ missingFields,
+ onItemAttribute,
+}: ItemEditorProps) {
  const [activeTab, setActiveTab] = useState<CannedTabId>("information");
 
  if (!item) return null;
@@ -142,6 +169,16 @@ export function ItemEditor({ item, sectionTitle, result, onRating, onNotes, onNo
  </div>
  <h2 className="text-[19px] font-bold mt-1">{item.label}</h2>
  </div>
+
+ {/* Item attributes (equipment fields: brand, year, model, etc.) */}
+ {item.attributes && item.attributes.length > 0 && (
+ <ItemAttributesPanel
+ itemId={item.id}
+ attributes={item.attributes}
+ values={(result.attributes as Record<string, string | number | boolean | null>) ?? {}}
+ onChange={onItemAttribute ?? (() => {})}
+ />
+ )}
 
  {/* Rating buttons */}
  {item.type === "rich" && (
@@ -238,11 +275,50 @@ export function ItemEditor({ item, sectionTitle, result, onRating, onNotes, onNo
  </span>
  )}
  </div>
+ {(() => {
+ const isDefectIncluded = activeTab === "defects" && isIncluded;
+ const st = isDefectIncluded ? (defectStates?.get(entry.id) ?? {}) : null;
+ // Mustache vars: defect-level fields plus the item's attribute values
+ // (brand, year, etc.) so canned-comment prose like "{{brand}} water heater"
+ // renders the inspector's filled-in value.
+ const attrEntries = result.attributes && typeof result.attributes === "object"
+ ? Object.entries(result.attributes as Record<string, unknown>)
+ : [];
+ const attrVars: Record<string, string | null> = {};
+ for (const [k, v] of attrEntries) {
+ if (v === null || v === undefined) attrVars[k] = null;
+ else if (typeof v === "string") attrVars[k] = v.length > 0 ? v : null;
+ else if (typeof v === "number" && Number.isFinite(v)) attrVars[k] = String(v);
+ else if (typeof v === "boolean") attrVars[k] = v ? "yes" : "no";
+ else attrVars[k] = null;
+ }
+ const vars = st ? {
+ location:  st.location ?? null,
+ trade:     st.trade     ? DEFECT_TRADE_LABELS[st.trade]         : null,
+ deadline:  st.deadline  ? DEFECT_DEADLINE_LABELS[st.deadline]   : null,
+ timeframe: st.timeframe ? DEFECT_TIMEFRAME_LABELS[st.timeframe] : null,
+ ...attrVars,
+ } : null;
+ return (
+ <>
  <p className={`text-[11px] mt-0.5 leading-relaxed ${
  isIncluded ? "text-ih-fg-3" : "text-ih-fg-4"
  }`}>
- {entry.comment}
+ {vars ? renderTemplate(entry.comment, vars) : entry.comment}
  </p>
+ {isDefectIncluded && (
+ <DefectFieldsRow
+ cannedId={entry.id}
+ value={st!}
+ locationSuggestions={locationSuggestions ?? []}
+ onChange={onDefectFields ?? (() => {})}
+ locationRequired={missingFields?.get(entry.id)?.location}
+ tradeRequired={missingFields?.get(entry.id)?.trade}
+ />
+ )}
+ </>
+ );
+ })()}
  </div>
  </label>
  );

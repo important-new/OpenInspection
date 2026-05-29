@@ -234,6 +234,49 @@ export function useFindings(
   );
 
   /* ---------------------------------------------------------------- */
+  /*  Defect structured fields (location / trade / deadline / timeframe) */
+  /* ---------------------------------------------------------------- */
+
+  const setDefectFields = useCallback(
+    (
+      sectionId: string,
+      itemId: string,
+      cannedId: string,
+      patch: { location?: string | null; trade?: string | null; deadline?: string | null; timeframe?: string | null },
+    ) => {
+      const key = fKey(sectionId, itemId);
+      setResults((prev) => {
+        const existing = (prev[key] as Record<string, unknown>) || {};
+        const existingTabs = (existing.tabs as Record<string, Array<Record<string, unknown>>>) || {};
+        const defects = [...(existingTabs.defects || [])];
+        const idx = defects.findIndex((d) => d.cannedId === cannedId);
+        const next: Record<string, unknown> =
+          idx >= 0 ? { ...defects[idx] } : { cannedId, included: true };
+        if ("location"  in patch) next.location  = patch.location;
+        if ("trade"     in patch) next.trade     = patch.trade;
+        if ("deadline"  in patch) next.deadline  = patch.deadline;
+        if ("timeframe" in patch) next.timeframe = patch.timeframe;
+        if (idx >= 0) defects[idx] = next;
+        else defects.push(next);
+        const updated = { ...existing, tabs: { ...existingTabs, defects } };
+        return { ...prev, [key]: updated, [itemId]: updated };
+      });
+      fetcher.submit(
+        {
+          intent: "set-defect-fields",
+          itemId,
+          sectionId,
+          cannedId,
+          patch: JSON.stringify(patch),
+        },
+        { method: "POST" },
+      );
+      setDirty(true);
+    },
+    [setResults, fetcher, setDirty],
+  );
+
+  /* ---------------------------------------------------------------- */
   /*  Comment insertion (from library)                                  */
   /* ---------------------------------------------------------------- */
 
@@ -371,6 +414,7 @@ export function useFindings(
     commitNotes,
     setItemValue,
     toggleCannedComment,
+    setDefectFields,
     insertComment,
     repeatPreviousRating,
     batchSetRating,
