@@ -83,6 +83,7 @@ import qboRoutes from './api/qbo';
 import qboWebhookRoutes from './api/qbo-webhook';
 import agreementsRenderRoutes from './api/agreements-render';
 import evidenceRoutes from './api/evidence';
+import wellKnownRoutes from './api/well-known';
 
 const app = new OpenAPIHono<HonoConfig>();
 
@@ -204,7 +205,7 @@ app.use('*', async (c, next) => {
     // Agent Accounts A3 — concierge magic-link entry points (client-facing,
     // no JWT). The token in the URL is the secret.
     const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
-    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/admin/connect') || path.startsWith('/api/admin/silo') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
+    const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/admin/connect') || path.startsWith('/api/admin/silo') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || path.startsWith('/.well-known/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
     // Design System 0520 subsystem D P5 — observer surfaces are gated by
     // the dedicated observer-cookie middleware, not JWT.
@@ -476,6 +477,8 @@ const routes = app
   .route('/api/integrations/qbo/webhook', qboWebhookRoutes)
   // Spec 5H — signed agreement render for Browser-Run PDF export (token-in-URL, no JWT).
   .route('/m2m', agreementsRenderRoutes)
+  // Spec 5H — public key discovery for independent verification of tenant signing keys.
+  .route('/.well-known', wellKnownRoutes)
   // Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
   .route('/setup', setupWizardRoutes())
 ;

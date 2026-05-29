@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, asc } from 'drizzle-orm';
 import * as schema from '../lib/db/schema';
 import type { HonoConfig } from '../types/hono';
+import QRCode from 'qrcode';
 
 const HTML_HEAD = `<!doctype html><html><head><meta charset="utf-8">
 <style>
@@ -36,6 +37,7 @@ export async function agreementRenderHandler(
   d1: D1Database,
   tenantSlug: string,
   token: string,
+  baseUrl: string = '',  // pass from route wrapper; tests pass '' which omits QR
 ): Promise<Response> {
   const db = drizzle(d1, { schema });
   const reqRow = await db.select().from(schema.agreementRequests)
@@ -71,6 +73,21 @@ export async function agreementRenderHandler(
       `</div>`;
   })() : '';
 
+  let qrHtml = '';
+  if (reqRow.verificationToken && baseUrl) {
+      const verifyUrl = `${baseUrl}/v/${reqRow.verificationToken}`;
+      try {
+          const qrSvg = await QRCode.toString(verifyUrl, { type: 'svg', margin: 1, width: 120 });
+          qrHtml = `<div style="margin-top:32px;display:flex;align-items:center;gap:16px">` +
+              qrSvg +
+              `<div style="font-size:11px;color:#475569">Verify this document at<br><code>${escapeHtml(verifyUrl)}</code></div>` +
+          `</div>`;
+      } catch (e) {
+          // QR generation failure is non-fatal; render without it
+          console.warn('[agreement-render] QR generation failed', { error: (e as Error).message });
+      }
+  }
+
   const html = HTML_HEAD +
     `<h1>${escapeHtml(agreement.name)}</h1>` +
     `<div class="body">${escapeHtml(agreement.content)}</div>` +
@@ -84,6 +101,7 @@ export async function agreementRenderHandler(
         inspectorBlock +
       `</div>` +
     `</div>` +
+    qrHtml +
     HTML_FOOT;
 
   return new Response(html, {
@@ -95,6 +113,7 @@ export async function agreementRenderHandler(
 export async function certRenderHandler(
   d1: D1Database,
   token: string,
+  baseUrl: string = '',  // pass from route wrapper; tests pass '' which omits QR
 ): Promise<Response> {
   const db = drizzle(d1, { schema });
   const reqRow = await db.select().from(schema.agreementRequests)
@@ -119,6 +138,21 @@ export async function certRenderHandler(
       <td style="padding:4px 8px"><code>${escapeHtml(r.hash.slice(0, 16))}…</code></td>
     </tr>`).join('');
 
+  let qrHtml = '';
+  if (reqRow.verificationToken && baseUrl) {
+      const verifyUrl = `${baseUrl}/v/${reqRow.verificationToken}`;
+      try {
+          const qrSvg = await QRCode.toString(verifyUrl, { type: 'svg', margin: 1, width: 120 });
+          qrHtml = `<div style="margin-top:32px;display:flex;align-items:center;gap:16px">` +
+              qrSvg +
+              `<div style="font-size:11px;color:#475569">Verify this document at<br><code>${escapeHtml(verifyUrl)}</code></div>` +
+          `</div>`;
+      } catch (e) {
+          // QR generation failure is non-fatal; render without it
+          console.warn('[cert-render] QR generation failed', { error: (e as Error).message });
+      }
+  }
+
   const html = HTML_HEAD +
     `<h1>Certificate of Completion</h1>` +
     `<p><strong>Document:</strong> Signed agreement for ${escapeHtml(clientLabel)}</p>` +
@@ -134,6 +168,7 @@ export async function certRenderHandler(
     `<p style="margin-top:32px;font-size:11px;color:#64748b">` +
       `All chain events were signed with Ed25519 and chained via SHA-256.` +
     `</p>` +
+    qrHtml +
     HTML_FOOT;
 
   return new Response(html, {
@@ -146,9 +181,9 @@ const agreementsRenderRoutes = new Hono<HonoConfig>();
 agreementsRenderRoutes.get('/agreement-render/:tenant/:token', async (c) => {
   const tenant = c.req.param('tenant');
   const token = c.req.param('token');
-  return agreementRenderHandler(c.env.DB, tenant, token);
+  return agreementRenderHandler(c.env.DB, tenant, token, c.env.APP_BASE_URL || '');
 });
 agreementsRenderRoutes.get('/cert-render/:token', async (c) =>
-  certRenderHandler(c.env.DB, c.req.param('token')));
+  certRenderHandler(c.env.DB, c.req.param('token'), c.env.APP_BASE_URL || ''));
 
 export default agreementsRenderRoutes;
