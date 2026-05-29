@@ -11,6 +11,7 @@ import { generatePdfFromUrl } from '../lib/pdf';
 import { getCookie } from 'hono/cookie';
 import { verifyObserverCookie } from '../lib/observer-cookie';
 import { OBSERVER_COOKIE_NAME } from '../lib/middleware/observer-cookie';
+import { paginationQuerySchema, PaginatedMetaSchema, buildMeta } from '../lib/validations/pagination.schema';
 import {
     InspectionListQuerySchema,
     CreateInspectionSchema,
@@ -178,34 +179,41 @@ const listTemplatesRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/templates',
     tags: ["inspections", "templates"],
-    summary: "List inspection templates for current tenant",
-    description: "Retrieve all inspection templates for the tenant. (GET /templates, inspections domain).",
+    summary: "List inspection templates (paginated)",
+    description: "Paginated list of inspection templates for the tenant.",
+    request: { query: paginationQuerySchema },
     responses: {
         200: {
             content: {
                 'application/json': {
                     schema: z.object({
-                        success: z.boolean().openapi({ example: true }).describe('TODO describe success field for the OpenInspection MCP integration'),
+                        success: z.boolean(),
                         data: z.array(z.object({
-                            id: z.string().describe('TODO describe id field for the OpenInspection MCP integration'),
-                            name: z.string().describe('TODO describe name field for the OpenInspection MCP integration'),
-                            version: z.number().describe('TODO describe version field for the OpenInspection MCP integration'),
-                            itemCount: z.number().describe('TODO describe itemCount field for the OpenInspection MCP integration'),
-                            source: z.enum(['marketplace', 'custom']).describe('TODO describe source field for the OpenInspection MCP integration'),
-                        })).describe('TODO describe data field for the OpenInspection MCP integration'),
+                            id: z.string(),
+                            name: z.string(),
+                            version: z.number(),
+                            itemCount: z.number(),
+                            source: z.enum(['marketplace', 'custom']),
+                        })),
+                        meta: PaginatedMetaSchema,
                     }),
                 },
             },
             description: 'Success',
         },
     },
-    operationId: "listInspectionTemplates"
+    operationId: "listInspectionTemplates",
 }, { scopes: ['read'], tier: 'extended' }));
 
 inspectionsRoutes.openapi(listTemplatesRoute, async (c) => {
+    const q = c.req.valid('query');
     const service = c.var.services.template;
-    const templates = await service.listTemplates(c.get('tenantId'));
-    return c.json({ success: true, data: templates }, 200);
+    const { rows, total } = await service.listTemplates(c.get('tenantId'), q);
+    return c.json({
+        success: true,
+        data: rows,
+        meta: buildMeta({ total, page: q.page, pageSize: q.pageSize }),
+    }, 200);
 });
 
 /**

@@ -3,6 +3,8 @@ import { useLoaderData, useFetcher, useNavigate, Link } from "react-router";
 import type { Route } from "./+types/templates";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { Pagination } from "@core/shared-ui";
+import { usePagination } from "~/hooks/usePagination";
 
 export function meta() {
   return [{ title: "Templates - OpenInspection" }];
@@ -37,12 +39,26 @@ interface Template {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
-    const res = await apiFetch(context, "/api/inspections/templates", { token });
-    const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
+    const url = new URL(request.url);
+    const page     = url.searchParams.get("page")     ?? "1";
+    const pageSize = url.searchParams.get("pageSize") ?? "50";
+    const res = await apiFetch(
+      context,
+      `/api/inspections/templates?page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`,
+      { token },
+    );
+    const body = res.ok
+      ? ((await res.json()) as { data?: unknown[]; meta?: { total: number; page: number; pageSize: number; totalPages: number } })
+      : { data: [], meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 } };
     const templates = (body.data ?? []) as Template[];
-    return { templates, token };
+    const meta = body.meta ?? { total: 0, page: 1, pageSize: 50, totalPages: 1 };
+    return { templates, meta, token };
   } catch {
-    return { templates: [] as Template[], token: "" };
+    return {
+      templates: [] as Template[],
+      meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 },
+      token: "",
+    };
   }
 }
 
@@ -149,9 +165,10 @@ function countItems(t: Template): number {
 /* ------------------------------------------------------------------ */
 
 export default function TemplatesPage() {
-  const { templates } = useLoaderData<typeof loader>();
+  const { templates, meta } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const navigate = useNavigate();
+  const { setPage, setPageSize } = usePagination();
 
   const [view, setView] = useState<"list" | "card">("list");
   const [searchQuery, setSearchQuery] = useState("");
@@ -426,6 +443,15 @@ export default function TemplatesPage() {
           )}
         </div>
       )}
+
+      <Pagination
+        page={meta.page}
+        pageSize={meta.pageSize}
+        total={meta.total}
+        totalPages={meta.totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
 
       {/* Create modal */}
       {createOpen && (
