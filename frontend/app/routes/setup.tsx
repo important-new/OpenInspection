@@ -75,7 +75,7 @@ export default function SetupPage() {
     <div className="min-h-screen flex items-center justify-center bg-ih-bg-app">
       <div className="w-full max-w-md p-8">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/logo.svg" alt="" className="w-8 h-8" />
+          <img src="/logo.svg" alt="" className="w-8 h-8" width={32} height={32} />
           <span className="text-lg font-bold text-ih-fg-1">
             OpenInspection
           </span>

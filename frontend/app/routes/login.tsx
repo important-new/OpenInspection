@@ -30,7 +30,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       const text = await res.text().catch(() => "");
       console.error("[login] API error:", res.status, res.statusText, text.slice(0, 500));
       let parsed: Record<string, unknown> = {};
-      try { parsed = JSON.parse(text); } catch {}
+      try { parsed = JSON.parse(text); } catch { /* response wasn't JSON — fall through to default error */ }
       return {
         error:
           (parsed?.error as Record<string, string>)?.message ??
@@ -62,7 +62,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-ih-bg-app">
       <div className="w-full max-w-md p-8">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/logo.svg" alt="" className="w-8 h-8" />
+          <img src="/logo.svg" alt="" className="w-8 h-8" width={32} height={32} />
           <span className="text-lg font-bold text-ih-fg-1">
             OpenInspection
           </span>

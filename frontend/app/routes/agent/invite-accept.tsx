@@ -124,7 +124,7 @@ export default function AgentInviteAcceptPage() {
       <div className="max-w-[540px] mx-auto px-6 py-14">
         {/* Brand */}
         <div className="flex items-center gap-3 mb-10">
-          <img src="/logo.svg" alt="" className="w-8 h-8" />
+          <img src="/logo.svg" alt="" className="w-8 h-8" width={32} height={32} />
           <span className="font-serif font-bold text-lg tracking-tight text-ih-fg-1">
             OpenInspection
           </span>
