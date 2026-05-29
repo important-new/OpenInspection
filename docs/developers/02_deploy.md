@@ -55,8 +55,10 @@ Set them via `wrangler secret put SECRET_NAME` or through the Cloudflare dashboa
 ### Deploy API Worker
 
 ```bash
-npm run deploy
-# applies remote D1 migrations, rebuilds Tailwind CSS, and ships the API Worker
+npm run deploy:api
+# Applies remote D1 migrations, rebuilds Tailwind CSS, and ships the API
+# Worker via the standalone wrangler config (the default env). For SaaS:
+# npm run deploy:api:saas
 ```
 
 After the API Worker boots, visit `https://<your-worker>.workers.dev/setup` and enter the 6-digit setup code. **The code itself is not printed in logs** — recover it with one of:
@@ -69,10 +71,10 @@ That bootstraps your first admin account.
 ### Deploy Frontend Worker
 
 ```bash
-cd frontend
-cp wrangler.toml.example wrangler.toml   # edit API_URL + SESSION_SECRET
+cp frontend/wrangler.toml.example frontend/wrangler.toml   # edit API_URL + SESSION_SECRET
 npm install
-npm run deploy                            # = react-router build && wrangler deploy
+npm run deploy:web                                          # web only
+# or `npm run deploy` to deploy api + web together
 ```
 
 The Worker entry at `frontend/workers/app.ts` calls `createRequestHandler` with `import("virtual:react-router/server-build")` and passes `{ cloudflare: { env, ctx } }` as the React Router `AppLoadContext`. `@cloudflare/vite-plugin` integrates the React Router SSR build with wrangler, so the standard `wrangler deploy` pipeline works without a custom script.
@@ -81,9 +83,11 @@ The Service Binding to the API Worker (`API_WORKER`, see table above) is declare
 
 ### Deploy order
 
-1. Deploy the **API Worker** first (`npm run deploy:standalone` from root)
-2. Deploy the **Frontend Worker** second (`cd frontend && npm run deploy`)
+1. Deploy the **API Worker** first (`npm run deploy:api` from root)
+2. Deploy the **Frontend Worker** second (`npm run deploy:web` from root)
 3. Point your domain's DNS to the Frontend Worker (it is the public-facing entry point)
+
+Or run `npm run deploy` to do both in order in a single command.
 
 ### Local development
 

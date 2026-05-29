@@ -30,10 +30,10 @@ cd apps/core
 npm run rotate:jwt
 
 # 2. Redeploy both workers so they pick up the new env var bindings
-npm run deploy           # openinspection-api (OSS one-click default)
-npm run deploy:standalone # openinspection-api (test environment, real CF IDs)
-npm run deploy:saas      # openinspection-saas-api
+npm run deploy            # api + web, standalone env (= deploy:standalone)
+npm run deploy:saas       # api + web, saas env
 cd ../portal && npm run deploy
+cd ../portal && npm run deploy:saas
 
 # 3. Wait at least the maximum JWT TTL since rotation
 #    (default ~24h; check your auth.ts setExpirationTime() value)

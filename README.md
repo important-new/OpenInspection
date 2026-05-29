@@ -67,11 +67,12 @@ Not ready to commit to running infrastructure? Spin up a managed workspace at [*
 
 1. Click the **Deploy to Cloudflare** button above — this deploys the API Worker
 2. Follow the dashboard prompts to provision the bindings declared in `wrangler.toml.example`: one D1 database, two R2 buckets (`PHOTOS` + `REPORTS`), and one KV namespace (`TENANT_CACHE`). The standalone profile additionally declares two Durable Object classes and one Workflow — Cloudflare creates these on first deploy.
-3. Deploy the frontend Worker:
+3. Configure the frontend Worker config and run the deploy script from root:
    ```bash
-   cd frontend
-   cp wrangler.toml.example wrangler.toml   # then edit API_URL + SESSION_SECRET
-   npm install && npm run deploy            # = react-router build && wrangler deploy
+   cp frontend/wrangler.toml.example frontend/wrangler.toml   # edit API_URL + SESSION_SECRET
+   npm install
+   npm run deploy:web                                          # web only
+   # or npm run deploy to deploy api + web together
    ```
 4. Visit your API Worker URL → `/setup` (e.g., `https://openinspection.your-account.workers.dev/setup`)
 5. A 6-digit setup code is generated on first boot. The code itself is **not** printed in logs — recover it with one of:

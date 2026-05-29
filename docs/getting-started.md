@@ -74,8 +74,9 @@ npm run dev                    # http://localhost:5173 (proxies API)
 | `npm run dev` | Start API Worker (port 8788) |
 | `cd frontend && npm run dev` | Start React Router v7 dev server (port 5173) |
 | `npm run db:migrate` | Apply D1 migrations locally |
-| `npm run deploy` | Deploy API Worker to Cloudflare |
-| `cd frontend && npm run deploy` | Deploy Frontend Worker (= `react-router build && wrangler deploy`) |
+| `npm run deploy` | Deploy api + web (standalone env) |
+| `npm run deploy:api` / `npm run deploy:web` | Deploy a single module |
+| `npm run deploy:saas` | Deploy api + web (saas env) |
 | `npm run test:unit` | API unit tests (Vitest) |
 | `npm run lint` | ESLint across all workspaces |
 

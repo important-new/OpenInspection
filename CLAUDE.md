@@ -14,15 +14,26 @@ npm run db:migrate   # Apply D1 migrations locally
 npm run type-check   # Run TypeScript type checks
 npm run lint         # Lint the codebase
 npm run test:unit    # Run unit tests via Vitest
-npm run deploy       # Build CSS + deploy API Worker to Cloudflare Workers
+
+# Deploy — all from root, scheme is `deploy[:module][:env]`.
+# Omit module → both api + web. Default env for core is standalone.
+npm run deploy                  # api + web (standalone)
+npm run deploy:api              # api only (standalone)
+npm run deploy:web              # web only
+npm run deploy:standalone       # explicit alias for deploy
+npm run deploy:saas             # api (saas) + web (saas alias)
+npm run deploy:api:standalone   # api (standalone), explicit
+npm run deploy:api:saas         # api (saas)
+npm run deploy:web:standalone   # web (standalone), explicit
+npm run deploy:web:saas         # web (currently same as standalone — no web saas variant yet)
 
 # Frontend Worker (frontend/)
 cd frontend
 npm install
 npm run dev          # Start React Router v7 dev server (port 5173, proxies API to 8788)
 npm run build        # Build React Router v7 frontend for production
-npm run deploy       # Build + deploy Frontend Worker to Cloudflare Workers
 npm run type-check   # Frontend TypeScript checks
+# Deploy from root: `npm run deploy:web` (no per-directory deploy script)
 
 # E2E Tests
 npm run test:e2e              # API E2E tests (Playwright, api/tests/)
