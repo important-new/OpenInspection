@@ -97,7 +97,7 @@ coreAuthRoutes.openapi(loginRoute, async (c) => {
     // out cleanly instead of attempting credential validation against
     // a per-(tenant_id,email) row they can't disambiguate.
     const profile = c.var.profile;
-    if (profile?.mode === 'saas' && profile?.saasTopology === 'shared') {
+    if (profile?.mode === 'saas') {
         const portal = c.env.PORTAL_API_URL?.replace(/\/$/, '') ?? null;
         return c.json({
             success: false,
@@ -356,7 +356,7 @@ coreAuthRoutes.openapi(forgotPasswordRoute, async (c) => {
     // guard on POST /api/auth/login. Password resets must go through the
     // workspace portal which owns the identity layer for shared tenants.
     const profile = c.var.profile;
-    if (profile?.mode === 'saas' && profile?.saasTopology === 'shared') {
+    if (profile?.mode === 'saas') {
         return c.json({
             success: false as const,
             error: {

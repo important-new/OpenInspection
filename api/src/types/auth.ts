@@ -43,7 +43,7 @@ export interface BrandingConfig {
      *  login/forgot-password handlers can 302 to the portal-issued sign-in
      *  flow instead of presenting a local form that can no longer
      *  disambiguate which `(tenantId, email)` row to authenticate against. */
-    isSharedSaas?: boolean | undefined;
+    isSaas?: boolean | undefined;
     /** Portal base URL exposed to the browser for the "Switch workspace"
      *  link and login bounce. Resolved from `PORTAL_API_URL` at request
      *  time. Null when running standalone or when `PORTAL_API_URL` is

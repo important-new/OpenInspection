@@ -79,7 +79,7 @@ app.get('/context', async (c) => {
                 logoUrl: branding?.logoUrl || null,
                 gaMeasurementId: branding?.gaMeasurementId || null,
                 reportTheme: branding?.reportTheme || 'modern',
-                isSharedSaas: branding?.isSharedSaas || false,
+                isSaas: branding?.isSaas || false,
                 portalBaseUrl: branding?.portalBaseUrl || null,
                 tenantSubdomain: branding?.tenantSubdomain || null,
                 tenantStatus: branding?.tenantStatus || 'active',
