@@ -77,7 +77,7 @@ export const brandingMiddleware: MiddlewareHandler<HonoConfig> = async (c, next)
             gaMeasurementId: config.gaMeasurementId || defaultBranding.gaMeasurementId,
             reportTheme: (config.reportTheme || 'modern') as 'modern' | 'classic' | 'minimal',
             // Deployment flags re-applied — these are intentionally NOT cached
-            // because they depend on env (APP_MODE/SAAS_TOPOLOGY/PORTAL_API_URL)
+            // because they depend on env (APP_MODE/PORTAL_API_URL)
             // rather than on per-tenant config, so a tenant moving between
             // standalone and shared during a deploy should pick up the new
             // value on the next request without waiting for the KV TTL.

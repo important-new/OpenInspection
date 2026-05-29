@@ -65,7 +65,6 @@ export interface AppEnv {
     CF_ACCOUNT_ID?: string;
     CF_API_TOKEN?: string;
     APP_MODE?: 'standalone' | 'saas';
-    SAAS_TOPOLOGY?: 'shared' | 'silo';
     SETUP_CODE?: string;
 
     // Payments
