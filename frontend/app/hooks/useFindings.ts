@@ -41,6 +41,26 @@ export interface CustomCommentEntry {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Pure helpers                                                       */
+/* ------------------------------------------------------------------ */
+
+export function cloneByScope(
+    src: Record<string, unknown>,
+    scope: 'rating' | 'rating_notes' | 'all',
+): Record<string, unknown> {
+    if (scope === 'all') return { ...src };
+    if (scope === 'rating_notes') {
+        const next: Record<string, unknown> = {};
+        if ('rating' in src) next.rating = src.rating;
+        if ('notes' in src)  next.notes  = src.notes;
+        return next;
+    }
+    const next: Record<string, unknown> = {};
+    if ('rating' in src) next.rating = src.rating;
+    return next;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Hook                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -312,30 +332,28 @@ export function useFindings(
   /*  Repeat previous rating (R key)                                   */
   /* ---------------------------------------------------------------- */
 
-  const repeatPreviousRating = useCallback(
+
+  const cloneLast = useCallback(
     (
       sectionId: string,
       itemId: string,
       sectionItems: Array<{ id: string }>,
+      scope: 'rating' | 'rating_notes' | 'all',
     ): boolean => {
       const activeIdx = sectionItems.findIndex((it) => it.id === itemId);
       let priorResult: Record<string, unknown> | null = null;
       for (let i = activeIdx - 1; i >= 0; i--) {
         const r = getResult(sectionItems[i].id, sectionId);
-        if (r && r.rating) {
-          priorResult = r;
-          break;
-        }
+        if (r && r.rating) { priorResult = r; break; }
       }
       if (!priorResult) return false;
-      // Clone entire result to active item
+      const projected = cloneByScope(priorResult, scope);
       const key = fKey(sectionId, itemId);
-      const cloned = JSON.parse(JSON.stringify(priorResult));
-      setResults((prev) => ({
-        ...prev,
-        [key]: cloned,
-        [itemId]: cloned,
-      }));
+      setResults((prev) => {
+        const existing = (prev[key] as Record<string, unknown>) || {};
+        const updated = { ...existing, ...projected };
+        return { ...prev, [key]: updated, [itemId]: updated };
+      });
       setDirty(true);
       return true;
     },
@@ -416,7 +434,7 @@ export function useFindings(
     toggleCannedComment,
     setDefectFields,
     insertComment,
-    repeatPreviousRating,
+    cloneLast,
     batchSetRating,
     addPhotoToItem,
     getPhotoCount,

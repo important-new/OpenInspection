@@ -6,6 +6,8 @@ import { apiFetch } from "~/lib/api.server";
 import { useInspectionState } from "~/hooks/useInspection";
 import type { RatingLevel, ResultMap } from "~/hooks/useInspection";
 import { useFindings } from "~/hooks/useFindings";
+import { useInspectionPrefs } from "~/hooks/useInspectionPrefs";
+import { pushToast } from "~/hooks/useToast";
 import { useKeyboard } from "~/hooks/useKeyboard";
 import { useCannedComments } from "~/hooks/useCannedComments";
 import { useOfflineQueue } from "~/hooks/useOfflineQueue";
@@ -16,6 +18,7 @@ import { SectionRail } from "~/components/editor/SectionRail";
 import { ProgressStripText } from "~/components/editor/ProgressStripText";
 import { ItemList } from "~/components/editor/ItemList";
 import { ItemEditor } from "~/components/editor/ItemEditor";
+import { TagChipRow, type TagPin } from "~/components/editor/TagChipRow";
 import type { DefectFieldsValue } from "~/components/editor/DefectFieldsRow";
 import { SideRail } from "~/components/editor/SideRail";
 import { SpeedMode } from "~/components/editor/SpeedMode";
@@ -28,6 +31,7 @@ import { PropertyInfoForm } from "~/components/editor/PropertyInfoForm";
 import { InspectionSettingsSheet } from "~/components/editor/InspectionSettingsSheet";
 import { SignaturePad } from "~/components/SignaturePad";
 import { PublishGateModal } from "~/components/editor/PublishGateModal";
+import { ToastPortal } from "~/components/Toast";
 import type { PublishReadiness, PublishBlockingDefect } from "~/lib/types";
 
 export function meta() {
@@ -249,6 +253,41 @@ export default function InspectionEditPage() {
  });
 
  /* ---------------------------------------------------------------- */
+ /* Inspection prefs (tenant clone scope, auto-advance delay, pinned tags) */
+ /* ---------------------------------------------------------------- */
+
+ const { prefs: inspectionPrefs } = useInspectionPrefs();
+
+ /* ---------------------------------------------------------------- */
+ /* Tag library fetch + memos */
+ /* ---------------------------------------------------------------- */
+
+ const [tagLibrary, setTagLibrary] = useState<TagPin[]>([]);
+ useEffect(() => {
+ (async () => {
+ try {
+ const res = await fetch('/api/tags', { credentials: 'include' });
+ if (res.ok) {
+ const body = await res.json() as { data?: Array<{ id: string; name: string; color: string }> };
+ setTagLibrary(body.data ?? []);
+ }
+ } catch { /* noop */ }
+ })();
+ }, []);
+
+ const pinnedTags = useMemo(() => {
+ return inspectionPrefs.pinnedTagIds
+ .map(id => tagLibrary.find(t => t.id === id))
+ .filter((t): t is TagPin => Boolean(t));
+ }, [inspectionPrefs.pinnedTagIds, tagLibrary]);
+
+ const activeTagIds = useMemo(() => {
+ if (!state.activeItemId) return new Set<string>();
+ const tags = state.tagsByItem?.[state.activeItemId] || [];
+ return new Set(tags.map((t: { id: string }) => t.id));
+ }, [state.activeItemId, state.tagsByItem]);
+
+ /* ---------------------------------------------------------------- */
  /* Publish gate state (declared early — used in missingFields memo below) */
  /* ---------------------------------------------------------------- */
 
@@ -453,6 +492,28 @@ export default function InspectionEditPage() {
   }));
  }, [state.activeItemId, state.tagsByItem, state.setTagsByItem]);
 
+ /* ---------------------------------------------------------------- */
+ /* Tag chip row + clone-last handler for ItemEditor */
+ /* ---------------------------------------------------------------- */
+
+ const tagChipRow = state.activeItemId ? (
+  <TagChipRow
+   pinnedTags={pinnedTags}
+   activeTagIds={activeTagIds}
+   onToggle={(tag) => toggleTag(tag)}
+  />
+ ) : null;
+
+ const handleCloneLast = useCallback((scope: 'rating' | 'rating_notes' | 'all') => {
+  if (!state.activeItemId || !state.currentSection) return;
+  findings.cloneLast(
+   state.currentSection.id,
+   state.activeItemId,
+   state.currentSectionItems as Array<{ id: string }>,
+   scope,
+  );
+ }, [findings, state.activeItemId, state.currentSection, state.currentSectionItems]);
+
  useEffect(() => {
   if (!tagPickerOpen) return;
   const handler = (e: KeyboardEvent) => {
@@ -488,9 +549,23 @@ export default function InspectionEditPage() {
  (rating: string) => {
  if (!state.activeItemId || !state.currentSection) return;
  findings.setRating(state.currentSection.id, state.activeItemId, rating);
- setTimeout(() => state.advanceToNextUnrated(), 150);
+ const level = state.ratingLevels?.find((l: { id: string; pausesAdvance?: boolean }) => l.id === rating);
+ if (level?.pausesAdvance) {
+ const ta = document.getElementById('notes-textarea') as HTMLTextAreaElement | null;
+ ta?.focus({ preventScroll: true });
+ return;
+ }
+ setTimeout(
+ () => state.advanceToNextUnrated((newSectionTitle: string) => {
+ pushToast({
+ message: `Entered next section: ${newSectionTitle}`,
+ durationMs: 2500,
+ });
+ }),
+ inspectionPrefs.autoAdvanceDelayMs,
+ );
  },
- [state.activeItemId, state.currentSection, findings, state.advanceToNextUnrated],
+ [state.activeItemId, state.currentSection, findings, state.advanceToNextUnrated, state.ratingLevels, inspectionPrefs.autoAdvanceDelayMs],
  );
 
  /* ---------------------------------------------------------------- */
@@ -748,14 +823,7 @@ export default function InspectionEditPage() {
  },
  onSave: () => findings.saveNow(),
  onPublish: () => state.setShowPublishModal(true),
- onRepeatRating: () => {
- if (!state.activeItemId || !state.currentSection) return;
- findings.repeatPreviousRating(
- state.currentSection.id,
- state.activeItemId,
- state.currentSectionItems,
- );
- },
+ onCloneLast: () => handleCloneLast(inspectionPrefs.cloneDefault),
  onSaveAsSnippet: () => {
  if (!state.activeItemId) return;
  const r = state.getResult(state.activeItemId);
@@ -820,6 +888,7 @@ export default function InspectionEditPage() {
 
  return (
  <div className="flex h-screen bg-ih-bg-card">
+ <ToastPortal />
  {/* Hidden photo input */}
  <input
  ref={photoInputRef}
@@ -1603,6 +1672,9 @@ export default function InspectionEditPage() {
  }
  }}
  onItemAttribute={handleItemAttribute}
+ onCloneLast={handleCloneLast}
+ cloneDefaultScope={inspectionPrefs.cloneDefault}
+ tagChipRow={tagChipRow}
  />
  ) : (
  <div className="flex items-center justify-center h-full text-slate-400">
