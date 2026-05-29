@@ -42,7 +42,7 @@ import { PatchItemFieldSchema } from '../lib/validations/inspection-patch.schema
 import { CreateInspectionFromWizardSchema } from '../lib/validations/wizard.schema';
 import { CreateUnitSchema, UpdateUnitSchema, MoveUnitSchema } from '../lib/validations/unit.schema';
 import { drizzle } from 'drizzle-orm/d1';
-import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, agreementRequests, users, contacts, inspectionUnits } from '../lib/db/schema';
+import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, users, contacts } from '../lib/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { SignatureUser } from '../lib/inspector-signature';
@@ -185,15 +185,13 @@ const listTemplatesRoute = createRoute(withMcpMetadata({
                 'application/json': {
                     schema: z.object({
                         success: z.boolean().openapi({ example: true }).describe('TODO describe success field for the OpenInspection MCP integration'),
-                        data: z.object({
-                            templates: z.array(z.object({
-                                id: z.string().describe('TODO describe id field for the OpenInspection MCP integration'),
-                                name: z.string().describe('TODO describe name field for the OpenInspection MCP integration'),
-                                version: z.number().describe('TODO describe version field for the OpenInspection MCP integration'),
-                                itemCount: z.number().optional().describe('TODO describe itemCount field for the OpenInspection MCP integration'),
-                                source: z.enum(['marketplace', 'custom']).optional().describe('TODO describe source field for the OpenInspection MCP integration'),
-                            })).describe('TODO describe templates field for the OpenInspection MCP integration'),
-                        }),
+                        data: z.array(z.object({
+                            id: z.string().describe('TODO describe id field for the OpenInspection MCP integration'),
+                            name: z.string().describe('TODO describe name field for the OpenInspection MCP integration'),
+                            version: z.number().describe('TODO describe version field for the OpenInspection MCP integration'),
+                            itemCount: z.number().describe('TODO describe itemCount field for the OpenInspection MCP integration'),
+                            source: z.enum(['marketplace', 'custom']).describe('TODO describe source field for the OpenInspection MCP integration'),
+                        })).describe('TODO describe data field for the OpenInspection MCP integration'),
                     }),
                 },
             },
@@ -477,13 +475,13 @@ const listInspectorsRoute = createRoute(withMcpMetadata({
                 'application/json': {
                     schema: z.object({
                         success: z.boolean().openapi({ example: true }).describe('TODO describe success field for the OpenInspection MCP integration'),
-                        data: z.object({
-                            inspectors: z.array(z.object({
-                                id: z.string().describe('TODO describe id field for the OpenInspection MCP integration'),
-                                email: z.string().describe('TODO describe email field for the OpenInspection MCP integration'),
-                                role: z.string().describe('TODO describe role field for the OpenInspection MCP integration'),
-                            })).describe('TODO describe inspectors field for the OpenInspection MCP integration'),
-                        }),
+                        data: z.array(z.object({
+                            id: z.string().describe('TODO describe id field for the OpenInspection MCP integration'),
+                            email: z.string().describe('TODO describe email field for the OpenInspection MCP integration'),
+                            role: z.string().describe('TODO describe role field for the OpenInspection MCP integration'),
+                            // Handler returns raw service rows; createdAt is a Date instance.
+                            createdAt: z.date().describe('TODO describe createdAt field for the OpenInspection MCP integration'),
+                        })).describe('TODO describe data field for the OpenInspection MCP integration'),
                     }),
                 },
             },
@@ -863,7 +861,7 @@ const getResultsRoute = createRoute(withMcpMetadata({
         200: {
             content: {
                 'application/json': {
-                    schema: createApiResponseSchema(z.object({ data: z.record(z.string(), z.unknown()).describe('TODO describe data field for the OpenInspection MCP integration') })),
+                    schema: createApiResponseSchema(z.object({ results: z.record(z.string(), z.unknown()).describe('TODO describe results field for the OpenInspection MCP integration') })),
                 },
             },
             description: 'Success',
@@ -1030,7 +1028,7 @@ const aggregateRecommendationsRoute = createRoute(withMcpMetadata({
 inspectionsRoutes.openapi(aggregateRecommendationsRoute, async (c) => {
     const { id } = c.req.valid('param');
     const tenantId = c.get('tenantId') as string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const db = drizzle(c.env.DB);
     const row = await db.select().from(inspectionResults)
         .where(and(eq(inspectionResults.inspectionId, id), eq(inspectionResults.tenantId, tenantId))).get();
@@ -1198,10 +1196,9 @@ const uploadPhotoRoute = createRoute(withMcpMetadata({
                 'application/json': {
                     schema: createApiResponseSchema(z.object({
                         key: z.string().describe('TODO describe key field for the OpenInspection MCP integration'),
-                        success: z.boolean().describe('TODO describe success field for the OpenInspection MCP integration'),
-                        targetType: z.enum(['item', 'defect']).optional().describe('TODO describe targetType field for the OpenInspection MCP integration'),
-                        itemId: z.string().optional().describe('TODO describe itemId field for the OpenInspection MCP integration'),
-                        customId: z.string().nullable().optional().describe('TODO describe customId field for the OpenInspection MCP integration'),
+                        targetType: z.enum(['item', 'defect']).describe('TODO describe targetType field for the OpenInspection MCP integration'),
+                        itemId: z.string().describe('TODO describe itemId field for the OpenInspection MCP integration'),
+                        customId: z.string().nullable().describe('TODO describe customId field for the OpenInspection MCP integration'),
                     })),
                 },
             },

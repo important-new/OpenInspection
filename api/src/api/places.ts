@@ -46,13 +46,16 @@ const autocompleteRoute = createRoute(withMcpMetadata({
     responses: {
         200: {
             content: { 'application/json': { schema: z.object({
-                results: z.array(z.object({
+                success: z.literal(true),
+                data: z.array(z.object({
                     placeId: z.string().describe('TODO describe placeId field for the OpenInspection MCP integration'),
                     description: z.string().describe('TODO describe description field for the OpenInspection MCP integration'),
                     mainText: z.string().describe('TODO describe mainText field for the OpenInspection MCP integration'),
                     secondaryText: z.string().describe('TODO describe secondaryText field for the OpenInspection MCP integration'),
-                })).describe('TODO describe results field for the OpenInspection MCP integration'),
-                cached: z.boolean().describe('TODO describe cached field for the OpenInspection MCP integration'),
+                })).describe('TODO describe data field for the OpenInspection MCP integration'),
+                meta: z.object({
+                    cached: z.boolean().describe('TODO describe cached field for the OpenInspection MCP integration'),
+                }),
             }) } },
             description: 'Autocomplete suggestions',
         },
@@ -132,16 +135,21 @@ const detailsRoute = createRoute(withMcpMetadata({
     responses: {
         200: {
             content: { 'application/json': { schema: z.object({
-                placeId: z.string().describe('TODO describe placeId field for the OpenInspection MCP integration'),
-                formatted: z.string().describe('TODO describe formatted field for the OpenInspection MCP integration'),
-                street: z.string().nullable().describe('TODO describe street field for the OpenInspection MCP integration'),
-                city: z.string().nullable().describe('TODO describe city field for the OpenInspection MCP integration'),
-                state: z.string().nullable().describe('TODO describe state field for the OpenInspection MCP integration'),
-                zip: z.string().nullable().describe('TODO describe zip field for the OpenInspection MCP integration'),
-                county: z.string().nullable().describe('TODO describe county field for the OpenInspection MCP integration'),
-                lat: z.number().describe('TODO describe lat field for the OpenInspection MCP integration'),
-                lng: z.number().describe('TODO describe lng field for the OpenInspection MCP integration'),
-                cached: z.boolean().describe('TODO describe cached field for the OpenInspection MCP integration'),
+                success: z.literal(true),
+                data: z.object({
+                    placeId: z.string().describe('TODO describe placeId field for the OpenInspection MCP integration'),
+                    formatted: z.string().describe('TODO describe formatted field for the OpenInspection MCP integration'),
+                    street: z.string().nullable().describe('TODO describe street field for the OpenInspection MCP integration'),
+                    city: z.string().nullable().describe('TODO describe city field for the OpenInspection MCP integration'),
+                    state: z.string().nullable().describe('TODO describe state field for the OpenInspection MCP integration'),
+                    zip: z.string().nullable().describe('TODO describe zip field for the OpenInspection MCP integration'),
+                    county: z.string().nullable().describe('TODO describe county field for the OpenInspection MCP integration'),
+                    lat: z.number().describe('TODO describe lat field for the OpenInspection MCP integration'),
+                    lng: z.number().describe('TODO describe lng field for the OpenInspection MCP integration'),
+                }),
+                meta: z.object({
+                    cached: z.boolean().describe('TODO describe cached field for the OpenInspection MCP integration'),
+                }),
             }).describe('TODO describe schema field for the OpenInspection MCP integration') } },
             description: 'Place details',
         },

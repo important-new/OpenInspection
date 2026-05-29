@@ -192,16 +192,15 @@ export const ImportResponseSchema = createApiResponseSchema(z.object({
     }).describe('TODO describe imported field for the OpenInspection MCP integration'),
 })).openapi('ImportResponse');
 
-export const AgreementListResponseSchema = createApiResponseSchema(z.object({
-    agreements: z.array(z.object({
-        id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration'),
-        tenantId: z.string().uuid().describe('TODO describe tenantId field for the OpenInspection MCP integration'),
-        name: z.string().describe('TODO describe name field for the OpenInspection MCP integration'),
-        content: z.string().describe('TODO describe content field for the OpenInspection MCP integration'),
-        version: z.number().describe('TODO describe version field for the OpenInspection MCP integration'),
-        createdAt: z.string().describe('TODO describe createdAt field for the OpenInspection MCP integration'),
-    })).describe('TODO describe agreements field for the OpenInspection MCP integration'),
-})).openapi('AgreementListResponse');
+export const AgreementListResponseSchema = createApiResponseSchema(z.array(z.object({
+    id: z.string().uuid().describe('TODO describe id field for the OpenInspection MCP integration'),
+    tenantId: z.string().uuid().describe('TODO describe tenantId field for the OpenInspection MCP integration'),
+    name: z.string().describe('TODO describe name field for the OpenInspection MCP integration'),
+    content: z.string().describe('TODO describe content field for the OpenInspection MCP integration'),
+    version: z.number().describe('TODO describe version field for the OpenInspection MCP integration'),
+    // Handler returns the raw Drizzle row; createdAt is a Date instance, not ISO string.
+    createdAt: z.date().describe('TODO describe createdAt field for the OpenInspection MCP integration'),
+}))).openapi('AgreementListResponse');
 
 export const SendAgreementSchema = z.object({
     agreementId: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }).describe('TODO describe agreementId field for the OpenInspection MCP integration'),
