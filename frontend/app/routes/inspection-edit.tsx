@@ -32,6 +32,10 @@ import { InspectionSettingsSheet } from "~/components/editor/InspectionSettingsS
 import { SignaturePad } from "~/components/SignaturePad";
 import { PublishGateModal } from "~/components/editor/PublishGateModal";
 import { ToastPortal } from "~/components/Toast";
+import { useIsMobile } from "~/hooks/useBreakpoint";
+import { MobileAppBar } from "~/components/editor/MobileAppBar";
+import { MobileDrawerTriggers, type MobileDrawerId } from "~/components/editor/MobileDrawerTriggers";
+import { MobileBottomDrawer } from "~/components/MobileBottomDrawer";
 import type { PublishReadiness, PublishBlockingDefect } from "~/lib/types";
 
 export function meta() {
@@ -518,6 +522,10 @@ export default function InspectionEditPage() {
  const [photoStudioIndex, setPhotoStudioIndex] = useState(0);
  const [photoStudioTotal, setPhotoStudioTotal] = useState(0);
 
+ /* Mobile shell state */
+ const isMobile = useIsMobile();
+ const [mobileDrawer, setMobileDrawer] = useState<MobileDrawerId | null>(null);
+
  const PRESET_TAGS = useMemo(() => [
   { id: "follow-up", name: "Follow Up", color: "#ef4444" },
   { id: "urgent", name: "Urgent", color: "#f97316" },
@@ -933,8 +941,169 @@ export default function InspectionEditPage() {
  }, [state]);
 
  /* ---------------------------------------------------------------- */
+ /* Hoisted column elements (shared between desktop + mobile shells) */
+ /* ---------------------------------------------------------------- */
+
+ const sectionRailEl = (
+ <SectionRail
+ sections={state.sections}
+ activeSection={state.currentSection?.id || ""}
+ onSelect={(id) => {
+ state.selectSectionById(id);
+ if (isMobile) setMobileDrawer(null);
+ }}
+ results={state.results}
+ sectionProgress={state.sectionProgress}
+ sectionDefectCount={state.sectionDefectCount}
+ />
+ );
+
+ const itemListEl = (
+ <ItemList
+ items={visibleItems}
+ sectionId={state.currentSection?.id || ""}
+ activeItemId={state.activeItemId}
+ onSelect={(id) => {
+ state.setActiveItemId(id);
+ if (isMobile) setMobileDrawer(null);
+ }}
+ results={state.results}
+ batchMode={state.batchMode}
+ batchSelected={state.batchSelected}
+ onBatchToggle={(id) => state.toggleBatchSelect(id)}
+ />
+ );
+
+ const itemEditorEl = state.activeItemId ? (
+ <ItemEditor
+ item={state.activeItem || undefined}
+ sectionTitle={state.currentSection?.title}
+ result={
+ state.activeItemId
+ ? findings.getResult(
+ state.activeItemId,
+ state.currentSection?.id,
+ )
+ : {}
+ }
+ onRating={handleRating}
+ onNotes={(notes) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.setNotes(
+ state.currentSection.id,
+ state.activeItemId,
+ notes,
+ );
+ }
+ }}
+ onNotesBlur={(notes) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.commitNotes(
+ state.currentSection.id,
+ state.activeItemId,
+ notes,
+ );
+ }
+ }}
+ onToggleCanned={(tabName, cannedId, included) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.toggleCannedComment(
+ state.currentSection.id,
+ state.activeItemId,
+ tabName,
+ cannedId,
+ included,
+ );
+ }
+ }}
+ defectStates={defectStates}
+ locationSuggestions={locationSuggestions}
+ missingFields={missingFields}
+ onDefectFields={(cannedId, patch) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.setDefectFields(
+ state.currentSection.id,
+ state.activeItemId,
+ cannedId,
+ patch,
+ );
+ }
+ }}
+ onItemAttribute={handleItemAttribute}
+ onCloneLast={handleCloneLast}
+ cloneDefaultScope={inspectionPrefs.cloneDefault}
+ tagChipRow={tagChipRow}
+ />
+ ) : (
+ <div className="flex items-center justify-center h-full text-slate-400">
+ <div className="text-center">
+ <p className="text-[13px]">
+ Select an item from the list to start editing
+ </p>
+ <p className="text-[11px] mt-2 text-slate-300">
+ Press <kbd className="px-1.5 py-0.5 bg-ih-bg-muted rounded text-[10px] font-mono border">J</kbd> / <kbd className="px-1.5 py-0.5 bg-ih-bg-muted rounded text-[10px] font-mono border">K</kbd> to navigate
+ </p>
+ </div>
+ </div>
+ );
+
+ const sideRailEl = (
+ <SideRail
+ activeItem={state.activeItem ? { id: state.activeItem.id, label: (state.activeItem.label || state.activeItem.name || "") as string } : null}
+ activeResult={state.activeItemId ? state.getResult(state.activeItemId) : null}
+ ratingLevels={state.ratingLevels}
+ getRatingColor={state.getRatingColor}
+ getRatingLabel={state.getRatingLabel}
+ inspectionId={String(state.inspection.id)}
+ />
+ );
+
+ /* ---------------------------------------------------------------- */
  /* Render */
  /* ---------------------------------------------------------------- */
+
+ if (isMobile) {
+ return (
+ <div className="min-h-screen pb-14">
+ <ToastPortal />
+ <MobileAppBar
+ sectionTitle={state.currentSection?.title ?? ''}
+ itemLabel={((state.activeItem?.label || state.activeItem?.name) as string | undefined) ?? 'Select an item'}
+ onBack={() => navigate('/dashboard')}
+ onMore={() => { /* future: open more menu */ }}
+ />
+ <main className="p-4">
+ {state.activeItemId ? (
+ itemEditorEl
+ ) : (
+ <p className="text-center text-ih-fg-3 mt-12">Tap [☰ Sections] below to begin</p>
+ )}
+ </main>
+ <MobileDrawerTriggers onOpen={(id) => setMobileDrawer(id)} />
+ <MobileBottomDrawer
+ open={mobileDrawer === 'sections'}
+ onClose={() => setMobileDrawer(null)}
+ title="Sections"
+ >
+ {sectionRailEl}
+ </MobileBottomDrawer>
+ <MobileBottomDrawer
+ open={mobileDrawer === 'items'}
+ onClose={() => setMobileDrawer(null)}
+ title="Items"
+ >
+ {itemListEl}
+ </MobileBottomDrawer>
+ <MobileBottomDrawer
+ open={mobileDrawer === 'preview'}
+ onClose={() => setMobileDrawer(null)}
+ title="Preview"
+ >
+ {sideRailEl}
+ </MobileBottomDrawer>
+ </div>
+ );
+ }
 
  return (
  <div className="flex h-screen bg-ih-bg-card">
@@ -1607,16 +1776,7 @@ export default function InspectionEditPage() {
  {/* ------------------------------------------------------------ */}
  <div className="flex flex-1 pt-14 pb-9">
  {/* Column 1: Section Rail (200px) */}
- <SectionRail
- sections={state.sections}
- activeSection={state.currentSection?.id || ""}
- onSelect={(id) => {
- state.selectSectionById(id);
- }}
- results={state.results}
- sectionProgress={state.sectionProgress}
- sectionDefectCount={state.sectionDefectCount}
- />
+ {sectionRailEl}
 
  {/* Column 2: Item List (280px) OR Property Info */}
  <div className="w-[280px] flex-shrink-0 border-r border-ih-border flex flex-col overflow-hidden relative">
@@ -1682,16 +1842,7 @@ export default function InspectionEditPage() {
   </button>
  </div>
  )}
- <ItemList
- items={visibleItems}
- sectionId={state.currentSection?.id || ""}
- activeItemId={state.activeItemId}
- onSelect={(id) => state.setActiveItemId(id)}
- results={state.results}
- batchMode={state.batchMode}
- batchSelected={state.batchSelected}
- onBatchToggle={(id) => state.toggleBatchSelect(id)}
- />
+ {itemListEl}
  {state.batchMode && state.selectedBatchCount > 0 && (
  <div className="absolute bottom-0 left-0 right-0 bg-ih-bg-card border-t border-ih-border p-2 flex items-center gap-2">
   <span className="text-[11px] font-bold text-ih-fg-2">{state.selectedBatchCount} selected</span>
@@ -1721,89 +1872,11 @@ export default function InspectionEditPage() {
 
  {/* Column 3: Item Editor (flex-1, focal) */}
  <main className="flex-1 overflow-y-auto border-t-2 border-indigo-600 p-6">
- {state.activeItemId ? (
- <ItemEditor
- item={state.activeItem || undefined}
- sectionTitle={state.currentSection?.title}
- result={
- state.activeItemId
- ? findings.getResult(
- state.activeItemId,
- state.currentSection?.id,
- )
- : {}
- }
- onRating={handleRating}
- onNotes={(notes) => {
- if (state.activeItemId && state.currentSection) {
- findings.setNotes(
- state.currentSection.id,
- state.activeItemId,
- notes,
- );
- }
- }}
- onNotesBlur={(notes) => {
- if (state.activeItemId && state.currentSection) {
- findings.commitNotes(
- state.currentSection.id,
- state.activeItemId,
- notes,
- );
- }
- }}
- onToggleCanned={(tabName, cannedId, included) => {
- if (state.activeItemId && state.currentSection) {
- findings.toggleCannedComment(
- state.currentSection.id,
- state.activeItemId,
- tabName,
- cannedId,
- included,
- );
- }
- }}
- defectStates={defectStates}
- locationSuggestions={locationSuggestions}
- missingFields={missingFields}
- onDefectFields={(cannedId, patch) => {
- if (state.activeItemId && state.currentSection) {
- findings.setDefectFields(
- state.currentSection.id,
- state.activeItemId,
- cannedId,
- patch,
- );
- }
- }}
- onItemAttribute={handleItemAttribute}
- onCloneLast={handleCloneLast}
- cloneDefaultScope={inspectionPrefs.cloneDefault}
- tagChipRow={tagChipRow}
- />
- ) : (
- <div className="flex items-center justify-center h-full text-slate-400">
- <div className="text-center">
- <p className="text-[13px]">
- Select an item from the list to start editing
- </p>
- <p className="text-[11px] mt-2 text-slate-300">
- Press <kbd className="px-1.5 py-0.5 bg-ih-bg-muted rounded text-[10px] font-mono border">J</kbd> / <kbd className="px-1.5 py-0.5 bg-ih-bg-muted rounded text-[10px] font-mono border">K</kbd> to navigate
- </p>
- </div>
- </div>
- )}
+ {itemEditorEl}
  </main>
 
  {/* Column 4: SideRail */}
- <SideRail
- activeItem={state.activeItem ? { id: state.activeItem.id, label: (state.activeItem.label || state.activeItem.name || "") as string } : null}
- activeResult={state.activeItemId ? state.getResult(state.activeItemId) : null}
- ratingLevels={state.ratingLevels}
- getRatingColor={state.getRatingColor}
- getRatingLabel={state.getRatingLabel}
- inspectionId={String(state.inspection.id)}
- />
+ {sideRailEl}
  </div>
 
  {/* ------------------------------------------------------------ */}
