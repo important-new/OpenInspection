@@ -1,24 +1,25 @@
 import type { MiddlewareHandler } from 'hono';
 import type { HonoConfig } from '../../types/hono';
 import { logger } from '../../lib/logger';
-import { isServiceBindingCall } from '../../portal/service-binding-guard';
 import { resolveByFixedTenant } from './resolve-by-fixed-tenant';
 import { resolveByPathParam } from './resolve-by-path-param';
-import { resolveBySubdomain } from './resolve-by-subdomain';
 
 /**
  * Tenant resolution middleware.
  *
- * Reads `c.var.profile` (injected by DI middleware) to pick the resolution
- * strategy:
+ * Reads `c.var.profile` (injected by DI middleware) to pick the
+ * resolution strategy:
  *
  *   - profile.fixedTenantId       → resolveByFixedTenant   (standalone)
- *   - profile.saasTopology=silo   → resolveBySubdomain      (silo)
- *   - profile.saasTopology=shared → leave unset; JWT mw fills it
+ *   - everything else (saas)      → leave unset; JWT mw fills it
  *
- * Replaces lib/middleware/tenant-router.ts. PR 1 keeps the exact same
- * external behavior; PR 2 adds a path-param `:tenant` resolution branch
- * once the new public URL shape (`/book/:tenant/:slug`) ships.
+ * Path-param resolution runs first regardless of mode, so public
+ * routes like `/book/:tenant/:slug` work uniformly across all
+ * deploys. Subdomain-based resolution was retired with the
+ * silo-deconvergence plan (2026-05-29) — silo + shared now share
+ * the same path/JWT lookup; vanity subdomains, if any, are bound
+ * by ops at the Cloudflare DNS + Worker-route layer and the tenant
+ * row is identified by path or JWT inside the Worker either way.
  */
 export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
     const url = new URL(c.req.url);
@@ -26,38 +27,19 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
 
     if (path === '/status') return next();
 
-    // Try path-param resolution first. This makes /book/:tenant/:slug and
-    // similar public routes work uniformly across all deploy modes.
+    // Try path-param resolution first. This makes /book/:tenant/:slug
+    // and similar public routes work uniformly across all deploy
+    // modes.
     const pathParamResolved = await resolveByPathParam(c, path);
     if (pathParamResolved) return next();
 
     const profile = c.var.profile;
-    const host = c.req.header('host') || '';
-    let subdomain: string | null = null;
-
-    const hostParts = host.split('.');
-    if (hostParts.length > 2) {
-        const potentialSubdomain = hostParts[0];
-        if (potentialSubdomain !== 'www' && potentialSubdomain !== 'dev'
-            && potentialSubdomain !== 'localhost' && potentialSubdomain !== 'app') {
-            subdomain = potentialSubdomain;
-        }
-    }
-
-    const headerSubdomain = c.req.header('x-tenant-subdomain');
-    if (headerSubdomain && isServiceBindingCall(c)) {
-        subdomain = headerSubdomain;
-    }
 
     if (profile.fixedTenantId) {
         await resolveByFixedTenant(c, profile.fixedTenantId);
-    } else if (profile.saasTopology === 'silo' && subdomain) {
-        await resolveBySubdomain(c, subdomain);
-    } else if (profile.saasTopology === 'shared' && !subdomain) {
-        return next();
-    } else if (profile.saasTopology === 'shared' && subdomain) {
-        await resolveBySubdomain(c, subdomain);
     }
+    // saas paths: leave tenant unresolved. JWT middleware downstream
+    // sets c.set('tenantId', ...) from the verified token's claim.
 
     if (!c.get('tenantId') || !c.get('requestedSubdomain')) {
         const isBypassPath = path === '/setup' || path === '/login'
@@ -66,10 +48,11 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
             || path === '/api/agent-signup' || path === '/api/agents/accept'
             || path === '/api/concierge/confirm'
             || path.startsWith('/api/public/')
-            // M2M admin endpoints carry tenantId in the request body, not in the
-            // URL/JWT. They authenticate via Bearer M2M secret instead of tenant
-            // routing. Bypass tenant resolution to avoid 503 when the M2M caller
-            // wants to act on a tenant other than the current host's tenant.
+            // M2M admin endpoints carry tenantId in the request body,
+            // not in the URL/JWT. They authenticate via Bearer M2M
+            // secret instead of tenant routing. Bypass tenant
+            // resolution to avoid 503 when the M2M caller wants to
+            // act on a tenant other than the current host's tenant.
             || path.startsWith('/api/admin/');
         if (!isBypassPath && path.startsWith('/api')) {
             logger.info('[TenantRouter] Tenant resolution failed', {
