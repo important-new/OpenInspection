@@ -26,6 +26,8 @@ import { PhotoStudio } from "~/components/editor/PhotoStudio";
 import { PropertyInfoForm } from "~/components/editor/PropertyInfoForm";
 import { InspectionSettingsSheet } from "~/components/editor/InspectionSettingsSheet";
 import { SignaturePad } from "~/components/SignaturePad";
+import { PublishGateModal } from "~/components/editor/PublishGateModal";
+import type { PublishReadiness, PublishBlockingDefect } from "~/lib/types";
 
 export function meta() {
  return [{ title: "Edit Inspection - OpenInspection" }];
@@ -228,6 +230,13 @@ export default function InspectionEditPage() {
  });
 
  /* ---------------------------------------------------------------- */
+ /* Publish gate state (declared early — used in missingFields memo below) */
+ /* ---------------------------------------------------------------- */
+
+ const [publishReadiness, setPublishReadiness] = useState<PublishReadiness | null>(null);
+ const [showPublishGate, setShowPublishGate] = useState(false);
+
+ /* ---------------------------------------------------------------- */
  /* Defect structured fields — local-state projections for ItemEditor */
  /* ---------------------------------------------------------------- */
 
@@ -267,6 +276,18 @@ export default function InspectionEditPage() {
  }
  return Array.from(set);
  }, [state.results]);
+
+ const missingFields = useMemo(() => {
+ const map = new Map<string, { location: boolean; trade: boolean }>();
+ if (!publishReadiness) return map;
+ for (const b of publishReadiness.blockingDefects) {
+  map.set(b.cannedId, {
+   location: b.missing.includes('location'),
+   trade:    b.missing.includes('trade'),
+  });
+ }
+ return map;
+ }, [publishReadiness]);
 
  /* ---------------------------------------------------------------- */
  /* Canned comments library */
@@ -346,6 +367,29 @@ export default function InspectionEditPage() {
   },
   [signFetcher],
  );
+
+ /* ---------------------------------------------------------------- */
+ /* Publish pre-flight */
+ /* ---------------------------------------------------------------- */
+
+ const handlePublishClick = useCallback(async () => {
+  try {
+   const res = await fetch(`/api/inspections/${state.inspection.id}/publish-readiness`, {
+    credentials: 'include',
+   });
+   if (res.ok) {
+    const readiness = await res.json() as PublishReadiness;
+    if (!readiness.ready) {
+     setPublishReadiness(readiness);
+     setShowPublishGate(true);
+     return;
+    }
+   }
+  } catch {
+   // Network/server error — fall through to publish (don't block UX on a flaky readiness check)
+  }
+  state.setShowPublishModal(true);
+ }, [state.inspection.id, state.setShowPublishModal]);
 
  /* Photo studio state */
  const [photoStudioOpen, setPhotoStudioOpen] = useState(false);
@@ -1101,6 +1145,23 @@ export default function InspectionEditPage() {
  </div>
  )}
 
+ {/* Publish gate modal */}
+ <PublishGateModal
+  open={showPublishGate}
+  readiness={publishReadiness}
+  onClose={() => setShowPublishGate(false)}
+  onJump={(b: PublishBlockingDefect) => {
+   state.selectSectionById(b.sectionId);
+   state.setActiveItemId(b.itemId);
+   setShowPublishGate(false);
+   setTimeout(() => {
+    const sel = b.missing[0] === 'trade' ? 'select' : 'input[type="text"]';
+    const el = document.querySelector<HTMLElement>(`[data-defect-id="${b.cannedId}"] ${sel}`);
+    if (el) el.focus();
+   }, 100);
+  }}
+ />
+
  {/* ------------------------------------------------------------ */}
  {/* Fixed top header with progress bar */}
  {/* ------------------------------------------------------------ */}
@@ -1310,7 +1371,7 @@ export default function InspectionEditPage() {
 
  {/* Publish button */}
  <button
- onClick={() => state.setShowPublishModal(true)}
+ onClick={handlePublishClick}
  className="h-9 px-4 rounded-md bg-emerald-600 text-white font-bold text-[12px] hover:bg-emerald-700 transition-colors inline-flex items-center gap-1.5"
  >
  <svg
@@ -1494,6 +1555,7 @@ export default function InspectionEditPage() {
  }}
  defectStates={defectStates}
  locationSuggestions={locationSuggestions}
+ missingFields={missingFields}
  onDefectFields={(cannedId, patch) => {
  if (state.activeItemId && state.currentSection) {
  findings.setDefectFields(
