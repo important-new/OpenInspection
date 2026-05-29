@@ -1118,26 +1118,79 @@ const listCommentsRoute = createRoute(withMcpMetadata({
 
 adminRoutes.openapi(listCommentsRoute, async (c) => {
     const tenantId = c.get('tenantId');
-    const { rating, section, sectionId, triggerCode, search } = c.req.valid('query');
+    const { rating, section, sectionId, triggerCode, search, sort, filterMode, itemLabel, limit } = c.req.valid('query');
+    // Per-user usage join — needs the JWT subject (same convention as the
+    // touch endpoint above and the rest of admin.ts).
+    const userId = c.get('user')?.sub ?? '';
+    const auto = filterMode === 'auto';
     const db = drizzle(c.env.DB);
     // Filters layered defensively: tenantId always first (multi-tenant
-    // isolation rule from CLAUDE.md), then optional rating bucket / section
-    // / free-text search.
+    // isolation rule from CLAUDE.md). `sectionId` / `triggerCode` are
+    // explicit user-typed filters and always apply; `rating` / `section`
+    // / `itemLabel` are context-derived and only apply when filterMode=auto
+    // (filterMode=all means "ignore inspection context, show everything").
     const conditions = [eq(comments.tenantId, tenantId)];
-    if (rating) conditions.push(eq(comments.ratingBucket, rating));
-    if (section) conditions.push(eq(comments.section, section));
     if (sectionId) {
         conditions.push(like(comments.sectionIds, `%"${escapeLikePattern(sectionId)}"%`));
     }
     if (triggerCode) {
         conditions.push(eq(comments.triggerCode, triggerCode));
     }
-    let rows = await db.select().from(comments).where(and(...conditions)).all();
+    if (auto && rating) conditions.push(eq(comments.ratingBucket, rating));
+    if (auto && section) conditions.push(eq(comments.section, section));
+    if (auto && itemLabel) conditions.push(eq(comments.itemLabel, itemLabel));
+
+    // ORDER BY by sort. SQLite treats NULL as smaller than any value, so
+    // descDz(commentUsage.lastUsedAt) naturally puts user-touched rows first
+    // and untouched rows last — matches the `recent` / `frequent` specs.
+    const orderByExpr =
+        sort === 'recent'   ? [descDz(commentUsage.lastUsedAt)]
+      : sort === 'created'  ? [descDz(comments.createdAt)]
+      : sort === 'frequent' ? [descDz(commentUsage.useCount), descDz(commentUsage.lastUsedAt)]
+      : sort === 'alpha'    ? [ascDz(comments.text)]
+      :                       [ascDz(comments.ratingBucket), descDz(comments.createdAt)];
+
+    let rows = await db.select({
+        id:             comments.id,
+        tenantId:       comments.tenantId,
+        text:           comments.text,
+        category:       comments.category,
+        ratingBucket:   comments.ratingBucket,
+        section:        comments.section,
+        sectionIds:     comments.sectionIds,
+        itemLabels:     comments.itemLabels,
+        itemLabel:      comments.itemLabel,
+        triggerCode:    comments.triggerCode,
+        searchKeywords: comments.searchKeywords,
+        libraryId:      comments.libraryId,
+        createdAt:      comments.createdAt,
+        useCount:       commentUsage.useCount,
+        lastUsedAt:     commentUsage.lastUsedAt,
+    })
+        .from(comments)
+        .leftJoin(commentUsage, and(
+            eq(commentUsage.commentId, comments.id),
+            eq(commentUsage.tenantId,  tenantId),
+            eq(commentUsage.userId,    userId),
+        ))
+        .where(and(...conditions))
+        .orderBy(...orderByExpr)
+        .limit(limit)
+        .all();
     if (search && search.trim()) {
         const needle = search.trim().toLowerCase();
         rows = rows.filter(r => r.text.toLowerCase().includes(needle));
     }
-    return c.json({ success: true as const, data: rows.map(commentRowToResponse) }, 200);
+    // `commentRowToResponse` is exported via the local helper above and used
+    // by the create / update routes — we extend in-place at the route to
+    // avoid touching the create / update signatures.
+    const data = rows.map(r => ({
+        ...commentRowToResponse(r),
+        useCount:   r.useCount ?? 0,
+        // commentUsage.lastUsedAt is a UNIX seconds integer (see touch handler).
+        lastUsedAt: r.lastUsedAt != null ? new Date(r.lastUsedAt * 1000).toISOString() : null,
+    }));
+    return c.json({ success: true as const, data }, 200);
 });
 
 const createCommentRoute = createRoute(withMcpMetadata({
