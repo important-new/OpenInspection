@@ -1,4 +1,4 @@
-import { Form, useActionData, useLoaderData, redirect } from "react-router";
+import { Form, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
 import type { Route } from "./+types/guest-join";
 import { apiFetch } from "~/lib/api.server";
 import { createSessionWithToken } from "~/lib/session.server";
@@ -76,6 +76,8 @@ export async function action({ request, context }: Route.ActionArgs) {
 export default function GuestJoinPage() {
   const { valid, error: loaderError, invite } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
 
   if (!valid) {
     return (
@@ -133,9 +135,10 @@ export default function GuestJoinPage() {
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-lg bg-ih-primary text-white font-bold text-sm hover:bg-ih-primary-600 transition-colors"
+            disabled={isSubmitting}
+            className="w-full py-2.5 rounded-lg bg-ih-primary text-white font-bold text-sm hover:bg-ih-primary-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Join Inspection
+            {isSubmitting ? "Joining…" : "Join Inspection"}
           </button>
         </Form>
       </div>

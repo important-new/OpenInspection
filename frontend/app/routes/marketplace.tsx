@@ -12,7 +12,7 @@ export function meta() {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
-    const res = await apiFetch(context, "/api/marketplace/templates", { token });
+    const res = await apiFetch(context, "/api/templates/marketplace?pageSize=100", { token });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return { templates: (body.data ?? []) as unknown[] };
   } catch {
@@ -50,7 +50,9 @@ export default function MarketplacePage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {templates.map((t: any) => (
+          {templates.map((raw) => {
+            const t = raw as { id: string; name?: string; title?: string; description?: string; category?: string; author?: string };
+            return (
             <Card key={t.id} className="p-4">
               <p className="text-[13px] font-semibold text-ih-fg-1">{t.name || t.title}</p>
               {t.description && (
@@ -68,7 +70,8 @@ export default function MarketplacePage() {
                 <Button variant="primary" size="sm">Install</Button>
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

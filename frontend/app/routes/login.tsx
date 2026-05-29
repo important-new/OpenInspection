@@ -1,4 +1,4 @@
-import { Form, useActionData, redirect } from "react-router";
+import { Form, useActionData, useNavigation, redirect } from "react-router";
 import type { Route } from "./+types/login";
 import { getToken, createSessionWithToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
@@ -57,6 +57,8 @@ export async function action({ request, context }: Route.ActionArgs) {
 
 export default function LoginPage() {
   const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-ih-bg-app">
@@ -108,9 +110,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-lg bg-ih-primary text-white font-bold text-sm hover:bg-ih-primary-600 transition-colors"
+            disabled={isSubmitting}
+            className="w-full py-2.5 rounded-lg bg-ih-primary text-white font-bold text-sm hover:bg-ih-primary-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Sign In
+            {isSubmitting ? "Signing in…" : "Sign In"}
           </button>
         </Form>
       </div>
