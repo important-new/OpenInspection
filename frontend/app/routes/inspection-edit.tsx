@@ -1145,6 +1145,21 @@ export default function InspectionEditPage() {
  onExit={() => state.setSpeedMode(false)}
  currentIndex={state.speedCurrent}
  totalCount={state.speedQueue.length}
+ onNextItem={() => {
+ if (state.speedCurrent < state.speedQueue.length - 1)
+ state.setSpeedCurrent(state.speedCurrent + 1);
+ }}
+ onPrevItem={() => {
+ if (state.speedCurrent > 0)
+ state.setSpeedCurrent(state.speedCurrent - 1);
+ }}
+ onJumpTo={(sectionId, itemId) => {
+ state.selectSectionById(sectionId);
+ state.setActiveItemId(itemId);
+ state.setSpeedMode(false);
+ }}
+ ratingLevels={state.ratingLevels}
+ sections={state.sections as Array<{ id: string; title?: string; name?: string; items?: Array<{ id: string; label?: string; name?: string }> }>}
  />
  )}
 
