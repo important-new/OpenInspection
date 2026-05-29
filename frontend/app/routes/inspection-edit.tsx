@@ -823,14 +823,6 @@ export default function InspectionEditPage() {
  },
  onSave: () => findings.saveNow(),
  onPublish: () => state.setShowPublishModal(true),
- onRepeatRating: () => {
- if (!state.activeItemId || !state.currentSection) return;
- findings.repeatPreviousRating(
- state.currentSection.id,
- state.activeItemId,
- state.currentSectionItems,
- );
- },
  onCloneLast: () => handleCloneLast(inspectionPrefs.cloneDefault),
  onSaveAsSnippet: () => {
  if (!state.activeItemId) return;

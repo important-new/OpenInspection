@@ -332,35 +332,6 @@ export function useFindings(
   /*  Repeat previous rating (R key)                                   */
   /* ---------------------------------------------------------------- */
 
-  const repeatPreviousRating = useCallback(
-    (
-      sectionId: string,
-      itemId: string,
-      sectionItems: Array<{ id: string }>,
-    ): boolean => {
-      const activeIdx = sectionItems.findIndex((it) => it.id === itemId);
-      let priorResult: Record<string, unknown> | null = null;
-      for (let i = activeIdx - 1; i >= 0; i--) {
-        const r = getResult(sectionItems[i].id, sectionId);
-        if (r && r.rating) {
-          priorResult = r;
-          break;
-        }
-      }
-      if (!priorResult) return false;
-      // Clone entire result to active item
-      const key = fKey(sectionId, itemId);
-      const cloned = JSON.parse(JSON.stringify(priorResult));
-      setResults((prev) => ({
-        ...prev,
-        [key]: cloned,
-        [itemId]: cloned,
-      }));
-      setDirty(true);
-      return true;
-    },
-    [getResult, setResults, setDirty],
-  );
 
   const cloneLast = useCallback(
     (
@@ -463,7 +434,6 @@ export function useFindings(
     toggleCannedComment,
     setDefectFields,
     insertComment,
-    repeatPreviousRating,
     cloneLast,
     batchSetRating,
     addPhotoToItem,
