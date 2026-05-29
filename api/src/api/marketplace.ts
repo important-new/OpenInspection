@@ -11,6 +11,11 @@ import {
 import {
     ImportHistoryQuerySchema,
 } from '../lib/validations/import-history.schema';
+import {
+    paginationQuerySchema,
+    PaginatedMetaSchema,
+    buildMeta,
+} from '../lib/validations/pagination.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 const marketplaceRoutes = createApiRouter();
@@ -22,30 +27,36 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     summary: "List marketplaces for current tenant",
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        query: z.object({
-            search:   z.string().optional().describe('TODO describe search field for the OpenInspection MCP integration'),
-            category: z.enum(['residential', 'commercial', 'trec', 'condo', 'new_construction']).optional().describe('TODO describe category field for the OpenInspection MCP integration'),
-            page:     z.coerce.number().int().min(1).optional().describe('TODO describe page field for the OpenInspection MCP integration'),
-            pageSize: z.coerce.number().int().min(1).max(100).optional().describe('TODO describe pageSize field for the OpenInspection MCP integration'),
-        }).describe('TODO describe query field for the OpenInspection MCP integration'),
+        query: paginationQuerySchema.extend({
+            search:   z.string().optional(),
+            category: z.enum(['residential', 'commercial', 'trec', 'condo', 'new_construction', 'standards_aligned']).optional(),
+        }),
     },
     responses: {
         200: {
-            content: { 'application/json': { schema: z.object({ success: z.boolean().describe('TODO describe success field for the OpenInspection MCP integration'), data: z.array(z.any()).describe('TODO describe data field for the OpenInspection MCP integration') }).describe('TODO describe schema field for the OpenInspection MCP integration') } },
-            description: 'OK',
+            content: { 'application/json': { schema: z.object({
+                success: z.boolean(),
+                data:    z.array(z.any()),
+                meta:    PaginatedMetaSchema,
+            }) } },
+            description: 'Paginated list of marketplace templates for the current tenant.',
         },
     },
     operationId: "listMarketplaces",
-    description: "Auto-generated placeholder for listMarketplaces (GET /, marketplace domain). TODO: replace with a real description sourced from the handler."
+    description: "Paginated list of marketplace templates for the current tenant.",
 }, { scopes: ['read'], tier: 'primary' })), async (c) => {
     const q = c.req.valid('query');
     const { rows, total } = await c.var.services.marketplace.list({
         ...(q.search   !== undefined ? { search:   q.search }   : {}),
         ...(q.category !== undefined ? { category: q.category } : {}),
-        ...(q.page     !== undefined ? { page:     q.page }     : {}),
-        ...(q.pageSize !== undefined ? { pageSize: q.pageSize } : {}),
+        page:     q.page,
+        pageSize: q.pageSize,
     });
-    return c.json({ success: true, data: rows, total });
+    return c.json({
+        success: true,
+        data: rows,
+        meta: buildMeta({ total, page: q.page, pageSize: q.pageSize }),
+    });
 });
 
 // POST /api/templates/marketplace/:id/import
