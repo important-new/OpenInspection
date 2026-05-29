@@ -266,10 +266,10 @@ export default function InspectionEditPage() {
  useEffect(() => {
  (async () => {
  try {
- const res = await fetch('/api/admin/tags', { credentials: 'include' });
+ const res = await fetch('/api/tags', { credentials: 'include' });
  if (res.ok) {
- const data = await res.json() as { data?: { tags?: Array<{ id: string; name: string; color: string }> } };
- setTagLibrary(data.data?.tags ?? []);
+ const body = await res.json() as { data?: Array<{ id: string; name: string; color: string }> };
+ setTagLibrary(body.data ?? []);
  }
  } catch { /* noop */ }
  })();
