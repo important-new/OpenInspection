@@ -157,7 +157,7 @@ export default function SettingsProfilePage() {
               className="block w-full rounded-md border border-ih-border bg-ih-bg-card px-3 py-2 text-[13px] focus:border-ih-primary focus:shadow-ih-focus outline-none transition-colors text-ih-fg-1" />
             <p className="text-[11px] text-ih-fg-3">Lowercase letters, numbers, and hyphens (3-32 chars).</p>
           </div>
-          {profile.slug && tenant && (
+          {profile.slug && tenant ? (
             <div className="flex items-center gap-3 pt-2">
               <a href={`/inspector/${tenant}/${profile.slug}`} target="_blank" rel="noopener noreferrer" className="text-[12px] text-ih-primary font-bold hover:underline">
                 View my public profile &rarr;
@@ -166,6 +166,10 @@ export default function SettingsProfilePage() {
                 View my booking page &rarr;
               </a>
             </div>
+          ) : (
+            <p className="text-[12px] text-ih-fg-3 italic pt-2">
+              Set a slug above and Save Profile to enable your public profile and booking links.
+            </p>
           )}
         </section>
 
