@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/settings-analytics";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Analytics & Metrics - Settings - OpenInspection" }];
@@ -34,7 +34,8 @@ interface AnalyticsData {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
-    const res = await apiFetch(context, "/api/analytics/dashboard", { token });
+    const api = createApi(context, { token });
+    const res = await api.analytics.dashboard.$get();
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
     const d = (body.data ?? {}) as unknown as AnalyticsData | undefined;
     return {

@@ -1,7 +1,7 @@
 import { Link, useLoaderData, useActionData, Form } from "react-router";
 import type { Route } from "./+types/settings-integrations";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { SecretField } from "~/components/SecretField";
 
 export function meta() {
@@ -10,7 +10,8 @@ export function meta() {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
-  const secretsRes = await apiFetch(context, "/api/admin/secrets", { token }).catch(() => null);
+  const api = createApi(context, { token });
+  const secretsRes = await api.admin.secrets.$get().catch(() => null);
   const secretsBody = secretsRes?.ok ? ((await secretsRes.json()) as Record<string, unknown>) : {};
   const secrets = (secretsBody.data ?? {}) as Record<string, string>;
   return {
@@ -33,11 +34,8 @@ export async function action({ request, context }: Route.ActionArgs) {
       if (val && typeof val === "string" && val.trim()) body[key] = val;
     }
     if (Object.keys(body).length > 0) {
-      const res = await apiFetch(context, "/api/admin/secrets", {
-        token,
-        method: "PUT",
-        body: JSON.stringify(body),
-      });
+      const api = createApi(context, { token });
+      const res = await api.admin.secrets.$put({ json: body });
       if (!res.ok) {
         return { success: false, error: "Failed to save Stripe keys." };
       }

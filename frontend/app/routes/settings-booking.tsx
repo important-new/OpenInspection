@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLoaderData } from "react-router";
 import type { Route } from "./+types/settings-booking";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { useSessionContext } from "~/hooks/useSessionContext";
 
 interface AvailabilitySlot {
@@ -31,11 +31,12 @@ export function meta() {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
+  const api = createApi(context, { token });
   const [availRes, overridesRes, configRes, originsRes] = await Promise.all([
-    apiFetch(context, "/api/availability", { token }).catch(() => null),
-    apiFetch(context, "/api/availability/overrides", { token }).catch(() => null),
-    apiFetch(context, "/api/admin/tenant-config", { token }).catch(() => null),
-    apiFetch(context, "/api/admin/widget/origins", { token }).catch(() => null),
+    api.availability.$get().catch(() => null),
+    api.availability.overrides.$get().catch(() => null),
+    api.admin["tenant-config"].$get().catch(() => null),
+    api.admin.widget.origins.$get().catch(() => null),
   ]);
 
   let slots: AvailabilitySlot[] = [];
