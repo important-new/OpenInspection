@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { Form, Link, useActionData } from "react-router";
+import { Form, Link, useActionData, useNavigation } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/signup";
 import { createApi } from "~/lib/api-client.server";
+import { agentSignupSchema } from "~/lib/forms/auth.schema";
 
 export function meta() {
   return [{ title: "Become a partner agent - OpenInspection" }];
@@ -13,11 +15,17 @@ export function meta() {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
+  // Turnstile token is not a validated form field — it passes through.
   const turnstileTokenRaw = fd.get("cf-turnstile-response");
+  const submission = parseWithZod(fd, { schema: agentSignupSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
+  }
+  const { name, email, password } = submission.value;
   const body = {
-    name: String(fd.get("name") || ""),
-    email: String(fd.get("email") || ""),
-    password: String(fd.get("password") || ""),
+    name,
+    email,
+    password,
     ...(turnstileTokenRaw ? { turnstileToken: String(turnstileTokenRaw) } : {}),
   };
 
@@ -28,13 +36,15 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (!res.ok || !(json as Record<string, unknown>).success) {
     const err = json.error as Record<string, string> | undefined;
     if (err?.code === "conflict") {
-      return { error: "That email is already registered. Sign in instead.", redirect: null };
+      return submission.reply({ formErrors: ["That email is already registered. Sign in instead."] });
     }
-    return { error: err?.message || "Could not create account", redirect: null };
+    return submission.reply({ formErrors: [err?.message || "Could not create account"] });
   }
 
   const data = json.data as Record<string, string> | undefined;
-  return { error: null, redirect: data?.redirect || "/agent-dashboard" };
+  // Success: keep the client-side redirect path (sentinel object, not a
+  // Conform SubmissionResult — the component guards on `redirect`).
+  return { redirect: data?.redirect || "/agent-dashboard" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -65,12 +75,29 @@ const VALUE_PROPS = [
 
 export default function AgentSignupPage() {
   const actionData = useActionData<typeof action>();
-  const [submitting, setSubmitting] = useState(false);
+  const navigation = useNavigation();
+  const submitting = navigation.state === "submitting";
+
+  // Success returns a `{ redirect }` sentinel; errors return a Conform
+  // SubmissionResult. Only the latter feeds `useForm`.
+  const successRedirect =
+    actionData && "redirect" in actionData ? actionData.redirect : null;
+  const lastResult =
+    actionData && "redirect" in actionData ? undefined : actionData;
 
   // Client-side redirect after successful action
-  if (typeof window !== "undefined" && actionData?.redirect) {
-    window.location.href = actionData.redirect;
+  if (typeof window !== "undefined" && successRedirect) {
+    window.location.href = successRedirect;
   }
+
+  const [form, fields] = useForm({
+    lastResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: agentSignupSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
@@ -121,57 +148,64 @@ export default function AgentSignupPage() {
             instead -- it pre-fills the right tenant.
           </p>
 
-          <Form method="post" autoComplete="off" onSubmit={() => setSubmitting(true)}>
+          <Form method="post" autoComplete="off" id={form.id} onSubmit={form.onSubmit} noValidate>
             <div className="space-y-5">
               <div>
                 <label
-                  htmlFor="name"
+                  htmlFor={fields.name.id}
                   className="block text-[13px] font-semibold text-ih-fg-3 mb-2"
                 >
                   Full name
                 </label>
                 <input
                   type="text"
-                  id="name"
-                  name="name"
+                  id={fields.name.id}
+                  name={fields.name.name}
                   placeholder="Jane Smith"
-                  required
-                  minLength={2}
+                  aria-invalid={fields.name.errors ? true : undefined}
                   className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-indigo-500 focus:shadow-ih-focus transition-all text-ih-fg-1"
                 />
+                {fields.name.errors && (
+                  <p className="mt-1.5 text-[13px] text-ih-bad-fg">{fields.name.errors[0]}</p>
+                )}
               </div>
               <div>
                 <label
-                  htmlFor="email"
+                  htmlFor={fields.email.id}
                   className="block text-[13px] font-semibold text-ih-fg-3 mb-2"
                 >
                   Work email
                 </label>
                 <input
                   type="email"
-                  id="email"
-                  name="email"
+                  id={fields.email.id}
+                  name={fields.email.name}
                   placeholder="jane@realty.com"
-                  required
+                  aria-invalid={fields.email.errors ? true : undefined}
                   className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-indigo-500 focus:shadow-ih-focus transition-all text-ih-fg-1"
                 />
+                {fields.email.errors && (
+                  <p className="mt-1.5 text-[13px] text-ih-bad-fg">{fields.email.errors[0]}</p>
+                )}
               </div>
               <div>
                 <label
-                  htmlFor="password"
+                  htmlFor={fields.password.id}
                   className="block text-[13px] font-semibold text-ih-fg-3 mb-2"
                 >
                   Password
                 </label>
                 <input
                   type="password"
-                  id="password"
-                  name="password"
+                  id={fields.password.id}
+                  name={fields.password.name}
                   placeholder="At least 12 characters"
-                  required
-                  minLength={12}
+                  aria-invalid={fields.password.errors ? true : undefined}
                   className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-indigo-500 focus:shadow-ih-focus transition-all text-ih-fg-1"
                 />
+                {fields.password.errors && (
+                  <p className="mt-1.5 text-[13px] text-ih-bad-fg">{fields.password.errors[0]}</p>
+                )}
               </div>
             </div>
 
@@ -183,9 +217,9 @@ export default function AgentSignupPage() {
               {submitting ? "Creating account..." : "Create account"}
             </button>
 
-            {actionData?.error && (
+            {form.errors && (
               <div className="mt-4 px-4 py-3 rounded-lg bg-ih-bad-bg border border-ih-bad text-[14px] text-ih-bad-fg">
-                {actionData.error}
+                {form.errors[0]}
               </div>
             )}
           </Form>

@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { Form, useLoaderData, useActionData } from "react-router";
+import { Form, useLoaderData, useActionData, useNavigation } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/invite-accept";
 import { createApi } from "~/lib/api-client.server";
+import { agentInviteAcceptSchema } from "~/lib/forms/auth.schema";
 
 export function meta() {
   return [{ title: "You're invited - OpenInspection" }];
@@ -51,23 +53,28 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
-  const body = {
-    token: String(fd.get("token") || ""),
-    password: String(fd.get("password") || ""),
-    name: String(fd.get("name") || ""),
-  };
+  // Token comes from the invite (hidden field); email is read-only. The schema
+  // only validates the user-typed name + password.
+  const token = String(fd.get("token") || "");
+  const submission = parseWithZod(fd, { schema: agentInviteAcceptSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
+  }
+  const { name, password } = submission.value;
 
   const api = createApi(context);
-  const res = await api.agents.accept.$post({ json: body });
+  const res = await api.agents.accept.$post({ json: { token, password, name } });
 
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || !json.success) {
     const err = json.error as Record<string, string> | undefined;
-    return { error: err?.message || "Could not accept invite", redirect: null };
+    return submission.reply({ formErrors: [err?.message || "Could not accept invite"] });
   }
 
   const data = json.data as Record<string, string> | undefined;
-  return { error: null, redirect: data?.redirect || "/agent-dashboard" };
+  // Success: keep the client-side redirect path (sentinel object, not a
+  // Conform SubmissionResult — the component guards on `redirect`).
+  return { redirect: data?.redirect || "/agent-dashboard" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -89,12 +96,29 @@ function getInitials(name: string): string {
 export default function AgentInviteAcceptPage() {
   const { invite, error: loaderError } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const [submitting, setSubmitting] = useState(false);
+  const navigation = useNavigation();
+  const submitting = navigation.state === "submitting";
+
+  // Success returns a `{ redirect }` sentinel; errors return a Conform
+  // SubmissionResult. Only the latter feeds `useForm`.
+  const successRedirect =
+    actionData && "redirect" in actionData ? actionData.redirect : null;
+  const lastResult =
+    actionData && "redirect" in actionData ? undefined : actionData;
 
   // Redirect on success
-  if (typeof window !== "undefined" && actionData?.redirect) {
-    window.location.href = actionData.redirect;
+  if (typeof window !== "undefined" && successRedirect) {
+    window.location.href = successRedirect;
   }
+
+  const [form, fields] = useForm({
+    lastResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: agentInviteAcceptSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   // Invite expired / missing -- redirect to expired page
   if (loaderError || !invite) {
@@ -190,7 +214,7 @@ export default function AgentInviteAcceptPage() {
         </div>
 
         {/* Accept form */}
-        <Form method="post" autoComplete="off" onSubmit={() => setSubmitting(true)}>
+        <Form method="post" autoComplete="off" id={form.id} onSubmit={form.onSubmit} noValidate>
           <input type="hidden" name="token" value={invite.token} />
 
           <div className="space-y-5">
@@ -212,37 +236,41 @@ export default function AgentInviteAcceptPage() {
             </div>
             <div>
               <label
-                htmlFor="name"
+                htmlFor={fields.name.id}
                 className="block text-[13px] font-semibold text-ih-fg-3 mb-2"
               >
                 Your full name
               </label>
               <input
                 type="text"
-                id="name"
-                name="name"
+                id={fields.name.id}
+                name={fields.name.name}
                 placeholder="Jane Smith"
-                required
-                minLength={2}
+                aria-invalid={fields.name.errors ? true : undefined}
                 className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-indigo-500 focus:shadow-ih-focus transition-all text-ih-fg-1"
               />
+              {fields.name.errors && (
+                <p className="mt-1.5 text-[13px] text-ih-bad-fg">{fields.name.errors[0]}</p>
+              )}
             </div>
             <div>
               <label
-                htmlFor="password"
+                htmlFor={fields.password.id}
                 className="block text-[13px] font-semibold text-ih-fg-3 mb-2"
               >
                 Create a password
               </label>
               <input
                 type="password"
-                id="password"
-                name="password"
+                id={fields.password.id}
+                name={fields.password.name}
                 placeholder="At least 12 characters"
-                required
-                minLength={12}
+                aria-invalid={fields.password.errors ? true : undefined}
                 className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-indigo-500 focus:shadow-ih-focus transition-all text-ih-fg-1"
               />
+              {fields.password.errors && (
+                <p className="mt-1.5 text-[13px] text-ih-bad-fg">{fields.password.errors[0]}</p>
+              )}
             </div>
           </div>
 
@@ -254,9 +282,9 @@ export default function AgentInviteAcceptPage() {
             {submitting ? "Setting up your account..." : "Accept invitation"}
           </button>
 
-          {actionData?.error && (
+          {form.errors && (
             <div className="mt-4 px-4 py-3 rounded-lg bg-ih-bad-bg border border-ih-bad text-[14px] text-ih-bad-fg">
-              {actionData.error}
+              {form.errors[0]}
             </div>
           )}
         </Form>

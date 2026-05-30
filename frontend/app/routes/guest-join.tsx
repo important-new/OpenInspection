@@ -1,7 +1,10 @@
 import { Form, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/guest-join";
 import { createApi } from "~/lib/api-client.server";
 import { createSessionWithToken } from "~/lib/session.server";
+import { guestJoinSchema } from "~/lib/forms/auth.schema";
 
 export function meta() {
   return [{ title: "Join as Guest - OpenInspection" }];
@@ -36,8 +39,14 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const formData = await request.formData();
+  // Token rides along as a hidden field (sourced from the URL), NOT a schema
+  // field — guests only set a display name (passwordless).
   const token = String(formData.get("token") || "");
-  const name = String(formData.get("name") || "");
+  const submission = parseWithZod(formData, { schema: guestJoinSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
+  }
+  const { name } = submission.value;
 
   try {
 
@@ -48,11 +57,10 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return {
-        error:
-          (body as Record<string, Record<string, string>>)?.error?.message ??
-          "Could not join. The link may have expired.",
-      };
+      const message =
+        (body as Record<string, Record<string, string>>)?.error?.message ??
+        "Could not join. The link may have expired.";
+      return submission.reply({ formErrors: [message] });
     }
 
     const setCookieHeader = res.headers.get("set-cookie") || "";
@@ -69,15 +77,24 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     return redirect("/dashboard");
   } catch {
-    return { error: "Network error — is the API server running?" };
+    return submission.reply({ formErrors: ["Network error — is the API server running?"] });
   }
 }
 
 export default function GuestJoinPage() {
   const { valid, error: loaderError, invite } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
+  const lastResult = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+
+  const [form, fields] = useForm({
+    lastResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: guestJoinSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   if (!valid) {
     return (
@@ -111,25 +128,29 @@ export default function GuestJoinPage() {
             : "You have been invited to collaborate on an inspection."}
         </p>
 
-        <Form method="post" className="space-y-4">
+        <Form method="post" id={form.id} onSubmit={form.onSubmit} noValidate className="space-y-4">
           <input type="hidden" name="token" value={new URL(typeof window !== "undefined" ? window.location.href : "http://localhost").searchParams.get("token") || ""} />
           <div>
-            <label className="block text-xs font-bold text-ih-fg-3 mb-1">
+            <label htmlFor={fields.name.id} className="block text-xs font-bold text-ih-fg-3 mb-1">
               Your name
             </label>
             <input
-              name="name"
+              id={fields.name.id}
+              name={fields.name.name}
               type="text"
-              required
               autoFocus
               placeholder="Jane Smith"
+              aria-invalid={fields.name.errors ? true : undefined}
               className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
             />
+            {fields.name.errors && (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.name.errors[0]}</p>
+            )}
           </div>
 
-          {actionData?.error && (
+          {form.errors && (
             <div className="px-3 py-2 rounded-lg bg-ih-bad-bg border border-ih-bad text-sm text-ih-bad-fg">
-              {actionData.error}
+              {form.errors[0]}
             </div>
           )}
 
