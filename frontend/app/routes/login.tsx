@@ -1,7 +1,7 @@
 import { Form, useActionData, useNavigation, redirect } from "react-router";
 import type { Route } from "./+types/login";
 import { getToken, createSessionWithToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Sign In - OpenInspection" }];
@@ -19,11 +19,10 @@ export async function action({ request, context }: Route.ActionArgs) {
   const password = String(formData.get("password") || "");
 
   try {
-    const res = await apiFetch(context, "/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-      csrf: true,
-      headers: { "x-token-relay": "1" },
+    const api = createApi(context);
+    const res = await api.auth.login.$post({
+      json: { email, password },
+      header: { "x-token-relay": "1" },
     });
 
     if (!res.ok) {

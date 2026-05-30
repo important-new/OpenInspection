@@ -3,6 +3,7 @@ import { Form, Link, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/settings-account";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -20,7 +21,8 @@ interface AccountInfo {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
-  const res = await apiFetch(context, "/api/auth/me", { token });
+  const api = createApi(context, { token });
+  const res = await api.auth.me.$get();
   const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
   return { account: (body.data ?? {}) as AccountInfo };
 }

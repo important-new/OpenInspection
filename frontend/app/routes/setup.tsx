@@ -1,7 +1,7 @@
 import { Form, useActionData, useNavigation, redirect, useLoaderData } from "react-router";
 import type { Route } from "./+types/setup";
 import { getToken, createSessionWithToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Setup - OpenInspection" }];
@@ -14,7 +14,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   // Check if workspace is already set up
   try {
-    const res = await apiFetch(context, "/api/auth/setup-status");
+    const api = createApi(context);
+    const res = await api.auth["setup-status"].$get();
     const body = res.ok ? await res.json() : {};
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
     if (d?.isSetUp) {
@@ -35,16 +36,15 @@ export async function action({ request, context }: Route.ActionArgs) {
   const setupCode = String(formData.get("setupCode") || "");
 
   try {
-    const res = await apiFetch(context, "/api/auth/setup", {
-      method: "POST",
-      body: JSON.stringify({
+    const api = createApi(context);
+    const res = await api.auth.setup.$post({
+      json: {
         companyName: workspaceName,
         adminName,
         email,
         password,
         verificationCode: setupCode,
-      }),
-      csrf: true,
+      },
     });
 
     if (!res.ok) {

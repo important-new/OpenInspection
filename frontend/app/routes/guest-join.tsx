@@ -1,6 +1,7 @@
 import { Form, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
 import type { Route } from "./+types/guest-join";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { createSessionWithToken } from "~/lib/session.server";
 
 export function meta() {
@@ -40,10 +41,9 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   try {
 
-    const res = await apiFetch(context, "/api/auth/guest/accept", {
-      method: "POST",
-      body: JSON.stringify({ token, name }),
-      csrf: true,
+    const api = createApi(context);
+    const res = await api.auth.guest.accept.$post({
+      json: { token, name },
     });
 
     if (!res.ok) {

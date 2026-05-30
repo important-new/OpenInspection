@@ -3,6 +3,7 @@ import { Form, Link, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/settings-security";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { SecretField } from "~/components/SecretField";
 
 /* ------------------------------------------------------------------ */
@@ -20,9 +21,10 @@ interface AuthMe {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
+  const api = createApi(context, { token });
 
   const [meRes, secretsRes] = await Promise.all([
-    apiFetch(context, "/api/auth/me", { token }),
+    api.auth.me.$get(),
     apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
   ]);
 
@@ -44,24 +46,23 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const token = await requireToken(context, request);
+  const api = createApi(context, { token });
   const fd = await request.formData();
   const intent = fd.get("intent");
 
   if (intent === "change-password") {
     const body = {
-      currentPassword: fd.get("currentPassword"),
-      newPassword: fd.get("newPassword"),
-      confirmPassword: fd.get("confirmPassword"),
+      currentPassword: String(fd.get("currentPassword") ?? ""),
+      newPassword: String(fd.get("newPassword") ?? ""),
+      confirmPassword: String(fd.get("confirmPassword") ?? ""),
     };
 
     if (body.newPassword !== body.confirmPassword) {
       return { success: false, error: "New passwords do not match." };
     }
 
-    const res = await apiFetch(context, "/api/auth/change-password", {
-      token,
-      method: "POST",
-      body: JSON.stringify(body),
+    const res = await api.auth["change-password"].$post({
+      json: body,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
