@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import type { Route } from "./+types/agreements";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState } from "@core/shared-ui";
 import { SignaturePad } from "~/components/SignaturePad";
 
@@ -13,9 +13,10 @@ export function meta() {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
+    const api = createApi(context, { token });
     const [tplRes, reqRes] = await Promise.all([
-      apiFetch(context, "/api/admin/agreements", { token }),
-      apiFetch(context, "/api/admin/agreements/requests", { token }),
+      api.admin.agreements.$get(),
+      api.admin.agreements.requests.$get(),
     ]);
     const tplBody = tplRes.ok ? ((await tplRes.json()) as Record<string, unknown>) : { data: [] };
     const reqBody = reqRes.ok ? ((await reqRes.json()) as Record<string, unknown>) : { data: [] };
@@ -36,16 +37,11 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (!envelopeId || !signatureBase64) {
     return { ok: false, error: "Missing envelopeId or signatureBase64" };
   }
-  const res = await apiFetch(
-    context,
-    `/api/admin/agreement-requests/${encodeURIComponent(envelopeId)}/inspector-sign`,
-    {
-      token,
-      method: "POST",
-      body: JSON.stringify({ signatureBase64 }),
-      headers: { "Content-Type": "application/json" },
-    },
-  );
+  const api = createApi(context, { token });
+  const res = await api.admin["agreement-requests"][":id"]["inspector-sign"].$post({
+    param: { id: envelopeId },
+    json: { signatureBase64 },
+  });
   if (!res.ok) {
     const text = await res.text();
     return { ok: false, error: `API returned ${res.status}: ${text.slice(0, 200)}` };
