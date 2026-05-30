@@ -169,7 +169,7 @@ const revokeRoute = createRoute(withMcpMetadata({
     operationId: "revokeAgent"
 }, { scopes: ['write'], tier: 'extended' }));
 
-const agentsRoutes = createApiRouter()
+export const agentsRoutes = createApiRouter()
     .openapi(inviteRoute, async (c) => {
         // RBAC moved inside to keep OpenAPIHono context typing happy. Owners, admins,
         // and rank-and-file inspectors can all invite agents.
