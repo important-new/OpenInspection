@@ -18,8 +18,6 @@ import { setCookie } from 'hono/cookie';
 import { Errors } from '../lib/errors';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
 
-const identityRoutes = createApiRouter();
-
 function getCallerUserId(c: Context<HonoConfig>): string {
     const sub = (c.get('user') as { sub?: string } | undefined)?.sub;
     if (!sub) throw Errors.Unauthorized('Missing user identity');
@@ -35,10 +33,6 @@ const listRoute = createRoute(withMcpMetadata({
     description: 'Returns all identity seats linked to the caller, including the primary identity. Used by the identity switcher menu in the dashboard.',
     responses: { 200: { description: 'ok' } },
 }, { scopes: ['read'], tier: 'extended' }));
-identityRoutes.openapi(listRoute, async (c) => {
-    const items = await c.var.services.identity.list(getCallerUserId(c));
-    return c.json({ success: true as const, data: { identities: items } }, 200);
-});
 
 const switchRoute = createRoute(withMcpMetadata({
     method:  'post',
@@ -58,24 +52,6 @@ const switchRoute = createRoute(withMcpMetadata({
         404: { description: 'linked user gone' },
     },
 }, { scopes: ['write'], tier: 'extended' }));
-identityRoutes.openapi(switchRoute, async (c) => {
-    const primaryUserId = getCallerUserId(c);
-    const { linkedUserId } = c.req.valid('json');
-    const keyring = await c.var.keyringPromise;
-    if (!keyring) throw Errors.Internal('JWT keyring not initialised');
-
-    const out = await c.var.services.identity.switchTo(primaryUserId, linkedUserId, { keyring });
-    if (out.kind === 'forbidden') throw Errors.Forbidden('Not linked to that identity');
-    if (out.kind === 'not_found') throw Errors.NotFound('Linked user no longer exists');
-
-    // Replace the session cookie — same attributes as login per CLAUDE.md
-    // JWT/Auth Security Rules: __Host- prefix, httpOnly, secure, Strict.
-    setCookie(c, '__Host-inspector_token', out.newToken, {
-        httpOnly: true, secure: true, sameSite: 'Strict', path: '/',
-    });
-
-    return c.json({ success: true as const, data: { redirectUrl: out.redirectUrl } }, 200);
-});
 
 const linkRoute = createRoute(withMcpMetadata({
     method:  'post',
@@ -94,18 +70,44 @@ const linkRoute = createRoute(withMcpMetadata({
         404: { description: 'target user not found' },
     },
 }, { scopes: ['admin'], tier: 'extended' }));
-identityRoutes.openapi(linkRoute, async (c) => {
-    const primaryUserId = getCallerUserId(c);
-    const { targetEmail } = c.req.valid('json');
-    try {
-        const out = await c.var.services.identity.link({ primaryUserId, targetEmail });
-        return c.json({ success: true as const, data: out }, 200);
-    } catch (e) {
-        if (e instanceof Error && /target user not found/i.test(e.message)) {
-            throw Errors.NotFound('Target user not found');
+
+export const identityRoutes = createApiRouter()
+    .openapi(listRoute, async (c) => {
+        const items = await c.var.services.identity.list(getCallerUserId(c));
+        return c.json({ success: true as const, data: { identities: items } }, 200);
+    })
+    .openapi(switchRoute, async (c) => {
+        const primaryUserId = getCallerUserId(c);
+        const { linkedUserId } = c.req.valid('json');
+        const keyring = await c.var.keyringPromise;
+        if (!keyring) throw Errors.Internal('JWT keyring not initialised');
+
+        const out = await c.var.services.identity.switchTo(primaryUserId, linkedUserId, { keyring });
+        if (out.kind === 'forbidden') throw Errors.Forbidden('Not linked to that identity');
+        if (out.kind === 'not_found') throw Errors.NotFound('Linked user no longer exists');
+
+        // Replace the session cookie — same attributes as login per CLAUDE.md
+        // JWT/Auth Security Rules: __Host- prefix, httpOnly, secure, Strict.
+        setCookie(c, '__Host-inspector_token', out.newToken, {
+            httpOnly: true, secure: true, sameSite: 'Strict', path: '/',
+        });
+
+        return c.json({ success: true as const, data: { redirectUrl: out.redirectUrl } }, 200);
+    })
+    .openapi(linkRoute, async (c) => {
+        const primaryUserId = getCallerUserId(c);
+        const { targetEmail } = c.req.valid('json');
+        try {
+            const out = await c.var.services.identity.link({ primaryUserId, targetEmail });
+            return c.json({ success: true as const, data: out }, 200);
+        } catch (e) {
+            if (e instanceof Error && /target user not found/i.test(e.message)) {
+                throw Errors.NotFound('Target user not found');
+            }
+            throw e;
         }
-        throw e;
-    }
-});
+    });
+
+export type IdentityApi = typeof identityRoutes;
 
 export default identityRoutes;
