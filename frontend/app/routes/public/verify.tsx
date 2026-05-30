@@ -1,6 +1,6 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/verify";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Verify Signature - OpenInspection" }];
@@ -17,10 +17,10 @@ interface VerifyData {
 
 export async function loader({ params, context }: Route.LoaderArgs) {
   try {
-    const res = await apiFetch(
-      context,
-      `/api/public/verify/${params.envelopeId}`,
-    );
+    const api = createApi(context);
+    const res = await api.publicShare.verify[":envelopeId"].$get({
+      param: { envelopeId: params.envelopeId ?? "" },
+    });
     const body = res.ok ? await res.json() : {};
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
     return {

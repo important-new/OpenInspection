@@ -1,6 +1,6 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/invoice";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
  return [{ title: "Invoice - OpenInspection" }];
@@ -19,7 +19,10 @@ interface InvoiceData {
 
 export async function loader({ params, context }: Route.LoaderArgs) {
  try {
- const res = await apiFetch(context, `/api/public/r/${params.id}/invoice`);
+ const api = createApi(context);
+ const res = await api.publicShare.r[":id"].invoice.$get({
+ param: { id: params.id ?? "" },
+ });
  const body = res.ok ? await res.json() : {};
  const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
  return {

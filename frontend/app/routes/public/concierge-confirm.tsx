@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/concierge-confirm";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Confirm your inspection - OpenInspection" }];
@@ -38,6 +39,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     return { data: null, error: "no-token" as const };
   }
   try {
+    // TODO: dead /api/concierge/confirm-info route — no server mount; keep apiFetch until server ships or removes
     const res = await apiFetch(
       context,
       `/api/concierge/confirm-info?token=${encodeURIComponent(token)}`,
@@ -61,9 +63,9 @@ export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
   const token = fd.get("token") as string;
 
-  const res = await apiFetch(context, "/api/concierge/confirm", {
-    method: "POST",
-    body: JSON.stringify({ token }),
+  const api = createApi(context);
+  const res = await api.concierge.confirm.$post({
+    json: { token },
   });
 
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;

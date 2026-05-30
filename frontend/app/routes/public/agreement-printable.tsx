@@ -26,6 +26,7 @@ interface AgreementData {
 
 export async function loader({ params, context }: Route.LoaderArgs) {
   try {
+    // TODO: dead /api/internal/* route — keep apiFetch until server side ships or removes
     const res = await apiFetch(
       context,
       `/api/internal/agreement-render/${params.token}`,

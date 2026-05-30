@@ -30,6 +30,7 @@ interface ConciergeBookData {
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
+    // TODO: dead /api/concierge/book-info route — no server mount; keep apiFetch until server ships or removes
     const res = await apiFetch(context, `/api/concierge/book-info`, { token });
     const body = res.ok ? await res.json() : {};
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
@@ -59,6 +60,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     paymentRequired: fd.get("paymentRequired") === "on",
   };
 
+  // TODO: dead /api/concierge/book route — no server mount; keep apiFetch until server ships or removes
   const res = await apiFetch(context, "/api/concierge/book", {
     token,
     method: "POST",
