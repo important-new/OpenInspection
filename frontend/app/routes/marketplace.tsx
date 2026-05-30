@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/marketplace";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState, Pagination } from "@core/shared-ui";
 import { usePagination } from "~/hooks/usePagination";
 
@@ -12,18 +12,16 @@ export function meta() {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
+  const url = new URL(request.url);
+  const page     = url.searchParams.get("page")     ?? "1";
+  const pageSize = url.searchParams.get("pageSize") ?? "50";
   try {
-    const url = new URL(request.url);
-    const page     = url.searchParams.get("page")     ?? "1";
-    const pageSize = url.searchParams.get("pageSize") ?? "50";
-    const res = await apiFetch(
-      context,
-      `/api/templates/marketplace?page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`,
-      { token },
-    );
-    const body = res.ok
-      ? ((await res.json()) as { data?: unknown[]; meta?: { total: number; page: number; pageSize: number; totalPages: number } })
-      : { data: [], meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 } };
+    const api = createApi(context, { token });
+    const res = await api.marketplace.index.$get({ query: { page, pageSize } });
+    if (!res.ok) {
+      return { templates: [] as unknown[], meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 } };
+    }
+    const body = await res.json() as { data?: unknown[]; meta?: { total: number; page: number; pageSize: number; totalPages: number } };
     return {
       templates: (body.data ?? []) as unknown[],
       meta: body.meta ?? { total: 0, page: 1, pageSize: 50, totalPages: 1 },
