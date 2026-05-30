@@ -35,6 +35,11 @@ import {
     MediaPoolUploadResponseSchema,
     MediaAttachRequestSchema,
     MediaAttachResponseSchema,
+    ResultsBatchSchema,
+    ResultsBatchResponseSchema,
+    ConflictListResponseSchema,
+    ConflictResolveSchema,
+    ConflictResolveResponseSchema,
 } from '../lib/validations/inspection.schema';
 import { CreateTemplateSchema, UpdateTemplateSchema, TemplateSchemaV2Schema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
@@ -45,6 +50,8 @@ import { CreateInspectionFromWizardSchema } from '../lib/validations/wizard.sche
 import { CreateUnitSchema, UpdateUnitSchema, MoveUnitSchema } from '../lib/validations/unit.schema';
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, users, contacts } from '../lib/db/schema';
+import { applyResultsBatch } from '../services/inspection-results.service';
+import { listPendingConflicts, resolveConflicts } from '../services/conflicts.service';
 import { eq, inArray, and } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { SignatureUser } from '../lib/inspector-signature';
@@ -1690,6 +1697,77 @@ const diffVersionRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for listInspectionVersionsDiff (GET /{id}/versions/{n}/diff, inspections domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: ['read'], tier: 'extended' }));
 
+// -----------------------------------------------------------------------------
+// Typed-Hono dead-routes cleanup Task 10 — vectorised result patches.
+// -----------------------------------------------------------------------------
+// POST /{id}/results/batch — accepts an array of `{ itemId, sectionId, field,
+// value }` patches and folds them into inspection_results.data in one
+// round-trip. See inspection-results.service for the upsert semantics.
+const resultsBatchRoute = createRoute(withMcpMetadata({
+    method:     'post',
+    path:       '/{id}/results/batch',
+    tags:       ['inspections'],
+    summary:    'Apply a batch of result patches to an inspection in one round-trip',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().min(1).describe('Inspection id whose results are patched') }),
+        body:   { content: { 'application/json': { schema: ResultsBatchSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: ResultsBatchResponseSchema } },
+            description: 'Batch applied',
+        },
+        404: { description: 'Inspection not found in this tenant' },
+    },
+    operationId: 'batchPatchInspectionResults',
+    description: 'Folds an array of { itemId, sectionId, field, value } patches into inspection_results.data using the same composite findingKey the single-field PATCH uses.',
+}, { scopes: ['write'], tier: 'extended' }));
+
+// Tasks 12-14 — sync conflict adjudication. GET lists the pending field-level
+// conflicts persisted by inspection-sync.ts at merge time; POST clears them
+// once the inspector has chosen a winning side.
+const listConflictsRoute = createRoute(withMcpMetadata({
+    method:     'get',
+    path:       '/{id}/conflicts',
+    tags:       ['inspections'],
+    summary:    'List pending sync conflicts for an inspection',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().min(1).describe('Inspection id whose conflicts are listed') }),
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: ConflictListResponseSchema } },
+            description: 'Pending conflicts (empty array when none)',
+        },
+        404: { description: 'Inspection not found in this tenant' },
+    },
+    operationId: 'listInspectionConflicts',
+    description: 'Returns the field-level merge conflicts the sync endpoint persisted, so the conflict-resolver UI can adjudicate them out-of-band from the transient 409.',
+}, { scopes: ['read'], tier: 'extended' }));
+
+const resolveConflictsRoute = createRoute(withMcpMetadata({
+    method:     'post',
+    path:       '/{id}/conflicts/resolve',
+    tags:       ['inspections'],
+    summary:    'Clear sync conflicts the inspector has adjudicated',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().min(1).describe('Inspection id whose conflicts are resolved') }),
+        body:   { content: { 'application/json': { schema: ConflictResolveSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: ConflictResolveResponseSchema } },
+            description: 'Resolved',
+        },
+        404: { description: 'Inspection not found in this tenant' },
+    },
+    operationId: 'resolveInspectionConflicts',
+    description: 'Deletes the pending conflict rows matching each { itemId, field } resolution. The winning side was already written on the prior sync; clearing the flag is the resolution.',
+}, { scopes: ['write'], tier: 'extended' }));
+
 
 export const inspectionsRoutes = createApiRouter()
     .openapi(dashboardRoute, async (c) => {
@@ -2651,6 +2729,68 @@ export const inspectionsRoutes = createApiRouter()
         );
         if (!diff) throw Errors.NotFound('Version diff not available');
         return c.json({ success: true as const, data: diff }, 200);
+    })
+    // Typed-Hono dead-routes cleanup Task 10 — vectorised result patches.
+    .openapi(resultsBatchRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const { patches } = c.req.valid('json');
+        const tenantId = c.get('tenantId');
+        const user     = c.get('user') as { sub?: string } | undefined;
+        const userId   = user?.sub;
+        if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+        // Ownership guard mirrors the single-field PATCH — 404 on tenant
+        // mismatch keeps the existence-enumeration leak closed.
+        try {
+            await c.var.services.inspection.getInspection(id, tenantId);
+        } catch {
+            throw Errors.NotFound('Inspection not found');
+        }
+
+        const db = drizzle(c.env.DB);
+        const data = await applyResultsBatch(db, id, patches, { tenantId, userId });
+        auditFromContext(c, 'inspection.results_batch_patched', 'inspection', {
+            entityId: id, metadata: { applied: data.applied, by: userId },
+        });
+        return c.json({ success: true as const, data }, 200);
+    })
+    // Typed-Hono dead-routes cleanup Task 12 — list persisted sync conflicts.
+    .openapi(listConflictsRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const tenantId = c.get('tenantId');
+
+        // Ownership guard — 404 on tenant mismatch keeps the enumeration leak closed.
+        try {
+            await c.var.services.inspection.getInspection(id, tenantId);
+        } catch {
+            throw Errors.NotFound('Inspection not found');
+        }
+
+        const db = drizzle(c.env.DB);
+        const data = await listPendingConflicts(db, id);
+        return c.json({ success: true as const, data }, 200);
+    })
+    // Typed-Hono dead-routes cleanup Task 13 — clear adjudicated conflicts.
+    .openapi(resolveConflictsRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const { resolutions } = c.req.valid('json');
+        const tenantId = c.get('tenantId');
+        const user     = c.get('user') as { sub?: string } | undefined;
+        const userId   = user?.sub;
+        if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+        try {
+            await c.var.services.inspection.getInspection(id, tenantId);
+        } catch {
+            throw Errors.NotFound('Inspection not found');
+        }
+
+        const db = drizzle(c.env.DB);
+        const data = await resolveConflicts(db, id, resolutions);
+        auditFromContext(c, 'inspection.conflicts_resolved', 'inspection', {
+            entityId: id, metadata: { resolved: data.resolved, by: userId },
+        });
+        return c.json({ success: true as const, data }, 200);
     })
     .get('/:id/report', async (c) => {
         return c.json({

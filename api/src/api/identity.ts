@@ -11,12 +11,19 @@
  * Switch and link write to audit_logs via AuditLogService when available.
  */
 import { createRoute, z } from '@hono/zod-openapi';
+import { drizzle } from 'drizzle-orm/d1';
 import { createApiRouter } from '../lib/openapi-router';
 import { HonoConfig } from '../types/hono';
 import type { Context } from 'hono';
 import { setCookie } from 'hono/cookie';
 import { Errors } from '../lib/errors';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
+import {
+    AccountExportResponseSchema,
+    AccountDeleteRequestSchema,
+    AccountDeleteResponseSchema,
+} from '../lib/validations/identity.schema';
+import { exportAccount, softDeleteAccount } from '../services/account.service';
 
 function getCallerUserId(c: Context<HonoConfig>): string {
     const sub = (c.get('user') as { sub?: string } | undefined)?.sub;
@@ -71,6 +78,41 @@ const linkRoute = createRoute(withMcpMetadata({
     },
 }, { scopes: ['admin'], tier: 'extended' }));
 
+// ─── Account export + soft delete ───────────────────────────────────────────
+const accountExportRoute = createRoute(withMcpMetadata({
+    method:  'post',
+    path:    '/account/export',
+    operationId: 'exportMyAccount',
+    tags:    ['identity'],
+    summary: 'Export the caller account as a JSON blob',
+    description: 'Returns the caller\'s user record plus their agent-tenant memberships and the inspections they ran, for GDPR/CCPA portability.',
+    responses: {
+        200: {
+            content: { 'application/json': { schema: AccountExportResponseSchema } },
+            description: 'Account export blob',
+        },
+    },
+}, { scopes: ['read'], tier: 'extended' }));
+
+const accountDeleteRoute = createRoute(withMcpMetadata({
+    method:  'post',
+    path:    '/account/delete',
+    operationId: 'softDeleteMyAccount',
+    tags:    ['identity'],
+    summary: 'Soft-delete the caller account after email confirmation',
+    description: 'Marks the caller\'s users.deleted_at after they retype their email to confirm. Rows are kept so audit-linked references stay intact; subsequent logins fail because auth checks the column.',
+    request: {
+        body: { content: { 'application/json': { schema: AccountDeleteRequestSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: AccountDeleteResponseSchema } },
+            description: 'Soft-deleted',
+        },
+        400: { description: 'confirmEmail mismatch' },
+    },
+}, { scopes: ['write'], tier: 'extended' }));
+
 export const identityRoutes = createApiRouter()
     .openapi(listRoute, async (c) => {
         const items = await c.var.services.identity.list(getCallerUserId(c));
@@ -105,6 +147,26 @@ export const identityRoutes = createApiRouter()
                 throw Errors.NotFound('Target user not found');
             }
             throw e;
+        }
+    })
+    .openapi(accountExportRoute, async (c) => {
+        const userId = getCallerUserId(c);
+        const db = drizzle<any>(c.env.DB as any);
+        const data = await exportAccount(db, userId);
+        return c.json({ success: true as const, data }, 200);
+    })
+    .openapi(accountDeleteRoute, async (c) => {
+        const userId = getCallerUserId(c);
+        const { confirmEmail } = c.req.valid('json');
+        const db = drizzle<any>(c.env.DB as any);
+        try {
+            const data = await softDeleteAccount(db, userId, confirmEmail);
+            return c.json({ success: true as const, data }, 200);
+        } catch (e: any) {
+            if (e instanceof Error && /not found/i.test(e.message)) {
+                throw Errors.NotFound(e.message);
+            }
+            throw Errors.BadRequest(e?.message ?? 'delete failed');
         }
     });
 

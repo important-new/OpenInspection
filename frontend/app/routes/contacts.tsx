@@ -2,7 +2,6 @@ import { useState, useRef, useCallback } from "react";
 import { useLoaderData, useFetcher } from "react-router";
 import type { Route } from "./+types/contacts";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
 import { createApi } from "~/lib/api-client.server";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState } from "@core/shared-ui";
 
@@ -60,33 +59,48 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { ok: res.ok };
   }
 
-  // TODO: /api/contacts/import is not a typed route — leave as apiFetch
   if (intent === "csv-import") {
     const csvText = form.get("csvText") as string;
-    const res = await apiFetch(context, "/api/contacts/import", {
-      token,
-      method: "POST",
-      body: JSON.stringify({ csv: csvText }),
-      csrf: true,
-    });
+    // The preview endpoint surfaces detected columns; the UI currently
+    // auto-maps by case-insensitive header name (name/email/phone/agency).
+    // Customers picking custom column names can be supported by a future
+    // mapping picker — the typed backend already accepts arbitrary mappings.
+    const mapping = inferMappingFromCsv(csvText);
+    const res = await api.contacts.import.$post({ json: { csv: csvText, mapping } });
     const data = res.ok ? await res.json() : {};
     return { ok: res.ok, result: data };
   }
 
-  // TODO: /api/contacts/import/preview is not a typed route — leave as apiFetch
   if (intent === "csv-preview") {
     const csvText = form.get("csvText") as string;
-    const res = await apiFetch(context, "/api/contacts/import/preview", {
-      token,
-      method: "POST",
-      body: JSON.stringify({ csv: csvText }),
-      csrf: true,
-    });
+    const res = await api.contacts.import.preview.$post({ json: { csv: csvText } });
     const data = res.ok ? await res.json() : {};
     return { ok: res.ok, preview: data };
   }
 
   return { ok: false };
+}
+
+/**
+ * Best-effort column mapping for the simple "paste CSV → import" flow:
+ * matches column headers case-insensitively against the canonical field
+ * names. If the CSV uses non-standard headers, falls back to the first
+ * column as `name` so the import still succeeds for the common case.
+ */
+function inferMappingFromCsv(csv: string): { name: string; email?: string; phone?: string; agency?: string } {
+  const firstLine = csv.split(/\r?\n/, 1)[0] ?? "";
+  const cols = firstLine.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+  const find = (...needles: string[]) =>
+    cols.find((c) => needles.some((n) => c.toLowerCase() === n));
+  const nameCol = find("name", "full name", "contact") ?? cols[0] ?? "name";
+  const emailCol = find("email", "e-mail");
+  const phoneCol = find("phone", "tel", "mobile");
+  const agencyCol = find("agency", "company", "organization");
+  const m: { name: string; email?: string; phone?: string; agency?: string } = { name: nameCol };
+  if (emailCol) m.email = emailCol;
+  if (phoneCol) m.phone = phoneCol;
+  if (agencyCol) m.agency = agencyCol;
+  return m;
 }
 
 interface Contact {

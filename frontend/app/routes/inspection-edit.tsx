@@ -2,7 +2,6 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useLoaderData, useFetcher, useNavigate } from "react-router";
 import type { Route } from "./+types/inspection-edit";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
 import { createApi } from "~/lib/api-client.server";
 import { useInspectionState } from "~/hooks/useInspection";
 import type { RatingLevel, ResultMap } from "~/hooks/useInspection";
@@ -114,12 +113,9 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const itemId = String(formData.get("itemId"));
  const sectionId = String(formData.get("sectionId"));
  const rating = String(formData.get("rating"));
- // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
- await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
- method: "PATCH",
- token,
- body: JSON.stringify({ field: "rating", value: rating, sectionId }),
- csrf: true,
+ await api.inspections[":id"].items[":itemId"].$patch({
+ param: { id: params.id, itemId },
+ json: { field: "rating", value: rating, sectionId, expectedVersion: 0, force: true },
  });
  }
 
@@ -127,12 +123,9 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const itemId = String(formData.get("itemId"));
  const sectionId = String(formData.get("sectionId"));
  const notes = String(formData.get("notes"));
- // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
- await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
- method: "PATCH",
- token,
- body: JSON.stringify({ field: "notes", value: notes, sectionId }),
- csrf: true,
+ await api.inspections[":id"].items[":itemId"].$patch({
+ param: { id: params.id, itemId },
+ json: { field: "notes", value: notes, sectionId, expectedVersion: 0, force: true },
  });
  }
 
@@ -142,18 +135,15 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const tabName = String(formData.get("tabName"));
  const cannedId = String(formData.get("cannedId"));
  const included = formData.get("included") === "true";
- // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
- await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
- method: "PATCH",
- token,
- body: JSON.stringify({
+ await api.inspections[":id"].items[":itemId"].$patch({
+ param: { id: params.id, itemId },
+ json: {
  field: "cannedToggle",
  value: { tabName, cannedId, included },
  sectionId,
  expectedVersion: 0,
  force: true,
- }),
- csrf: true,
+ },
  });
  }
 
@@ -162,18 +152,15 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const sectionId = String(formData.get("sectionId"));
  const cannedId = String(formData.get("cannedId"));
  const patch = JSON.parse(String(formData.get("patch")));
- // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
- await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
- method: "PATCH",
- token,
- body: JSON.stringify({
+ await api.inspections[":id"].items[":itemId"].$patch({
+ param: { id: params.id, itemId },
+ json: {
  field: "defectFields",
  value: { cannedId, ...patch },
  sectionId,
  expectedVersion: 0,
  force: true,
- }),
- csrf: true,
+ },
  });
  }
 
@@ -181,17 +168,14 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const itemId = String(formData.get("itemId"));
  const attributeId = String(formData.get("attributeId"));
  const value = JSON.parse(String(formData.get("value")));
- // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
- await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
- method: "PATCH",
- token,
- body: JSON.stringify({
+ await api.inspections[":id"].items[":itemId"].$patch({
+ param: { id: params.id, itemId },
+ json: {
  field: "itemAttribute",
  value: { attributeId, value },
  expectedVersion: 0,
  force: true,
- }),
- csrf: true,
+ },
  });
  }
 

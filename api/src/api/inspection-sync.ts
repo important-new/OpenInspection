@@ -13,7 +13,7 @@ import {
     ResultsBlobSchema,
     InspectorSignatureSchema,
 } from '../lib/validations/sync.schema';
-import { inspections, inspectionResults, templates } from '../lib/db/schema';
+import { inspections, inspectionResults, templates, inspectionConflicts } from '../lib/db/schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
 export const syncRoutes = createApiRouter()
@@ -85,6 +85,26 @@ export const syncRoutes = createApiRouter()
     );
 
     if (conflicts.length > 0) {
+        // Persist each conflict BEFORE returning the 409 so the conflict-resolver
+        // UI can re-fetch them via GET /api/inspections/:id/conflicts. The diff3
+        // MergeConflict shape is { itemId, field:'notes', base, ours, theirs } —
+        // `ours` → local, `theirs` → remote, and notes conflicts have no
+        // sectionId (notes are item-level), so section_id is null.
+        const createdAt = new Date().toISOString();
+        for (const cf of conflicts) {
+            await db.insert(inspectionConflicts).values({
+                id:           crypto.randomUUID(),
+                inspectionId: id,
+                itemId:       cf.itemId,
+                sectionId:    null,
+                field:        cf.field,
+                base:         typeof cf.base   === 'string' ? cf.base   : JSON.stringify(cf.base),
+                local:        typeof cf.ours   === 'string' ? cf.ours   : JSON.stringify(cf.ours),
+                remote:       typeof cf.theirs === 'string' ? cf.theirs : JSON.stringify(cf.theirs),
+                createdAt,
+            });
+        }
+
         return c.json({
             success: false as const,
             error: {
