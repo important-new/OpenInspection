@@ -89,8 +89,6 @@ export async function downloadEvidenceZip(
     });
 }
 
-const evidenceRoutes = createApiRouter();
-
 const downloadAgreementRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/agreement-requests/{id}/pdf',
@@ -105,12 +103,6 @@ const downloadAgreementRoute = createRoute(withMcpMetadata({
     operationId: 'downloadSignedAgreement',
     description: 'Streams the workflow-rendered signed.pdf from R2.',
 }, { scopes: ['read'], tier: 'extended' }));
-
-evidenceRoutes.openapi(downloadAgreementRoute, async (c) => {
-    const { id } = c.req.valid('param');
-    const tenantId = c.get('tenantId') as string;
-    return downloadAgreementPdf(c.env.DB, c.env.REPORTS, id, tenantId);
-});
 
 const downloadCertRoute = createRoute(withMcpMetadata({
     method: 'get',
@@ -127,12 +119,6 @@ const downloadCertRoute = createRoute(withMcpMetadata({
     description: 'Streams the workflow-rendered certificate.pdf from R2.',
 }, { scopes: ['read'], tier: 'extended' }));
 
-evidenceRoutes.openapi(downloadCertRoute, async (c) => {
-    const { id } = c.req.valid('param');
-    const tenantId = c.get('tenantId') as string;
-    return downloadCertPdf(c.env.DB, c.env.REPORTS, id, tenantId);
-});
-
 const downloadEvidenceRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/agreement-requests/{id}/evidence.zip',
@@ -148,10 +134,23 @@ const downloadEvidenceRoute = createRoute(withMcpMetadata({
     description: 'Returns evidence.zip from R2 (signed.pdf + certificate.pdf + audit-trail.json + public-key.pem).',
 }, { scopes: ['read'], tier: 'extended' }));
 
-evidenceRoutes.openapi(downloadEvidenceRoute, async (c) => {
-    const { id } = c.req.valid('param');
-    const tenantId = c.get('tenantId') as string;
-    return downloadEvidenceZip(c.env.DB, c.env.REPORTS, id, tenantId);
-});
+export const evidenceRoutes = createApiRouter()
+    .openapi(downloadAgreementRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const tenantId = c.get('tenantId') as string;
+        return downloadAgreementPdf(c.env.DB, c.env.REPORTS, id, tenantId);
+    })
+    .openapi(downloadCertRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const tenantId = c.get('tenantId') as string;
+        return downloadCertPdf(c.env.DB, c.env.REPORTS, id, tenantId);
+    })
+    .openapi(downloadEvidenceRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const tenantId = c.get('tenantId') as string;
+        return downloadEvidenceZip(c.env.DB, c.env.REPORTS, id, tenantId);
+    });
+
+export type EvidenceApi = typeof evidenceRoutes;
 
 export default evidenceRoutes;
