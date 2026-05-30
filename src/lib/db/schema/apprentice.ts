@@ -12,7 +12,8 @@
  *   - 'edited'   — mentor modified before applying; decision_value carries
  *                   the final stored value
  */
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 export const apprenticeReviews = sqliteTable('apprentice_reviews', {
     id:             text('id').primaryKey(),
@@ -27,5 +28,9 @@ export const apprenticeReviews = sqliteTable('apprentice_reviews', {
     decisionValue:  text('decision_value'),
     decisionAt:     integer('decision_at'),
     submittedAt:    integer('submitted_at').notNull(),
-    createdAt:      text('created_at').notNull(),
-});
+    createdAt:      text('created_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+    index('apprentice_reviews_mentor_status_idx').on(t.tenantId, t.mentorId, t.status),
+    index('apprentice_reviews_inspection_item_idx').on(t.inspectionId, t.itemId),
+    index('apprentice_reviews_apprentice_idx').on(t.apprenticeId, t.status),
+]);

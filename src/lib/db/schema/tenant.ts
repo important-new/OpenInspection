@@ -8,7 +8,7 @@ export const tenants = sqliteTable('tenants', {
     tier: text('tier').notNull().default('free'),
     stripeConnectAccountId: text('stripe_connect_account_id'),
     status: text('status').notNull().default('pending'),
-    maxUsers: integer('max_users').notNull().default(3),
+    maxUsers: integer('max_users').notNull().default(5),
     deploymentMode: text('deployment_mode').notNull().default('shared'), // shared, silo
     // Design System 0520 subsystem E P8 — optional InterNACHI inspector
     // certification number, rendered in the TeamCredit report footer.
@@ -92,7 +92,13 @@ export const users = sqliteTable('users', {
     // the user retypes their email to confirm. NULL = active. Kept rather
     // than hard-deleted so audit-linked rows remain referentially intact.
     deletedAt:            integer('deleted_at', { mode: 'timestamp' }),
-});
+}, (t) => [
+    index('idx_users_deleted_at').on(t.deletedAt),
+    uniqueIndex('users_tenant_email_unique').on(t.tenantId, t.email),
+    index('idx_users_tenant').on(t.tenantId),
+    uniqueIndex('idx_users_slug_per_tenant').on(t.tenantId, t.slug),
+    index('idx_users_email').on(t.email),
+]);
 
 /**
  * Outbox for core → portal sync events (migration 0073). Append happens
@@ -116,7 +122,9 @@ export const syncOutbox = sqliteTable('sync_outbox', {
     createdAt:    integer('created_at').notNull(),
     lastTriedAt:  integer('last_tried_at'),
     lastError:    text('last_error'),
-});
+}, (t) => [
+    index('idx_sync_outbox_status_created').on(t.status, t.createdAt),
+]);
 
 // Booking #7 Sprint A — reserved/banned slug list. Seeded via migration 0052
 // with the project's reserved route names (admin, api, book, login, etc.) so
@@ -139,7 +147,9 @@ export const tenantInvites = sqliteTable('tenant_invites', {
     // eventual users row at accept time. NULL/empty for lead/office.
     mentorId:           text('mentor_id'),
     assignedSectionIds: text('assigned_section_ids').notNull().default('[]'),
-});
+}, (t) => [
+    index('idx_invites_tenant').on(t.tenantId),
+]);
 
 export const tenantConfigs = sqliteTable('tenant_configs', {
     tenantId: text('tenant_id').primaryKey().references(() => tenants.id),
@@ -292,4 +302,5 @@ export const notifications = sqliteTable('notifications', {
     createdAt:   integer('created_at', { mode: 'timestamp' }).notNull(),
 }, (t) => [
     index('idx_notifications_tenant_user_created').on(t.tenantId, t.userId, t.createdAt),
+    index('idx_notifications_tenant_user_unread').on(t.tenantId, t.userId, t.readAt),
 ]);

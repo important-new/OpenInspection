@@ -21,6 +21,7 @@ export const reportPdfs = sqliteTable('report_pdfs', {
 }, (t) => ({
     uqInspectionType: uniqueIndex('uq_report_pdfs_inspection_type').on(t.inspectionId, t.type),
     idxTenant:        index('idx_report_pdfs_tenant').on(t.tenantId),
+    idxStatus:        index('idx_report_pdfs_status').on(t.status),
 }));
 
 export type ReportPdf = typeof reportPdfs.$inferSelect;

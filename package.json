@@ -28,6 +28,7 @@
     "test:e2e": "playwright test",
     "db:migrate": "wrangler d1 migrations apply DB --local -c wrangler.jsonc",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote -c wrangler.jsonc",
+    "db:check": "node scripts/verify-migration-equivalence.mjs",
     "seed:test-user": "node scripts/seed-test-user.mjs",
     "setup:cloudflare": "node scripts/setup-cloudflare.js",
     "setup:local": "node scripts/setup-cloudflare.js --local",

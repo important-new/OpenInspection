@@ -1,5 +1,7 @@
 import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 import { tenants, users } from './tenant';
+import { contacts } from './contact';
 
 // Sprint 2 S2-1 — tenant-scoped rating systems library. The level list
 // itself is stored as JSON because it is never queried independently and
@@ -17,6 +19,7 @@ export const ratingSystems = sqliteTable('rating_systems', {
     updatedAt:   integer('updated_at').notNull(),
 }, (t) => ({
     tenantSlugUnique: uniqueIndex('idx_rating_systems_tenant_slug').on(t.tenantId, t.slug),
+    tenantIdx:        index('idx_rating_systems_tenant').on(t.tenantId),
 }));
 
 export const templates = sqliteTable('templates', {
@@ -32,7 +35,9 @@ export const templates = sqliteTable('templates', {
     commercialSubtype: text('commercial_subtype'),
     description: text('description'),
     featured: integer('featured').notNull().default(0),
-});
+}, (t) => [
+    index('idx_templates_rating_system').on(t.ratingSystemId),
+]);
 
 export const inspections = sqliteTable('inspections', {
     id:                  text('id').primaryKey(),
@@ -70,7 +75,7 @@ export const inspections = sqliteTable('inspections', {
     // Spec 5H D2 — when true, InspectionService.publish() auto-injects the
     // inspector's users.default_signature_base64 into inspection_results.data._inspector_signature.
     autoSignOnPublish:   integer('auto_sign_on_publish', { mode: 'boolean' }).notNull().default(false),
-    discountCodeId:      text('discount_code_id'),
+    discountCodeId:      text('discount_code_id').references(() => discountCodes.id),
     discountAmount:      integer('discount_amount'),
     closingDate:         text('closing_date'),
     referralSource:      text('referral_source'),
@@ -96,7 +101,7 @@ export const inspections = sqliteTable('inspections', {
     propertyType:        text('property_type'),
     commercialSubtype:   text('commercial_subtype'),
     county:              text('county'),
-    sellingAgentId:      text('selling_agent_id'),
+    sellingAgentId:      text('selling_agent_id').references(() => contacts.id),
     disableAutomations:  integer('disable_automations', { mode: 'boolean' }).notNull().default(false),
     messageToken:        text('message_token').unique('idx_inspections_msg_token'),
     templateSnapshot:    text('template_snapshot', { mode: 'json' }),
@@ -104,7 +109,7 @@ export const inspections = sqliteTable('inspections', {
     reportThemeOverride: text('report_theme_override', { enum: ['modern', 'classic', 'minimal'] }),
     // Sprint 2 S2-2 — Multi-inspection per request. NULL on legacy rows pre-backfill;
     // application requires a non-null value on all newly created inspections.
-    requestId:           text('request_id'),
+    requestId:           text('request_id').references(() => inspectionRequests.id),
     // Agent Accounts A3 — concierge booking state machine.
     //   NULL                 = not a concierge booking (or already settled into status='confirmed' / 'cancelled')
     //   'awaiting_inspector' = agent submitted; inspector must approve (Spectora reviewer mode)
@@ -120,7 +125,13 @@ export const inspections = sqliteTable('inspections', {
     leadInspectorId:     text('lead_inspector_id'),
     helperInspectorIds:  text('helper_inspector_ids').notNull().default('[]'),
     dataVersion:         integer('data_version').notNull().default(0),
-});
+}, (t) => [
+    index('idx_inspections_tenant').on(t.tenantId),
+    index('idx_inspections_status').on(t.status),
+    index('idx_inspections_request').on(t.requestId),
+    index('idx_inspections_inspector').on(t.inspectorId),
+    index('idx_inspections_agent').on(t.referredByAgentId),
+]);
 
 // Sprint 2 S2-2 — A single customer booking can spawn multiple inspections
 // (e.g. Residential + Radon + Termite at the same address). All inspections
@@ -146,7 +157,10 @@ export const inspectionRequests = sqliteTable('inspection_requests', {
     }).notNull().default('unpaid'),
     createdAt:        integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     updatedAt:        integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-});
+}, (t) => [
+    index('idx_inspection_requests_tenant').on(t.tenantId, t.status, t.scheduledAt),
+    index('idx_inspection_requests_email').on(t.tenantId, t.clientEmail),
+]);
 
 export const agreements = sqliteTable('agreements', {
     id: text('id').primaryKey(),
@@ -155,7 +169,9 @@ export const agreements = sqliteTable('agreements', {
     content: text('content').notNull(),
     version: integer('version').notNull().default(1),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_agreements_tenant').on(t.tenantId),
+]);
 
 export const inspectionAgreements = sqliteTable('inspection_agreements', {
     id: text('id').primaryKey(),
@@ -165,7 +181,10 @@ export const inspectionAgreements = sqliteTable('inspection_agreements', {
     signedAt: integer('signed_at', { mode: 'timestamp' }).notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
-});
+}, (t) => [
+    index('idx_insp_agreements_tenant').on(t.tenantId),
+    index('idx_insp_agreements_insp').on(t.inspectionId),
+]);
 
 // Sprint 3 S3-3 — T-key Tag system. Tenant-scoped tag library + a
 // many-to-many link table connecting an inspection-item position to one or
@@ -185,6 +204,7 @@ export const tags = sqliteTable('tags', {
     createdAt: integer('created_at').notNull(),
 }, (t) => ({
     tenantNameUnique: uniqueIndex('idx_tags_tenant_name').on(t.tenantId, t.name),
+    tenantIdx:        index('idx_tags_tenant').on(t.tenantId),
 }));
 
 export const inspectionItemTagLinks = sqliteTable('inspection_item_tag_links', {
@@ -193,7 +213,12 @@ export const inspectionItemTagLinks = sqliteTable('inspection_item_tag_links', {
     tagId:        text('tag_id').notNull(),
     tenantId:     text('tenant_id').notNull(),
     createdAt:    integer('created_at').notNull(),
-});
+}, (t) => [
+    primaryKey({ columns: [t.inspectionId, t.itemId, t.tagId] }),
+    index('idx_tag_links_tenant').on(t.tenantId),
+    index('idx_tag_links_tag').on(t.tagId),
+    index('idx_tag_links_inspection_item').on(t.inspectionId, t.itemId),
+]);
 
 // Round-2 backlog #9 (Spectora §E.3) — Media Center pool. Photos uploaded
 // ahead of item placement live here until the inspector drags one onto an
@@ -217,7 +242,10 @@ export const inspectionMediaPool = sqliteTable('inspection_media_pool', {
     // consumed exclusively client-side. `caption` is user-supplied, ≤200 chars.
     annotations:   text('annotations'),
     caption:       text('caption'),
-});
+}, (t) => [
+    index('idx_media_pool_tenant').on(t.tenantId),
+    index('idx_media_pool_inspection').on(t.inspectionId),
+]);
 
 export const inspectionResults = sqliteTable('inspection_results', {
     id: text('id').primaryKey(),
@@ -230,7 +258,10 @@ export const inspectionResults = sqliteTable('inspection_results', {
     // source rating system afterwards never mutates an existing inspection.
     ratingSystemId:       text('rating_system_id'),
     ratingSystemSnapshot: text('rating_system_snapshot', { mode: 'json' }),
-});
+}, (t) => [
+    index('idx_results_tenant').on(t.tenantId),
+    index('idx_results_inspection').on(t.inspectionId),
+]);
 
 export const availability = sqliteTable('availability', {
     id: text('id').primaryKey(),
@@ -240,7 +271,9 @@ export const availability = sqliteTable('availability', {
     startTime: text('start_time').notNull(),
     endTime: text('end_time').notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_availability_inspector').on(t.inspectorId),
+]);
 
 export const availabilityOverrides = sqliteTable('availability_overrides', {
     id: text('id').primaryKey(),
@@ -251,7 +284,9 @@ export const availabilityOverrides = sqliteTable('availability_overrides', {
     startTime: text('start_time'),
     endTime: text('end_time'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_avail_overrides_insp').on(t.inspectorId),
+]);
 
 export const comments = sqliteTable('comments', {
     id: text('id').primaryKey(),
@@ -278,8 +313,13 @@ export const comments = sqliteTable('comments', {
     // + filter UI in the inspection-edit Library drawer. Distinct from the
     // existing plural `itemLabels` which stores all matched labels.
     itemLabel: text('item_label'),
+    severity: text('severity'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_comments_tenant').on(t.tenantId),
+    index('idx_comments_rating_bucket').on(t.tenantId, t.ratingBucket),
+    index('idx_comments_library_id').on(t.libraryId),
+]);
 
 // Comments Library Upgrade — per-user usage tracking. Drives the "most-used by
 // you" sort option + AUTO filter mode in the Library drawer. Composite PK on
@@ -287,11 +327,12 @@ export const comments = sqliteTable('comments', {
 export const commentUsage = sqliteTable('comment_usage', {
     tenantId:   text('tenant_id').notNull(),
     userId:     text('user_id').notNull(),
-    commentId:  text('comment_id').notNull(),
+    commentId:  text('comment_id').notNull().references(() => comments.id, { onDelete: 'cascade' }),
     useCount:   integer('use_count').notNull().default(0),
     lastUsedAt: integer('last_used_at'),
 }, (table) => ({
     pk: primaryKey({ columns: [table.tenantId, table.userId, table.commentId] }),
+    userLastUsedIdx: index('idx_comment_usage_user_last_used').on(table.tenantId, table.userId, table.lastUsedAt),
 }));
 
 export const agreementRequests = sqliteTable('agreement_requests', {
@@ -315,7 +356,12 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     // Spec 5H P2 — opaque public-verifier token. Set on the sign event.
     verificationToken: text('verification_token'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    uniqueIndex('idx_agreement_requests_verify_token').on(t.verificationToken),
+    index('idx_agreement_requests_token').on(t.token),
+    index('idx_agreement_requests_tenant').on(t.tenantId),
+    index('idx_agreement_requests_inspection').on(t.inspectionId),
+]);
 
 export const services = sqliteTable('services', {
     id: text('id').primaryKey(),
@@ -329,17 +375,22 @@ export const services = sqliteTable('services', {
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_services_tenant').on(t.tenantId),
+]);
 
 export const inspectionServices = sqliteTable('inspection_services', {
     id: text('id').primaryKey(),
     tenantId: text('tenant_id').notNull().references(() => tenants.id),
-    inspectionId: text('inspection_id').notNull().references(() => inspections.id),
+    inspectionId: text('inspection_id').notNull().references(() => inspections.id, { onDelete: 'cascade' }),
     serviceId: text('service_id').notNull().references(() => services.id),
     priceOverride: integer('price_override'),
     nameSnapshot: text('name_snapshot').notNull(),
     priceSnapshot: integer('price_snapshot').notNull(),
-});
+}, (t) => [
+    index('idx_insp_services_tenant').on(t.tenantId),
+    index('idx_insp_services_insp').on(t.inspectionId),
+]);
 
 export const discountCodes = sqliteTable('discount_codes', {
     id: text('id').primaryKey(),
@@ -352,7 +403,10 @@ export const discountCodes = sqliteTable('discount_codes', {
     expiresAt: text('expires_at'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_discount_codes_tenant').on(t.tenantId),
+    uniqueIndex('discount_codes_code_tenant').on(sql`upper(code)`, t.tenantId),
+]);
 
 export const automations = sqliteTable('automations', {
     id: text('id').primaryKey(),
@@ -375,20 +429,25 @@ export const automations = sqliteTable('automations', {
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_automations_tenant').on(t.tenantId),
+]);
 
 export const automationLogs = sqliteTable('automation_logs', {
     id: text('id').primaryKey(),
     tenantId: text('tenant_id').notNull().references(() => tenants.id),
-    automationId: text('automation_id').notNull().references(() => automations.id),
-    inspectionId: text('inspection_id').notNull().references(() => inspections.id),
+    automationId: text('automation_id').notNull(),
+    inspectionId: text('inspection_id').notNull(),
     recipientEmail: text('recipient_email').notNull(),
     sendAt: text('send_at').notNull(),
     deliveredAt: text('delivered_at'),
     status: text('status', { enum: ['pending', 'sent', 'failed', 'skipped'] }).notNull().default('pending'),
     error: text('error'),
     eventId: text('event_id'),
-});
+}, (t) => [
+    index('idx_automation_logs_pending').on(t.tenantId, t.status, t.sendAt),
+    index('idx_automation_logs_insp').on(t.inspectionId),
+]);
 
 // Spec 4D — Inspection Events
 
@@ -403,7 +462,9 @@ export const eventTypes = sqliteTable('event_types', {
     sortOrder:          integer('sort_order').notNull().default(0),
     active:             integer('active', { mode: 'boolean' }).notNull().default(true),
     createdAt:          integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    uniqueIndex('event_types_tenant_slug_idx').on(t.tenantId, t.slug),
+]);
 
 // Agent Accounts A3 — Concierge magic-link tokens. Single-use, 7-day TTL.
 // `confirmed_at` flips to a timestamp when the client redeems the link; the
@@ -437,4 +498,7 @@ export const inspectionEvents = sqliteTable('inspection_events', {
     cancelledAt:       integer('cancelled_at', { mode: 'timestamp' }),
     gcalEventId:       text('gcal_event_id'),
     createdAt:         integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('inspection_events_scheduled_idx').on(t.tenantId, t.scheduledAt),
+    index('inspection_events_inspection_idx').on(t.inspectionId),
+]);

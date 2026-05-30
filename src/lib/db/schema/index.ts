@@ -22,7 +22,9 @@ export {
     tags,
     inspectionItemTagLinks,
     conciergeConfirmTokens,
+    commentUsage,
 } from './inspection';
+export { commercialSubtypes } from './commercial-subtypes';
 export { contacts } from './contact';
 export { recommendations } from './recommendation';
 export { invoices } from './invoice';

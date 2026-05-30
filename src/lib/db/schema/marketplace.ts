@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { templates } from './inspection';
 
 export const marketplaceTemplates = sqliteTable('marketplace_templates', {
   id:            text('id').primaryKey(),
@@ -19,9 +20,12 @@ export const tenantMarketplaceImports = sqliteTable('tenant_marketplace_imports'
   tenantId:              text('tenant_id').notNull(),
   marketplaceTemplateId: text('marketplace_template_id').notNull().references(() => marketplaceTemplates.id),
   importedSemver:        text('imported_semver').notNull(),
-  localTemplateId:       text('local_template_id').notNull(),
+  localTemplateId:       text('local_template_id').notNull().references(() => templates.id),
   importedAt:            text('imported_at').notNull(),
-});
+}, (t) => [
+  index('idx_mkt_imports_tmpl').on(t.marketplaceTemplateId),
+  index('idx_mkt_imports_tenant').on(t.tenantId),
+]);
 
 // Spec 5G M2 — sibling table for non-template marketplace content
 // (comment libraries, snippet packs, …). Avoids the legacy CHECK
@@ -38,7 +42,9 @@ export const marketplaceLibraries = sqliteTable('marketplace_libraries', {
   featured:      integer('featured', { mode: 'boolean' }).notNull().default(false),
   createdAt:     text('created_at').notNull(),
   updatedAt:     text('updated_at').notNull(),
-});
+}, (t) => [
+  index('idx_marketplace_libraries_kind_featured').on(t.kind, t.featured),
+]);
 
 export const tenantLibraryImports = sqliteTable('tenant_library_imports', {
   id:             text('id').primaryKey(),
@@ -47,7 +53,10 @@ export const tenantLibraryImports = sqliteTable('tenant_library_imports', {
   importedSemver: text('imported_semver').notNull(),
   importedAt:     text('imported_at').notNull(),
   rowCount:       integer('row_count').notNull().default(0),
-});
+}, (t) => [
+  uniqueIndex('uq_tenant_library_import').on(t.tenantId, t.libraryId),
+  index('idx_tenant_library_imports_tenant').on(t.tenantId),
+]);
 
 // Sprint 2 Track 3 (S2-8) — per-import history. One row per
 // install/update/replace/migrate event, indexed for fast tenant scoping
@@ -67,4 +76,8 @@ export const tenantMarketplaceImportHistory = sqliteTable('tenant_marketplace_im
   metadata:      text('metadata'),
   createdAt:     integer('created_at').notNull(),
   createdBy:     text('created_by').notNull(),
-});
+}, (t) => [
+  index('idx_marketplace_history_tenant').on(t.tenantId, t.createdAt),
+  index('idx_marketplace_history_template').on(t.templateId),
+  index('idx_marketplace_history_library').on(t.libraryId),
+]);

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const qboConnections = sqliteTable('qbo_connections', {
     tenantId:             text('tenant_id').primaryKey(),
@@ -23,7 +23,10 @@ export const qboEntityMap = sqliteTable('qbo_entity_map', {
     qboId:        text('qbo_id').notNull(),
     qboSyncToken: text('qbo_sync_token').notNull(),
     syncedAt:     integer('synced_at').notNull(),
-});
+}, (t) => [
+    uniqueIndex('idx_qbo_entity_map_qbo').on(t.tenantId, t.qboType, t.qboId),
+    uniqueIndex('idx_qbo_entity_map_oi').on(t.tenantId, t.oiType, t.oiId),
+]);
 
 export const qboSyncErrors = sqliteTable('qbo_sync_errors', {
     id:        text('id').primaryKey(),

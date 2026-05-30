@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { tenants } from './tenant';
 
 export const contacts = sqliteTable('contacts', {
@@ -12,4 +12,7 @@ export const contacts = sqliteTable('contacts', {
     notes: text('notes'),
     createdByUserId: text('created_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_contacts_type').on(t.tenantId, t.type),
+    index('idx_contacts_tenant').on(t.tenantId),
+]);

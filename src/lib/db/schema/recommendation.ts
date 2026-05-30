@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { tenants } from './tenant';
 
 export const recommendations = sqliteTable('recommendations', {
@@ -12,4 +12,7 @@ export const recommendations = sqliteTable('recommendations', {
     defaultRepairSummary: text('default_repair_summary').notNull(),
     createdByUserId:      text('created_by_user_id'),                                             // no FK, stale ref acceptable
     createdAt:            integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_recommendations_tenant_category').on(t.tenantId, t.category),
+    index('idx_recommendations_tenant').on(t.tenantId),
+]);

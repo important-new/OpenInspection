@@ -12,7 +12,8 @@
  * Name` snapshots the tenant + display name at link-time so the menu
  * can render without a per-row join.
  */
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 export const userIdentityLinks = sqliteTable('user_identity_links', {
     id:                 text('id').primaryKey(),
@@ -21,5 +22,8 @@ export const userIdentityLinks = sqliteTable('user_identity_links', {
     linkedTenantId:     text('linked_tenant_id').notNull(),
     linkedRole:         text('linked_role').notNull(),
     linkedDisplayName:  text('linked_display_name').notNull(),
-    createdAt:          text('created_at').notNull(),
-});
+    createdAt:          text('created_at').notNull().default(sql`(datetime('now'))`),
+}, (t) => [
+    index('user_identity_links_primary_idx').on(t.primaryUserId),
+    uniqueIndex('user_identity_links_primary_linked_unique').on(t.primaryUserId, t.linkedUserId),
+]);

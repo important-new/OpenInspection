@@ -1718,6 +1718,7 @@ export const adminRoutes = createApiRouter()
             triggerCode:    comments.triggerCode,
             searchKeywords: comments.searchKeywords,
             libraryId:      comments.libraryId,
+            severity:       comments.severity,
             createdAt:      comments.createdAt,
             useCount:       commentUsage.useCount,
             lastUsedAt:     commentUsage.lastUsedAt,
@@ -1781,6 +1782,7 @@ export const adminRoutes = createApiRouter()
             triggerCode: null as string | null,
             searchKeywords: null as string | null,
             itemLabel: null as string | null,
+            severity: null as string | null,
             createdAt: new Date(),
         };
         await db.insert(comments).values(row);

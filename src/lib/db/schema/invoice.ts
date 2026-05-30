@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { tenants } from './tenant';
 import { inspections } from './inspection';
 import { contacts } from './contact';
@@ -19,4 +19,8 @@ export const invoices = sqliteTable('invoices', {
     partialPaidAt: integer('partial_paid_at', { mode: 'timestamp' }),
     qboSyncStatus: text('qbo_sync_status', { enum: ['synced', 'pending', 'failed'] }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-});
+}, (t) => [
+    index('idx_invoices_tenant').on(t.tenantId),
+    index('idx_invoices_inspection').on(t.inspectionId),
+    index('idx_invoices_contact').on(t.tenantId, t.contactId),
+]);
