@@ -88,6 +88,10 @@ export const users = sqliteTable('users', {
     // teammates who join via team invite (only the tenant owner answers
     // the role survey at signup).
     signupRole:           text('signup_role'),
+    // Account soft-delete marker — set by POST /api/account/delete after
+    // the user retypes their email to confirm. NULL = active. Kept rather
+    // than hard-deleted so audit-linked rows remain referentially intact.
+    deletedAt:            integer('deleted_at', { mode: 'timestamp' }),
 });
 
 /**
