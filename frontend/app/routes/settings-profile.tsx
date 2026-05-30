@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Form, Link, useLoaderData, useActionData, useFetcher } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/settings-profile";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { useSessionContext } from "~/hooks/useSessionContext";
 import { SignaturePad } from "~/components/SignaturePad";
+import { profileSchema } from "~/lib/forms/settings.schema";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -59,15 +62,21 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   // Default: save profile fields
+  const submission = parseWithZod(fd, { schema: profileSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
+  }
+  const v = submission.value;
   const body: Record<string, unknown> = {};
-  for (const key of ["name", "phone", "licenseNumber", "slug", "bio"]) {
-    const v = fd.get(key);
-    if (v !== null) body[key] = v;
+  for (const key of ["name", "phone", "licenseNumber", "slug", "bio"] as const) {
+    if (v[key] !== undefined) body[key] = v[key];
   }
   const res = await api.profile.index.$patch({ json: body });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    return { success: false, error: (err as Record<string, string>)?.message || "Save failed", intent };
+    return submission.reply({
+      formErrors: [(err as Record<string, string>)?.message || "Save failed"],
+    });
   }
   return { success: true, error: null, intent };
 }
@@ -82,6 +91,18 @@ export default function SettingsProfilePage() {
   const [bioLen, setBioLen] = useState((profile.bio ?? "").length);
   const ctx = useSessionContext();
   const tenant = ctx?.branding?.tenantSubdomain;
+
+  // Conform owns the main profile form (default intent). The save-signature
+  // intent is handled by a separate useFetcher below, so guard against feeding
+  // a non-Conform actionData into useForm.
+  const [form, fields] = useForm({
+    lastResult: actionData && "status" in actionData ? actionData : undefined,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: profileSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   // Signature pad state
   const sigFetcher = useFetcher<typeof action>();
@@ -113,29 +134,49 @@ export default function SettingsProfilePage() {
         </div>
       )}
 
-      <Form method="post" className="space-y-5">
+      <Form
+        method="post"
+        id={form.id}
+        onSubmit={form.onSubmit}
+        noValidate
+        className="space-y-5"
+      >
         {/* Identity fields */}
         <section className="bg-ih-bg-card rounded-lg border border-ih-border p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="space-y-2">
-              <label htmlFor="profileName" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Full Name</label>
-              <input type="text" id="profileName" name="name" defaultValue={profile.name ?? ""}
+              <label htmlFor={fields.name.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Full Name</label>
+              <input type="text" id={fields.name.id} name={fields.name.name} defaultValue={profile.name ?? ""}
                 placeholder="John Smith"
+                aria-invalid={fields.name.errors ? true : undefined}
                 className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none transition-all font-medium text-[13px] placeholder:text-slate-300 dark:placeholder:text-slate-500 text-ih-fg-1" />
-              <p className="text-[11px] text-ih-fg-3">Displayed on inspection reports.</p>
+              {fields.name.errors ? (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.name.errors[0]}</p>
+              ) : (
+                <p className="text-[11px] text-ih-fg-3">Displayed on inspection reports.</p>
+              )}
             </div>
             <div className="space-y-2">
-              <label htmlFor="profilePhone" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Phone</label>
-              <input type="tel" id="profilePhone" name="phone" defaultValue={profile.phone ?? ""}
+              <label htmlFor={fields.phone.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Phone</label>
+              <input type="tel" id={fields.phone.id} name={fields.phone.name} defaultValue={profile.phone ?? ""}
                 placeholder="(555) 123-4567"
+                aria-invalid={fields.phone.errors ? true : undefined}
                 className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none transition-all font-medium text-[13px] placeholder:text-slate-300 dark:placeholder:text-slate-500 text-ih-fg-1" />
+              {fields.phone.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.phone.errors[0]}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <label htmlFor="profileLicense" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">License #</label>
-              <input type="text" id="profileLicense" name="licenseNumber" defaultValue={profile.licenseNumber ?? ""}
+              <label htmlFor={fields.licenseNumber.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">License #</label>
+              <input type="text" id={fields.licenseNumber.id} name={fields.licenseNumber.name} defaultValue={profile.licenseNumber ?? ""}
                 placeholder="HI-12345"
+                aria-invalid={fields.licenseNumber.errors ? true : undefined}
                 className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none transition-all font-medium text-[13px] placeholder:text-slate-300 dark:placeholder:text-slate-500 text-ih-fg-1" />
-              <p className="text-[11px] text-ih-fg-3">State inspector license number.</p>
+              {fields.licenseNumber.errors ? (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.licenseNumber.errors[0]}</p>
+              ) : (
+                <p className="text-[11px] text-ih-fg-3">State inspector license number.</p>
+              )}
             </div>
           </div>
         </section>
@@ -147,11 +188,16 @@ export default function SettingsProfilePage() {
             <p className="text-[12px] text-ih-fg-3">Customers visit this URL to book inspections directly with you.</p>
           </header>
           <div className="space-y-2">
-            <label htmlFor="profileSlug" className="block text-[13px] font-semibold text-ih-fg-1">Slug</label>
-            <input type="text" id="profileSlug" name="slug" defaultValue={profile.slug ?? ""}
+            <label htmlFor={fields.slug.id} className="block text-[13px] font-semibold text-ih-fg-1">Slug</label>
+            <input type="text" id={fields.slug.id} name={fields.slug.name} defaultValue={profile.slug ?? ""}
               placeholder="your-public-username" autoComplete="off"
+              aria-invalid={fields.slug.errors ? true : undefined}
               className="block w-full rounded-md border border-ih-border bg-ih-bg-card px-3 py-2 text-[13px] focus:border-ih-primary focus:shadow-ih-focus outline-none transition-colors text-ih-fg-1" />
-            <p className="text-[11px] text-ih-fg-3">Lowercase letters, numbers, and hyphens (3-32 chars).</p>
+            {fields.slug.errors ? (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.slug.errors[0]}</p>
+            ) : (
+              <p className="text-[11px] text-ih-fg-3">Lowercase letters, numbers, and hyphens (3-32 chars).</p>
+            )}
           </div>
           {profile.slug && tenant ? (
             <div className="flex items-center gap-3 pt-2">
@@ -208,18 +254,29 @@ export default function SettingsProfilePage() {
 
           {/* Bio */}
           <div className="space-y-2">
-            <label htmlFor="profileBio" className="block text-[13px] font-semibold text-ih-fg-1">Bio</label>
+            <label htmlFor={fields.bio.id} className="block text-[13px] font-semibold text-ih-fg-1">Bio</label>
             <textarea
-              id="profileBio" name="bio" rows={4} maxLength={600}
+              id={fields.bio.id} name={fields.bio.name} rows={4} maxLength={600}
               defaultValue={profile.bio ?? ""}
               onChange={(e) => setBioLen(e.target.value.length)}
+              aria-invalid={fields.bio.errors ? true : undefined}
               placeholder="Tell customers a bit about your background, certifications, and inspection style."
               className="block w-full rounded-md border border-ih-border bg-ih-bg-card px-3 py-2 text-[13px] focus:border-ih-primary focus:shadow-ih-focus outline-none transition-colors text-ih-fg-1 placeholder:text-slate-300 dark:placeholder:text-slate-500"
             />
-            <p className="text-[11px] text-ih-fg-3">{bioLen} / 600</p>
+            {fields.bio.errors ? (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.bio.errors[0]}</p>
+            ) : (
+              <p className="text-[11px] text-ih-fg-3">{bioLen} / 600</p>
+            )}
           </div>
 
         </section>
+
+        {form.errors && (
+          <div className="px-4 py-2.5 rounded-md bg-ih-bad-bg border border-ih-bad text-[13px] text-ih-bad-fg font-medium">
+            {form.errors[0]}
+          </div>
+        )}
 
         {/* Save */}
         <div className="flex justify-end">

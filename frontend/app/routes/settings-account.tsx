@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Form, Link, useLoaderData, useActionData } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/settings-account";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
+import { deleteAccountSchema } from "~/lib/forms/settings.schema";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -46,17 +49,18 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   if (intent === "delete-account") {
-    const confirmEmail = String(fd.get("confirmEmail") ?? "").trim();
-    if (!confirmEmail) {
-      return { success: false, error: "Retype your account email to confirm deletion." };
+    const submission = parseWithZod(fd, { schema: deleteAccountSchema });
+    if (submission.status !== "success") {
+      return submission.reply();
     }
+    const confirmEmail = submission.value.confirmEmail.trim();
     const res = await api.identity.account.delete.$post({ json: { confirmEmail } });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = (err as { error?: { message?: string } })?.error?.message
         ?? (err as Record<string, string>)?.message
         ?? "Account deletion failed.";
-      return { success: false, error: msg };
+      return submission.reply({ formErrors: [msg] });
     }
     return { success: true, error: null, message: "Account deleted." };
   }
@@ -72,6 +76,21 @@ export default function SettingsAccountPage() {
   const { account } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Conform only owns the delete-account form. The flash banner above reads the
+  // `{success,error}` shape returned by the export-data / error branches; the
+  // delete form's field/form errors come through `lastResult` instead. Guard so
+  // a non-Conform actionData (export-data) isn't fed into useForm.
+  const deleteResult =
+    actionData && "status" in actionData ? actionData : undefined;
+  const [deleteForm, deleteFields] = useForm({
+    lastResult: deleteResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: deleteAccountSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   return (
     <div className="space-y-[18px] max-w-3xl">
@@ -146,19 +165,36 @@ export default function SettingsAccountPage() {
             Delete my account
           </button>
         ) : (
-          <Form method="post" className="space-y-3 max-w-sm">
+          <Form
+            method="post"
+            id={deleteForm.id}
+            onSubmit={deleteForm.onSubmit}
+            noValidate
+            className="space-y-3 max-w-sm"
+          >
             <input type="hidden" name="intent" value="delete-account" />
             <div className="space-y-2">
-              <label htmlFor="confirmEmail" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">
+              <label htmlFor={deleteFields.confirmEmail.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">
                 Retype your email to confirm
               </label>
               <input
-                type="email" id="confirmEmail" name="confirmEmail" required
+                type="email"
+                id={deleteFields.confirmEmail.id}
+                name={deleteFields.confirmEmail.name}
                 autoComplete="off"
+                aria-invalid={deleteFields.confirmEmail.errors ? true : undefined}
                 placeholder={account.email ?? "your@email.com"}
                 className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-bad focus:shadow-ih-focus outline-none text-[13px] text-ih-fg-1"
               />
+              {deleteFields.confirmEmail.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{deleteFields.confirmEmail.errors[0]}</p>
+              )}
             </div>
+            {deleteForm.errors && (
+              <div className="px-3 py-2 rounded-md bg-ih-bad-bg border border-ih-bad text-[13px] text-ih-bad-fg">
+                {deleteForm.errors[0]}
+              </div>
+            )}
             <div className="flex gap-2">
               <button type="button" onClick={() => setShowDeleteConfirm(false)}
                 className="h-9 px-3 rounded-md border border-ih-border text-[13px] font-medium text-ih-fg-2 hover:bg-ih-bg-muted transition-colors">

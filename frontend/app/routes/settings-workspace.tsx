@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Form, Link, useLoaderData, useActionData } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/settings-workspace";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
+import { workspaceSchema } from "~/lib/forms/settings.schema";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -38,17 +41,21 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 export async function action({ request, context }: Route.ActionArgs) {
   const token = await requireToken(context, request);
   const fd = await request.formData();
-  const body: Record<string, unknown> = {};
-
-  for (const key of ["siteName", "primaryColor", "reportTheme", "gaMeasurementId"]) {
-    const v = fd.get(key);
-    if (v !== null) body[key] = v;
+  const submission = parseWithZod(fd, { schema: workspaceSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
   }
+  const v = submission.value;
+
+  const body: Record<string, unknown> = {};
+  if (v.siteName !== undefined) body.siteName = v.siteName;
+  if (v.primaryColor !== undefined) body.primaryColor = v.primaryColor;
+  if (v.reportTheme !== undefined) body.reportTheme = v.reportTheme;
+  if (v.gaMeasurementId !== undefined) body.gaMeasurementId = v.gaMeasurementId;
 
   // Custom referral sources: one label per line
-  const rawSources = fd.get("customReferralSources");
-  if (typeof rawSources === "string") {
-    body.customReferralSources = rawSources
+  if (typeof v.customReferralSources === "string") {
+    body.customReferralSources = v.customReferralSources
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
@@ -58,7 +65,9 @@ export async function action({ request, context }: Route.ActionArgs) {
   const res = await api.admin.branding.$post({ json: body });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    return { success: false, error: (err as Record<string, string>)?.message || "Save failed" };
+    return submission.reply({
+      formErrors: [(err as Record<string, string>)?.message || "Save failed"],
+    });
   }
   return { success: true, error: null };
 }
@@ -71,6 +80,15 @@ export default function SettingsWorkspacePage() {
   const { branding } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const [color, setColor] = useState(branding.primaryColor ?? "#6366f1");
+
+  const [form, fields] = useForm({
+    lastResult: actionData && "status" in actionData ? actionData : undefined,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: workspaceSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   return (
     <div className="space-y-[18px]">
@@ -95,25 +113,38 @@ export default function SettingsWorkspacePage() {
         </div>
       )}
 
-      <Form method="post" className="space-y-5">
+      <Form
+        method="post"
+        id={form.id}
+        onSubmit={form.onSubmit}
+        noValidate
+        className="space-y-5"
+      >
         {/* Branding */}
         <section className="bg-ih-bg-card rounded-lg border border-ih-border p-6 space-y-6">
           <h3 className="text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Branding</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
-              <label htmlFor="siteName" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Workspace Name</label>
-              <input type="text" id="siteName" name="siteName" defaultValue={branding.siteName ?? "OpenInspection"}
+              <label htmlFor={fields.siteName.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Workspace Name</label>
+              <input type="text" id={fields.siteName.id} name={fields.siteName.name} defaultValue={branding.siteName ?? "OpenInspection"}
+                aria-invalid={fields.siteName.errors ? true : undefined}
                 className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none transition-all font-medium text-[13px] text-ih-fg-1" />
+              {fields.siteName.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.siteName.errors[0]}</p>
+              )}
             </div>
             <div className="space-y-2">
-              <label htmlFor="primaryColor" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Primary Color</label>
+              <label htmlFor={fields.primaryColor.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Primary Color</label>
               <div className="flex gap-3">
-                <input type="color" id="primaryColor" name="primaryColor" value={color}
+                <input type="color" id={fields.primaryColor.id} name={fields.primaryColor.name} value={color}
                   onChange={(e) => setColor(e.target.value)}
                   className="h-10 w-16 rounded-md border border-ih-border p-1 cursor-pointer bg-ih-bg-card" />
                 <input type="text" readOnly value={color}
                   className="flex-1 px-3 py-2 rounded-md border border-ih-border bg-ih-bg-muted text-ih-fg-3 font-mono text-[13px] cursor-default" />
               </div>
+              {fields.primaryColor.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.primaryColor.errors[0]}</p>
+              )}
             </div>
           </div>
 
@@ -145,7 +176,7 @@ export default function SettingsWorkspacePage() {
           <div className="grid grid-cols-3 gap-3">
             {THEMES.map((t) => (
               <label key={t} className="cursor-pointer">
-                <input type="radio" name="reportTheme" value={t}
+                <input type="radio" name={fields.reportTheme.name} value={t}
                   defaultChecked={(branding.reportTheme ?? "modern") === t}
                   className="sr-only peer" />
                 <div className="p-4 rounded-md border-2 text-[13px] font-bold uppercase tracking-[0.2em] capitalize transition-all text-center peer-checked:border-ih-primary peer-checked:bg-ih-primary-tint peer-checked:text-ih-primary border-ih-border bg-ih-bg-card text-ih-fg-2 hover:border-ih-border">
@@ -161,11 +192,16 @@ export default function SettingsWorkspacePage() {
           <h3 className="text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Telemetry</h3>
           <p className="text-[12px] text-ih-fg-3">Optional Google Analytics 4 tracking on client-facing pages. Leave blank to disable.</p>
           <div className="space-y-2 max-w-md">
-            <label htmlFor="gaMeasurementId" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">GA Measurement ID</label>
-            <input type="text" id="gaMeasurementId" name="gaMeasurementId"
+            <label htmlFor={fields.gaMeasurementId.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">GA Measurement ID</label>
+            <input type="text" id={fields.gaMeasurementId.id} name={fields.gaMeasurementId.name}
               defaultValue={branding.gaMeasurementId ?? ""} placeholder="G-XXXXXXXXXX"
+              aria-invalid={fields.gaMeasurementId.errors ? true : undefined}
               className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none transition-all font-medium text-[13px] placeholder:text-slate-300 dark:placeholder:text-slate-500 text-ih-fg-1" />
-            <p className="text-[11px] text-ih-fg-3">Format: <code className="font-mono">G-XXXXXXXXXX</code>.</p>
+            {fields.gaMeasurementId.errors ? (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.gaMeasurementId.errors[0]}</p>
+            ) : (
+              <p className="text-[11px] text-ih-fg-3">Format: <code className="font-mono">G-XXXXXXXXXX</code>.</p>
+            )}
           </div>
         </section>
 
@@ -181,14 +217,20 @@ export default function SettingsWorkspacePage() {
             </div>
           </div>
           <div className="space-y-2">
-            <label htmlFor="customReferralSources" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Custom labels</label>
-            <textarea id="customReferralSources" name="customReferralSources" rows={6}
+            <label htmlFor={fields.customReferralSources.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Custom labels</label>
+            <textarea id={fields.customReferralSources.id} name={fields.customReferralSources.name} rows={6}
               defaultValue={(branding.customReferralSources ?? []).join("\n")}
               placeholder={"Magazine ad\nTrade show\nReferral partner"}
               className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none transition-all font-medium text-[13px] placeholder:text-slate-300 dark:placeholder:text-slate-500 text-ih-fg-1" />
             <p className="text-[11px] text-ih-fg-3">One label per line. Maximum 32 entries; duplicates are ignored.</p>
           </div>
         </section>
+
+        {form.errors && (
+          <div className="px-4 py-2.5 rounded-md bg-ih-bad-bg border border-ih-bad text-[13px] text-ih-bad-fg font-medium">
+            {form.errors[0]}
+          </div>
+        )}
 
         {/* Save */}
         <div className="flex justify-end">

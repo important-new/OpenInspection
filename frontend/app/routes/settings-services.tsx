@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Link, useLoaderData, Form } from "react-router";
+import { Link, useLoaderData, Form, useActionData } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/settings-services";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
+import { createServiceSchema } from "~/lib/forms/settings.schema";
 
 export function meta() {
   return [{ title: "Services & Catalog - Settings - OpenInspection" }];
@@ -47,13 +50,25 @@ export async function action({ request, context }: Route.ActionArgs) {
   const api = createApi(context, { token });
 
   if (intent === "create-service") {
-    await api.admin.services.$post({
+    const submission = parseWithZod(form, { schema: createServiceSchema });
+    if (submission.status !== "success") {
+      return submission.reply();
+    }
+    const { name, description, price } = submission.value;
+    const res = await api.admin.services.$post({
       json: {
-        name: form.get("name") as string,
-        description: (form.get("description") as string) || null,
-        price: Number(form.get("price")) * 100 || 0,
+        name,
+        description: description || null,
+        price: Number(price) * 100 || 0,
       },
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return submission.reply({
+        formErrors: [(err as Record<string, string>)?.message || "Failed to create service."],
+      });
+    }
+    return { ok: true };
   } else if (intent === "toggle-service") {
     const id = String(form.get("id") ?? "");
     const active = form.get("active") === "true";
@@ -68,7 +83,20 @@ export async function action({ request, context }: Route.ActionArgs) {
 
 export default function SettingsServices() {
   const { services, discounts } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   const [showForm, setShowForm] = useState(false);
+
+  // Conform owns only the create-service form. The toggle-service form posts
+  // hidden fields only (no text validation), so it stays a plain <Form>. Guard
+  // against feeding a non-Conform actionData ({ ok: true }) into useForm.
+  const [form, fields] = useForm({
+    lastResult: actionData && "status" in actionData ? actionData : undefined,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: createServiceSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   return (
     <div className="space-y-[18px]">
@@ -96,34 +124,57 @@ export default function SettingsServices() {
 
       {/* Inline add service form */}
       {showForm && (
-        <Form method="post" className="bg-ih-bg-card border border-ih-border rounded-lg p-4 space-y-3">
+        <Form
+          method="post"
+          id={form.id}
+          onSubmit={form.onSubmit}
+          noValidate
+          className="bg-ih-bg-card border border-ih-border rounded-lg p-4 space-y-3"
+        >
           <input type="hidden" name="intent" value="create-service" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Name</label>
+              <label htmlFor={fields.name.id} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Name</label>
               <input
-                type="text" name="name" required
+                type="text" id={fields.name.id} name={fields.name.name}
                 placeholder="e.g., Standard Inspection"
+                aria-invalid={fields.name.errors ? true : undefined}
                 className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none"
               />
+              {fields.name.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.name.errors[0]}</p>
+              )}
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Description</label>
+              <label htmlFor={fields.description.id} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Description</label>
               <input
-                type="text" name="description"
+                type="text" id={fields.description.id} name={fields.description.name}
                 placeholder="Optional details"
+                aria-invalid={fields.description.errors ? true : undefined}
                 className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none"
               />
+              {fields.description.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.description.errors[0]}</p>
+              )}
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Price ($)</label>
+              <label htmlFor={fields.price.id} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Price ($)</label>
               <input
-                type="number" name="price" min="0" step="0.01"
+                type="number" id={fields.price.id} name={fields.price.name} min="0" step="0.01"
                 placeholder="450.00"
+                aria-invalid={fields.price.errors ? true : undefined}
                 className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none"
               />
+              {fields.price.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.price.errors[0]}</p>
+              )}
             </div>
           </div>
+          {form.errors && (
+            <div className="px-3 py-2 rounded-md bg-ih-bad-bg border border-ih-bad text-[13px] text-ih-bad-fg">
+              {form.errors[0]}
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setShowForm(false)} className="h-8 px-3 rounded-md border border-ih-border text-[13px] font-medium text-ih-fg-2 hover:bg-ih-bg-muted transition-colors">
               Cancel
