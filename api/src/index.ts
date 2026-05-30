@@ -229,7 +229,12 @@ app.use('*', async (c, next) => {
     const isAgentPublic = path.startsWith('/agent-invite/') || path === '/api/agents/accept' || path === '/agent-signup' || path === '/api/agent-signup';
     // Agent Accounts A3 — concierge magic-link entry points (client-facing,
     // no JWT). The token in the URL is the secret.
-    const isConciergePublic = path.startsWith('/confirm/') || path === '/api/concierge/confirm';
+    const isConciergePublic =
+        path.startsWith('/confirm/') ||
+        path === '/api/concierge/confirm' ||
+        path === '/api/concierge/book-info' ||
+        path === '/api/concierge/book' ||
+        path === '/api/concierge/confirm-info';
     const isPublic = path.startsWith('/api/public/') || path.startsWith('/api/integration/') || path.startsWith('/api/admin/connect') || path.startsWith('/api/admin/silo') || path.startsWith('/api/ics/') || path.startsWith('/api/messages/public/') || path.startsWith('/api/guest/') || path === '/book' || path.startsWith('/book/') || path.startsWith('/inspector/') || path.startsWith('/embed/') || path.startsWith('/photos/') || path === '/' || path === '/status' || path.startsWith('/static/') || path.startsWith('/report/') || path.startsWith('/r/') || path.startsWith('/agreements/sign/') || path.startsWith('/sign/') || path.startsWith('/messages/') || path.startsWith('/m2m/') || path.startsWith('/verify/') || path.startsWith('/.well-known/') || STATIC_ASSET_EXT.test(path) || path === '/api/integrations/qbo/webhook';
 
     // Design System 0520 subsystem D P5 — observer surfaces are gated by

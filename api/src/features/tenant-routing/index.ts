@@ -55,6 +55,9 @@ export const tenantRouter: MiddlewareHandler<HonoConfig> = async (c, next) => {
                 || path === '/status' || path.startsWith('/api/integration')
                 || path === '/api/agent-signup' || path === '/api/agents/accept'
                 || path === '/api/concierge/confirm'
+                || path === '/api/concierge/book-info'
+                || path === '/api/concierge/book'
+                || path === '/api/concierge/confirm-info'
                 || path.startsWith('/api/public/')
                 // M2M admin endpoints carry tenantId in the request
                 // body, not in the URL/JWT. They authenticate via
