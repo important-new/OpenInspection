@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Form, Link, useActionData } from "react-router";
 import type { Route } from "./+types/signup";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Become a partner agent - OpenInspection" }];
@@ -13,18 +13,16 @@ export function meta() {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
+  const turnstileTokenRaw = fd.get("cf-turnstile-response");
   const body = {
-    name: fd.get("name"),
-    email: fd.get("email"),
-    password: fd.get("password"),
-    turnstileToken: fd.get("cf-turnstile-response") || undefined,
+    name: String(fd.get("name") || ""),
+    email: String(fd.get("email") || ""),
+    password: String(fd.get("password") || ""),
+    ...(turnstileTokenRaw ? { turnstileToken: String(turnstileTokenRaw) } : {}),
   };
 
-  const res = await apiFetch(context, "/api/agent-signup", {
-    method: "POST",
-    body: JSON.stringify(body),
-    csrf: true,
-  });
+  const api = createApi(context);
+  const res = await api.agentSignup.index.$post({ json: body });
 
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || !(json as Record<string, unknown>).success) {

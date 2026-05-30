@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/report-card-stack";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta({ data }: Route.MetaArgs) {
  const d = data as LoaderResult | undefined;
@@ -61,10 +61,10 @@ interface LoaderResult {
 
 export async function loader({ params, context }: Route.LoaderArgs) {
  try {
- const res = await apiFetch(
- context,
- `/api/public/report/${params.tenant}/${params.id}`,
- );
+ const api = createApi(context);
+ const res = await api.publicShare.report[":tenant"][":id"].$get({
+ param: { tenant: params.tenant ?? "", id: params.id ?? "" },
+ });
  const body = res.ok ? await res.json() : {};
  const d = ((body as Record<string, unknown>).data ?? {}) as unknown as LoaderResult | undefined;
  return {

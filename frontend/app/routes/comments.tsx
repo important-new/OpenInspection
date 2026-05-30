@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/comments";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState, Pagination } from "@core/shared-ui";
 import { usePagination } from "~/hooks/usePagination";
 
@@ -16,11 +16,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     const url = new URL(request.url);
     const page     = url.searchParams.get("page")     ?? "1";
     const pageSize = url.searchParams.get("pageSize") ?? "50";
-    const res = await apiFetch(
-      context,
-      `/api/admin/comments?page=${encodeURIComponent(page)}&pageSize=${encodeURIComponent(pageSize)}`,
-      { token },
-    );
+    const api = createApi(context, { token });
+    const res = await api.admin.comments.$get({ query: { page, pageSize } });
     const body = res.ok
       ? ((await res.json()) as { data?: unknown[]; meta?: { total: number; page: number; pageSize: number; totalPages: number } })
       : { data: [], meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 } };

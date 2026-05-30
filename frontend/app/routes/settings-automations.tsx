@@ -1,7 +1,7 @@
 import { Link, useLoaderData, Form } from "react-router";
 import type { Route } from "./+types/settings-automations";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Automations - Settings - OpenInspection" }];
@@ -37,7 +37,8 @@ const ACTION_LABELS: Record<string, string> = {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
-    const res = await apiFetch(context, "/api/admin/automations", { token });
+    const api = createApi(context, { token });
+    const res = await api.admin.automations.$get();
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return { rules: (body.data ?? []) as AutomationRule[] };
   } catch {
@@ -51,12 +52,12 @@ export async function action({ request, context }: Route.ActionArgs) {
   const intent = form.get("intent");
 
   if (intent === "toggle") {
-    const id = form.get("id");
+    const id = String(form.get("id") ?? "");
     const active = form.get("active") === "true";
-    await apiFetch(context, `/api/admin/automations/${id}`, {
-      token,
-      method: "PATCH",
-      body: JSON.stringify({ active: !active }),
+    const api = createApi(context, { token });
+    await api.admin.automations[":id"].$patch({
+      param: { id },
+      json: { active: !active },
     });
   }
 

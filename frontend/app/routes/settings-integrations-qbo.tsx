@@ -3,6 +3,7 @@ import { useLoaderData, useActionData, Link, Form } from "react-router";
 import type { Route } from "./+types/settings-integrations-qbo";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { SecretField } from "~/components/SecretField";
 
 interface QboStatus {
@@ -20,10 +21,14 @@ export function meta() {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
+  const api = createApi(context, { token });
 
   const [qboRes, secretsRes] = await Promise.all([
+    // TODO: dead route, no server mount — qbo routes are mounted at
+    // `/settings/integrations/qbo`, not `/api/qbo`. Keeping as apiFetch
+    // until the call site and server mount are reconciled.
     apiFetch(context, "/api/qbo/status", { token }).catch(() => null),
-    apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
+    api.admin.secrets.$get().catch(() => null),
   ]);
 
   let status: QboStatus | null = null;
@@ -58,11 +63,8 @@ export async function action({ request, context }: Route.ActionArgs) {
       if (val && typeof val === "string" && val.trim()) body[key] = val;
     }
     if (Object.keys(body).length > 0) {
-      const res = await apiFetch(context, "/api/admin/secrets", {
-        token,
-        method: "PUT",
-        body: JSON.stringify(body),
-      });
+      const api = createApi(context, { token });
+      const res = await api.admin.secrets.$put({ json: body });
       if (!res.ok) {
         return { success: false, error: "Failed to save QBO keys." };
       }

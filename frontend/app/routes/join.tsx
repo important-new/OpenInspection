@@ -1,6 +1,6 @@
 import { Form, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
 import type { Route } from "./+types/join";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Accept Invite - OpenInspection" }];
@@ -15,7 +15,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   }
 
   try {
-    const res = await apiFetch(context, `/api/auth/invite/validate?token=${encodeURIComponent(token)}`);
+    const api = createApi(context);
+    const res = await api.auth.invite.validate.$get({ query: { token } });
     if (!res.ok) {
       return { valid: false, error: "Invalid or expired invite link", invite: null };
     }
@@ -38,10 +39,9 @@ export async function action({ request, context }: Route.ActionArgs) {
   const name = String(formData.get("name") || "");
 
   try {
-    const res = await apiFetch(context, "/api/auth/invite/accept", {
-      method: "POST",
-      body: JSON.stringify({ token, password, name }),
-      csrf: true,
+    const api = createApi(context);
+    const res = await api.auth.invite.accept.$post({
+      json: { token, password, name },
     });
 
     if (!res.ok) {

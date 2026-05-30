@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useLoaderData, useFetcher, useNavigate, useNavigation } from "react-router";
 import type { Route } from "./+types/calendar";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "Calendar - OpenInspection" }];
@@ -83,7 +83,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
   const end = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString();
   try {
-    const res = await apiFetch(context, `/api/calendar/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { token });
+    const api = createApi(context, { token });
+    const res = await api.calendarEvents.index.$get({ query: { start, end } });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     const events = (body.data ?? []) as CalendarEvent[];
     return { events };
@@ -103,10 +104,10 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (intent === "reschedule") {
     const id = formData.get("id") as string;
     const date = formData.get("date") as string;
-    const res = await apiFetch(context, `/api/inspections/${id}`, {
-      token,
-      method: "PATCH",
-      body: JSON.stringify({ date }),
+    const api = createApi(context, { token });
+    const res = await api.inspections[":id"].$patch({
+      param: { id },
+      json: { date },
     });
     return { ok: res.ok };
   }

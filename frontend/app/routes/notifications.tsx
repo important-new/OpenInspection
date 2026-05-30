@@ -1,7 +1,7 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/notifications";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { PageHeader, Card, EmptyState } from "@core/shared-ui";
 
 export function meta() {
@@ -11,7 +11,8 @@ export function meta() {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
-    const res = await apiFetch(context, "/api/notifications", { token });
+    const api = createApi(context, { token });
+    const res = await api.notifications.index.$get();
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return {
       notifications: (body.data ?? []) as unknown[],

@@ -3,6 +3,7 @@ import { Form, Link, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/settings-account";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -20,7 +21,8 @@ interface AccountInfo {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
-  const res = await apiFetch(context, "/api/auth/me", { token });
+  const api = createApi(context, { token });
+  const res = await api.auth.me.$get();
   const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
   return { account: (body.data ?? {}) as AccountInfo };
 }
@@ -35,6 +37,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const intent = fd.get("intent");
 
   if (intent === "export-data") {
+    // TODO: dead /api/account/* route — keep apiFetch until server side ships or removes
     const res = await apiFetch(context, "/api/account/export", { token, method: "POST" });
     if (!res.ok) {
       return { success: false, error: "Data export failed. Please try again." };
@@ -47,6 +50,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     if (!password) {
       return { success: false, error: "Password is required to delete your account." };
     }
+    // TODO: dead /api/account/* route — keep apiFetch until server side ships or removes
     const res = await apiFetch(context, "/api/account/delete", {
       token,
       method: "POST",

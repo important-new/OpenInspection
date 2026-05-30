@@ -3,6 +3,7 @@ import { useLoaderData, useFetcher, useNavigate } from "react-router";
 import type { Route } from "./+types/inspection-edit";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { useInspectionState } from "~/hooks/useInspection";
 import type { RatingLevel, ResultMap } from "~/hooks/useInspection";
 import { useFindings } from "~/hooks/useFindings";
@@ -50,10 +51,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
  const token = await requireToken(context, request);
  const id = params.id;
 
+ const api = createApi(context, { token });
  const [inspRes, resultsRes, reportRes] = await Promise.all([
- apiFetch(context, `/api/inspections/${id}`, { token }),
- apiFetch(context, `/api/inspections/${id}/results`, { token }),
- apiFetch(context, `/api/inspections/${id}/report-data`, { token }),
+ api.inspections[":id"].$get({ param: { id } }),
+ api.inspections[":id"].results.$get({ param: { id } }),
+ api.inspections[":id"]["report-data"].$get({ param: { id } }),
  ]);
 
  const inspBody = inspRes.ok ? await inspRes.json() : {};
@@ -106,15 +108,18 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const token = await requireToken(context, request);
  const formData = await request.formData();
  const intent = formData.get("intent");
+ const api = createApi(context, { token });
 
  if (intent === "rate") {
  const itemId = String(formData.get("itemId"));
  const sectionId = String(formData.get("sectionId"));
  const rating = String(formData.get("rating"));
+ // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
  await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
  body: JSON.stringify({ field: "rating", value: rating, sectionId }),
+ csrf: true,
  });
  }
 
@@ -122,10 +127,12 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const itemId = String(formData.get("itemId"));
  const sectionId = String(formData.get("sectionId"));
  const notes = String(formData.get("notes"));
+ // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
  await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
  body: JSON.stringify({ field: "notes", value: notes, sectionId }),
+ csrf: true,
  });
  }
 
@@ -135,6 +142,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const tabName = String(formData.get("tabName"));
  const cannedId = String(formData.get("cannedId"));
  const included = formData.get("included") === "true";
+ // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
  await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
@@ -145,6 +153,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  expectedVersion: 0,
  force: true,
  }),
+ csrf: true,
  });
  }
 
@@ -153,6 +162,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const sectionId = String(formData.get("sectionId"));
  const cannedId = String(formData.get("cannedId"));
  const patch = JSON.parse(String(formData.get("patch")));
+ // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
  await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
@@ -163,6 +173,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  expectedVersion: 0,
  force: true,
  }),
+ csrf: true,
  });
  }
 
@@ -170,6 +181,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const itemId = String(formData.get("itemId"));
  const attributeId = String(formData.get("attributeId"));
  const value = JSON.parse(String(formData.get("value")));
+ // TODO: /api/inspections/{id}/items/{itemId}/field is not a typed route — leave as apiFetch
  await apiFetch(context, `/api/inspections/${params.id}/items/${itemId}/field`, {
  method: "PATCH",
  token,
@@ -179,43 +191,38 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  expectedVersion: 0,
  force: true,
  }),
+ csrf: true,
  });
  }
 
  if (intent === "save-all") {
  const data = formData.get("data");
  if (data) {
- await apiFetch(context, `/api/inspections/${params.id}/results`, {
- method: "PATCH",
- token,
- body: JSON.stringify({ data: JSON.parse(String(data)) }),
+ await api.inspections[":id"].results.$patch({
+ param: { id: params.id },
+ json: { data: JSON.parse(String(data)) },
  });
  }
  }
 
  if (intent === "publish") {
- await apiFetch(context, `/api/inspections/${params.id}/publish`, {
- method: "POST",
- token,
- });
+ await api.inspections[":id"].publish.$post({ param: { id: params.id } });
  }
 
  if (intent === "toggle-auto-sign") {
  const autoSignOnPublish = formData.get("autoSignOnPublish") === "true";
- await apiFetch(context, `/api/inspections/${params.id}`, {
- method: "PATCH",
- token,
- body: JSON.stringify({ autoSignOnPublish }),
+ await api.inspections[":id"].$patch({
+ param: { id: params.id },
+ json: { autoSignOnPublish },
  });
  }
 
  if (intent === "sign-inspector") {
  const signatureBase64 = String(formData.get("signatureBase64") ?? "");
  if (signatureBase64) {
- await apiFetch(context, `/api/inspections/${params.id}/inspector-signature`, {
- method: "POST",
- token,
- body: JSON.stringify({ signatureBase64, signedAt: new Date().toISOString() }),
+ await api.inspectionSync[":id"]["inspector-signature"].$post({
+ param: { id: params.id },
+ json: { signatureBase64, signedAt: new Date().toISOString() },
  });
  }
  }

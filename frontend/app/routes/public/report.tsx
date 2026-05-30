@@ -1,6 +1,6 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/report";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
  return [{ title: "Inspection Report - OpenInspection" }];
@@ -33,10 +33,10 @@ interface ReportData {
 
 export async function loader({ params, context }: Route.LoaderArgs) {
  try {
- const res = await apiFetch(
- context,
- `/api/public/report/${params.tenant}/${params.id}`,
- );
+ const api = createApi(context);
+ const res = await api.publicShare.report[":tenant"][":id"].$get({
+ param: { tenant: params.tenant ?? "", id: params.id ?? "" },
+ });
  const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
  const d = (body.data ?? {}) as Record<string, unknown>;
  // Extract _inspector_signature if the API embeds it in the response

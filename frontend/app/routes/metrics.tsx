@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLoaderData, useNavigate } from "react-router";
 import type { Route } from "./+types/metrics";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { PageHeader, Card } from "@core/shared-ui";
 
 export function meta() {
@@ -23,7 +23,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const period = url.searchParams.get("period") || "6m";
   try {
-    const res = await apiFetch(context, `/api/metrics?period=${encodeURIComponent(period)}`, { token });
+    const api = createApi(context, { token });
+    const res = await api.metrics.index.$get({ query: { period } });
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
     const d = (body.data ?? {}) as Record<string, unknown>;
     return { data: (Object.keys(d).length > 0 ? d : null) as MetricsData | null, period };

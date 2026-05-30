@@ -3,6 +3,7 @@ import { useLoaderData, useFetcher } from "react-router";
 import type { Route } from "./+types/contacts";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState } from "@core/shared-ui";
 
 export function meta() {
@@ -14,9 +15,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const filterType = url.searchParams.get("type") || "";
   try {
+    const api = createApi(context, { token });
     const [contactsRes, agentsRes] = await Promise.all([
-      apiFetch(context, `/api/contacts${filterType ? `?type=${filterType}` : ""}`, { token }),
-      apiFetch(context, "/api/agents", { token }),
+      api.contacts.index.$get({ query: filterType ? { type: filterType } : {} }),
+      api.agents.index.$get(),
     ]);
     const contactsBody = contactsRes.ok ? ((await contactsRes.json()) as Record<string, unknown>) : { data: [] };
     const agentsBody = agentsRes.ok ? ((await agentsRes.json()) as Record<string, unknown>) : { data: [] };
@@ -35,44 +37,50 @@ export async function action({ request, context }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = form.get("intent") as string;
 
+  const api = createApi(context, { token });
+
   if (intent === "create" || intent === "update") {
     const id = form.get("id") as string | null;
     const body = {
-      name: form.get("name"),
-      email: form.get("email"),
-      phone: form.get("phone"),
-      agency: form.get("agency"),
-      type: form.get("type"),
+      name: form.get("name") as string,
+      email: form.get("email") as string,
+      phone: form.get("phone") as string,
+      agency: form.get("agency") as string,
+      type: form.get("type") as string,
     };
     const res = id
-      ? await apiFetch(context, `/api/contacts/${id}`, { token, method: "PUT", body: JSON.stringify(body) })
-      : await apiFetch(context, "/api/contacts", { token, method: "POST", body: JSON.stringify(body) });
+      ? await api.contacts[":id"].$put({ param: { id }, json: body })
+      : await api.contacts.index.$post({ json: body });
     return { ok: res.ok };
   }
 
   if (intent === "delete") {
     const id = form.get("id") as string;
-    const res = await apiFetch(context, `/api/contacts/${id}`, { token, method: "DELETE" });
+    const res = await api.contacts[":id"].$delete({ param: { id } });
     return { ok: res.ok };
   }
 
+  // TODO: /api/contacts/import is not a typed route — leave as apiFetch
   if (intent === "csv-import") {
     const csvText = form.get("csvText") as string;
     const res = await apiFetch(context, "/api/contacts/import", {
       token,
       method: "POST",
       body: JSON.stringify({ csv: csvText }),
+      csrf: true,
     });
     const data = res.ok ? await res.json() : {};
     return { ok: res.ok, result: data };
   }
 
+  // TODO: /api/contacts/import/preview is not a typed route — leave as apiFetch
   if (intent === "csv-preview") {
     const csvText = form.get("csvText") as string;
     const res = await apiFetch(context, "/api/contacts/import/preview", {
       token,
       method: "POST",
       body: JSON.stringify({ csv: csvText }),
+      csrf: true,
     });
     const data = res.ok ? await res.json() : {};
     return { ok: res.ok, preview: data };

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Form, Link, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/settings-security";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { SecretField } from "~/components/SecretField";
 
 /* ------------------------------------------------------------------ */
@@ -20,10 +20,11 @@ interface AuthMe {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
+  const api = createApi(context, { token });
 
   const [meRes, secretsRes] = await Promise.all([
-    apiFetch(context, "/api/auth/me", { token }),
-    apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
+    api.auth.me.$get(),
+    api.secrets.secrets.$get().catch(() => null),
   ]);
 
   const meBody = meRes.ok ? ((await meRes.json()) as Record<string, unknown>) : {};
@@ -44,24 +45,23 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const token = await requireToken(context, request);
+  const api = createApi(context, { token });
   const fd = await request.formData();
   const intent = fd.get("intent");
 
   if (intent === "change-password") {
     const body = {
-      currentPassword: fd.get("currentPassword"),
-      newPassword: fd.get("newPassword"),
-      confirmPassword: fd.get("confirmPassword"),
+      currentPassword: String(fd.get("currentPassword") ?? ""),
+      newPassword: String(fd.get("newPassword") ?? ""),
+      confirmPassword: String(fd.get("confirmPassword") ?? ""),
     };
 
     if (body.newPassword !== body.confirmPassword) {
       return { success: false, error: "New passwords do not match." };
     }
 
-    const res = await apiFetch(context, "/api/auth/change-password", {
-      token,
-      method: "POST",
-      body: JSON.stringify(body),
+    const res = await api.auth["change-password"].$post({
+      json: body,
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -73,10 +73,8 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (intent === "save-turnstile") {
     const val = fd.get("TURNSTILE_SECRET_KEY");
     if (val && typeof val === "string" && val.trim()) {
-      const res = await apiFetch(context, "/api/admin/secrets", {
-        token,
-        method: "PUT",
-        body: JSON.stringify({ TURNSTILE_SECRET_KEY: val }),
+      const res = await api.secrets.secrets.$put({
+        json: { TURNSTILE_SECRET_KEY: val },
       });
       if (!res.ok) {
         return { success: false, error: "Failed to save Turnstile key." };

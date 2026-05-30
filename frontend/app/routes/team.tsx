@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/team";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { SeatBanner } from "~/components/SeatBanner";
 import { useSessionContext } from "~/hooks/useSessionContext";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState } from "@core/shared-ui";
@@ -23,7 +23,8 @@ interface Member {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   try {
-    const res = await apiFetch(context, "/api/team", { token });
+    const api = createApi(context, { token });
+    const res = await api.team.members.$get();
     const body = res.ok ? ((await res.json()) as Record<string, unknown>) : { data: [] };
     return {
       members: (body.data ?? []) as Member[],
