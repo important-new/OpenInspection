@@ -12,9 +12,10 @@
     "url": "https://github.com/InspectorHub/OpenInspection/issues"
   },
   "scripts": {
-    "dev": "npm run vendor:copy && react-router dev",
+    "dev": "npm run build && wrangler dev -c build/server/wrangler.json --persist-to .wrangler/state",
+    "dev:hmr": "npm run vendor:copy && react-router dev",
     "build": "npm run vendor:copy && node scripts/gen-version.js && react-router build",
-    "preview": "npm run build && wrangler dev -c wrangler.jsonc --local",
+    "preview": "npm run build && wrangler dev -c build/server/wrangler.json --persist-to .wrangler/state",
     "deploy": "npm run build && wrangler deploy -c wrangler.jsonc",
     "vendor:copy": "node scripts/vendor-copy.js",
     "gen-version": "node scripts/gen-version.js",
