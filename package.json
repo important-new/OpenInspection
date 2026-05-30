@@ -36,6 +36,8 @@
     "css:watch": "npx tailwindcss -c api/tailwind.config.js -i api/src/styles/input.css -o api/public/styles.css --watch",
     "db:migrate": "npx wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "npx wrangler d1 migrations apply DB --remote",
+    "seed:test-user": "node scripts/seed-test-user.mjs",
+    "dev:combined": "npm --prefix frontend run build && npx wrangler d1 migrations apply DB --local -c wrangler.combined.toml && npm run seed:test-user && npx wrangler dev -c wrangler.combined.toml --port 8787 --local",
     "test:unit": "vitest run --config api/vitest.config.ts",
     "type-check": "npx -p typescript tsc --noEmit -p api/tsconfig.json",
     "lint": "eslint .",
