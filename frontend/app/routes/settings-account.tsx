@@ -37,6 +37,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const intent = fd.get("intent");
 
   if (intent === "export-data") {
+    // TODO: dead /api/account/* route — keep apiFetch until server side ships or removes
     const res = await apiFetch(context, "/api/account/export", { token, method: "POST" });
     if (!res.ok) {
       return { success: false, error: "Data export failed. Please try again." };
@@ -49,6 +50,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     if (!password) {
       return { success: false, error: "Password is required to delete your account." };
     }
+    // TODO: dead /api/account/* route — keep apiFetch until server side ships or removes
     const res = await apiFetch(context, "/api/account/delete", {
       token,
       method: "POST",

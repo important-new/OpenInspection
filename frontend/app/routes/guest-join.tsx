@@ -1,6 +1,5 @@
 import { Form, useActionData, useLoaderData, useNavigation, redirect } from "react-router";
 import type { Route } from "./+types/guest-join";
-import { apiFetch } from "~/lib/api.server";
 import { createApi } from "~/lib/api-client.server";
 import { createSessionWithToken } from "~/lib/session.server";
 
@@ -18,7 +17,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   try {
 
-    const res = await apiFetch(context, `/api/auth/guest/validate?token=${encodeURIComponent(token)}`);
+    const api = createApi(context);
+    const res = await api.auth.guest.validate.$get({ query: { token } });
     if (!res.ok) {
       return { valid: false, error: "Invalid or expired guest link", invite: null };
     }

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Form, Link, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/settings-security";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
 import { createApi } from "~/lib/api-client.server";
 import { SecretField } from "~/components/SecretField";
 
@@ -25,7 +24,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   const [meRes, secretsRes] = await Promise.all([
     api.auth.me.$get(),
-    apiFetch(context, "/api/admin/secrets", { token }).catch(() => null),
+    api.secrets.secrets.$get().catch(() => null),
   ]);
 
   const meBody = meRes.ok ? ((await meRes.json()) as Record<string, unknown>) : {};
@@ -74,10 +73,8 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (intent === "save-turnstile") {
     const val = fd.get("TURNSTILE_SECRET_KEY");
     if (val && typeof val === "string" && val.trim()) {
-      const res = await apiFetch(context, "/api/admin/secrets", {
-        token,
-        method: "PUT",
-        body: JSON.stringify({ TURNSTILE_SECRET_KEY: val }),
+      const res = await api.secrets.secrets.$put({
+        json: { TURNSTILE_SECRET_KEY: val },
       });
       if (!res.ok) {
         return { success: false, error: "Failed to save Turnstile key." };

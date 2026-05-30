@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Form, Link, useLoaderData, useActionData, useFetcher } from "react-router";
 import type { Route } from "./+types/settings-profile";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { useSessionContext } from "~/hooks/useSessionContext";
 import { SignaturePad } from "~/components/SignaturePad";
 
@@ -26,7 +26,8 @@ interface Profile {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
-  const res = await apiFetch(context, "/api/profile", { token });
+  const api = createApi(context, { token });
+  const res = await api.profile.index.$get();
   const body = res.ok ? ((await res.json()) as Record<string, unknown>) : {};
   return { profile: (body.data ?? {}) as Profile };
 }
@@ -37,6 +38,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const token = await requireToken(context, request);
+  const api = createApi(context, { token });
   const fd = await request.formData();
   const intent = fd.get("intent") as string | null;
 
@@ -46,10 +48,8 @@ export async function action({ request, context }: Route.ActionArgs) {
     if (!signatureBase64) {
       return { success: false, error: "No signature data provided", intent };
     }
-    const res = await apiFetch(context, "/api/users/me/signature", {
-      token,
-      method: "POST",
-      body: JSON.stringify({ signatureBase64 }),
+    const res = await api.users.me.signature.$post({
+      json: { signatureBase64 },
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -64,11 +64,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     const v = fd.get(key);
     if (v !== null) body[key] = v;
   }
-  const res = await apiFetch(context, "/api/profile", {
-    token,
-    method: "PATCH",
-    body: JSON.stringify(body),
-  });
+  const res = await api.profile.index.$patch({ json: body });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     return { success: false, error: (err as Record<string, string>)?.message || "Save failed", intent };
