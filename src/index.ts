@@ -182,7 +182,6 @@ app.onError((err: unknown, c: Context<HonoConfig>) => {
 const staticOpts = (opts: Record<string, string>): any => opts;
 app.get('/favicon.svg', serveStatic(staticOpts({ path: './favicon.svg' })));
 app.get('/logo.svg', serveStatic(staticOpts({ path: './logo.svg' })));
-app.get('/styles.css', serveStatic(staticOpts({ path: './styles.css' })));
 app.get('/vendor/*', serveStatic(staticOpts({ root: './' })));
 app.get('/fonts.css', serveStatic(staticOpts({ path: './fonts.css' })));
 app.get('/fonts/*', serveStatic(staticOpts({ root: './' })));

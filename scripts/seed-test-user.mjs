@@ -18,7 +18,7 @@ import { join } from "node:path";
 const EMAIL = process.env.TEST_EMAIL || "admin@example.com";
 const PASSWORD = process.env.TEST_PASSWORD || "testpassword123";
 const TENANT_ID = process.env.SINGLE_TENANT_ID || "5b0d0e5c-7d2a-4d9e-9c1f-1e2c3d4e5f6a";
-const CONFIG = process.env.WRANGLER_CONFIG || "wrangler.combined.toml";
+const CONFIG = process.env.WRANGLER_CONFIG || "wrangler.jsonc";
 
 const toHex = (b) => Array.from(b).map((x) => x.toString(16).padStart(2, "0")).join("");
 

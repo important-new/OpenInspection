@@ -21,9 +21,9 @@
     "types": ["@types/node", "@cloudflare/vitest-pool-workers"],
     "skipLibCheck": true,
     "incremental": true,
-    "tsBuildInfoFile": "./.tsbuildinfo",
+    "tsBuildInfoFile": "./.tsbuildinfo.api",
     "paths": {
-      "@core/api-types": ["../packages/api-types/index.ts"]
+      "@core/api-types": ["./packages/api-types/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "worker-configuration.d.ts"],
