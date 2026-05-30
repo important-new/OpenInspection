@@ -38,6 +38,8 @@ import {
     ResultsBatchSchema,
     ResultsBatchResponseSchema,
     ConflictListResponseSchema,
+    ConflictResolveSchema,
+    ConflictResolveResponseSchema,
 } from '../lib/validations/inspection.schema';
 import { CreateTemplateSchema, UpdateTemplateSchema, TemplateSchemaV2Schema } from '../lib/validations/template.schema';
 import { createApiResponseSchema, SuccessResponseSchema } from '../lib/validations/shared.schema';
@@ -49,7 +51,7 @@ import { CreateUnitSchema, UpdateUnitSchema, MoveUnitSchema } from '../lib/valid
 import { drizzle } from 'drizzle-orm/d1';
 import { inspections as inspectionTable, inspectionResults, agreements, inspectionAgreements, users, contacts } from '../lib/db/schema';
 import { applyResultsBatch } from '../services/inspection-results.service';
-import { listPendingConflicts } from '../services/conflicts.service';
+import { listPendingConflicts, resolveConflicts } from '../services/conflicts.service';
 import { eq, inArray, and } from 'drizzle-orm';
 import type { Context } from 'hono';
 import type { SignatureUser } from '../lib/inspector-signature';
@@ -1745,6 +1747,27 @@ const listConflictsRoute = createRoute(withMcpMetadata({
     description: 'Returns the field-level merge conflicts the sync endpoint persisted, so the conflict-resolver UI can adjudicate them out-of-band from the transient 409.',
 }, { scopes: ['read'], tier: 'extended' }));
 
+const resolveConflictsRoute = createRoute(withMcpMetadata({
+    method:     'post',
+    path:       '/{id}/conflicts/resolve',
+    tags:       ['inspections'],
+    summary:    'Clear sync conflicts the inspector has adjudicated',
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    request: {
+        params: z.object({ id: z.string().min(1) }),
+        body:   { content: { 'application/json': { schema: ConflictResolveSchema } } },
+    },
+    responses: {
+        200: {
+            content: { 'application/json': { schema: ConflictResolveResponseSchema } },
+            description: 'Resolved',
+        },
+        404: { description: 'Inspection not found in this tenant' },
+    },
+    operationId: 'resolveInspectionConflicts',
+    description: 'Deletes the pending conflict rows matching each { itemId, field } resolution. The winning side was already written on the prior sync; clearing the flag is the resolution.',
+}, { scopes: ['write'], tier: 'extended' }));
+
 
 export const inspectionsRoutes = createApiRouter()
     .openapi(dashboardRoute, async (c) => {
@@ -2745,6 +2768,28 @@ export const inspectionsRoutes = createApiRouter()
 
         const db = drizzle(c.env.DB);
         const data = await listPendingConflicts(db, id);
+        return c.json({ success: true as const, data }, 200);
+    })
+    // Typed-Hono dead-routes cleanup Task 13 — clear adjudicated conflicts.
+    .openapi(resolveConflictsRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const { resolutions } = c.req.valid('json');
+        const tenantId = c.get('tenantId');
+        const user     = c.get('user') as { sub?: string } | undefined;
+        const userId   = user?.sub;
+        if (!userId) throw Errors.Unauthorized('Missing user identity');
+
+        try {
+            await c.var.services.inspection.getInspection(id, tenantId);
+        } catch {
+            throw Errors.NotFound('Inspection not found');
+        }
+
+        const db = drizzle(c.env.DB);
+        const data = await resolveConflicts(db, id, resolutions);
+        auditFromContext(c, 'inspection.conflicts_resolved', 'inspection', {
+            entityId: id, metadata: { resolved: data.resolved, by: userId },
+        });
         return c.json({ success: true as const, data }, 200);
     })
     .get('/:id/report', async (c) => {
