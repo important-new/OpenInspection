@@ -1,15 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
+import { useRouteLoaderData } from "react-router";
+import { writeColorSchemeCookie, type UiPrefs } from "~/lib/ui-prefs";
 
 type ColorScheme = "light" | "dark" | "auto";
-
-function getStoredScheme(): ColorScheme {
-  if (typeof window === "undefined") return "auto";
-  try {
-    const v = localStorage.getItem("oi-color-scheme");
-    if (v === "light" || v === "dark") return v;
-  } catch {}
-  return "auto";
-}
 
 function resolveScheme(scheme: ColorScheme): "light" | "dark" {
   if (scheme !== "auto") return scheme;
@@ -29,7 +22,11 @@ function applyScheme(scheme: ColorScheme) {
 }
 
 export function useTheme() {
-  const [scheme, setScheme] = useState<ColorScheme>(getStoredScheme);
+  // Initial scheme comes from the cookie-backed root loader so the server and the
+  // client's first render agree (no hydration mismatch). localStorage is no longer
+  // read during render — it would be invisible to the server.
+  const rootPrefs = useRouteLoaderData("root") as UiPrefs | undefined;
+  const [scheme, setScheme] = useState<ColorScheme>(rootPrefs?.colorScheme ?? "auto");
 
   useEffect(() => {
     applyScheme(scheme);
@@ -43,6 +40,8 @@ export function useTheme() {
 
   const setColorScheme = useCallback((next: ColorScheme) => {
     setScheme(next);
+    // Cookie is the SSR source of truth; keep localStorage in sync for legacy reads.
+    writeColorSchemeCookie(next);
     try {
       if (next === "auto") {
         localStorage.removeItem("oi-color-scheme");

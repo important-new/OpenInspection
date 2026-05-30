@@ -1,18 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { NavLink } from "react-router";
+import { NavLink, useRouteLoaderData } from "react-router";
 import { useTheme } from "~/hooks/useTheme";
 import { useSessionContext } from "~/hooks/useSessionContext";
+import { writeSidebarCookie, type UiPrefs } from "~/lib/ui-prefs";
 
 const STORAGE_KEY = "oi-sidebar-collapsed";
-
-function getInitialCollapsed(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 interface NavItem {
   to: string;
@@ -235,7 +227,11 @@ export function MobileHeader() {
 }
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  // Initial collapsed state comes from the cookie-backed root loader so the
+  // server and client first render agree (no hydration mismatch, no post-mount
+  // flash from the old two-pass localStorage read).
+  const rootPrefs = useRouteLoaderData("root") as UiPrefs | undefined;
+  const [collapsed, setCollapsed] = useState(rootPrefs?.sidebarCollapsed ?? false);
   const ctx = useSessionContext();
 
   const siteName = ctx?.branding?.siteName || "OpenInspection";
@@ -245,13 +241,11 @@ export function Sidebar() {
   const userInitials = ctx?.user?.initials || "OI";
   const showSwitchWorkspace = ctx?.branding?.isSaas && ctx?.branding?.portalBaseUrl;
 
-  useEffect(() => {
-    setCollapsed(getInitialCollapsed());
-  }, []);
-
   function toggleCollapsed() {
     const next = !collapsed;
     setCollapsed(next);
+    // Cookie is the SSR source of truth; keep localStorage in sync for legacy reads.
+    writeSidebarCookie(next);
     try {
       localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
       if (next) {
@@ -260,7 +254,7 @@ export function Sidebar() {
         document.documentElement.removeAttribute("data-sidebar-collapsed");
       }
     } catch {
-      // localStorage may be unavailable (SSR, private mode); ignore.
+      // localStorage may be unavailable (private mode); ignore.
     }
   }
 
