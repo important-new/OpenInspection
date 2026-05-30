@@ -412,3 +412,61 @@ export const MediaAttachResponseSchema = z.object({
     itemId:     z.string().describe('TODO describe itemId field for the OpenInspection MCP integration'),
     photoIndex: z.number().int().nonnegative().describe('TODO describe photoIndex field for the OpenInspection MCP integration'),
 }).openapi('MediaAttachResponse');
+
+// -----------------------------------------------------------------------------
+// Typed-Hono dead-routes cleanup Tasks 10–13 — results batch + conflicts.
+// -----------------------------------------------------------------------------
+// ResultsBatchSchema: vectorised form-renderer save. One `{ itemId, sectionId,
+// field, value }` patch per dirty field — the service folds each patch into the
+// shared inspection_results.data JSON blob using the same composite findingKey
+// the single-item PATCH uses, so existing offline clients keep working.
+export const ResultsBatchSchema = z.object({
+    patches: z.array(z.object({
+        itemId:    z.string().min(1),
+        sectionId: z.string().min(1),
+        field:     z.enum(['rating', 'notes', 'value', 'canned', 'defectFields', 'itemAttribute']),
+        value:     z.any(),
+    })).min(1).max(500),
+}).openapi('ResultsBatchRequest');
+
+export const ResultsBatchResponseSchema = z.object({
+    success: z.literal(true),
+    data:    z.object({ applied: z.number().int().min(0) }),
+}).openapi('ResultsBatchResponse');
+
+// Conflicts pulled from the inspection_conflicts table (persisted at sync time
+// by inspection-sync.ts mergeResults branch). field is open string (rather than
+// the patch enum) so non-`notes` future conflict producers don't need a schema
+// edit.
+export const ConflictListResponseSchema = z.object({
+    success: z.literal(true),
+    data: z.object({
+        conflicts: z.array(z.object({
+            id:        z.string(),
+            itemId:    z.string(),
+            sectionId: z.string().nullable(),
+            field:     z.string(),
+            base:      z.any(),
+            local:     z.any(),
+            remote:    z.any(),
+            createdAt: z.string(),
+        })),
+    }),
+}).openapi('ConflictListResponse');
+
+export const ConflictResolveSchema = z.object({
+    resolutions: z.array(z.object({
+        itemId:    z.string().min(1),
+        sectionId: z.string().nullable().optional(),
+        field:     z.string().min(1),
+        chosen:    z.enum(['local', 'remote', 'base']),
+    })).min(1),
+}).openapi('ConflictResolveRequest');
+
+export const ConflictResolveResponseSchema = z.object({
+    success: z.literal(true),
+    data:    z.object({
+        resolved:   z.number().int().min(0),
+        resolvedAt: z.string(),
+    }),
+}).openapi('ConflictResolveResponse');
