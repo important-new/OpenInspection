@@ -16,10 +16,9 @@ import {
 import { inspections, inspectionResults, templates } from '../lib/db/schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const syncRoutes = createApiRouter();
-
+export const syncRoutes = createApiRouter()
 /* ── POST /api/inspections/:id/results/merge ──────────────────────────────── */
-syncRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/results/merge',
     tags: ["inspections"],
@@ -124,10 +123,9 @@ syncRoutes.openapi(createRoute(withMcpMetadata({
             conflicts: [] as Array<never>,
         },
     }, 200);
-});
-
+})
 /* ── DELETE /api/inspections/:id/items/:itemId/photos/:photoIndex ─────────── */
-syncRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'delete',
     path: '/{id}/items/{itemId}/photos/{photoIndex}',
     tags: ["inspections"],
@@ -184,10 +182,9 @@ syncRoutes.openapi(createRoute(withMcpMetadata({
     }
 
     return c.json({ success: true as const, data: { deletedKey } }, 200);
-});
-
+})
 /* ── POST /api/inspections/:id/inspector-signature ────────────────────────── */
-syncRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/inspector-signature',
     tags: ["inspections"],
@@ -242,10 +239,9 @@ syncRoutes.openapi(createRoute(withMcpMetadata({
     }
 
     return c.json({ success: true as const, data: { savedAt: signedAt } }, 200);
-});
-
+})
 /* ── POST /api/inspections/:id/template/upgrade ───────────────────────────── */
-syncRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'post',
     path: '/{id}/template/upgrade',
     tags: ["inspections"],
@@ -284,5 +280,7 @@ syncRoutes.openapi(createRoute(withMcpMetadata({
 
     return c.json({ success: true as const, data: { from: fromVersion, to: tpl.version } }, 200);
 });
+
+export type InspectionSyncApi = typeof syncRoutes;
 
 export default syncRoutes;
