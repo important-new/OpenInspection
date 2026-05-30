@@ -13,8 +13,6 @@ import {
     withDefaults,
 } from '../lib/validations/inspection-prefs.schema';
 
-export const inspectionPrefsRoutes = createApiRouter();
-
 const getRoute = createRoute({
     method: 'get',
     path: '/',
@@ -26,17 +24,6 @@ const getRoute = createRoute({
             content: { 'application/json': { schema: InspectionPrefsSchema } },
         },
     },
-});
-
-inspectionPrefsRoutes.openapi(getRoute, async (c) => {
-    const tenantId = c.get('tenantId') as string;
-    const db = drizzle(c.env.DB as never);
-    const row = await db.select({ prefs: tenantConfigs.inspectionPrefs })
-        .from(tenantConfigs)
-        .where(eq(tenantConfigs.tenantId, tenantId))
-        .get();
-    const merged = withDefaults(row?.prefs ?? null);
-    return c.json(merged, 200);
 });
 
 const patchRoute = createRoute({
@@ -55,21 +42,34 @@ const patchRoute = createRoute({
     },
 });
 
-inspectionPrefsRoutes.openapi(patchRoute, async (c) => {
-    const tenantId = c.get('tenantId') as string;
-    const patch = c.req.valid('json');
-    const db = drizzle(c.env.DB as never);
-    const existing = await db.select({ prefs: tenantConfigs.inspectionPrefs })
-        .from(tenantConfigs)
-        .where(eq(tenantConfigs.tenantId, tenantId))
-        .get();
-    const merged = { ...withDefaults(existing?.prefs ?? null), ...patch };
-    // Re-validate merged in case the patch claimed a valid field but the merged result violates max constraints.
-    const parsed = InspectionPrefsSchema.parse(merged);
-    await db.update(tenantConfigs)
-        .set({ inspectionPrefs: parsed })
-        .where(eq(tenantConfigs.tenantId, tenantId));
-    return c.json(parsed, 200);
-});
+export const inspectionPrefsRoutes = createApiRouter()
+    .openapi(getRoute, async (c) => {
+        const tenantId = c.get('tenantId') as string;
+        const db = drizzle(c.env.DB as never);
+        const row = await db.select({ prefs: tenantConfigs.inspectionPrefs })
+            .from(tenantConfigs)
+            .where(eq(tenantConfigs.tenantId, tenantId))
+            .get();
+        const merged = withDefaults(row?.prefs ?? null);
+        return c.json(merged, 200);
+    })
+    .openapi(patchRoute, async (c) => {
+        const tenantId = c.get('tenantId') as string;
+        const patch = c.req.valid('json');
+        const db = drizzle(c.env.DB as never);
+        const existing = await db.select({ prefs: tenantConfigs.inspectionPrefs })
+            .from(tenantConfigs)
+            .where(eq(tenantConfigs.tenantId, tenantId))
+            .get();
+        const merged = { ...withDefaults(existing?.prefs ?? null), ...patch };
+        // Re-validate merged in case the patch claimed a valid field but the merged result violates max constraints.
+        const parsed = InspectionPrefsSchema.parse(merged);
+        await db.update(tenantConfigs)
+            .set({ inspectionPrefs: parsed })
+            .where(eq(tenantConfigs.tenantId, tenantId));
+        return c.json(parsed, 200);
+    });
+
+export type InspectionPrefsApi = typeof inspectionPrefsRoutes;
 
 export default inspectionPrefsRoutes;
