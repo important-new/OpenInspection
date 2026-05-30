@@ -148,7 +148,7 @@ const publicUploadRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for uploadMessage (POST /public/{token}/upload, messages domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: ['write'], tier: 'extended' }));
 
-const messageRoutes = createApiRouter()
+export const messageRoutes = createApiRouter()
     .openapi(listRoute, async (c) => {
         const { inspectionId } = c.req.valid('param');
         const tenantId = c.get('tenantId');
