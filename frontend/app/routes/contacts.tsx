@@ -3,6 +3,7 @@ import { useLoaderData, useFetcher } from "react-router";
 import type { Route } from "./+types/contacts";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState } from "@core/shared-ui";
 
 export function meta() {
@@ -14,9 +15,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const filterType = url.searchParams.get("type") || "";
   try {
+    const api = createApi(context, { token });
     const [contactsRes, agentsRes] = await Promise.all([
       apiFetch(context, `/api/contacts${filterType ? `?type=${filterType}` : ""}`, { token }),
-      apiFetch(context, "/api/agents", { token }),
+      api.agents.index.$get(),
     ]);
     const contactsBody = contactsRes.ok ? ((await contactsRes.json()) as Record<string, unknown>) : { data: [] };
     const agentsBody = agentsRes.ok ? ((await agentsRes.json()) as Record<string, unknown>) : { data: [] };

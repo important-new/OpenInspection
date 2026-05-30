@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/invite-accept";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
   return [{ title: "You're invited - OpenInspection" }];
@@ -29,7 +29,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     return { invite: null, error: "no-token" as const };
   }
   try {
-    const res = await apiFetch(context, `/api/agents/invite-info?token=${encodeURIComponent(token)}`);
+    const api = createApi(context);
+    const res = await api.agents["invite-info"].$get({ query: { token } });
     const body = res.ok ? await res.json() : {};
     if (!res.ok) {
       return { invite: null, error: "expired" as const };
@@ -51,15 +52,13 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
   const body = {
-    token: fd.get("token"),
-    password: fd.get("password"),
-    name: fd.get("name"),
+    token: String(fd.get("token") || ""),
+    password: String(fd.get("password") || ""),
+    name: String(fd.get("name") || ""),
   };
 
-  const res = await apiFetch(context, "/api/agents/accept", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  const api = createApi(context);
+  const res = await api.agents.accept.$post({ json: body });
 
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || !json.success) {
