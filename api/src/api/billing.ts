@@ -18,8 +18,6 @@ import { summariseSeats } from '../lib/billing-summary';
 import { Errors } from '../lib/errors';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const billingRoutes = createApiRouter();
-
 const summaryRoute = createRoute(withMcpMetadata({
     method:  'get',
     path:    '/summary',
@@ -33,32 +31,34 @@ const summaryRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for listBillingSummary (GET /summary, invoices domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: ['read'], tier: 'extended' }));
 
-billingRoutes.openapi(summaryRoute, async (c) => {
-    const tenantId = c.get('tenantId');
-    if (!tenantId) throw Errors.Unauthorized();
+export const billingRoutes = createApiRouter()
+    .openapi(summaryRoute, async (c) => {
+        const tenantId = c.get('tenantId');
+        if (!tenantId) throw Errors.Unauthorized();
 
-    const db = drizzle(c.env.DB);
-    const tenant = await db.select({
-        maxUsers: tenants.maxUsers,
-        tier:     tenants.tier,
-    }).from(tenants).where(eq(tenants.id, tenantId)).get();
-    if (!tenant) throw Errors.NotFound('Tenant not found');
+        const db = drizzle(c.env.DB);
+        const tenant = await db.select({
+            maxUsers: tenants.maxUsers,
+            tier:     tenants.tier,
+        }).from(tenants).where(eq(tenants.id, tenantId)).get();
+        if (!tenant) throw Errors.NotFound('Tenant not found');
 
-    const rows = await db.select({
-        id:        usersTbl.id,
-        expiresAt: usersTbl.expiresAt,
-    }).from(usersTbl).where(eq(usersTbl.tenantId, tenantId)).all();
+        const rows = await db.select({
+            id:        usersTbl.id,
+            expiresAt: usersTbl.expiresAt,
+        }).from(usersTbl).where(eq(usersTbl.tenantId, tenantId)).all();
 
-    const summary = summariseSeats(rows, tenant, Math.floor(Date.now() / 1000));
+        const summary = summariseSeats(rows, tenant, Math.floor(Date.now() / 1000));
 
-    // Portal Customer Portal redirect URL — surfaced for the "Manage
-    // billing" CTA on the page. Omitted when the portal isn't wired
-    // (standalone deployments) so the UI hides the button.
-    const data = c.env.PORTAL_API_URL
-        ? { ...summary, portalUrl: `${c.env.PORTAL_API_URL}/api/billing/portal` }
-        : summary;
+        // Portal Customer Portal redirect URL — surfaced for the "Manage
+        // billing" CTA on the page. Omitted when the portal isn't wired
+        // (standalone deployments) so the UI hides the button.
+        const data = c.env.PORTAL_API_URL
+            ? { ...summary, portalUrl: `${c.env.PORTAL_API_URL}/api/billing/portal` }
+            : summary;
 
-    return c.json({ success: true as const, data }, 200);
-});
+        return c.json({ success: true as const, data }, 200);
+    });
 
+export type BillingApi = typeof billingRoutes;
 export default billingRoutes;

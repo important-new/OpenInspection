@@ -1,6 +1,5 @@
-import { hc } from "hono/client";
 import type { AppLoadContext } from "react-router";
-import type { CoreApiType } from "../../../packages/api-types";
+import { makeCsrfPair } from "./csrf";
 
 export function getApiUrl(context?: AppLoadContext): string {
   if (context?.cloudflare?.env?.API_URL) return context.cloudflare.env.API_URL as string;
@@ -13,13 +12,11 @@ export function getApiUrl(context?: AppLoadContext): string {
   return "http://localhost:8788";
 }
 
-export function createApi(context: AppLoadContext, token?: string) {
-  // @ts-expect-error — CoreApiType's deep intersection exceeds TS structural check
-  return hc<CoreApiType>(getApiUrl(context), {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-}
-
+/**
+ * Legacy untyped client. Kept during Phase C call-site migration to the
+ * typed `createApi()` factory in `api-client.server.ts` (typed-hono-client
+ * plan). Will be deleted once Phase C completes.
+ */
 export async function apiFetch(
   context: AppLoadContext,
   path: string,
@@ -32,12 +29,11 @@ export async function apiFetch(
   };
 
   if (init?.csrf) {
-    const csrfToken = crypto.randomUUID().replace(/-/g, "");
-    headers["x-csrf-token"] = csrfToken;
-    const cookieHeader = `__Host-csrf_token=${csrfToken}`;
+    const { headerValue, cookieValue } = makeCsrfPair();
+    headers["x-csrf-token"] = headerValue;
     headers["Cookie"] = init?.headers
-      ? `${(init.headers as Record<string, string>)["Cookie"] || ""}; ${cookieHeader}`
-      : cookieHeader;
+      ? `${(init.headers as Record<string, string>)["Cookie"] || ""}; ${cookieValue}`
+      : cookieValue;
   }
 
   const { token: _token, csrf: _csrf, ...rest } = init ?? {};

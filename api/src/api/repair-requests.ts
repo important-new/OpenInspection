@@ -27,8 +27,6 @@ import { logger } from '../lib/logger';
 import { writeAuditLog } from '../lib/audit';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const repairRequestRoutes = createApiRouter();
-
 const EmailRequestSchema = z.object({
     inspectionId:     z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }).describe('TODO describe inspectionId field for the OpenInspection MCP integration'),
     recipientEmail:   z.string().email('Invalid email address').openapi({ example: 'buyer@example.com' }).describe('TODO describe recipientEmail field for the OpenInspection MCP integration'),
@@ -66,7 +64,8 @@ const sendEmailRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for createRepairRequestRepairRequestEmail (POST /repair-request/email, inspections domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: [], tier: 'extended' }));
 
-repairRequestRoutes.openapi(sendEmailRoute, async (c) => {
+export const repairRequestRoutes = createApiRouter()
+    .openapi(sendEmailRoute, async (c) => {
     await checkRateLimit(c, 'book');
 
     const body = c.req.valid('json');
@@ -201,5 +200,7 @@ function escapeHtml(s: string): string {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 }
+
+export type RepairRequestsApi = typeof repairRequestRoutes;
 
 export default repairRequestRoutes;

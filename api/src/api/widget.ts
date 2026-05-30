@@ -2,8 +2,6 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createApiRouter } from '../lib/openapi-router';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const widgetRoutes = createApiRouter();
-
 const recordEventRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/event',
@@ -36,20 +34,22 @@ const recordEventRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for createWidgetEvent (POST /event, webhooks domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: [], tier: 'excluded' }));
 
-widgetRoutes.openapi(recordEventRoute, async (c) => {
-    const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
-    if (!tenantId) {
+export const widgetRoutes = createApiRouter()
+    .openapi(recordEventRoute, async (c) => {
+        const tenantId = c.get('resolvedTenantId') || c.get('tenantId');
+        if (!tenantId) {
+            return c.json({ success: true }, 200);
+        }
+        const origin = c.req.header('origin');
+        const ok = await c.var.services.widget.isOriginAllowed(tenantId, origin ?? null);
+        if (!ok) {
+            // Silently drop unauthorised events (no signal for attackers, no DB noise)
+            return c.json({ success: true }, 200);
+        }
+        const { event, metadata } = c.req.valid('json');
+        await c.var.services.widget.recordEvent(tenantId, event, { ...(metadata ?? {}), origin });
         return c.json({ success: true }, 200);
-    }
-    const origin = c.req.header('origin');
-    const ok = await c.var.services.widget.isOriginAllowed(tenantId, origin ?? null);
-    if (!ok) {
-        // Silently drop unauthorised events (no signal for attackers, no DB noise)
-        return c.json({ success: true }, 200);
-    }
-    const { event, metadata } = c.req.valid('json');
-    await c.var.services.widget.recordEvent(tenantId, event, { ...(metadata ?? {}), origin });
-    return c.json({ success: true }, 200);
-});
+    });
 
+export type WidgetApi = typeof widgetRoutes;
 export default widgetRoutes;

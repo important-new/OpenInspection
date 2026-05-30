@@ -19,8 +19,6 @@ import { logger } from '../lib/logger';
 import { sendSuccess } from '../lib/response';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const publicShareRoutes = createApiRouter();
-
 const shareTokenRoute = createRoute(withMcpMetadata({
     method: 'post',
     path: '/inspections/{id}/share-token',
@@ -42,28 +40,31 @@ const shareTokenRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for createPublicShareInspectionsShareToken (POST /inspections/{id}/share-token, inspections domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: [], tier: 'extended' }));
 
-publicShareRoutes.openapi(shareTokenRoute, async (c) => {
-    const { id } = c.req.valid('param');
-    const tenantId = (c.get('tenantId') || c.get('resolvedTenantId')) as string | null;
-    if (!tenantId) throw Errors.NotFound('Inspection not found');
+export const publicShareRoutes = createApiRouter()
+    .openapi(shareTokenRoute, async (c) => {
+        const { id } = c.req.valid('param');
+        const tenantId = (c.get('tenantId') || c.get('resolvedTenantId')) as string | null;
+        if (!tenantId) throw Errors.NotFound('Inspection not found');
 
-    const db = drizzle(c.env.DB);
-    const insp = await db.select({
-        status: inspections.status,
-    }).from(inspections)
-        .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)))
-        .get();
-    if (!insp) throw Errors.NotFound('Inspection not found');
-    if (insp.status !== 'delivered') {
-        throw Errors.Forbidden('Report has not been published yet');
-    }
+        const db = drizzle(c.env.DB);
+        const insp = await db.select({
+            status: inspections.status,
+        }).from(inspections)
+            .where(and(eq(inspections.id, id), eq(inspections.tenantId, tenantId)))
+            .get();
+        if (!insp) throw Errors.NotFound('Inspection not found');
+        if (insp.status !== 'delivered') {
+            throw Errors.Forbidden('Report has not been published yet');
+        }
 
-    const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
-    const baseUrl = c.env.APP_BASE_URL || `https://${c.req.header('host') ?? ''}`;
-    const tenantSlug = c.get('requestedSubdomain') ?? '';
-    const url = `${baseUrl}/report/${tenantSlug}/${id}?view=agent&token=${token}`;
-    logger.info('Public share-token minted', { inspectionId: id, tenantId });
-    return sendSuccess(c, { token, url });
-});
+        const token = await c.var.services.inspection.generateAgentViewToken(tenantId, id);
+        const baseUrl = c.env.APP_BASE_URL || `https://${c.req.header('host') ?? ''}`;
+        const tenantSlug = c.get('requestedSubdomain') ?? '';
+        const url = `${baseUrl}/report/${tenantSlug}/${id}?view=agent&token=${token}`;
+        logger.info('Public share-token minted', { inspectionId: id, tenantId });
+        return sendSuccess(c, { token, url });
+    });
+
+export type PublicShareApi = typeof publicShareRoutes;
 
 export default publicShareRoutes;

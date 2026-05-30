@@ -19,8 +19,6 @@ import { Errors } from '../lib/errors';
 import { sendSuccess } from '../lib/response';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-export const guestRoutes = createApiRouter();
-
 const claimRoute = createRoute(withMcpMetadata({
     method:  'post',
     path:    '/claim',
@@ -50,42 +48,45 @@ const claimRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for createGuestClaim (POST /claim, guest domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: [], tier: 'extended' }));
 
-guestRoutes.openapi(claimRoute, async (c) => {
-    const body = c.req.valid('json');
-    const db   = drizzle(c.env.DB);
+export const guestRoutes = createApiRouter()
+    .openapi(claimRoute, async (c) => {
+        const body = c.req.valid('json');
+        const db   = drizzle(c.env.DB);
 
-    // Look up the invite to discover which tenant it belongs to. We do
-    // this before the service call so the 404 path stays cheap and so we
-    // can fetch the tenant's seat cap without touching ScopedDB (which
-    // needs a JWT we don't have on this route).
-    const invite = await db.select().from(guestInvites)
-        .where(eq(guestInvites.token, body.token))
-        .get();
-    if (!invite) throw Errors.NotFound('Invalid or unknown invite token');
+        // Look up the invite to discover which tenant it belongs to. We do
+        // this before the service call so the 404 path stays cheap and so we
+        // can fetch the tenant's seat cap without touching ScopedDB (which
+        // needs a JWT we don't have on this route).
+        const invite = await db.select().from(guestInvites)
+            .where(eq(guestInvites.token, body.token))
+            .get();
+        if (!invite) throw Errors.NotFound('Invalid or unknown invite token');
 
-    const tenant = await db.select().from(tenants)
-        .where(eq(tenants.id, invite.tenantId))
-        .get();
-    if (!tenant) throw Errors.NotFound('Invite tenant no longer exists');
+        const tenant = await db.select().from(tenants)
+            .where(eq(tenants.id, invite.tenantId))
+            .get();
+        if (!tenant) throw Errors.NotFound('Invite tenant no longer exists');
 
-    const out = await c.var.services.guestInvite.claim(body.token, body, {
-        maxUsers: tenant.maxUsers,
+        const out = await c.var.services.guestInvite.claim(body.token, body, {
+            maxUsers: tenant.maxUsers,
+        });
+
+        switch (out.kind) {
+            case 'ok':
+                return sendSuccess(c, { userId: out.userId });
+            case 'expired':
+                throw Errors.NotFound('Invite has expired');
+            case 'claimed':
+                throw Errors.NotFound('Invite has already been claimed');
+            case 'not_found':
+                throw Errors.NotFound('Invalid or unknown invite token');
+            case 'over_quota':
+                throw Errors.SeatLimitReached({ used: tenant.maxUsers, max: tenant.maxUsers, billingPortalUrl: null });
+            case 'invalid':
+                throw Errors.Validation({ reason: out.reason });
+        }
     });
 
-    switch (out.kind) {
-        case 'ok':
-            return sendSuccess(c, { userId: out.userId });
-        case 'expired':
-            throw Errors.NotFound('Invite has expired');
-        case 'claimed':
-            throw Errors.NotFound('Invite has already been claimed');
-        case 'not_found':
-            throw Errors.NotFound('Invalid or unknown invite token');
-        case 'over_quota':
-            throw Errors.SeatLimitReached({ used: tenant.maxUsers, max: tenant.maxUsers, billingPortalUrl: null });
-        case 'invalid':
-            throw Errors.Validation({ reason: out.reason });
-    }
-});
+export type GuestApi = typeof guestRoutes;
 
 export default guestRoutes;

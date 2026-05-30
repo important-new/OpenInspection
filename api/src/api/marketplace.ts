@@ -18,10 +18,9 @@ import {
 } from '../lib/validations/pagination.schema';
 import { withMcpMetadata } from "../lib/route-metadata-standards";
 
-const marketplaceRoutes = createApiRouter();
-
+export const marketplaceRoutes = createApiRouter()
 // GET /api/templates/marketplace
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/',
     tags: ["marketplace"],
     summary: "List marketplaces for current tenant",
@@ -57,10 +56,9 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
         data: rows,
         meta: buildMeta({ total, page: q.page, pageSize: q.pageSize }),
     });
-});
-
+})
 // POST /api/templates/marketplace/:id/import
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/import',
     tags: ["marketplace"],
     summary: 'Import marketplace template as tenant copy',
@@ -86,10 +84,9 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
         }
         throw err;
     }
-});
-
+})
 // Spec 5G M2 — Library marketplace (comments, snippets)
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/libraries',
     tags: ["marketplace"],
     summary: 'List marketplace libraries (comment packs, snippet packs)',
@@ -106,13 +103,12 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     const q = c.req.valid('query');
     const data = await c.var.services.marketplace.listLibraries(q.kind ? { kind: q.kind } : {});
     return c.json({ success: true, data });
-});
-
+})
 // Round 37 — Update an already-imported template to the latest marketplace
 // semver. Scheme 2: creates a NEW local copy with a "(vX.Y.Z)" suffix and
 // re-points the import marker; the old local row is preserved so existing
 // inspections do not break.
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/{id}/update',
     tags: ["marketplace"],
     summary: 'Update tenant copy to latest marketplace version (creates new local copy)',
@@ -163,9 +159,8 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
         if (err instanceof AppError) throw err;
         throw err;
     }
-});
-
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+})
+    .openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/libraries/{id}/import',
     tags: ["marketplace"],
     summary: 'Import marketplace library into tenant',
@@ -192,11 +187,10 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return c.json({ success: false, error: { code: 'import_failed', message: msg, stack } }, 500) as any;
     }
-});
-
+})
 // Round 37 — Update an already-imported library to the latest marketplace
 // semver. Scheme 2: appends new rows; does NOT delete previous import.
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/libraries/{id}/update',
     tags: ["marketplace"],
     summary: 'Update tenant library import to latest marketplace version (adds new rows)',
@@ -245,12 +239,11 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
         if (err instanceof AppError) throw err;
         throw err;
     }
-});
-
+})
 // Sprint 2 S2-7 — Library "replace" mode update. Deletes prior-import rows
 // before inserting the new pack. Owner/admin only; user must acknowledge the
 // edit-loss when prior rows have been modified.
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'post', path: '/libraries/{libraryId}/imports/replace',
     tags: ["marketplace"],
     summary: 'Replace tenant library import (deletes prior rows + inserts new pack)',
@@ -315,11 +308,10 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
         if (err instanceof AppError) throw err;
         throw err;
     }
-});
-
+})
 // Sprint 2 S2-8 — Per-import history list. Tenant-scoped, optional template
 // or library filter. Used by the version-history drawer on /templates and /comments.
-marketplaceRoutes.openapi(createRoute(withMcpMetadata({
+    .openapi(createRoute(withMcpMetadata({
     method: 'get', path: '/imports/history',
     tags: ["marketplace"],
     summary: 'List per-import history events',
@@ -352,4 +344,5 @@ marketplaceRoutes.openapi(createRoute(withMcpMetadata({
     return c.json({ success: true, data: result }, 200);
 });
 
+export type MarketplaceApi = typeof marketplaceRoutes;
 export default marketplaceRoutes;
