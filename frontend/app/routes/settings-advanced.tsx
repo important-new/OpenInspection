@@ -1,9 +1,11 @@
-import { useState } from "react";
 import { Form, Link, useLoaderData, useActionData } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/settings-advanced";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { SecretField } from "~/components/SecretField";
+import { stripeConnectSchema } from "~/lib/forms/settings-config.schema";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -71,14 +73,17 @@ export async function action({ request, context }: Route.ActionArgs) {
   const api = createApi(context, { token });
 
   if (intent === "connect-stripe") {
-    const accountId = fd.get("stripeAccountId");
-    if (!accountId || typeof accountId !== "string" || !accountId.startsWith("acct_")) {
-      return { success: false, error: "Please enter a valid Stripe account ID (starts with acct_)." };
+    const submission = parseWithZod(fd, { schema: stripeConnectSchema });
+    if (submission.status !== "success") {
+      return submission.reply();
     }
-    const res = await api.admin.payments.connect.$post({ json: { accountId } });
+    const { stripeAccountId } = submission.value;
+    const res = await api.admin.payments.connect.$post({ json: { accountId: stripeAccountId } });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      return { success: false, error: (err as Record<string, string>)?.message || "Failed to connect Stripe account." };
+      return submission.reply({
+        formErrors: [(err as Record<string, string>)?.message || "Failed to connect Stripe account."],
+      });
     }
     return { success: true, error: null };
   }
@@ -129,7 +134,20 @@ export async function action({ request, context }: Route.ActionArgs) {
 export default function SettingsAdvancedPage() {
   const { config, secrets } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const [stripeInput, setStripeInput] = useState("");
+
+  // Only the `connect-stripe` intent returns a Conform SubmissionResult; the
+  // other intents return a `{ success, error }` flash shape. Feed Conform its
+  // own result, never the flash object (which has no `initialValue`/`error`).
+  const stripeResult =
+    actionData && !("success" in actionData) ? actionData : undefined;
+  const [stripeForm, stripeFields] = useForm({
+    lastResult: stripeResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: stripeConnectSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   return (
     <div className="space-y-[18px] max-w-3xl">
@@ -191,20 +209,36 @@ export default function SettingsAdvancedPage() {
             </Form>
           </div>
         ) : (
-          <Form method="post" className="space-y-3 max-w-md">
+          <Form
+            method="post"
+            id={stripeForm.id}
+            onSubmit={stripeForm.onSubmit}
+            noValidate
+            className="space-y-3 max-w-md"
+          >
             <input type="hidden" name="intent" value="connect-stripe" />
             <div className="space-y-2">
-              <label htmlFor="stripeAccountId" className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">
+              <label htmlFor={stripeFields.stripeAccountId.id} className="block text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">
                 Stripe account ID
               </label>
               <input
-                type="text" id="stripeAccountId" name="stripeAccountId"
-                value={stripeInput} onChange={(e) => setStripeInput(e.target.value)}
+                type="text"
+                id={stripeFields.stripeAccountId.id}
+                name={stripeFields.stripeAccountId.name}
                 placeholder="acct_1AbCdEfGhIjKlMnO"
                 autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                aria-invalid={stripeFields.stripeAccountId.errors ? true : undefined}
                 className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none transition-all font-mono text-[13px] placeholder:text-slate-300 dark:placeholder:text-slate-500 text-ih-fg-1"
               />
+              {stripeFields.stripeAccountId.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{stripeFields.stripeAccountId.errors[0]}</p>
+              )}
             </div>
+            {stripeForm.errors && (
+              <div className="px-3 py-2 rounded-md bg-ih-bad-bg border border-ih-bad text-[13px] text-ih-bad-fg">
+                {stripeForm.errors[0]}
+              </div>
+            )}
             <button type="submit"
               className="h-9 px-4 rounded-md bg-ih-primary text-white font-bold text-[13px] hover:bg-ih-primary-600 active:scale-[.98] transition-all">
               Connect Account

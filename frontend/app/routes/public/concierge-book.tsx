@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { Form, useLoaderData, useActionData } from "react-router";
+import { Form, useLoaderData, useActionData, useNavigation } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/concierge-book";
 import { createApi } from "~/lib/api-client.server";
+import { conciergeBookSchema } from "~/lib/forms/public.schema";
 
 export function meta() {
   return [{ title: "Book your inspection - OpenInspection" }];
@@ -51,18 +53,24 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const fd = await request.formData();
+  // Token is a URL passthrough re-sent as a hidden field, not a schema field.
   const token = (fd.get("token") as string) ?? "";
-  const slotStart = (fd.get("slotStart") as string) ?? "";
-  const slotEnd = (fd.get("slotEnd") as string) ?? "";
+
+  const submission = parseWithZod(fd, { schema: conciergeBookSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
+  }
+  const { contactName, contactEmail, contactPhone, address, slotStart, slotEnd, notes } =
+    submission.value;
 
   const payload = {
     token,
     slot: { start: slotStart, end: slotEnd },
-    contactName: (fd.get("contactName") as string) ?? "",
-    contactEmail: (fd.get("contactEmail") as string) ?? "",
-    contactPhone: (fd.get("contactPhone") as string) || undefined,
-    address: (fd.get("address") as string) ?? "",
-    notes: (fd.get("notes") as string) || undefined,
+    contactName,
+    contactEmail,
+    contactPhone: contactPhone || undefined,
+    address,
+    notes: notes || undefined,
   };
 
   const api = createApi(context);
@@ -71,7 +79,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || !json.success) {
     const err = json.error as Record<string, string> | undefined;
-    return { success: false as const, error: err?.message || "Could not submit booking", confirmationToken: null };
+    return submission.reply({ formErrors: [err?.message || "Could not submit booking"] });
   }
   const data = json.data as { bookingId: string; confirmationToken: string } | undefined;
   return { success: true as const, error: null, confirmationToken: data?.confirmationToken ?? null };
@@ -95,7 +103,22 @@ const TIMELINE_STEPS = [
 export default function ConciergeBookPage() {
   const { data, error: loaderError } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const [submitting, setSubmitting] = useState(false);
+  const navigation = useNavigation();
+  const submitting = navigation.state === "submitting";
+
+  // On success the action returns a `{ success }` flash shape; on validation or
+  // API failure it returns a Conform SubmissionResult. Feed Conform its own
+  // result only — never the success flash object.
+  const bookResult =
+    actionData && !("success" in actionData) ? actionData : undefined;
+  const [form, fields] = useForm({
+    lastResult: bookResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: conciergeBookSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   if (loaderError || !data) {
     const headline =
@@ -149,8 +172,10 @@ export default function ConciergeBookPage() {
         {!submitted ? (
           <Form
             method="post"
+            id={form.id}
+            onSubmit={form.onSubmit}
+            noValidate
             autoComplete="off"
-            onSubmit={() => setSubmitting(true)}
             className="bg-ih-bg-card border border-ih-border rounded-xl p-7 space-y-4"
           >
             <input type="hidden" name="token" value={data.token} />
@@ -162,12 +187,16 @@ export default function ConciergeBookPage() {
                 </span>
                 <input
                   type="text"
-                  name="contactName"
-                  required
+                  name={fields.contactName.name}
+                  id={fields.contactName.id}
                   maxLength={200}
                   placeholder="Sarah Buyer"
+                  aria-invalid={fields.contactName.errors ? true : undefined}
                   className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                 />
+                {fields.contactName.errors && (
+                  <p className="mt-1 text-xs text-ih-bad-fg">{fields.contactName.errors[0]}</p>
+                )}
               </label>
               <label className="space-y-1.5">
                 <span className="block text-[13px] font-bold text-ih-fg-3 uppercase tracking-wide">
@@ -175,12 +204,16 @@ export default function ConciergeBookPage() {
                 </span>
                 <input
                   type="email"
-                  name="contactEmail"
-                  required
+                  name={fields.contactEmail.name}
+                  id={fields.contactEmail.id}
                   maxLength={200}
                   placeholder="sarah@example.com"
+                  aria-invalid={fields.contactEmail.errors ? true : undefined}
                   className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                 />
+                {fields.contactEmail.errors && (
+                  <p className="mt-1 text-xs text-ih-bad-fg">{fields.contactEmail.errors[0]}</p>
+                )}
               </label>
             </div>
 
@@ -193,11 +226,16 @@ export default function ConciergeBookPage() {
               </span>
               <input
                 type="tel"
-                name="contactPhone"
+                name={fields.contactPhone.name}
+                id={fields.contactPhone.id}
                 maxLength={40}
                 placeholder="(555) 123-4567"
+                aria-invalid={fields.contactPhone.errors ? true : undefined}
                 className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
               />
+              {fields.contactPhone.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.contactPhone.errors[0]}</p>
+              )}
             </label>
 
             <label className="space-y-1.5 block">
@@ -206,12 +244,16 @@ export default function ConciergeBookPage() {
               </span>
               <input
                 type="text"
-                name="address"
-                required
+                name={fields.address.name}
+                id={fields.address.id}
                 maxLength={500}
                 placeholder="1 Main St, Springfield"
+                aria-invalid={fields.address.errors ? true : undefined}
                 className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
               />
+              {fields.address.errors && (
+                <p className="mt-1 text-xs text-ih-bad-fg">{fields.address.errors[0]}</p>
+              )}
             </label>
 
             {slots.length > 0 ? (
@@ -220,14 +262,13 @@ export default function ConciergeBookPage() {
                   Slot
                 </span>
                 <select
-                  required
                   name="slotIndex"
                   onChange={(e) => {
                     const idx = Number(e.target.value);
                     const slot = slots[idx];
                     if (!slot) return;
-                    (document.getElementsByName("slotStart")[0] as HTMLInputElement).value = slot.start;
-                    (document.getElementsByName("slotEnd")[0] as HTMLInputElement).value = slot.end;
+                    (document.getElementsByName(fields.slotStart.name)[0] as HTMLInputElement).value = slot.start;
+                    (document.getElementsByName(fields.slotEnd.name)[0] as HTMLInputElement).value = slot.end;
                   }}
                   className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                 >
@@ -238,8 +279,13 @@ export default function ConciergeBookPage() {
                     </option>
                   ))}
                 </select>
-                <input type="hidden" name="slotStart" />
-                <input type="hidden" name="slotEnd" />
+                <input type="hidden" name={fields.slotStart.name} />
+                <input type="hidden" name={fields.slotEnd.name} />
+                {(fields.slotStart.errors || fields.slotEnd.errors) && (
+                  <p className="mt-1 text-xs text-ih-bad-fg">
+                    {fields.slotStart.errors?.[0] ?? fields.slotEnd.errors?.[0]}
+                  </p>
+                )}
               </label>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -249,10 +295,14 @@ export default function ConciergeBookPage() {
                   </span>
                   <input
                     type="datetime-local"
-                    name="slotStart"
-                    required
+                    name={fields.slotStart.name}
+                    id={fields.slotStart.id}
+                    aria-invalid={fields.slotStart.errors ? true : undefined}
                     className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                   />
+                  {fields.slotStart.errors && (
+                    <p className="mt-1 text-xs text-ih-bad-fg">{fields.slotStart.errors[0]}</p>
+                  )}
                 </label>
                 <label className="space-y-1.5">
                   <span className="block text-[13px] font-bold text-ih-fg-3 uppercase tracking-wide">
@@ -260,10 +310,14 @@ export default function ConciergeBookPage() {
                   </span>
                   <input
                     type="datetime-local"
-                    name="slotEnd"
-                    required
+                    name={fields.slotEnd.name}
+                    id={fields.slotEnd.id}
+                    aria-invalid={fields.slotEnd.errors ? true : undefined}
                     className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                   />
+                  {fields.slotEnd.errors && (
+                    <p className="mt-1 text-xs text-ih-bad-fg">{fields.slotEnd.errors[0]}</p>
+                  )}
                 </label>
               </div>
             )}
@@ -276,7 +330,8 @@ export default function ConciergeBookPage() {
                 </span>
               </span>
               <textarea
-                name="notes"
+                name={fields.notes.name}
+                id={fields.notes.id}
                 rows={3}
                 placeholder="Anything your inspector should know."
                 className="w-full px-3 py-2.5 border border-ih-border rounded-lg bg-ih-bg-card text-base text-ih-fg-1 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
@@ -292,9 +347,9 @@ export default function ConciergeBookPage() {
                 {submitting ? "Sending..." : "Send booking"}
               </button>
 
-              {actionData?.error && (
+              {form.errors && (
                 <div className="mt-3 px-4 py-3 bg-ih-bad-bg border border-ih-bad rounded-lg text-[14px] text-ih-bad-fg">
-                  {actionData.error}
+                  {form.errors[0]}
                 </div>
               )}
             </div>
