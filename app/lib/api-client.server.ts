@@ -48,7 +48,7 @@ import type {
     TenantPresenceApi,
     UsersApi,
     WidgetApi,
-} from "../../../packages/api-types";
+} from "../../packages/api-types";
 import { getApiUrl } from "./api.server";
 import { makeCsrfPair } from "./csrf";
 
