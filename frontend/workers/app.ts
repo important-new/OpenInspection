@@ -26,12 +26,22 @@ const requestHandler = createRequestHandler(
   import.meta.env.MODE,
 );
 
+// React Router SSR. We inject an in-process `API_WORKER` self-binding so that
+// loaders/actions' `createApi()` call the API app DIRECTLY (its createApi prefers
+// env.API_WORKER.fetch) instead of an HTTP loopback to this same worker — no
+// extra network hop, no API_URL needed.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ssr = (c: any) =>
-  requestHandler(c.req.raw, { cloudflare: { env: c.env, ctx: c.executionCtx } });
+const ssr = (c: any) => {
+  const env = {
+    ...c.env,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    API_WORKER: { fetch: (req: Request) => apiApp.fetch(req, c.env, c.executionCtx) },
+  };
+  return requestHandler(c.req.raw, { cloudflare: { env, ctx: c.executionCtx } });
+};
 
 // Delegate to the FULL API app (all its global `app.use('*')` middleware — CSRF,
-// tenant routing, DI, branding, … — runs INSIDE this call). By only routing
+// tenant routing, DI, branding, … — runs INSIDE this call). By routing only
 // API-owned paths here, that middleware never blankets frontend routes, which is
 // what caused the CSRF 403 on the frontend's /login POST when the API was mounted
 // at "/". Mirrors the CF template's "explicit API routes before the catch-all".
@@ -40,21 +50,24 @@ const toApi = (c: any) => apiApp.fetch(c.req.raw, c.env, c.executionCtx);
 
 const app = new Hono();
 
-// --- API-owned paths → the API app (with its middleware) ---
-// Genuine API endpoints with no React Router page counterpart.
+// --- API-owned paths → the API app (with its middleware). Routing audit done. ---
+// Bulk API surface + genuine non-/api endpoints with no React Router page:
 app.all("/api/*", toApi);
 app.all("/status", toApi);
 app.all("/m2m/*", toApi);
 app.all("/photos/*", toApi);
 app.all("/.well-known/*", toApi);
 app.get("/ui", toApi);
-// TODO(routing audit): these prefixes have BOTH an API handler and a React Router
-// page (the RR migration superseded the API-rendered HTML). They currently fall to
-// RR below. Confirm none still need the API response, or delegate selectively:
-//   /book/* /report/* /verify/* /sign/* /agreements/sign/* /observe/* /r/*
-//   /messages/* /inspector/*  (e.g. /inspector/*/calendar.ics is API-only)
+app.all("/sso", toApi); // saas SSO handoff (coreAuthRoutes is also mounted at '/')
+app.all("/sign/*", toApi); // public signing pages — no React Router /sign route
+app.get("/inspector/:tenant/:slug/calendar.ics", toApi); // ICS feed (API-only)
+app.get("/observe/:token", toApi); // 1-seg observe — RR owns /observe/inspections/:id
 
-// --- Everything else → React Router SSR (all pages incl. "/" and /login) ---
+// Audited as React Router-owned (the RR migration superseded the API HTML; the API
+// still serves their DATA under /api/public/*): /book /report /r /messages /verify
+// /agreements /login /logout /forgot-password /dashboard and all dashboard pages.
+
+// --- Everything else → React Router SSR (all pages incl. "/") ---
 // Static assets (/favicon.svg, /styles.css, /vendor/*, /fonts/*) are served by the
 // Cloudflare assets layer from build/client before the worker runs.
 app.all("*", ssr);
