@@ -1,7 +1,7 @@
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/version-diff";
 import { requireToken } from "~/lib/session.server";
-import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
  return [{ title: "Version Diff - OpenInspection" }];
@@ -28,11 +28,10 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
  const { id, n } = params;
 
  try {
- const res = await apiFetch(
- context,
- `/api/inspections/${id}/versions/${n}/diff`,
- { token },
- );
+ const api = createApi(context, { token });
+ const res = await api.inspections[":id"].versions[":n"].diff.$get({
+ param: { id, n },
+ });
  if (!res.ok) {
  return { inspectionId: id, version: n, diffs: [] as DiffEntry[], error: "Version not found" };
  }

@@ -3,6 +3,7 @@ import { useLoaderData, useFetcher, Link } from "react-router";
 import type { Route } from "./+types/form-renderer";
 import { requireToken } from "~/lib/session.server";
 import { apiFetch } from "~/lib/api.server";
+import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
  return [{ title: "Inspection Form - OpenInspection" }];
@@ -69,9 +70,10 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
  const id = params.id;
 
  try {
+ const api = createApi(context, { token });
  const [inspRes, resultsRes] = await Promise.all([
- apiFetch(context, `/api/inspections/${id}`, { token }),
- apiFetch(context, `/api/inspections/${id}/results`, { token }).catch(() => null),
+ api.inspections[":id"].$get({ param: { id } }),
+ api.inspections[":id"].results.$get({ param: { id } }).catch(() => null),
  ]);
  const inspBody = inspRes.ok ? await inspRes.json() : {};
  const data = ((inspBody as Record<string, unknown>).data ?? {}) as Record<string, unknown> | undefined;
@@ -142,22 +144,25 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  const formData = await request.formData();
  const intent = formData.get("intent");
 
+ const api = createApi(context, { token });
+
  if (intent === "save") {
  const results = formData.get("results") as string;
  if (!results) return { error: "No results" };
+ // TODO: /api/inspections/{id}/results/batch is not a typed route — leave as apiFetch
  const res = await apiFetch(context, `/api/inspections/${params.id}/results/batch`, {
  method: "POST",
  token,
  body: results,
+ csrf: true,
  });
  if (!res.ok) return { error: "Failed to save results" };
  return { success: true };
  }
 
  if (intent === "complete") {
- const res = await apiFetch(context, `/api/inspections/${params.id}/complete`, {
- method: "POST",
- token,
+ const res = await api.inspections[":id"].complete.$post({
+ param: { id: params.id },
  });
  if (!res.ok) return { error: "Failed to mark as complete" };
  return { completed: true };

@@ -36,6 +36,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   }
 
   try {
+    // TODO: /api/inspections/{id}/conflicts is not a typed route — leave as apiFetch
     const res = await apiFetch(
       context,
       `/api/inspections/${inspectionId}/conflicts`,
@@ -72,6 +73,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   }
 
   try {
+    // TODO: /api/inspections/{id}/conflicts/resolve is not a typed route — leave as apiFetch
     const res = await apiFetch(
       context,
       `/api/inspections/${inspectionId}/conflicts/resolve`,
@@ -79,6 +81,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         method: "POST",
         token,
         body: JSON.stringify({ resolutions }),
+        csrf: true,
       },
     );
     if (!res.ok) return { error: "Failed to resolve conflicts" };
