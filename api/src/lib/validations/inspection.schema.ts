@@ -422,11 +422,11 @@ export const MediaAttachResponseSchema = z.object({
 // the single-item PATCH uses, so existing offline clients keep working.
 export const ResultsBatchSchema = z.object({
     patches: z.array(z.object({
-        itemId:    z.string().min(1),
-        sectionId: z.string().min(1),
-        field:     z.enum(['rating', 'notes', 'value', 'canned', 'defectFields', 'itemAttribute']),
-        value:     z.any(),
-    })).min(1).max(500),
+        itemId:    z.string().min(1).describe('Template item id the patch targets'),
+        sectionId: z.string().min(1).describe('Section id the target item belongs to'),
+        field:     z.enum(['rating', 'notes', 'value', 'canned', 'defectFields', 'itemAttribute']).describe('Which result field this patch updates'),
+        value:     z.any().describe('New value to write for the field'),
+    })).min(1).max(500).describe('Array of per-field result patches to apply'),
 }).openapi('ResultsBatchRequest');
 
 export const ResultsBatchResponseSchema = z.object({
@@ -456,11 +456,11 @@ export const ConflictListResponseSchema = z.object({
 
 export const ConflictResolveSchema = z.object({
     resolutions: z.array(z.object({
-        itemId:    z.string().min(1),
-        sectionId: z.string().nullable().optional(),
-        field:     z.string().min(1),
-        chosen:    z.enum(['local', 'remote', 'base']),
-    })).min(1),
+        itemId:    z.string().min(1).describe('Template item id of the conflicted field'),
+        sectionId: z.string().nullable().optional().describe('Section id the conflicted item belongs to'),
+        field:     z.string().min(1).describe('Name of the field whose conflict is resolved'),
+        chosen:    z.enum(['local', 'remote', 'base']).describe('Which side the inspector chose to keep'),
+    })).min(1).describe('Array of per-field conflict resolutions to clear'),
 }).openapi('ConflictResolveRequest');
 
 export const ConflictResolveResponseSchema = z.object({

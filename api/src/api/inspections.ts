@@ -1710,7 +1710,7 @@ const resultsBatchRoute = createRoute(withMcpMetadata({
     summary:    'Apply a batch of result patches to an inspection in one round-trip',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().min(1) }),
+        params: z.object({ id: z.string().min(1).describe('Inspection id whose results are patched') }),
         body:   { content: { 'application/json': { schema: ResultsBatchSchema } } },
     },
     responses: {
@@ -1734,7 +1734,7 @@ const listConflictsRoute = createRoute(withMcpMetadata({
     summary:    'List pending sync conflicts for an inspection',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().min(1) }),
+        params: z.object({ id: z.string().min(1).describe('Inspection id whose conflicts are listed') }),
     },
     responses: {
         200: {
@@ -1754,7 +1754,7 @@ const resolveConflictsRoute = createRoute(withMcpMetadata({
     summary:    'Clear sync conflicts the inspector has adjudicated',
     middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
     request: {
-        params: z.object({ id: z.string().min(1) }),
+        params: z.object({ id: z.string().min(1).describe('Inspection id whose conflicts are resolved') }),
         body:   { content: { 'application/json': { schema: ConflictResolveSchema } } },
     },
     responses: {
