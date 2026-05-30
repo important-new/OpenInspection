@@ -105,7 +105,7 @@ const postSecretsRoute = createRoute(withMcpMetadata({
     description: 'POST alias for PUT /secrets. Accepts the same body.',
 }, { scopes: ['admin'], tier: 'extended' }));
 
-const secretsRoutes = createApiRouter()
+export const secretsRoutes = createApiRouter()
     .openapi(getSecretsRoute, async (c) => {
         const tenantId = c.get('tenantId');
         const db = drizzle(c.env.DB);
