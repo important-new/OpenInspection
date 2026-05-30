@@ -1,7 +1,10 @@
 import { Form, useActionData, useNavigation, redirect, useLoaderData } from "react-router";
+import { useForm } from "@conform-to/react";
+import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/setup";
 import { getToken, createSessionWithToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
+import { setupSchema } from "~/lib/forms/auth.schema";
 
 export function meta() {
   return [{ title: "Setup - OpenInspection" }];
@@ -29,11 +32,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const formData = await request.formData();
-  const workspaceName = String(formData.get("workspaceName") || "");
-  const adminName = String(formData.get("adminName") || "");
-  const email = String(formData.get("email") || "");
-  const password = String(formData.get("password") || "");
-  const setupCode = String(formData.get("setupCode") || "");
+  const submission = parseWithZod(formData, { schema: setupSchema });
+  if (submission.status !== "success") {
+    return submission.reply();
+  }
+  const { workspaceName, adminName, email, password, setupCode } = submission.value;
 
   try {
     const api = createApi(context);
@@ -49,11 +52,10 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return {
-        error:
-          (body as Record<string, Record<string, string>>)?.error?.message ??
-          "Setup failed. Please check your inputs.",
-      };
+      const message =
+        (body as Record<string, Record<string, string>>)?.error?.message ??
+        "Setup failed. Please check your inputs.";
+      return submission.reply({ formErrors: [message] });
     }
 
     // Extract JWT from Set-Cookie header
@@ -67,17 +69,26 @@ export async function action({ request, context }: Route.ActionArgs) {
       return createSessionWithToken(context, jwt, "/dashboard");
     }
 
-    return { error: "Setup succeeded but no session was created" };
+    return submission.reply({ formErrors: ["Setup succeeded but no session was created"] });
   } catch {
-    return { error: "Network error — is the API server running?" };
+    return submission.reply({ formErrors: ["Network error — is the API server running?"] });
   }
 }
 
 export default function SetupPage() {
-  const actionData = useActionData<typeof action>();
+  const lastResult = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   useLoaderData<typeof loader>();
+
+  const [form, fields] = useForm({
+    lastResult,
+    onValidate({ formData }) {
+      return parseWithZod(formData, { schema: setupSchema });
+    },
+    shouldValidate: "onBlur",
+    shouldRevalidate: "onInput",
+  });
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-ih-bg-app">
@@ -96,79 +107,105 @@ export default function SetupPage() {
           Create the first admin account and configure your inspection workspace.
         </p>
 
-        <Form method="post" className="space-y-4">
+        <Form
+          method="post"
+          id={form.id}
+          onSubmit={form.onSubmit}
+          noValidate
+          className="space-y-4"
+        >
           <div>
-            <label className="block text-xs font-bold text-ih-fg-3 mb-1">
+            <label htmlFor={fields.workspaceName.id} className="block text-xs font-bold text-ih-fg-3 mb-1">
               Workspace name
             </label>
             <input
-              name="workspaceName"
+              id={fields.workspaceName.id}
+              name={fields.workspaceName.name}
               type="text"
-              required
               autoFocus
               placeholder="Acme Home Inspections"
+              aria-invalid={fields.workspaceName.errors ? true : undefined}
               className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
             />
+            {fields.workspaceName.errors && (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.workspaceName.errors[0]}</p>
+            )}
           </div>
           <div>
-            <label className="block text-xs font-bold text-ih-fg-3 mb-1">
+            <label htmlFor={fields.adminName.id} className="block text-xs font-bold text-ih-fg-3 mb-1">
               Your name
             </label>
             <input
-              name="adminName"
+              id={fields.adminName.id}
+              name={fields.adminName.name}
               type="text"
-              required
               autoComplete="name"
               placeholder="Mike Reynolds"
+              aria-invalid={fields.adminName.errors ? true : undefined}
               className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
             />
-            <p className="mt-1 text-[11px] text-ih-fg-3">
-              Shown on your public booking link, signed agreements, and invoices.
-            </p>
+            {fields.adminName.errors ? (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.adminName.errors[0]}</p>
+            ) : (
+              <p className="mt-1 text-[11px] text-ih-fg-3">
+                Shown on your public booking link, signed agreements, and invoices.
+              </p>
+            )}
           </div>
           <div>
-            <label className="block text-xs font-bold text-ih-fg-3 mb-1">
+            <label htmlFor={fields.email.id} className="block text-xs font-bold text-ih-fg-3 mb-1">
               Admin email
             </label>
             <input
-              name="email"
+              id={fields.email.id}
+              name={fields.email.name}
               type="email"
-              required
+              aria-invalid={fields.email.errors ? true : undefined}
               className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
             />
+            {fields.email.errors && (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.email.errors[0]}</p>
+            )}
           </div>
           <div>
-            <label className="block text-xs font-bold text-ih-fg-3 mb-1">
+            <label htmlFor={fields.password.id} className="block text-xs font-bold text-ih-fg-3 mb-1">
               Password
             </label>
             <input
-              name="password"
+              id={fields.password.id}
+              name={fields.password.name}
               type="password"
-              required
-              minLength={8}
+              aria-invalid={fields.password.errors ? true : undefined}
               className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
             />
+            {fields.password.errors && (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.password.errors[0]}</p>
+            )}
           </div>
           <div>
-            <label className="block text-xs font-bold text-ih-fg-3 mb-1">
+            <label htmlFor={fields.setupCode.id} className="block text-xs font-bold text-ih-fg-3 mb-1">
               Setup code
             </label>
             <input
-              name="setupCode"
+              id={fields.setupCode.id}
+              name={fields.setupCode.name}
               type="text"
-              required
-              minLength={6}
               placeholder="Setup verification code"
+              aria-invalid={fields.setupCode.errors ? true : undefined}
               className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none font-mono"
             />
-            <p className="mt-1 text-[11px] text-ih-fg-3">
-              Value of the <code className="px-1 py-0.5 bg-ih-bg-muted rounded text-ih-fg-3 font-mono text-[10px]">SETUP_CODE</code> secret you provisioned on the API Worker (e.g. <code className="px-1 py-0.5 bg-ih-bg-muted rounded text-ih-fg-3 font-mono text-[10px]">wrangler secret put SETUP_CODE</code>). Falls back to KV key <code className="px-1 py-0.5 bg-ih-bg-muted rounded text-ih-fg-3 font-mono text-[10px]">setup_verification_code</code> when unset.
-            </p>
+            {fields.setupCode.errors ? (
+              <p className="mt-1 text-xs text-ih-bad-fg">{fields.setupCode.errors[0]}</p>
+            ) : (
+              <p className="mt-1 text-[11px] text-ih-fg-3">
+                Value of the <code className="px-1 py-0.5 bg-ih-bg-muted rounded text-ih-fg-3 font-mono text-[10px]">SETUP_CODE</code> secret you provisioned on the API Worker (e.g. <code className="px-1 py-0.5 bg-ih-bg-muted rounded text-ih-fg-3 font-mono text-[10px]">wrangler secret put SETUP_CODE</code>). Falls back to KV key <code className="px-1 py-0.5 bg-ih-bg-muted rounded text-ih-fg-3 font-mono text-[10px]">setup_verification_code</code> when unset.
+              </p>
+            )}
           </div>
 
-          {actionData?.error && (
+          {form.errors && (
             <div className="px-3 py-2 rounded-lg bg-ih-bad-bg border border-ih-bad text-sm text-ih-bad-fg">
-              {actionData.error}
+              {form.errors[0]}
             </div>
           )}
 
