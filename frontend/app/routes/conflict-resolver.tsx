@@ -151,8 +151,6 @@ export default function ConflictResolverPage() {
         <div className="space-y-4">
           {conflicts.map((c) => {
             const choice = resolved[c.id];
-            const resolvedValue =
-              choice === "yours" ? c.yours : choice === "theirs" ? c.theirs : c.base;
 
             return (
               <div
