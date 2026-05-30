@@ -174,7 +174,7 @@ const conciergeBookRoute = createRoute(withMcpMetadata({
     description: "Auto-generated placeholder for createAgentConciergeBook (POST /concierge-book, agents domain). TODO: replace with a real description sourced from the handler."
 }, { scopes: ['agent'], tier: 'extended' }));
 
-const agentRoutes = createApiRouter()
+export const agentRoutes = createApiRouter()
     .openapi(getReportsRoute, async (c) => {
         // Move RBAC check inside to fix OpenAPIHono type inference issues with context
         await requireRole(['office_staff', 'admin'])(c, async () => {});
