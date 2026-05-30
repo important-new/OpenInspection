@@ -528,10 +528,10 @@ app.get('/observe/:token', async (c) => {
 
     const out = await c.var.services.observerLink.claim(token);
     if (out.kind === 'not_found' || out.kind === 'revoked') {
-        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Invalid link</h1><p>This observer link has been revoked or does not exist.</p></body></html>', 404);
+        return c.redirect('/not-found?reason=observer-invalid', 302);
     }
     if (out.kind === 'expired') {
-        return c.html('<html><body style="font-family:sans-serif;padding:2rem"><h1>Link expired</h1><p>This observer link has expired. Ask your inspector for a fresh one.</p></body></html>', 410);
+        return c.redirect('/not-found?reason=observer-expired', 302);
     }
 
     const cookie = await signObserverCookie(
@@ -559,32 +559,8 @@ app.doc('/doc', {
 });
 
 
-// Swagger UI (open — authentication enforced by JWT middleware for API calls)
-app.get('/ui', (c) => {
-    return c.html(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>Swagger UI</title>
-            <link rel="stylesheet" href="/vendor/swagger-ui.css" />
-        </head>
-        <body>
-            <div id="swagger-ui"></div>
-            <script src="/vendor/swagger-ui-bundle.js" crossorigin></script>
-            <script>
-                window.onload = () => {
-                    window.ui = SwaggerUIBundle({
-                        url: '/doc',
-                        dom_id: '#swagger-ui',
-                    });
-                };
-            </script>
-        </body>
-        </html>
-    `);
-});
+// Swagger UI moved to a React Router route (GET /ui -> app/routes/docs.tsx) so hono
+// renders no browser pages. The OpenAPI document is still served here at /doc above.
 
 // ---------- SSR page handlers removed — React Router v7 frontend serves all HTML pages ----------
 

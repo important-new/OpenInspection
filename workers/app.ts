@@ -57,7 +57,7 @@ app.all("/status", toApi);
 app.all("/m2m/*", toApi);
 app.all("/photos/*", toApi);
 app.all("/.well-known/*", toApi);
-app.get("/ui", toApi);
+app.all("/doc", toApi); // OpenAPI JSON (the RR /ui Swagger page fetches it); /ui itself is now an RR route
 app.all("/sso", toApi); // saas SSO handoff (coreAuthRoutes is also mounted at '/')
 app.all("/sign/*", toApi); // public signing pages — no React Router /sign route
 app.get("/inspector/:tenant/:slug/calendar.ics", toApi); // ICS feed (API-only)

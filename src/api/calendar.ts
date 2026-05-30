@@ -251,8 +251,7 @@ export const calendarRoutes = createApiRouter()
         const { code, state, error } = parsed.data;
 
         if (error) {
-            const escapeHtml = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-            return c.html(`<p>Google Calendar authorization denied: ${escapeHtml(error)}. <a href="/dashboard">Back</a></p>`, 400);
+            return c.redirect(`/settings/integrations?calendar_error=${encodeURIComponent(error)}`, 302);
         }
         if (!code || !state) return c.json({ success: false, error: { message: 'Missing code or state' } }, 400);
 

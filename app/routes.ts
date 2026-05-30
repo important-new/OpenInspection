@@ -69,6 +69,8 @@ export default [
   // Error / utility pages (bare, outside auth)
   route("not-found", "routes/not-found.tsx"),
   route("feature-disabled", "routes/feature-disabled.tsx"),
+  // API docs (Swagger UI) — was hono GET /ui; OpenAPI JSON still served at /doc
+  route("ui", "routes/docs.tsx"),
   layout("routes/auth-layout.tsx", [
     route("dashboard", "routes/dashboard.tsx"),
     route("calendar", "routes/calendar.tsx"),

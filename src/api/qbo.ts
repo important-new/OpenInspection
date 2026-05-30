@@ -30,10 +30,10 @@ api.get('/status', async (c) => {
 
 api.get('/connect', async (c) => {
     if (!c.env.QBO_CLIENT_ID || !c.env.QBO_CLIENT_SECRET) {
-        return c.html('<p>QBO credentials not configured</p>', 503);
+        return c.redirect('/settings/integrations/qbo?error=not_configured', 302);
     }
     if (!c.env.APP_BASE_URL) {
-        return c.html('<p>APP_BASE_URL not configured</p>', 503);
+        return c.redirect('/settings/integrations/qbo?error=missing_base_url', 302);
     }
     const state = crypto.randomUUID();
     await c.env.TENANT_CACHE.put(`qbo_oauth_state:${state}`, '1', { expirationTtl: 600 });
