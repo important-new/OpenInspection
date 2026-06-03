@@ -24,18 +24,22 @@ describe('admin communication config — ③-D (B-4)', () => {
     it('GET returns senderEmail/replyTo + flags from branding config', async () => {
         const getBranding = vi.fn().mockResolvedValue({
             senderEmail: 'noreply@acme.com', replyTo: 'office@acme.com', icsToken: 'icstok', googleRefreshToken: 'g',
+            emailMode: 'own', senderDisplayName: 'Acme Inspections', useInspectorFromName: true,
         });
         const getDecryptedSecrets = vi.fn().mockResolvedValue({ resendApiKey: 're_123' });
         const { app, env } = buildApp({ getBranding, getDecryptedSecrets });
         const res = await app.request('/api/admin/communication', {}, env);
         expect(res.status).toBe(200);
-        const body = await res.json() as { data: { senderEmail: string; replyTo: string; resendConfigured: boolean; googleCalendarConnected: boolean; icsUrl: string | null; templates: unknown[] } };
+        const body = await res.json() as { data: { senderEmail: string; replyTo: string; resendConfigured: boolean; googleCalendarConnected: boolean; icsUrl: string | null; templates: unknown[]; emailMode: string; senderDisplayName: string; useInspectorFromName: boolean } };
         expect(body.data.senderEmail).toBe('noreply@acme.com');
         expect(body.data.replyTo).toBe('office@acme.com');
         expect(body.data.resendConfigured).toBe(true);
         expect(body.data.googleCalendarConnected).toBe(true);
         expect(body.data.icsUrl).toContain('icstok');
         expect(Array.isArray(body.data.templates)).toBe(true);
+        expect(body.data.emailMode).toBe('own');
+        expect(body.data.senderDisplayName).toBe('Acme Inspections');
+        expect(body.data.useInspectorFromName).toBe(true);
         expect(getBranding).toHaveBeenCalledWith('t1', expect.anything());
     });
 

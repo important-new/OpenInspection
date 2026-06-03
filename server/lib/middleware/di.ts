@@ -69,21 +69,11 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
     const keyringPromise = buildKeyring(c.env as unknown as Record<string, string | undefined>);
     keyringPromise.catch(() => { /* defer reporting to the first awaiter */ });
     c.set('keyringPromise', keyringPromise);
-    // Pre-load DB secrets only when env vars are absent and tenant is known.
-    // Env vars always take priority over DB-stored config.
-    let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
     const tenantId = c.get('tenantId');
-    if (tenantId && (!c.env.RESEND_API_KEY || !c.env.GEMINI_API_KEY)) {
-        try {
-            const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
-            dbSecrets = await bSvc.getDecryptedSecrets(tenantId, c.env.JWT_SECRET);
-        } catch {
-            // Secrets not yet configured — proceed without them
-        }
-    }
 
     // Phase 1 (B-4/A-7) — load the tenant's email identity once per request so
     // the lazily-constructed EmailService can pick own vs platform Resend.
+    // Must be loaded BEFORE the dbSecrets guard so own-mode can widen it.
     let emailIdentity: import('../email/sender-identity').EmailIdentityConfig | undefined;
     if (tenantId) {
         try {
@@ -91,6 +81,19 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
             emailIdentity = await bSvc.getEmailIdentity(tenantId);
         } catch {
             // No config row yet — platform defaults apply at construction.
+        }
+    }
+
+    // Pre-load DB secrets when env vars are absent OR the tenant uses own-mode
+    // Resend (own-mode key is stored in encrypted DB secrets, not env).
+    // Env vars take priority over DB-stored config for platform mode.
+    let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
+    if (tenantId && (!c.env.RESEND_API_KEY || !c.env.GEMINI_API_KEY || emailIdentity?.mode === 'own')) {
+        try {
+            const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
+            dbSecrets = await bSvc.getDecryptedSecrets(tenantId, c.env.JWT_SECRET);
+        } catch {
+            // Secrets not yet configured — proceed without them
         }
     }
 
