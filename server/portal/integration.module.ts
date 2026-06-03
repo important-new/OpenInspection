@@ -1,8 +1,8 @@
 // Single composition seam for the SaaS-Portal integration. The rest of the
 // codebase touches portal ONLY via this module's two exports + the
 // IntegrationProvider / OutboxService selection in lib/middleware/di.ts.
-// Standalone never reaches these in normal operation. A planned worker-entry
-// guard (workers/app.ts) will 404 /api/integration/* unless APP_MODE=saas.
+// Standalone never reaches these in normal operation. The worker entry
+// (workers/app.ts) 404s /api/integration/* unless APP_MODE=saas.
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { HonoConfig } from '../types/hono';
 import integrationRoutes from './integration.routes';

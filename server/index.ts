@@ -499,8 +499,8 @@ const routes = app
 ;
 
 // Mount the SaaS portal M2M integration routes (the one composition seam).
-// No-op surface for standalone. A planned worker-entry guard will 404 these
-// in standalone.
+// No-op surface for standalone. The worker entry 404s these in standalone
+// (APP_MODE ≠ saas).
 registerPortalIntegration(app);
 
 // Design System 0520 subsystem D phase 4/5 — anonymous observer claim.

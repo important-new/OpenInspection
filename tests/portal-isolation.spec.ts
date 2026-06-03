@@ -36,3 +36,12 @@ describe('SaaS-Portal isolation', () => {
     expect(stray, `raw integration.routes/outbox imports outside server/portal/: ${stray.join(', ')}`).toEqual([]);
   });
 });
+
+import workerEntry from '../workers/app';
+describe('standalone integration 404', () => {
+  it('GET /api/integration/anything → 404 when APP_MODE is not saas', async () => {
+    const req = new Request('https://x/api/integration/from-core', { method: 'POST' });
+    const res = await workerEntry.fetch(req, { APP_MODE: 'standalone' } as any, {} as any);
+    expect(res.status).toBe(404);
+  });
+});

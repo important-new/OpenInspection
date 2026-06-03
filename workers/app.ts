@@ -51,6 +51,12 @@ const app = new Hono();
 
 // --- API-owned paths → the API app (with its middleware). Routing audit done. ---
 // Bulk API surface + genuine non-/api endpoints with no React Router page:
+// SaaS-Portal M2M integration: reachable ONLY in saas. Standalone gets 404 —
+// no machine-to-machine surface (no perceived backdoor). See server/portal/.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+app.all("/api/integration/*", (c: any) =>
+    c.env.APP_MODE === "saas" ? toApi(c) : c.notFound(),
+);
 app.all("/api/*", toApi);
 app.all("/status", toApi);
 app.all("/m2m/*", toApi);
