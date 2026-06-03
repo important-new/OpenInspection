@@ -39,7 +39,7 @@ import integrationsApiRoutes from './api/integrations';
 import analyticsRoutes from './api/analytics';
 import guestRoutes from './api/guest';
 import billingRoutes from './api/billing';
-import integrationRoutes from './portal/integration.routes';
+import { registerPortalIntegration } from './portal/integration.module';
 import inspectionsRoutes from './api/inspections';
 import tenantPresenceRoutes from './api/tenant-presence';
 import inspectionPrefsRoutes from './api/inspection-prefs';
@@ -481,7 +481,6 @@ const routes = app
   // Mounted at /api/templates so the path is /api/templates/:oldId/migrate-to/:newId.
   .route('/api/templates', templateMigrationRoutes)
   .route('/api/data', dataRoutes)
-  .route('/api/integration', integrationRoutes)
   .route('/api/ics', icsRoutes)
   .route('/api/users', userRoutes)
   .route('/api/messages', messageRoutes)
@@ -498,6 +497,11 @@ const routes = app
   // Profile-gated setup wizard — 404s in saas modes (see features/setup-wizard).
   .route('/setup', setupWizardRoutes())
 ;
+
+// Mount the SaaS portal M2M integration routes (the one composition seam).
+// No-op surface for standalone. A planned worker-entry guard will 404 these
+// in standalone.
+registerPortalIntegration(app);
 
 // Design System 0520 subsystem D phase 4/5 — anonymous observer claim.
 // Public route — exchanges a one-time token for a __Host-observer_session
