@@ -74,6 +74,24 @@ export class BrandingService {
     }
 
     /**
+     * Email-template Phase 2 — the brand the email layout paints with.
+     * Returns nulls when no config row exists; callers map to TemplateBrand.
+     */
+    async getEmailBrand(tenantId: string): Promise<{ siteName: string | null; logoUrl: string | null; primaryColor: string | null }> {
+        const db = this.getDrizzle();
+        const row = await db
+            .select({ siteName: tenantConfigs.siteName, logoUrl: tenantConfigs.logoUrl, primaryColor: tenantConfigs.primaryColor })
+            .from(tenantConfigs)
+            .where(eq(tenantConfigs.tenantId, tenantId))
+            .get();
+        return {
+            siteName: row?.siteName ?? null,
+            logoUrl: row?.logoUrl ?? null,
+            primaryColor: row?.primaryColor ?? null,
+        };
+    }
+
+    /**
      * Resolves the effective report theme for an inspection.
      * Per-report override wins; otherwise falls back to tenant default; otherwise 'modern'.
      */
