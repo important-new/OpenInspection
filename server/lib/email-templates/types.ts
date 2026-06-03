@@ -42,3 +42,11 @@ export interface RenderResult {
   html: string;
   enabled: boolean;
 }
+
+/** A tenant's sparse override for one trigger (Phase 3). */
+export interface TemplateOverride {
+  trigger: string;
+  subject: string | null;                 // null → registry default
+  blocks: Record<string, string> | null;  // partial blockKey→value; null → all defaults
+  enabled: boolean;
+}

@@ -1,29 +1,40 @@
 import { getDescriptor } from './registry';
 import { interpolate, escapeHtml } from './interpolate';
 import { EmailLayout } from './layout';
-import type { TemplateBrand, RenderResult, EmailTemplateDescriptor } from './types';
+import type { TemplateBrand, RenderResult, EmailTemplateDescriptor, TemplateOverride } from './types';
 
-export interface RendererBrands {
+export interface RendererConfig {
   tenantBrand: TemplateBrand;
   platformBrand: TemplateBrand;
+  overrides?: Map<string, TemplateOverride>;
 }
 
+/** @deprecated Use RendererConfig */
+export type RendererBrands = RendererConfig;
+
 /**
- * Email-template Phase 2 — render a trigger to { subject, html, enabled }
- * from registry DEFAULTS (no per-tenant override yet — Phase 3 adds that).
+ * Email-template renderer — renders a trigger to { subject, html, enabled }
+ * merging per-tenant overrides (Phase 3) over registry defaults (Phase 2).
  */
 export class EmailTemplateRenderer {
-  constructor(private brands: RendererBrands) {}
+  constructor(private config: RendererConfig) {}
 
   render(trigger: string, data: Record<string, unknown>, opts?: { signatureHtml?: string }): RenderResult {
     const d = getDescriptor(trigger);
     if (!d) throw new Error(`Unknown email template trigger: ${trigger}`);
 
+    const override = this.config.overrides?.get(trigger);
+    const enabled = d.required ? true : (override?.enabled ?? true);
+    if (!enabled) return { subject: '', html: '', enabled: false };
+
     const allowed = d.variables.map(v => v.name);
     const resolve = (s: string) => interpolate(s, data, allowed);
 
-    const subject = unescapeEntities(resolve(d.defaultSubject));
-    const blockValues = new Map(d.blocks.map(b => [b.key, resolve(b.default)]));
+    const subjectTemplate = override?.subject ?? d.defaultSubject;
+    const blockValueDefault = (b: { key: string; default: string }) => override?.blocks?.[b.key] ?? b.default;
+
+    const subject = unescapeEntities(resolve(subjectTemplate));
+    const blockValues = new Map(d.blocks.map(b => [b.key, resolve(blockValueDefault(b))]));
 
     const heading = blockValues.get('heading') ?? '';
     const ctaLabelKey = d.cta?.labelBlockKey;
@@ -38,7 +49,7 @@ export class EmailTemplateRenderer {
       if (url) cta = { label, url };
     }
 
-    const brand = d.brand === 'platform' ? this.brands.platformBrand : this.brands.tenantBrand;
+    const brand = d.brand === 'platform' ? this.config.platformBrand : this.config.tenantBrand;
     const systemHtml = this.buildSystemBlocks(d, data);
 
     const html = EmailLayout({
