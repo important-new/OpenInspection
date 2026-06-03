@@ -64,7 +64,7 @@ The web layer uses a **Token Relay BFF** pattern: the React Router v7 server hol
 ## Module map
 
 ```
-apps/core/
+apps/openinspection/
 ├── workers/
 │   └── app.ts                     # Single-worker entry: Hono mounts API in-process + delegates pages to RR SSR
 ├── server/                        # API (Hono + Drizzle + D1)
