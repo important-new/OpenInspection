@@ -103,11 +103,12 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
         } catch { /* no overrides — defaults apply */ }
     }
 
-    // Pre-load DB secrets when env vars are absent OR the tenant uses own-mode
-    // Resend (own-mode key is stored in encrypted DB secrets, not env).
-    // Env vars take priority over DB-stored config for platform mode.
+    // Pre-load the tenant's encrypted DB secrets. Gemini is bring-your-own-key
+    // (per-tenant, both SaaS and standalone — see the AIService construction
+    // below), so these are always needed once a tenant is resolved; own-mode
+    // Resend also reads its key from here.
     let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
-    if (tenantId && (!c.env.RESEND_API_KEY || !c.env.GEMINI_API_KEY || emailIdentity?.mode === 'own')) {
+    if (tenantId) {
         try {
             const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
             dbSecrets = await bSvc.getDecryptedSecrets(tenantId, c.env.JWT_SECRET);
@@ -165,7 +166,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                 case 'ai':
                     target.ai = new AIService(
                         c.env.DB,
-                        c.env.GEMINI_API_KEY || dbSecrets.geminiApiKey || '',
+                        // Bring-your-own-key: the Gemini key comes solely from the
+                        // tenant's own bound key (Settings → Advanced → AI), never a
+                        // shared platform env key — applies to SaaS and standalone.
+                        dbSecrets.geminiApiKey || '',
                         // Sprint 1 A-4: pass effective deployment mode so the
                         // service can return dev-mock suggestions when the
                         // active profile permits it (standalone) and
