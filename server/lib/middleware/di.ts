@@ -48,6 +48,7 @@ import { QBOService } from '../../services/qbo.service';
 import { IdentityService } from '../../services/identity.service';
 import { IntegrationsService } from '../../services/integrations.service';
 import { AnalyticsService } from '../../services/analytics.service';
+import { EmailTemplateService } from '../../services/email-template.service';
 
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../../portal/portal.provider';
@@ -93,6 +94,15 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
         } catch { /* defaults apply */ }
     }
 
+    let emailOverrides: Map<string, import('../email-templates/types').TemplateOverride> | undefined;
+    if (tenantId) {
+        try {
+            const svc = new EmailTemplateService(c.env.DB);
+            const list = await svc.listForTenant(tenantId);
+            if (list.length) emailOverrides = new Map(list.map(o => [o.trigger, o]));
+        } catch { /* no overrides — defaults apply */ }
+    }
+
     // Pre-load DB secrets when env vars are absent OR the tenant uses own-mode
     // Resend (own-mode key is stored in encrypted DB secrets, not env).
     // Env vars take priority over DB-stored config for platform mode.
@@ -132,6 +142,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                 logoUrl: null,
                 primaryColor: platformColor,
             },
+            ...(emailOverrides ? { overrides: emailOverrides } : {}),
         });
         return new EmailService(resendKey, fromAddress, appName, emailIdentity, renderer);
     };
