@@ -48,6 +48,7 @@ import bookingsRoutes from './api/bookings';
 import adminRoutes from './api/admin';
 import adminBrandingRoutes from './api/admin/branding';
 import secretsRoutes from './api/secrets';
+import emailTemplateRoutes from './api/email-templates';
 import agentRoutes from './api/agent';
 import agentsRoutes from './api/agents';
 import agentSignupRoutes from './api/agent-signup';
@@ -451,6 +452,8 @@ const routes = app
   .route('/api/admin', evidenceRoutes)
   // Secret UI化 — GET/PUT/POST /api/admin/secrets for all 14 integration keys
   .route('/api/admin', secretsRoutes)
+  // Email-template CRUD + preview — GET/PUT/POST /api/admin/email-templates
+  .route('/api/admin', emailTemplateRoutes)
   .route('/api/agent', agentRoutes)
   // Agent Accounts A1 — invite + accept endpoints
   .route('/api/agents', agentsRoutes)
