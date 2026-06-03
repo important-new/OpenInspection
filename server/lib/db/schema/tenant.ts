@@ -162,6 +162,15 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     // the workspace configures them in Settings → Communication.
     senderEmail: text('sender_email'),
     replyTo: text('reply_to'),
+    // Phase 1 (B-4/A-7) — sender identity. `email_mode` switches between the
+    // platform Resend account ('platform', default) and the tenant's own
+    // ('own'). `sender_display_name` is the From: display name; when
+    // `use_inspector_from_name` is on and a send carries an inspector, that
+    // inspector's name overrides the display name and their email becomes the
+    // default Reply-To.
+    emailMode: text('email_mode', { enum: ['platform', 'own'] }).notNull().default('platform'),
+    senderDisplayName: text('sender_display_name'),
+    useInspectorFromName: integer('use_inspector_from_name', { mode: 'boolean' }).notNull().default(false),
     billingUrl: text('billing_url'),
     integrationConfig: text('integration_config'), // plaintext JSON: {appBaseUrl, turnstileSiteKey, googleClientId}
     secrets: text('secrets'),                      // AES-GCM encrypted JSON: {resendApiKey, turnstileSecretKey, geminiApiKey, googleClientSecret}
