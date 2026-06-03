@@ -1904,7 +1904,7 @@ export default function InspectionEditPage() {
  const result = state.getResult(state.activeItemId);
  const photos = (result?.photos as string[]) || [];
  if (photos.length > 0) {
-  setPhotoStudioUrl(`/api/inspections/${state.inspection.id}/photos/${photos[0]}`);
+  setPhotoStudioUrl(`/api/inspections/${state.inspection.id}/photo?key=${encodeURIComponent(photos[0])}`);
   setPhotoStudioIndex(1);
   setPhotoStudioTotal(photos.length);
  } else {

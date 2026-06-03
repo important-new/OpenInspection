@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/report-card-stack";
 import { createApi } from "~/lib/api-client.server";
+import { photoDisplayName, withDownload } from "~/lib/photo-name";
 
 export function meta({ data }: Route.MetaArgs) {
  const d = data as LoaderResult | undefined;
@@ -383,16 +384,30 @@ export default function ReportCardStackPage() {
 
  {item.photos.length > 0 && (
  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
- {item.photos.map((photo, idx) => (
+ {item.photos.map((photo) => {
+ const name = photoDisplayName(photo.key);
+ return (
+ <div key={photo.key} className="group relative">
  <img
- key={photo.key}
  src={photo.url}
- alt={`${item.label} photo ${idx + 1}`}
+ alt={name}
+ title={name}
  className="w-full h-32 object-cover rounded cursor-pointer"
  loading="lazy"
  onClick={() => setLightboxUrl(photo.url)}
  />
- ))}
+ <a
+ href={withDownload(photo.url)}
+ download={name}
+ title={`Download ${name}`}
+ onClick={(e) => e.stopPropagation()}
+ className="absolute top-1 right-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100"
+ >
+ ↓
+ </a>
+ </div>
+ );
+ })}
  </div>
  )}
 
