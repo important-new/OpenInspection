@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useLoaderData, useActionData, Form } from "react-router";
 import { useForm } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
@@ -15,6 +16,9 @@ interface CommConfig {
   senderEmail: string | null;
   replyTo: string | null;
   resendConfigured: boolean;
+  emailMode: "platform" | "own";
+  senderDisplayName: string | null;
+  useInspectorFromName: boolean;
 }
 
 interface EmailTemplate {
@@ -45,13 +49,15 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       senderEmail: (d?.senderEmail as string) || null,
       replyTo: (d?.replyTo as string) || null,
       resendConfigured: Boolean(d?.resendConfigured),
+      emailMode: (d?.emailMode as "platform" | "own") || "platform",
+      senderDisplayName: (d?.senderDisplayName as string) || null,
+      useInspectorFromName: Boolean(d?.useInspectorFromName),
     } as CommConfig,
     templates: (Array.isArray(d?.templates) ? d.templates : []) as EmailTemplate[],
     icsUrl: (d?.icsUrl as string) || null,
     googleCalendarConnected: Boolean(d?.googleCalendarConnected),
     secrets: {
       RESEND_API_KEY: secrets.RESEND_API_KEY || "",
-      SENDER_EMAIL: secrets.SENDER_EMAIL || "",
       GOOGLE_CLIENT_ID: secrets.GOOGLE_CLIENT_ID || "",
       GOOGLE_CLIENT_SECRET: secrets.GOOGLE_CLIENT_SECRET || "",
     },
@@ -69,14 +75,14 @@ export async function action({ request, context }: Route.ActionArgs) {
     if (submission.status !== "success") {
       return submission.reply();
     }
-    const { senderEmail, replyTo } = submission.value;
+    const { senderEmail, replyTo, emailMode, senderDisplayName, useInspectorFromName } = submission.value;
     const res = await api.admin.communication.$patch({
       json: {
         senderEmail: senderEmail || null,
         replyTo: replyTo || null,
-        emailMode: 'platform',
-        senderDisplayName: null,
-        useInspectorFromName: false,
+        emailMode,
+        senderDisplayName: senderDisplayName || null,
+        useInspectorFromName,
       },
     });
     if (!res.ok) {
@@ -88,9 +94,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (intent === "save-email-secrets") {
     const body: Record<string, string> = {};
     const resendKey = form.get("RESEND_API_KEY");
-    const senderEmail = form.get("SENDER_EMAIL");
     if (resendKey && typeof resendKey === "string" && resendKey.trim()) body.RESEND_API_KEY = resendKey;
-    if (senderEmail && typeof senderEmail === "string" && senderEmail.trim()) body.SENDER_EMAIL = senderEmail;
 
     if (Object.keys(body).length > 0) {
       const res = await api.secrets.secrets.$put({ json: body });
@@ -137,6 +141,8 @@ export default function SettingsCommunication() {
     shouldRevalidate: "onInput",
   });
 
+  const [mode, setMode] = useState<"platform" | "own">(config.emailMode);
+
   return (
     <div className="space-y-[18px]">
       {/* Breadcrumb */}
@@ -169,32 +175,58 @@ export default function SettingsCommunication() {
           className="space-y-4"
         >
           <input type="hidden" name="intent" value="save-email" />
+
+          {/* Mode switch */}
+          <div className="inline-flex rounded-md border border-ih-border overflow-hidden">
+            {(["platform", "own"] as const).map((m) => (
+              <label key={m} className={`px-3 h-8 flex items-center text-[12px] font-bold cursor-pointer ${mode === m ? "bg-ih-primary text-white" : "bg-ih-bg-card text-ih-fg-2"}`}>
+                <input
+                  type="radio" name={emailFields.emailMode.name} value={m}
+                  defaultChecked={config.emailMode === m}
+                  onChange={() => setMode(m)}
+                  className="sr-only"
+                />
+                {m === "platform" ? "Platform email" : "My own Resend"}
+              </label>
+            ))}
+          </div>
+          <p className="text-[11px] text-ih-fg-4">
+            {mode === "platform"
+              ? "Send from the platform mailbox. You can set the display name and reply-to; the address is fixed."
+              : "Send from your own Resend account. Add your Resend API key below and a verified sender address."}
+          </p>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {mode === "own" && (
+              <div>
+                <label htmlFor={emailFields.senderEmail.id} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Sender email</label>
+                <input
+                  type="email" name={emailFields.senderEmail.name} id={emailFields.senderEmail.id}
+                  defaultValue={config.senderEmail || ""} placeholder="reports@yourdomain.com"
+                  aria-invalid={emailFields.senderEmail.errors ? true : undefined}
+                  className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none"
+                />
+                {emailFields.senderEmail.errors ? (
+                  <p className="mt-1 text-xs text-ih-bad-fg">{emailFields.senderEmail.errors[0]}</p>
+                ) : (
+                  <p className="text-[11px] text-ih-fg-4 mt-1">Must be a domain verified in your Resend account.</p>
+                )}
+              </div>
+            )}
             <div>
-              <label htmlFor={emailFields.senderEmail.id} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Sender email</label>
+              <label htmlFor={emailFields.senderDisplayName.id} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Display name</label>
               <input
-                type="email"
-                name={emailFields.senderEmail.name}
-                id={emailFields.senderEmail.id}
-                defaultValue={config.senderEmail || ""}
-                placeholder="reports@yourdomain.com"
-                aria-invalid={emailFields.senderEmail.errors ? true : undefined}
+                type="text" name={emailFields.senderDisplayName.name} id={emailFields.senderDisplayName.id}
+                defaultValue={config.senderDisplayName || ""} placeholder="Acme Inspections"
                 className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none"
               />
-              {emailFields.senderEmail.errors ? (
-                <p className="mt-1 text-xs text-ih-bad-fg">{emailFields.senderEmail.errors[0]}</p>
-              ) : (
-                <p className="text-[11px] text-ih-fg-4 mt-1">Used as the "From" address. Domain must be verified in Resend.</p>
-              )}
+              <p className="text-[11px] text-ih-fg-4 mt-1">Shown as the From name on outbound email.</p>
             </div>
             <div>
               <label htmlFor={emailFields.replyTo.id} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Reply-to</label>
               <input
-                type="email"
-                name={emailFields.replyTo.name}
-                id={emailFields.replyTo.id}
-                defaultValue={config.replyTo || ""}
-                placeholder="hello@yourdomain.com"
+                type="email" name={emailFields.replyTo.name} id={emailFields.replyTo.id}
+                defaultValue={config.replyTo || ""} placeholder="hello@yourdomain.com"
                 aria-invalid={emailFields.replyTo.errors ? true : undefined}
                 className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none"
               />
@@ -205,6 +237,16 @@ export default function SettingsCommunication() {
               )}
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-[13px] text-ih-fg-2">
+            <input
+              type="checkbox" name={emailFields.useInspectorFromName.name}
+              defaultChecked={config.useInspectorFromName}
+              className="h-4 w-4 rounded border-ih-border"
+            />
+            Use the sending inspector&rsquo;s name as the display name (replies go to that inspector)
+          </label>
+
           {emailForm.errors && (
             <div className="px-3 py-2 rounded-md bg-ih-bad-bg border border-ih-bad text-[13px] text-ih-bad-fg">
               {emailForm.errors[0]}
@@ -237,13 +279,6 @@ export default function SettingsCommunication() {
               label="Resend API key"
               value={secrets.RESEND_API_KEY}
               hint="Email delivery for reports, confirmations, and password resets. Get your key at resend.com → API Keys"
-            />
-            <SecretField
-              name="SENDER_EMAIL"
-              label="Sender email (secret)"
-              value={secrets.SENDER_EMAIL}
-              type="text"
-              hint="Verified sender address (e.g. reports@yourdomain.com). Must be verified in your Resend account"
             />
           </div>
           <div className="flex justify-end pt-3 border-t border-ih-border">
