@@ -41,5 +41,8 @@ export function resolveSenderIdentity(
   const fromName = inspectorName ?? clean(config.senderDisplayName) ?? clean(config.siteName);
   const replyTo = clean(config.replyTo) ?? inspectorEmail;
 
-  return { fromName, replyTo };
+  const result: ResolvedSenderIdentity = {};
+  if (fromName !== undefined) result.fromName = fromName;
+  if (replyTo !== undefined) result.replyTo = replyTo;
+  return result;
 }
