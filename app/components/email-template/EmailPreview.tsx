@@ -11,7 +11,6 @@ export function EmailPreview({ trigger, subject, blocks }: { trigger: string; su
     setLoading(true);
     timer.current = setTimeout(async () => {
       try {
-        // eslint-disable-next-line no-restricted-syntax -- client-only live preview; same-origin cookie auth
         const res = await fetch(`/api/admin/email-templates/${trigger}/preview`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
