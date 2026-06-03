@@ -11,7 +11,7 @@ import { AuthService } from '../../services/auth.service';
 import { OutboxService } from '../../portal/outbox.service';
 import { BookingService } from '../../services/booking.service';
 import { BrandingService } from '../../services/branding.service';
-import { EmailService } from '../../services/email.service';
+import { assembleTenantEmailService } from '../email/build-email-service';
 import { InspectionService } from '../../services/inspection.service';
 import { TeamService } from '../../services/team.service';
 import { TemplateService } from '../../services/template.service';
@@ -54,7 +54,6 @@ import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../../portal/portal.provider';
 import { getDeploymentProfile } from '../deployment-profile';
 import { buildKeyring } from '../jwt-keyring';
-import { EmailTemplateRenderer } from '../email-templates/renderer';
 
 /**
  * Middleware that injects a lazy-loaded service registry into the Hono context.
@@ -117,36 +116,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
         }
     }
 
-    // One place decides own-vs-platform Resend, so all EmailService
-    // construction sites stay consistent.
-    const buildEmailService = () => {
-        const ownReady =
-            emailIdentity?.mode === 'own' &&
-            !!dbSecrets.resendApiKey &&
-            !!emailIdentity.senderEmail;
-        const resendKey = ownReady
-            ? dbSecrets.resendApiKey!
-            : (c.env.RESEND_API_KEY || dbSecrets.resendApiKey || '');
-        const fromAddress = ownReady
-            ? emailIdentity!.senderEmail!
-            : (c.env.SENDER_EMAIL || emailIdentity?.senderEmail || '');
-        const appName = emailIdentity?.siteName || c.env.APP_NAME || 'OpenInspection';
-        const platformColor = c.env.PRIMARY_COLOR || '#4f46e5';
-        const renderer = new EmailTemplateRenderer({
-            tenantBrand: {
-                name: emailBrand?.siteName || appName,
-                logoUrl: emailBrand?.logoUrl ?? null,
-                primaryColor: emailBrand?.primaryColor || platformColor,
-            },
-            platformBrand: {
-                name: c.env.APP_NAME || 'OpenInspection',
-                logoUrl: null,
-                primaryColor: platformColor,
-            },
-            ...(emailOverrides ? { overrides: emailOverrides } : {}),
-        });
-        return new EmailService(resendKey, fromAddress, appName, emailIdentity, renderer);
-    };
+    // One place decides own-vs-platform Resend + branded renderer, shared with
+    // non-request contexts (workflows/scheduled) via assembleTenantEmailService.
+    const buildEmailService = () =>
+        assembleTenantEmailService(c.env, { emailIdentity, emailBrand, dbSecrets, emailOverrides });
 
     const services = {} as AppServices;
 

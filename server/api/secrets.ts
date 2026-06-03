@@ -23,7 +23,9 @@ import { withMcpMetadata } from '../lib/route-metadata-standards';
  */
 export const INTEGRATION_SECRET_KEYS = [
     'RESEND_API_KEY',
-    'SENDER_EMAIL',
+    // SENDER_EMAIL removed (B-14): the From address is not a secret — it lives
+    // in the plaintext `tenant_configs.sender_email` column set via the
+    // Communication settings form, never in the encrypted secrets store.
     'GEMINI_API_KEY',
     'TURNSTILE_SECRET_KEY',
     'GOOGLE_CLIENT_ID',
@@ -217,7 +219,6 @@ export const secretsRoutes = createApiRouter()
         // Also accept camelCase variants that the existing settings-advanced page sends
         const camelToEnv: Record<string, string> = {
             resendApiKey: 'RESEND_API_KEY',
-            senderEmail: 'SENDER_EMAIL',
             geminiApiKey: 'GEMINI_API_KEY',
             turnstileSecretKey: 'TURNSTILE_SECRET_KEY',
             googleClientId: 'GOOGLE_CLIENT_ID',
