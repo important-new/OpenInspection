@@ -1188,6 +1188,9 @@ const deleteEventTypeRoute = createRoute(withMcpMetadata({
 const CommunicationResponseSchema = z.object({
     senderEmail:             z.string().nullable().describe('From: address for tenant transactional email.'),
     replyTo:                 z.string().nullable().describe('Reply-To: header for tenant transactional email.'),
+    emailMode:               z.enum(['platform', 'own']).describe('platform = shared Resend; own = tenant Resend.'),
+    senderDisplayName:       z.string().nullable().describe('From: display name.'),
+    useInspectorFromName:    z.boolean().describe("Use the sending inspector's name as the From display name."),
     resendConfigured:        z.boolean().describe('Whether a Resend API key is configured (env or tenant secret).'),
     templates:               z.array(z.object({
         id:      z.string().describe('Template id.'),
@@ -1199,8 +1202,11 @@ const CommunicationResponseSchema = z.object({
     googleCalendarConnected: z.boolean().describe('Whether a Google Calendar refresh token is stored.'),
 });
 const CommunicationPatchSchema = z.object({
-    senderEmail: z.string().nullable().describe('From: address, or null to clear.'),
-    replyTo:     z.string().nullable().describe('Reply-To: address, or null to clear.'),
+    senderEmail:          z.string().nullable().describe('From: address, or null to clear.'),
+    replyTo:              z.string().nullable().describe('Reply-To: address, or null to clear.'),
+    emailMode:            z.enum(['platform', 'own']),
+    senderDisplayName:    z.string().nullable(),
+    useInspectorFromName: z.boolean(),
 }).openapi('CommunicationPatch');
 
 const getCommunicationRoute = createRoute(withMcpMetadata({
@@ -2354,6 +2360,9 @@ export const adminRoutes = createApiRouter()
             data: {
                 senderEmail: (cfg.senderEmail as string | null) ?? null,
                 replyTo: (cfg.replyTo as string | null) ?? null,
+                emailMode: (cfg.emailMode as 'platform' | 'own') ?? 'platform',
+                senderDisplayName: (cfg.senderDisplayName as string | null) ?? null,
+                useInspectorFromName: Boolean(cfg.useInspectorFromName),
                 resendConfigured,
                 templates: [],
                 icsUrl: icsToken ? `${getBaseUrl(c)}/api/ics/${icsToken}` : null,
@@ -2364,7 +2373,13 @@ export const adminRoutes = createApiRouter()
     .openapi(patchCommunicationRoute, async (c) => {
         const tenantId = c.get('tenantId');
         const body = c.req.valid('json');
-        await c.var.services.branding.updateBranding(tenantId, { senderEmail: body.senderEmail, replyTo: body.replyTo });
+        await c.var.services.branding.updateBranding(tenantId, {
+            senderEmail: body.senderEmail,
+            replyTo: body.replyTo,
+            emailMode: body.emailMode,
+            senderDisplayName: body.senderDisplayName,
+            useInspectorFromName: body.useInspectorFromName,
+        });
         return c.json({ success: true as const, data: { ok: true as const } }, 200);
     });
 

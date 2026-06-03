@@ -50,16 +50,16 @@ describe('admin communication config — ③-D (B-4)', () => {
         expect(body.data.googleCalendarConnected).toBe(false);
     });
 
-    it('PATCH persists senderEmail/replyTo via branding.updateBranding', async () => {
+    it('PATCH persists senderEmail/replyTo + identity fields via branding.updateBranding', async () => {
         const updateBranding = vi.fn().mockResolvedValue(undefined);
         const { app, env } = buildApp({ updateBranding });
         const res = await app.request('/api/admin/communication', {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ senderEmail: 'noreply@acme.com', replyTo: 'office@acme.com' }),
+            body: JSON.stringify({ senderEmail: 'noreply@acme.com', replyTo: 'office@acme.com', emailMode: 'platform', senderDisplayName: 'Acme', useInspectorFromName: false }),
         }, env);
         expect(res.status).toBe(200);
-        expect(updateBranding).toHaveBeenCalledWith('t1', { senderEmail: 'noreply@acme.com', replyTo: 'office@acme.com' });
+        expect(updateBranding).toHaveBeenCalledWith('t1', { senderEmail: 'noreply@acme.com', replyTo: 'office@acme.com', emailMode: 'platform', senderDisplayName: 'Acme', useInspectorFromName: false });
     });
 
     it('PATCH accepts nulls (clearing the addresses)', async () => {
@@ -68,9 +68,9 @@ describe('admin communication config — ③-D (B-4)', () => {
         const res = await app.request('/api/admin/communication', {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ senderEmail: null, replyTo: null }),
+            body: JSON.stringify({ senderEmail: null, replyTo: null, emailMode: 'platform', senderDisplayName: null, useInspectorFromName: false }),
         }, env);
         expect(res.status).toBe(200);
-        expect(updateBranding).toHaveBeenCalledWith('t1', { senderEmail: null, replyTo: null });
+        expect(updateBranding).toHaveBeenCalledWith('t1', { senderEmail: null, replyTo: null, emailMode: 'platform', senderDisplayName: null, useInspectorFromName: false });
     });
 });

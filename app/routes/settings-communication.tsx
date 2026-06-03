@@ -74,6 +74,9 @@ export async function action({ request, context }: Route.ActionArgs) {
       json: {
         senderEmail: senderEmail || null,
         replyTo: replyTo || null,
+        emailMode: 'platform',
+        senderDisplayName: null,
+        useInspectorFromName: false,
       },
     });
     if (!res.ok) {
