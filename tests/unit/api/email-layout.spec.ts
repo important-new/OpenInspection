@@ -39,4 +39,10 @@ describe('EmailLayout', () => {
     const html = EmailLayout({ brand, heading: 'H', paragraphs: [], signatureHtml: '<div>sig</div>' });
     expect(html).toContain('<div>sig</div>');
   });
+
+  it('escapes brand.name to prevent HTML injection', () => {
+    const html = EmailLayout({ brand: { name: '</span><script>x</script>', logoUrl: null, primaryColor: '#000' }, heading: 'H', paragraphs: [] });
+    expect(html).not.toContain('<script>x</script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
 });

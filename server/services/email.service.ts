@@ -37,8 +37,8 @@ export class EmailService {
 
     /** Render `trigger` via the template registry when a renderer is injected;
      *  otherwise use the provided fallback (keeps no-renderer unit tests working). */
-    private renderOr(trigger: string, data: Record<string, unknown>, fallback: { subject: string; html: string }): RenderResult {
-        if (this.renderer) return this.renderer.render(trigger, data);
+    private renderOr(trigger: string, data: Record<string, unknown>, fallback: { subject: string; html: string }, opts?: { signatureHtml?: string }): RenderResult {
+        if (this.renderer) return this.renderer.render(trigger, data, opts);
         return { subject: fallback.subject, html: fallback.html, enabled: true };
     }
 
@@ -176,7 +176,7 @@ export class EmailService {
         const fallbackBody = `<p>You've been invited to join an ${this.appName} workspace.</p>
              <p><a href="${inviteLink}" style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;">Accept Invitation</a></p>
              <p style="font-size:12px;color:#999;">Link expires in 7 days. If the button doesn't work: ${inviteLink}</p>`;
-        const rendered = this.renderOr('workspace-invitation', { inviteLink }, {
+        const rendered = this.renderOr('workspace-invitation', { inviteLink, tenantName: this.appName }, {
             subject: "You've been invited to join a workspace",
             html: fallbackBody,
         });
@@ -204,10 +204,11 @@ export class EmailService {
                <p style="font-size: 14px; color: #666;">If the button doesn't work, copy and paste this link: ${reportUrl}</p>
                <p style="font-size: 12px; color: #999;">This link expires in 30 days.</p>
              </div>`;
+        const signatureHtml = inspector && host ? inspectorSignature(inspector, host).html : undefined;
         const rendered = this.renderOr('agent-share-link', { address, reportUrl }, {
             subject: `Inspection report shared: ${address}`,
             html: appendSignature(fallbackBody, inspector, host),
-        });
+        }, signatureHtml ? { signatureHtml } : undefined);
         if (!rendered.enabled) return;
         await this.sendEmail(
             [to],
@@ -233,10 +234,11 @@ export class EmailService {
                </div>
                <p style="font-size: 14px; color: #666;">If the button doesn't work, copy and paste this link: ${reportUrl}</p>
              </div>`;
+        const signatureHtml = inspector && host ? inspectorSignature(inspector, host).html : undefined;
         const rendered = this.renderOr('report-ready', { address, reportUrl }, {
             subject: `Property Inspection Report: ${address}`,
             html: appendSignature(fallbackBody, inspector, host),
-        });
+        }, signatureHtml ? { signatureHtml } : undefined);
         if (!rendered.enabled) return;
         await this.sendEmail(
             [to],
@@ -273,10 +275,11 @@ export class EmailService {
                 <p style="font-size: 14px; color: #666;">PDF attachment: <strong>${safeAddress}-report.pdf</strong></p>
                 <p style="font-size: 12px; color: #999;">Online link: ${reportUrl}</p>
             </div>`;
+        const signatureHtml = inspector && host ? inspectorSignature(inspector, host).html : undefined;
         const rendered = this.renderOr('report-ready-pdf', { address, reportUrl }, {
             subject: `Property Inspection Report: ${address}`,
             html: appendSignature(fallbackBody, inspector, host),
-        });
+        }, signatureHtml ? { signatureHtml } : undefined);
         if (!rendered.enabled) return;
         await this.sendEmail(
             [to],
@@ -308,10 +311,11 @@ export class EmailService {
                     Thank you,<br>${this.appName} Team
                 </p>
             </div>`;
+        const signatureHtml = inspector && host ? inspectorSignature(inspector, host).html : undefined;
         const rendered = this.renderOr('agreement-request', { clientName: clientName ?? 'Client', agreementName, signUrl }, {
             subject: `Please sign: ${agreementName}`,
             html: appendSignature(fallbackBody, inspector, host),
-        });
+        }, signatureHtml ? { signatureHtml } : undefined);
         if (!rendered.enabled) return;
         await this.sendEmail(
             [to],
@@ -454,10 +458,11 @@ export class EmailService {
 </body>
 </html>`;
 
+        const signatureHtml = inspector && host ? inspectorSignature(inspector, host).html : undefined;
         const rendered = this.renderOr('agreement-signed', { clientName, propertyAddress, verifyUrl, confirmationId, signedAtUtc, ipAddress: ipAddress ?? 'recorded' }, {
             subject: `Agreement signed — ${propertyAddress}`,
             html: appendSignature(fallbackHtml, inspector, host),
-        });
+        }, signatureHtml ? { signatureHtml } : undefined);
         if (!rendered.enabled) return;
         const recipients = [to, ...ccs.filter(Boolean).filter(e => e && e !== to)];
         await this.sendEmail(
@@ -519,10 +524,11 @@ export class EmailService {
                     Thank you,<br>${this.appName} Team
                 </p>
             </div>`;
-        const rendered = this.renderOr('booking-confirmation', { clientName, address, date, time }, {
+        const signatureHtml = inspector && host ? inspectorSignature(inspector, host).html : undefined;
+        const rendered = this.renderOr('booking-confirmation', { clientName, address, date, time, icsAttached: !!icsEvent }, {
             subject: `Inspection Scheduled: ${address}`,
             html: appendSignature(fallbackBody, inspector, host),
-        });
+        }, signatureHtml ? { signatureHtml } : undefined);
         if (!rendered.enabled) return;
         await this.sendEmail(
             [to],

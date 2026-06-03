@@ -1,4 +1,5 @@
 import type { TemplateBrand } from './types';
+import { escapeHtml } from './interpolate';
 
 export interface LayoutInput {
   brand: TemplateBrand;
@@ -18,8 +19,8 @@ export function EmailLayout(input: LayoutInput): string {
   const { brand, heading, paragraphs, cta, systemHtml, signatureHtml } = input;
   const accent = brand.primaryColor || '#F55A1A';
   const header = brand.logoUrl
-    ? `<img src="${brand.logoUrl}" alt="${brand.name}" height="32" style="height:32px;display:block;" />`
-    : `<span style="font-size:18px;font-weight:700;color:${accent};">${brand.name}</span>`;
+    ? `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.name)}" height="32" style="height:32px;display:block;" />`
+    : `<span style="font-size:18px;font-weight:700;color:${accent};">${escapeHtml(brand.name)}</span>`;
 
   const paras = paragraphs
     .map(p => `<p style="margin:0 0 14px 0;font-size:14px;line-height:1.6;color:#334155;">${p}</p>`)
@@ -46,7 +47,7 @@ export function EmailLayout(input: LayoutInput): string {
         </td></tr>
         ${signatureHtml ? `<tr><td style="padding:0 32px 16px 32px;">${signatureHtml}</td></tr>` : ''}
       </table>
-      <p style="margin:16px 0 0 0;font-size:11px;color:#94a3b8;">Sent by ${brand.name}</p>
+      <p style="margin:16px 0 0 0;font-size:11px;color:#94a3b8;">Sent by ${escapeHtml(brand.name)}</p>
     </td></tr>
   </table>
 </body>

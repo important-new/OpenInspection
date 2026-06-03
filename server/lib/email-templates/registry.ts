@@ -30,12 +30,13 @@ export const REGISTRY: EmailTemplateDescriptor[] = [
     brand: 'tenant',
     defaultSubject: "You've been invited to join a workspace",
     blocks: [
-      { key: 'heading',  label: 'Heading', default: "You're invited",                                                                                   multiline: false },
-      { key: 'body',     label: 'Body',    default: "You've been invited to join a workspace. Accept the invitation to get started.",                    multiline: true  },
-      { key: 'ctaLabel', label: 'Button',  default: 'Accept Invitation',                                                                                multiline: false },
+      { key: 'heading',  label: 'Heading', default: "You're invited",                                                                                                  multiline: false },
+      { key: 'body',     label: 'Body',    default: "You've been invited to join the {{tenantName}} workspace. Accept the invitation to get started.",                  multiline: true  },
+      { key: 'ctaLabel', label: 'Button',  default: 'Accept Invitation',                                                                                               multiline: false },
     ],
     variables: [
-      { name: 'inviteLink', desc: 'Invitation acceptance link' },
+      { name: 'inviteLink',  desc: 'Invitation acceptance link' },
+      { name: 'tenantName',  desc: 'Workspace name' },
     ],
     cta: { labelBlockKey: 'ctaLabel', urlVar: 'inviteLink' },
   },

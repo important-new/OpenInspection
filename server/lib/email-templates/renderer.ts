@@ -15,14 +15,14 @@ export interface RendererBrands {
 export class EmailTemplateRenderer {
   constructor(private brands: RendererBrands) {}
 
-  render(trigger: string, data: Record<string, unknown>): RenderResult {
+  render(trigger: string, data: Record<string, unknown>, opts?: { signatureHtml?: string }): RenderResult {
     const d = getDescriptor(trigger);
     if (!d) throw new Error(`Unknown email template trigger: ${trigger}`);
 
     const allowed = d.variables.map(v => v.name);
     const resolve = (s: string) => interpolate(s, data, allowed);
 
-    const subject = stripTags(resolve(d.defaultSubject));
+    const subject = unescapeEntities(resolve(d.defaultSubject));
     const blockValues = new Map(d.blocks.map(b => [b.key, resolve(b.default)]));
 
     const heading = blockValues.get('heading') ?? '';
@@ -41,7 +41,14 @@ export class EmailTemplateRenderer {
     const brand = d.brand === 'platform' ? this.brands.platformBrand : this.brands.tenantBrand;
     const systemHtml = this.buildSystemBlocks(d, data);
 
-    const html = EmailLayout({ brand, heading, paragraphs, ...(cta ? { cta } : {}), ...(systemHtml !== undefined ? { systemHtml } : {}) });
+    const html = EmailLayout({
+      brand,
+      heading,
+      paragraphs,
+      ...(cta ? { cta } : {}),
+      ...(systemHtml !== undefined ? { systemHtml } : {}),
+      ...(opts?.signatureHtml ? { signatureHtml: opts.signatureHtml } : {}),
+    });
     return { subject, html, enabled: true };
   }
 
@@ -55,6 +62,7 @@ export class EmailTemplateRenderer {
       } else if (kind === 'attachmentManifest') {
         parts.push(`<p style="margin:8px 0;font-size:13px;color:#64748b;">The full document is attached to this email.</p>`);
       } else if (kind === 'icsHint') {
+        if (!data.icsAttached) continue;
         parts.push(`<p style="margin:8px 0;font-size:13px;color:#64748b;">A calendar invite (<strong>inspection.ics</strong>) is attached — open it to add this to your calendar.</p>`);
       }
     }
@@ -62,7 +70,7 @@ export class EmailTemplateRenderer {
   }
 }
 
-/** Subjects are plain text; un-escape the entities the interpolator added. */
-function stripTags(s: string): string {
+/** Reverse the HTML-entity encoding interpolate() added, so the subject is plain text (not entity-encoded). */
+function unescapeEntities(s: string): string {
   return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 }
