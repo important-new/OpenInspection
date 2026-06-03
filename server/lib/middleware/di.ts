@@ -69,11 +69,26 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
     const keyringPromise = buildKeyring(c.env as unknown as Record<string, string | undefined>);
     keyringPromise.catch(() => { /* defer reporting to the first awaiter */ });
     c.set('keyringPromise', keyringPromise);
-    // Pre-load DB secrets only when env vars are absent and tenant is known.
-    // Env vars always take priority over DB-stored config.
-    let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
     const tenantId = c.get('tenantId');
-    if (tenantId && (!c.env.RESEND_API_KEY || !c.env.GEMINI_API_KEY)) {
+
+    // Phase 1 (B-4/A-7) — load the tenant's email identity once per request so
+    // the lazily-constructed EmailService can pick own vs platform Resend.
+    // Must be loaded BEFORE the dbSecrets guard so own-mode can widen it.
+    let emailIdentity: import('../email/sender-identity').EmailIdentityConfig | undefined;
+    if (tenantId) {
+        try {
+            const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
+            emailIdentity = await bSvc.getEmailIdentity(tenantId);
+        } catch {
+            // No config row yet — platform defaults apply at construction.
+        }
+    }
+
+    // Pre-load DB secrets when env vars are absent OR the tenant uses own-mode
+    // Resend (own-mode key is stored in encrypted DB secrets, not env).
+    // Env vars take priority over DB-stored config for platform mode.
+    let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
+    if (tenantId && (!c.env.RESEND_API_KEY || !c.env.GEMINI_API_KEY || emailIdentity?.mode === 'own')) {
         try {
             const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
             dbSecrets = await bSvc.getDecryptedSecrets(tenantId, c.env.JWT_SECRET);
@@ -81,6 +96,23 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
             // Secrets not yet configured — proceed without them
         }
     }
+
+    // One place decides own-vs-platform Resend, so all EmailService
+    // construction sites stay consistent.
+    const buildEmailService = () => {
+        const ownReady =
+            emailIdentity?.mode === 'own' &&
+            !!dbSecrets.resendApiKey &&
+            !!emailIdentity.senderEmail;
+        const resendKey = ownReady
+            ? dbSecrets.resendApiKey!
+            : (c.env.RESEND_API_KEY || dbSecrets.resendApiKey || '');
+        const fromAddress = ownReady
+            ? emailIdentity!.senderEmail!
+            : (c.env.SENDER_EMAIL || emailIdentity?.senderEmail || '');
+        const appName = emailIdentity?.siteName || c.env.APP_NAME || 'OpenInspection';
+        return new EmailService(resendKey, fromAddress, appName, emailIdentity);
+    };
 
     const services = {} as AppServices;
 
@@ -134,11 +166,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.branding = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
                     break;
                 case 'email':
-                    target.email = new EmailService(
-                        c.env.RESEND_API_KEY || dbSecrets.resendApiKey || '',
-                        c.env.SENDER_EMAIL || dbSecrets.senderEmail || '',
-                        c.env.APP_NAME || 'OpenInspection'
-                    );
+                    target.email = buildEmailService();
                     break;
                 case 'inspection':
                     target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS, c.get('sdb'), c.env.TENANT_CACHE);
@@ -254,11 +282,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         // (through the same lazy proxy) and the public app base URL
                         // for accept-link minting.
                         if (!target.email) {
-                            target.email = new EmailService(
-                                c.env.RESEND_API_KEY || dbSecrets.resendApiKey || '',
-                                c.env.SENDER_EMAIL || dbSecrets.senderEmail || '',
-                                c.env.APP_NAME || 'OpenInspection',
-                            );
+                            target.email = buildEmailService();
                         }
                         target.agent = new AgentService(
                             c.env.DB,
@@ -273,11 +297,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         // Depends on EmailService (for client/inspector/agent
                         // notifications) + APP_BASE_URL for the magic-link target.
                         if (!target.email) {
-                            target.email = new EmailService(
-                                c.env.RESEND_API_KEY || dbSecrets.resendApiKey || '',
-                                c.env.SENDER_EMAIL || dbSecrets.senderEmail || '',
-                                c.env.APP_NAME || 'OpenInspection',
-                            );
+                            target.email = buildEmailService();
                         }
                         target.concierge = new ConciergeService(
                             c.env.DB,
