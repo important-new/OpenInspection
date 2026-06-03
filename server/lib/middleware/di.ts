@@ -109,7 +109,16 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     );
                     break;
                 case 'auth':
-                    target.auth = new AuthService(c.env.DB, c.env.TENANT_CACHE, new OutboxService(c.env.DB));
+                    // Outbox forwarding to portal is SaaS-only: construct the
+                    // concrete sink only when the PORTAL_SERVICE binding is present.
+                    // Standalone leaves it undefined → AuthService.append no-ops
+                    // (guarded by `if (this.outbox)`), so no portal code runs and
+                    // no dead sync_outbox rows accumulate.
+                    target.auth = new AuthService(
+                        c.env.DB,
+                        c.env.TENANT_CACHE,
+                        c.env.PORTAL_SERVICE ? new OutboxService(c.env.DB) : undefined,
+                    );
                     break;
                 case 'outbox':
                     target.outbox = new OutboxService(c.env.DB);
