@@ -8,6 +8,7 @@ describe('SaaS-Portal isolation', () => {
   const ALLOWED = [
     'server/types/hono.ts',                 // env binding type declarations
     'server/lib/deployment-profile.ts',     // env -> capability seam
+    'server/lib/middleware/di.ts',          // composition point #3: provider + OutboxService wiring
     'server/scheduled.ts',                  // the one PORTAL_SERVICE drain guard
     'server/portal/',                       // the integration module itself
     'workers/app.ts',                       // entry-level APP_MODE 404 guard
@@ -29,7 +30,9 @@ describe('SaaS-Portal isolation', () => {
       `git grep -lE "portal/integration.routes|portal/outbox.service" -- server || true`,
       { cwd: __dirname + '/..', encoding: 'utf8' },
     ).split('\n').filter(Boolean);
-    const stray = hits.filter(f => !f.startsWith('server/portal/'));
+    const stray = hits.filter(
+      f => !f.startsWith('server/portal/') && f !== 'server/lib/middleware/di.ts',
+    );
     expect(stray, `raw integration.routes/outbox imports outside server/portal/: ${stray.join(', ')}`).toEqual([]);
   });
 });
