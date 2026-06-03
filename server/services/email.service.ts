@@ -2,6 +2,7 @@ import { AppError, ErrorCode } from '../lib/errors';
 import { logger } from '../lib/logger';
 import { buildIcs, type IcsEvent } from '../lib/ics';
 import { inspectorSignature, type SignatureUser } from '../lib/inspector-signature';
+import { resolveSenderIdentity, type EmailIdentityConfig, type SenderInspector } from '../lib/email/sender-identity';
 
 /**
  * Sprint B-4 — when callers pass `inspector` + `host`, every customer-facing
@@ -24,7 +25,12 @@ function appendSignature(html: string, inspector?: SignatureUser, host?: string)
  * Centralizes all email logic and formatting across the application.
  */
 export class EmailService {
-    constructor(private apiKey: string, private senderEmail: string, private appName: string) {}
+    constructor(
+        private apiKey: string,
+        private senderEmail: string,
+        private appName: string,
+        private identity?: EmailIdentityConfig,
+    ) {}
 
     /**
      * Sends a transactional email. Optionally includes binary attachments
@@ -38,18 +44,28 @@ export class EmailService {
         subject: string,
         html: string,
         attachments?: Array<{ filename: string; content: ArrayBuffer | string; contentType?: string }>,
+        opts?: { inspector?: SenderInspector },
     ) {
         if (!this.apiKey || this.apiKey.includes('your_api_key')) {
             logger.warn(`[email] Skipping delivery (API Key missing) to: ${to.join(', ')}`);
             return;
         }
 
+        const resolved = this.identity
+            ? resolveSenderIdentity(this.identity, opts?.inspector)
+            : {};
+        const baseFrom = this.senderEmail || `${this.appName} <noreply@example.com>`;
+        const from = resolved.fromName && this.senderEmail
+            ? `${resolved.fromName} <${this.senderEmail}>`
+            : baseFrom;
+
         const payload: Record<string, unknown> = {
-            from: this.senderEmail || `${this.appName} <noreply@example.com>`,
+            from,
             to,
             subject,
             html,
         };
+        if (resolved.replyTo) payload.reply_to = resolved.replyTo;
 
         if (attachments && attachments.length > 0) {
             payload.attachments = attachments.map(a => {
@@ -176,6 +192,8 @@ export class EmailService {
             [to],
             `Inspection report shared: ${address}`,
             appendSignature(body, inspector, host),
+            undefined,
+            { inspector },
         );
     }
 
@@ -198,6 +216,8 @@ export class EmailService {
             [to],
             `Property Inspection Report: ${address}`,
             appendSignature(body, inspector, host),
+            undefined,
+            { inspector },
         );
     }
 
@@ -232,6 +252,7 @@ export class EmailService {
             `Property Inspection Report: ${address}`,
             appendSignature(body, inspector, host),
             [{ filename: `${safeAddress}-report.pdf`, content: pdfBytes }],
+            { inspector },
         );
     }
 
@@ -260,6 +281,8 @@ export class EmailService {
             [to],
             `Please sign: ${agreementName}`,
             appendSignature(body, inspector, host),
+            undefined,
+            { inspector },
         );
     }
 
@@ -395,6 +418,8 @@ export class EmailService {
             recipients,
             `Agreement signed — ${propertyAddress}`,
             appendSignature(html, inspector, host),
+            undefined,
+            { inspector },
         );
     }
 
@@ -453,6 +478,7 @@ export class EmailService {
             `Inspection Scheduled: ${address}`,
             appendSignature(body, inspector, host),
             attachments,
+            { inspector },
         );
     }
 
