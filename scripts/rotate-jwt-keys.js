@@ -2,8 +2,8 @@
 /**
  * Rotate JWT signing keys for the OpenInspection ES256 keyring.
  *
- * Generates a new ES256 keypair, deploys to all worker targets in both
- * apps/core and apps/portal, bumps JWT_CURRENT_KID. The old key version
+ * Generates a new ES256 keypair, deploys to the SaaS worker targets in both
+ * apps/openinspection and apps/portal, bumps JWT_CURRENT_KID. The old key version
  * remains in the keyring for the overlap window (controlled by max JWT
  * TTL); use --prune-old-kid=v<N> to remove a specific previous version
  * after its tokens have all expired.
@@ -17,7 +17,7 @@
  *                                                   from all workers
  *
  * Requires: wrangler authenticated for the target account. Run from
- * D:/Code/inspectorhub/apps/core.
+ * D:/Code/inspectorhub/apps/openinspection.
  */
 
 import { execSync } from 'child_process';
@@ -31,12 +31,15 @@ const __dirname = dirname(__filename);
 const CORE_ROOT = join(__dirname, '..');
 const PORTAL_ROOT = join(CORE_ROOT, '..', 'portal');
 
-// [label, cwd, wrangler-config-flag, env-flag]
+// [label, cwd, wrangler-config-flag] — the worker is resolved from the config.
+// InspectorHub's shared production keyring lives on the two SaaS workers, both
+// configured by wrangler.saas.jsonc: core's `openinspection-saas` and portal's
+// `portal-saas`. (Post single-worker flatten there is no `-api` worker, no
+// `wrangler.saas.toml`, and no `--env saas` — saas is its own config file.)
+// Standalone self-hosters run a single worker and rotate it directly, not here.
 const TARGETS = [
-    ['openinspection-api',         CORE_ROOT,   '',                          ''],
-    ['openinspection-saas-api',    CORE_ROOT,   '',                          '--env saas'],
-    ['openinspection-saas-api',    CORE_ROOT,   '-c wrangler.saas.toml',     ''],
-    ['inspectorhub-portal',        PORTAL_ROOT, '',                          ''],
+    ['openinspection-saas', CORE_ROOT,   '-c wrangler.saas.jsonc'],
+    ['portal-saas',         PORTAL_ROOT, '-c wrangler.saas.jsonc'],
 ];
 
 function color(text, code) {
@@ -75,9 +78,8 @@ function nextKid(currentKid) {
 }
 
 function pushSecret(target, name, value, dryRun) {
-    const [label, cwd, configFlag, envFlag] = target;
-    const flagArgs = [configFlag, envFlag].filter(Boolean).join(' ');
-    const cmd = `npx wrangler secret put ${name} ${flagArgs}`.trim();
+    const [label, cwd, configFlag] = target;
+    const cmd = `npx wrangler secret put ${name} ${configFlag || ''}`.trim();
     console.log(`${color('→', '36')} [${label}] ${cmd}`);
     if (dryRun) return;
     execSync(cmd, {
@@ -88,9 +90,8 @@ function pushSecret(target, name, value, dryRun) {
 }
 
 function deleteSecret(target, name, dryRun) {
-    const [label, cwd, configFlag, envFlag] = target;
-    const flagArgs = [configFlag, envFlag].filter(Boolean).join(' ');
-    const cmd = `npx wrangler secret delete ${name} ${flagArgs}`.trim();
+    const [label, cwd, configFlag] = target;
+    const cmd = `npx wrangler secret delete ${name} ${configFlag || ''}`.trim();
     console.log(`${color('×', '31')} [${label}] ${cmd}`);
     if (dryRun) return;
     try {
@@ -163,10 +164,10 @@ function main() {
 
     console.log(`\n${color('✓', '32')} Rotation complete. New current kid: ${color(newKid, '32')}`);
     console.log(`\nNext steps:`);
-    console.log(`  1. Redeploy core (standalone + saas):`);
-    console.log(`     cd ${CORE_ROOT} && npm run deploy && npm run deploy:saas`);
-    console.log(`  2. Redeploy portal:`);
-    console.log(`     cd ${PORTAL_ROOT} && npm run deploy`);
+    console.log(`  1. Redeploy core (saas):`);
+    console.log(`     cd ${CORE_ROOT} && npm run deploy:saas`);
+    console.log(`  2. Redeploy portal (saas):`);
+    console.log(`     cd ${PORTAL_ROOT} && npm run deploy:saas`);
     console.log(`  3. After max-JWT-TTL has elapsed since rotation (default 24h),`);
     console.log(`     prune the previous kid:`);
     if (currentKid) {
