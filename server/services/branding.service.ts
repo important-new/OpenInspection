@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { tenantConfigs } from '../lib/db/schema';
 import { Errors } from '../lib/errors';
 import { encryptSecrets, decryptSecrets, maskSecret, isMasked } from '../lib/config-crypto';
+import type { EmailIdentityConfig } from '../lib/email/sender-identity';
 
 export interface IntegrationConfig {
     appBaseUrl?: string;
@@ -41,6 +42,34 @@ export class BrandingService {
             logoUrl: null,
             supportEmail: defaults.supportEmail,
             billingUrl: ''
+        };
+    }
+
+    /**
+     * Phase 1 (B-4/A-7) — load just the email-identity columns for a tenant.
+     * Returns platform defaults when no config row exists.
+     */
+    async getEmailIdentity(tenantId: string): Promise<EmailIdentityConfig> {
+        const db = this.getDrizzle();
+        const row = await db
+            .select({
+                emailMode: tenantConfigs.emailMode,
+                senderEmail: tenantConfigs.senderEmail,
+                replyTo: tenantConfigs.replyTo,
+                senderDisplayName: tenantConfigs.senderDisplayName,
+                useInspectorFromName: tenantConfigs.useInspectorFromName,
+                siteName: tenantConfigs.siteName,
+            })
+            .from(tenantConfigs)
+            .where(eq(tenantConfigs.tenantId, tenantId))
+            .get();
+        return {
+            mode: row?.emailMode ?? 'platform',
+            senderEmail: row?.senderEmail ?? null,
+            replyTo: row?.replyTo ?? null,
+            senderDisplayName: row?.senderDisplayName ?? null,
+            useInspectorFromName: row?.useInspectorFromName ?? false,
+            siteName: row?.siteName ?? null,
         };
     }
 
