@@ -44,7 +44,7 @@ export class EmailService {
         subject: string,
         html: string,
         attachments?: Array<{ filename: string; content: ArrayBuffer | string; contentType?: string }>,
-        opts?: { inspector?: SenderInspector },
+        opts?: { inspector?: SenderInspector | undefined },
     ) {
         if (!this.apiKey || this.apiKey.includes('your_api_key')) {
             logger.warn(`[email] Skipping delivery (API Key missing) to: ${to.join(', ')}`);
