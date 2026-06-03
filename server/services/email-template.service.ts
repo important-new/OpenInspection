@@ -24,19 +24,14 @@ export class EmailTemplateService {
         data: { subject: string | null; blocks: Record<string, string> | null; enabled: boolean },
         nowMs: number,
     ): Promise<void> {
-        // Delete-then-insert rather than onConflictDoUpdate: Drizzle emits a
-        // table-qualified ON CONFLICT target (`("email_templates"."tenant_id", …)`)
-        // which real D1/SQLite rejects (the better-sqlite3 test shim tolerates it —
-        // a known shim/D1 divergence, see backlog C-8). A single (tenant, trigger)
-        // override row has no concurrent writer, so the two statements are safe.
-        const db = this.db();
         const updatedAt = new Date(nowMs);
-        await db
-            .delete(emailTemplates)
-            .where(and(eq(emailTemplates.tenantId, tenantId), eq(emailTemplates.trigger, trigger)));
-        await db
+        await this.db()
             .insert(emailTemplates)
-            .values({ tenantId, trigger, subject: data.subject, blocks: data.blocks, enabled: data.enabled, updatedAt });
+            .values({ tenantId, trigger, subject: data.subject, blocks: data.blocks, enabled: data.enabled, updatedAt })
+            .onConflictDoUpdate({
+                target: [emailTemplates.tenantId, emailTemplates.trigger],
+                set: { subject: data.subject, blocks: data.blocks, enabled: data.enabled, updatedAt },
+            });
     }
 
     async remove(tenantId: string, trigger: string): Promise<void> {
