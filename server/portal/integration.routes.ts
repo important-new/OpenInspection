@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { HonoConfig } from '../types/hono';
 import { TenantUpdateParams } from '../lib/integration';
-import { TenantStatusBodySchema, StripeConnectBodySchema } from '../lib/validations/admin.schema';
+import { TenantStatusBodySchema, StripeConnectBodySchema, SeedStarterContentBodySchema } from '../lib/validations/admin.schema';
+import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { logger } from '../lib/logger';
 import { requireServiceBinding } from './service-binding-guard';
 
@@ -156,6 +157,99 @@ api.post('/sso-handoff', requireServiceBinding, async (c) => {
         { expirationTtl: ttl },
     );
     return c.json({ success: true, data: { code, expiresIn: ttl } });
+});
+
+/**
+ * POST /api/integration/sync-quota
+ * Triggered by Portal whenever a tenant's subscription seat count changes.
+ * Updates the tenant's max_users column so InviteService.claim sees the new
+ * cap on the next request, then invalidates the per-tenant KV cache.
+ */
+api.post('/sync-quota', requireServiceBinding, async (c) => {
+    const parsed = SyncQuotaSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+        return c.json({ success: false, error: { message: 'Invalid input' } }, 400);
+    }
+    const { tenantId, maxUsers } = parsed.data;
+
+    const { drizzle } = await import('drizzle-orm/d1');
+    const { eq } = await import('drizzle-orm');
+    const { tenants } = await import('../lib/db/schema');
+    const db = drizzle(c.env.DB);
+
+    const result = await db.update(tenants)
+        .set({ maxUsers })
+        .where(eq(tenants.id, tenantId))
+        .returning({ id: tenants.id });
+    if (result.length === 0) {
+        return c.json({ success: false, error: { message: 'Tenant not found' } }, 404);
+    }
+
+    // Invalidate the per-tenant KV cache so the next request reads the
+    // fresh maxUsers value rather than the stale snapshot.
+    try {
+        await c.env.TENANT_CACHE.delete(`tenant:${tenantId}`);
+    } catch { /* cache miss is fine — read-through repopulates */ }
+
+    logger.info('sync-quota applied', { tenantId, maxUsers });
+    return c.json({ success: true });
+});
+
+/**
+ * POST /api/integration/seed-starter-content
+ * Invoked by the portal's OnboardingWorkflow once a tenant is provisioned.
+ * Seeds initial templates, agreements, rating-systems, and marketplace
+ * defaults. Idempotent — safe to retry.
+ */
+api.post('/seed-starter-content', requireServiceBinding, async (c) => {
+    const parsed = SeedStarterContentBodySchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+        return c.json({ success: false, error: { message: 'Invalid input' } }, 400);
+    }
+    const { tenantId } = parsed.data;
+
+    const { drizzle } = await import('drizzle-orm/d1');
+    const { eq } = await import('drizzle-orm');
+    const { tenants } = await import('../lib/db/schema');
+    const db = drizzle(c.env.DB);
+    const existing = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, tenantId)).get();
+    if (!existing) {
+        return c.json({ success: false, error: { message: 'Tenant not found' } }, 404);
+    }
+
+    const { seedStarterContent } = await import('../services/starter-content.service');
+    const result = await seedStarterContent(c.env.DB, tenantId);
+
+    return c.json({ success: true, data: result });
+});
+
+/**
+ * POST /api/integration/backfill-default-templates
+ * M2M one-shot endpoint that seeds the default 7 templates for every tenant.
+ * Idempotent — TemplateSeedService.bulkSeed skips templates that already
+ * exist by name per tenant.
+ */
+api.post('/backfill-default-templates', requireServiceBinding, async (c) => {
+    const { drizzle } = await import('drizzle-orm/d1');
+    const { tenants } = await import('../lib/db/schema');
+    const { TemplateSeedService } = await import('../services/template-seed.service');
+    const db = drizzle(c.env.DB);
+    const allTenants = await db.select({ id: tenants.id, name: tenants.name }).from(tenants).all();
+    const svc = new TemplateSeedService(c.env.DB);
+
+    const results: { tenantId: string; name: string; seeded: number; skipped: number }[] = [];
+    for (const t of allTenants) {
+        try {
+            const r = await svc.bulkSeed(t.id as string);
+            results.push({ tenantId: t.id as string, name: (t.name as string) ?? '', ...r });
+        } catch (err) {
+            logger.error('Backfill failed for tenant', { tenantId: t.id }, err instanceof Error ? err : undefined);
+        }
+    }
+    const totalSeeded = results.reduce((sum, r) => sum + r.seeded, 0);
+    const totalSkipped = results.reduce((sum, r) => sum + r.skipped, 0);
+    logger.info('Backfill complete', { tenantCount: results.length, totalSeeded, totalSkipped });
+    return c.json({ success: true });
 });
 
 export default api;
