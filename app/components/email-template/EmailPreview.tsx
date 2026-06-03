@@ -1,40 +1,38 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
+import { useFetcher } from "react-router";
 
-export function EmailPreview({ trigger, subject, blocks }: { trigger: string; subject: string; blocks: Record<string, string> }) {
-  const [html, setHtml] = useState<string>("");
-  const [renderedSubject, setRenderedSubject] = useState<string>(subject);
-  const [loading, setLoading] = useState(false);
+/**
+ * Live email preview. Submits the in-progress subject/blocks to the editor
+ * route's `intent=preview` action (debounced) via useFetcher — going through
+ * the React Router server so the JWT is relayed to the in-process API (the
+ * BFF/token-relay pattern). A direct browser fetch to /api/admin/* would be
+ * unauthenticated. The returned HTML renders in an isolated sandboxed iframe.
+ */
+export function EmailPreview({ subject, blocks }: { trigger: string; subject: string; blocks: Record<string, string> }) {
+  const fetcher = useFetcher();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
+  const blocksKey = JSON.stringify(blocks);
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    abortRef.current?.abort();
-    setLoading(true);
-    timer.current = setTimeout(async () => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      try {
-        const res = await fetch(`/api/admin/email-templates/${trigger}/preview`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ subject: subject.trim() ? subject : null, blocks }),
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const body = (await res.json()) as { data: { subject: string; html: string } };
-          setHtml(body.data.html);
-          setRenderedSubject(body.data.subject);
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        /* preview is best-effort */
-      } finally {
-        setLoading(false);
-      }
+    timer.current = setTimeout(() => {
+      const fd = new FormData();
+      fd.set("intent", "preview");
+      fd.set("subject", subject);
+      for (const [k, v] of Object.entries(blocks)) fd.set(`block:${k}`, v);
+      fetcher.submit(fd, { method: "post" });
     }, 350);
-    return () => { if (timer.current) clearTimeout(timer.current); abortRef.current?.abort(); };
-  }, [trigger, subject, JSON.stringify(blocks)]);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subject, blocksKey]);
+
+  const preview =
+    fetcher.data && typeof fetcher.data === "object" && "preview" in fetcher.data
+      ? (fetcher.data as { preview: { subject: string; html: string } | null }).preview
+      : null;
+  const loading = fetcher.state !== "idle";
+  const html = preview?.html ?? "";
+  const renderedSubject = preview?.subject ?? subject;
 
   return (
     <div className="lg:sticky lg:top-4">

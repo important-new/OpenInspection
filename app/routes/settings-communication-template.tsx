@@ -29,6 +29,21 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   const intent = form.get("intent");
   const trigger = params.trigger;
 
+  if (intent === "preview") {
+    const subjectRaw = String(form.get("subject") ?? "");
+    const blocks: Record<string, string> = {};
+    for (const [k, v] of form.entries()) {
+      if (k.startsWith("block:")) blocks[k.slice("block:".length)] = String(v);
+    }
+    const res = await api.emailTemplates["email-templates"][":trigger"].preview.$post({
+      param: { trigger },
+      json: { subject: subjectRaw.trim() ? subjectRaw : null, blocks: Object.keys(blocks).length ? blocks : null },
+    });
+    if (!res.ok) return { preview: null };
+    const body = (await res.json()) as { data: { subject: string; html: string } };
+    return { preview: body.data };
+  }
+
   if (intent === "reset") {
     const res = await api.emailTemplates["email-templates"][":trigger"].reset.$post({ param: { trigger } });
     if (!res.ok) return { ok: false as const, error: "Failed to reset." };
@@ -96,10 +111,10 @@ export default function TemplateEditor() {
         </div>
       </div>
 
-      {actionData && actionData.ok && (
+      {actionData && "ok" in actionData && actionData.ok && (
         <div className="px-4 py-2.5 rounded-md bg-ih-ok-bg border border-ih-ok text-[13px] text-ih-ok-fg font-medium">Saved.</div>
       )}
-      {actionData && !actionData.ok && (
+      {actionData && "ok" in actionData && !actionData.ok && (
         <div className="px-4 py-2.5 rounded-md bg-ih-bad-bg border border-ih-bad text-[13px] text-ih-bad-fg font-medium">{actionData.error}</div>
       )}
 
