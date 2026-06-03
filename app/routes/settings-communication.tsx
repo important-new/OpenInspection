@@ -7,6 +7,7 @@ import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { SecretField } from "~/components/SecretField";
 import { communicationEmailSchema } from "~/lib/forms/settings-config.schema";
+import { TemplateList } from "~/components/email-template/TemplateList";
 
 export function meta() {
   return [{ title: "Communication - Settings - OpenInspection" }];
@@ -21,21 +22,15 @@ interface CommConfig {
   useInspectorFromName: boolean;
 }
 
-interface EmailTemplate {
-  id: string;
-  name: string;
-  trigger: string;
-  active: boolean;
-}
-
 export async function loader({ request, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   const api = createApi(context, { token });
 
-  // Fetch communication config + secrets in parallel
-  const [commRes, secretsRes] = await Promise.all([
+  // Fetch communication config + secrets + email templates in parallel
+  const [commRes, secretsRes, tplRes] = await Promise.all([
     api.admin.communication.$get().catch(() => null),
     api.secrets.secrets.$get().catch(() => null),
+    api.emailTemplates["email-templates"].$get().catch(() => null),
   ]);
 
   const commBody = commRes?.ok ? ((await commRes.json()) as Record<string, unknown>) : {};
@@ -43,6 +38,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
   const secretsBody = secretsRes?.ok ? ((await secretsRes.json()) as Record<string, unknown>) : {};
   const secrets = (secretsBody.data ?? {}) as Record<string, string>;
+
+  const tplBody = tplRes?.ok ? ((await tplRes.json()) as Record<string, unknown>) : {};
+  const emailTemplates = (Array.isArray(tplBody.data) ? tplBody.data : []) as Array<{ trigger: string; name: string; category: string; required: boolean; enabled: boolean; isCustomized: boolean; subject: string }>;
 
   return {
     config: {
@@ -53,7 +51,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       senderDisplayName: (d?.senderDisplayName as string) || null,
       useInspectorFromName: Boolean(d?.useInspectorFromName),
     } as CommConfig,
-    templates: (Array.isArray(d?.templates) ? d.templates : []) as EmailTemplate[],
+    emailTemplates,
     icsUrl: (d?.icsUrl as string) || null,
     googleCalendarConnected: Boolean(d?.googleCalendarConnected),
     secrets: {
@@ -121,11 +119,22 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { ok: true };
   }
 
+  if (intent === "toggle-template") {
+    const trigger = String(form.get("trigger") || "");
+    const enabled = form.get("enabled") === "true";
+    const res = await api.emailTemplates["email-templates"][":trigger"].$put({
+      param: { trigger },
+      json: { subject: null, blocks: null, enabled },
+    });
+    if (!res.ok) return { ok: false, error: "Failed to update template." };
+    return { ok: true };
+  }
+
   return { ok: true };
 }
 
 export default function SettingsCommunication() {
-  const { config, templates, icsUrl, googleCalendarConnected, secrets } = useLoaderData<typeof loader>();
+  const { config, emailTemplates, icsUrl, googleCalendarConnected, secrets } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   // Only the `save-email` intent returns a Conform SubmissionResult; the
@@ -290,32 +299,15 @@ export default function SettingsCommunication() {
       </section>
 
       {/* Email templates */}
-      <section className="bg-ih-bg-card border border-ih-border rounded-lg overflow-hidden">
-        <div className="px-5 py-4 border-b border-ih-border">
+      <section className="space-y-4">
+        <div className="flex items-baseline justify-between">
           <h3 className="text-[13px] font-bold uppercase tracking-[0.15em] text-ih-fg-3">Email templates</h3>
+          <span className="text-[11px] text-ih-fg-4">{emailTemplates.length} templates · click to customize</span>
         </div>
-        {templates.length === 0 ? (
-          <div className="py-8 text-center text-[13px] text-ih-fg-3">
-            No email templates configured. Default system emails are used.
-          </div>
+        {emailTemplates.length === 0 ? (
+          <div className="bg-ih-bg-card border border-ih-border rounded-lg py-8 text-center text-[13px] text-ih-fg-3">No email templates available.</div>
         ) : (
-          <div className="divide-y divide-ih-border">
-            {templates.map((tpl) => (
-              <div key={tpl.id} className="flex items-center justify-between px-5 py-3 hover:bg-ih-bg-muted transition-colors">
-                <div>
-                  <p className="text-[13px] font-medium text-ih-fg-1">{tpl.name}</p>
-                  <p className="text-[11px] text-ih-fg-3 mt-0.5">Trigger: {tpl.trigger}</p>
-                </div>
-                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
- tpl.active
- ? "bg-ih-ok-bg text-ih-ok-fg"
- : "bg-ih-bg-muted text-ih-fg-3"
- }`}>
-                  {tpl.active ? "Active" : "Disabled"}
-                </span>
-              </div>
-            ))}
-          </div>
+          <TemplateList rows={emailTemplates} />
         )}
       </section>
 
