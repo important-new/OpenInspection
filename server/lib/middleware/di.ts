@@ -121,7 +121,11 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     );
                     break;
                 case 'outbox':
-                    target.outbox = new OutboxService(c.env.DB);
+                    // SaaS-only: only construct the concrete portal sink when the
+                    // PORTAL_SERVICE binding is present. Standalone leaves it undefined
+                    // (no consumer today; keeps standalone free of server/portal/ code
+                    // by construction, not by accident).
+                    target.outbox = c.env.PORTAL_SERVICE ? new OutboxService(c.env.DB) : undefined;
                     break;
                 case 'booking':
                     target.booking = new BookingService(c.env.DB);

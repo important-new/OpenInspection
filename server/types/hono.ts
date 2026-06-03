@@ -166,7 +166,7 @@ import { DeploymentProfile } from '../lib/deployment-profile';
 export interface AppServices {
     admin: AdminService;
     auth: AuthService;
-    outbox: UserSyncOutbox;
+    outbox?: UserSyncOutbox | undefined;
     booking: BookingService;
     branding: BrandingService;
     email: EmailService;
