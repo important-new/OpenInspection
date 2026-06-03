@@ -159,9 +159,7 @@ tenant. You never manage tenants or subdomains. Tenant resolution lives in
 `server/features/tenant-routing/`; in standalone the `tenantRouter` middleware simply pins
 the request to `profile.fixedTenantId` (`resolve-by-fixed-tenant.ts`).
 
-> The same engine also powers a multi-tenant SaaS (subdomain/silo routing, portal SSO, billing
-> tiers) when `APP_MODE=saas`. Those modes are out of scope for self-hosting and not documented
-> here.
+> A SaaS overlay (`server/portal/`, active only when `APP_MODE=saas`) integrates the engine with the InspectorHub control plane. It is out of scope for self-hosting — standalone builds execute none of it. See the super-project `docs/saas-ops/`.
 
 ## Authentication
 

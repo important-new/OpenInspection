@@ -1,20 +1,30 @@
-# Portal Integration (SaaS Only)
+# Portal Integration (SaaS only)
 
-This directory contains code that integrates Core with the InspectorHub SaaS Portal.
-It is only active when deployed with `wrangler.saas.toml` (which declares the
-`PORTAL_SERVICE` Service Binding).
+Optional integration with the InspectorHub SaaS control plane. **Active only when
+`APP_MODE=saas`** (declared in `wrangler.saas.jsonc`, which binds `PORTAL_SERVICE`).
+The worker entry (`workers/app.ts`) returns 404 for `/api/integration/*` otherwise,
+and the outbox drains only when `PORTAL_SERVICE` is bound. A self-host build
+(default `wrangler.jsonc`) executes none of this directory.
 
-**Self-hosted users: do not modify files in this directory.**
+Core code depends only on abstractions — `IntegrationProvider`
+(`StandaloneProvider` is the self-host impl) and `UserSyncOutbox`
+(`server/lib/integration/user-sync.ts`). The concrete classes here are wired in at
+a single composition point, `server/lib/middleware/di.ts`, and only when the
+`PORTAL_SERVICE` binding is present.
 
-In standalone deployments (the default `wrangler.jsonc`), none of this code
-executes — the Service Binding is absent and all portal-related code paths
-are guarded by `if (env.PORTAL_SERVICE)` checks.
+To produce a portal-free build: delete this directory, the
+`registerPortalIntegration(app)` call in `server/index.ts`, the
+`drainPortalOutbox` call in `server/scheduled.ts`, the `PortalProvider` +
+`OutboxService` branches in `server/lib/middleware/di.ts` (fall back to
+`StandaloneProvider` + leave `outbox` undefined), and the `/api/integration/*`
+guard in `workers/app.ts`.
 
-## Files
+Detailed integration docs live in the super-project `docs/saas-ops/`.
 
 | File | Purpose |
-|------|---------|
-| `service-binding-guard.ts` | Middleware that verifies requests arrive via Service Binding (`cf-worker` header) |
-| `integration.routes.ts` | Hono routes for portal→core M2M calls (tenant sync, SSO handoff, data export, purge) |
-| `outbox.service.ts` | Core→portal async event sync (user lifecycle events) |
-| `portal.provider.ts` | `IntegrationProvider` implementation for SaaS mode |
+|---|---|
+| `integration.module.ts` | The seam: `registerPortalIntegration` + `drainPortalOutbox` |
+| `integration.routes.ts` | portal→core M2M routes (tenant sync, SSO handoff, export, purge) |
+| `outbox.service.ts` | core→portal async event sync (implements `UserSyncOutbox`) |
+| `portal.provider.ts` | `IntegrationProvider` impl for SaaS |
+| `service-binding-guard.ts` | `x-portal-m2m` HMAC guard for the M2M routes |
