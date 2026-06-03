@@ -117,19 +117,19 @@ export default function TemplateEditor() {
           )}
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Subject</label>
-            <input name="subject" value={subject} onFocus={(e) => (activeRef.current = e.currentTarget)} onChange={(e) => setSubject(e.target.value)}
+            <label htmlFor="field-subject" className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">Subject</label>
+            <input id="field-subject" name="subject" value={subject} onFocus={(e) => (activeRef.current = e.currentTarget)} onChange={(e) => setSubject(e.target.value)}
               className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none" />
           </div>
 
           {detail.blocks.map((b, i) => (
             <div key={b.key} style={{ animationDelay: `${i * 40}ms` }} className="motion-safe:animate-[fadeIn_.3s_ease_both]">
-              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">{b.label}</label>
+              <label htmlFor={`field-block-${b.key}`} className="block text-[10px] font-bold uppercase tracking-[0.2em] text-ih-fg-3 mb-1">{b.label}</label>
               {b.multiline ? (
-                <textarea name={`block:${b.key}`} rows={3} value={blocks[b.key] ?? ""} onFocus={(e) => (activeRef.current = e.currentTarget)} onChange={(e) => setBlocks((s) => ({ ...s, [b.key]: e.target.value }))}
+                <textarea id={`field-block-${b.key}`} name={`block:${b.key}`} rows={3} value={blocks[b.key] ?? ""} onFocus={(e) => (activeRef.current = e.currentTarget)} onChange={(e) => setBlocks((s) => ({ ...s, [b.key]: e.target.value }))}
                   className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 leading-relaxed focus:border-ih-primary focus:shadow-ih-focus outline-none resize-y" />
               ) : (
-                <input name={`block:${b.key}`} value={blocks[b.key] ?? ""} onFocus={(e) => (activeRef.current = e.currentTarget)} onChange={(e) => setBlocks((s) => ({ ...s, [b.key]: e.target.value }))}
+                <input id={`field-block-${b.key}`} name={`block:${b.key}`} value={blocks[b.key] ?? ""} onFocus={(e) => (activeRef.current = e.currentTarget)} onChange={(e) => setBlocks((s) => ({ ...s, [b.key]: e.target.value }))}
                   className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-1 focus:border-ih-primary focus:shadow-ih-focus outline-none" />
               )}
             </div>

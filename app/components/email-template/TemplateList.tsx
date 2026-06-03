@@ -8,6 +8,7 @@ const GROUPS: { key: string; label: string }[] = [
   { key: "client", label: "Client" },
   { key: "agent", label: "Agent" },
   { key: "concierge", label: "Concierge" },
+  { key: "system", label: "Workspace" },
 ];
 
 export function TemplateList({ rows }: { rows: TemplateRow[] }) {
@@ -51,7 +52,7 @@ function TemplateRowItem({ row }: { row: TemplateRow }) {
           <input type="hidden" name="intent" value="toggle-template" />
           <input type="hidden" name="trigger" value={row.trigger} />
           <input type="hidden" name="enabled" value={(!enabled).toString()} />
-          <button type="submit" aria-pressed={enabled} className={`relative h-5 w-9 rounded-full transition-colors ${enabled ? "bg-ih-primary" : "bg-ih-border"}`}>
+          <button type="submit" aria-pressed={enabled} aria-label={`${enabled ? "Disable" : "Enable"} ${row.name}`} className={`relative h-5 w-9 rounded-full transition-colors ${enabled ? "bg-ih-primary" : "bg-ih-border"}`}>
             <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${enabled ? "left-[18px]" : "left-0.5"}`} />
           </button>
         </fetcher.Form>

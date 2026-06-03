@@ -5,29 +5,35 @@ export function EmailPreview({ trigger, subject, blocks }: { trigger: string; su
   const [renderedSubject, setRenderedSubject] = useState<string>(subject);
   const [loading, setLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
+    abortRef.current?.abort();
     setLoading(true);
     timer.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
         const res = await fetch(`/api/admin/email-templates/${trigger}/preview`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ subject: subject.trim() ? subject : null, blocks }),
+          signal: controller.signal,
         });
         if (res.ok) {
           const body = (await res.json()) as { data: { subject: string; html: string } };
           setHtml(body.data.html);
           setRenderedSubject(body.data.subject);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         /* preview is best-effort */
       } finally {
         setLoading(false);
       }
     }, 350);
-    return () => { if (timer.current) clearTimeout(timer.current); };
+    return () => { if (timer.current) clearTimeout(timer.current); abortRef.current?.abort(); };
   }, [trigger, subject, JSON.stringify(blocks)]);
 
   return (
