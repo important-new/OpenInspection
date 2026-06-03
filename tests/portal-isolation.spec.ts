@@ -35,6 +35,25 @@ describe('SaaS-Portal isolation', () => {
     );
     expect(stray, `raw integration.routes/outbox imports outside server/portal/: ${stray.join(', ')}`).toEqual([]);
   });
+
+  it('no concrete server/portal/ import outside the three composition points', () => {
+    // Stricter than the route/outbox gate: catches ANY import from server/portal/*
+    // (service-binding-guard, portal.provider, etc.). The three composition points
+    // are the only allowed importers; everything else uses the seams/abstractions.
+    const hits = execSync(
+      `git grep -lE "(from|import\\()[[:space:]]*['\\"][^'\\"]*portal/" -- server || true`,
+      { cwd: __dirname + '/..', encoding: 'utf8' },
+    ).split('\n').filter(Boolean);
+    const ALLOWED_IMPORTERS = [
+      'server/index.ts',
+      'server/scheduled.ts',
+      'server/lib/middleware/di.ts',
+    ];
+    const stray = hits.filter(
+      f => !f.startsWith('server/portal/') && !ALLOWED_IMPORTERS.includes(f),
+    );
+    expect(stray, `concrete portal imports outside composition points: ${stray.join(', ')}`).toEqual([]);
+  });
 });
 
 import workerEntry from '../workers/app';
