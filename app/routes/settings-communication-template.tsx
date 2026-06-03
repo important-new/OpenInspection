@@ -67,8 +67,16 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   return { ok: true as const };
 }
 
-export default function TemplateEditor() {
+export default function TemplateEditorRoute() {
   const { detail } = useLoaderData<typeof loader>();
+  // Re-mount the stateful editor whenever the loaded values change — e.g. after
+  // Reset deletes the override and the loader returns defaults — so the form's
+  // useState re-seeds from the fresh detail instead of keeping stale local edits.
+  const seedKey = `${detail.trigger}|${detail.subject}|${JSON.stringify(detail.blocks)}|${detail.enabled}`;
+  return <TemplateEditor key={seedKey} detail={detail} />;
+}
+
+function TemplateEditor({ detail }: { detail: Detail }) {
   const actionData = useActionData<typeof action>();
   const nav = useNavigation();
   const saving = nav.state !== "idle" && nav.formData?.get("intent") === "save";
