@@ -296,12 +296,12 @@ export const emailTemplateRoutes = createApiRouter()
         const body = c.req.valid('json');
 
         const d = getDescriptor(trigger);
-        if (!d) {
+        if (!d || !d.editable) {
             return c.json({ success: false as const, error: { message: 'Template not found', code: 'NOT_FOUND' } }, 404);
         }
 
         const tenantId = c.get('tenantId');
-        const brandingService = new BrandingService(c.env.DB);
+        const brandingService = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
         const emailBrand = await brandingService.getEmailBrand(tenantId);
 
         const APP_NAME = c.env.APP_NAME;
