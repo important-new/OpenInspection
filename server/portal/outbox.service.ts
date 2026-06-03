@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, asc } from 'drizzle-orm';
 import { syncOutbox } from '../lib/db/schema';
 import { logger } from '../lib/logger';
+import type { UserSyncEvent, UserSyncEventType, UserSyncOutbox } from '../lib/integration/user-sync';
 
 /**
  * Core -> Portal sync outbox.
@@ -16,17 +17,10 @@ import { logger } from '../lib/logger';
  * receiving side.
  */
 
-export type OutboxEventType =
-    | 'user.invited'
-    | 'user.password_changed'
-    | 'user.deleted';
-
-export interface OutboxEvent {
-    type: OutboxEventType;
-    // The payload is event-specific JSON. Kept loose here since the
-    // schema for each event is defined at the receiver side.
-    payload: Record<string, unknown>;
-}
+// Canonical event shapes live in the seam (lib/integration/user-sync) so core
+// services can depend on them without importing this concrete module.
+export type OutboxEventType = UserSyncEventType;
+export type OutboxEvent = UserSyncEvent;
 
 export interface OutboxRow {
     id: string;
@@ -39,7 +33,7 @@ export interface OutboxRow {
     lastError: string | null;
 }
 
-export class OutboxService {
+export class OutboxService implements UserSyncOutbox {
     constructor(private db: D1Database) {}
 
     private getDb() {

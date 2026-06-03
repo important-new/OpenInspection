@@ -121,7 +121,7 @@ export interface AppEnv {
 import { AdminService } from '../services/admin.service';
 import { AIService } from '../services/ai.service';
 import { AuthService } from '../services/auth.service';
-import { OutboxService } from '../portal/outbox.service';
+import type { UserSyncOutbox } from '../lib/integration/user-sync';
 import { BookingService, AvailabilityService } from '../services/booking.service';
 import { BrandingService } from '../services/branding.service';
 import { EmailService } from '../services/email.service';
@@ -166,7 +166,7 @@ import { DeploymentProfile } from '../lib/deployment-profile';
 export interface AppServices {
     admin: AdminService;
     auth: AuthService;
-    outbox: OutboxService;
+    outbox: UserSyncOutbox;
     booking: BookingService;
     branding: BrandingService;
     email: EmailService;
