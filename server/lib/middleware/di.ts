@@ -53,6 +53,7 @@ import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../../portal/portal.provider';
 import { getDeploymentProfile } from '../deployment-profile';
 import { buildKeyring } from '../jwt-keyring';
+import { EmailTemplateRenderer } from '../email-templates/renderer';
 
 /**
  * Middleware that injects a lazy-loaded service registry into the Hono context.
@@ -84,6 +85,14 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
         }
     }
 
+    let emailBrand: { siteName: string | null; logoUrl: string | null; primaryColor: string | null } | undefined;
+    if (tenantId) {
+        try {
+            const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
+            emailBrand = await bSvc.getEmailBrand(tenantId);
+        } catch { /* defaults apply */ }
+    }
+
     // Pre-load DB secrets when env vars are absent OR the tenant uses own-mode
     // Resend (own-mode key is stored in encrypted DB secrets, not env).
     // Env vars take priority over DB-stored config for platform mode.
@@ -111,7 +120,20 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
             ? emailIdentity!.senderEmail!
             : (c.env.SENDER_EMAIL || emailIdentity?.senderEmail || '');
         const appName = emailIdentity?.siteName || c.env.APP_NAME || 'OpenInspection';
-        return new EmailService(resendKey, fromAddress, appName, emailIdentity);
+        const platformColor = c.env.PRIMARY_COLOR || '#4f46e5';
+        const renderer = new EmailTemplateRenderer({
+            tenantBrand: {
+                name: emailBrand?.siteName || appName,
+                logoUrl: emailBrand?.logoUrl ?? null,
+                primaryColor: emailBrand?.primaryColor || platformColor,
+            },
+            platformBrand: {
+                name: c.env.APP_NAME || 'OpenInspection',
+                logoUrl: null,
+                primaryColor: platformColor,
+            },
+        });
+        return new EmailService(resendKey, fromAddress, appName, emailIdentity, renderer);
     };
 
     const services = {} as AppServices;

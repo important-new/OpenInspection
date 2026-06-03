@@ -3,6 +3,8 @@ import { logger } from '../lib/logger';
 import { buildIcs, type IcsEvent } from '../lib/ics';
 import { inspectorSignature, type SignatureUser } from '../lib/inspector-signature';
 import { resolveSenderIdentity, type EmailIdentityConfig, type SenderInspector } from '../lib/email/sender-identity';
+import { EmailTemplateRenderer } from '../lib/email-templates/renderer';
+import type { RenderResult } from '../lib/email-templates/types';
 
 /**
  * Sprint B-4 — when callers pass `inspector` + `host`, every customer-facing
@@ -30,7 +32,15 @@ export class EmailService {
         private senderEmail: string,
         private appName: string,
         private identity?: EmailIdentityConfig,
+        private renderer?: EmailTemplateRenderer,
     ) {}
+
+    /** Render `trigger` via the template registry when a renderer is injected;
+     *  otherwise use the provided fallback (keeps no-renderer unit tests working). */
+    private renderOr(trigger: string, data: Record<string, unknown>, fallback: { subject: string; html: string }): RenderResult {
+        if (this.renderer) return this.renderer.render(trigger, data);
+        return { subject: fallback.subject, html: fallback.html, enabled: true };
+    }
 
     /**
      * Sends a transactional email. Optionally includes binary attachments
