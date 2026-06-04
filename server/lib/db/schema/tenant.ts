@@ -92,6 +92,14 @@ export const users = sqliteTable('users', {
     // the user retypes their email to confirm. NULL = active. Kept rather
     // than hard-deleted so audit-linked rows remain referentially intact.
     deletedAt:            integer('deleted_at', { mode: 'timestamp' }),
+    // Legal-links feature — set when the account was created through a public
+    // form (agent signup / agent invite / guest join) while the operator had
+    // TERMS_URL/PRIVACY_URL configured. JSON: {at, ip, country, termsUrl, privacyUrl}.
+    // Nullable: absent for accounts created before the feature or when the
+    // operator runs without configured legal docs.
+    termsAccepted: text('terms_accepted', { mode: 'json' }).$type<{
+        at: string; ip?: string; country?: string; termsUrl?: string; privacyUrl?: string;
+    } | null>(),
 }, (t) => [
     index('idx_users_deleted_at').on(t.deletedAt),
     uniqueIndex('users_tenant_email_unique').on(t.tenantId, t.email),
