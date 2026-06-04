@@ -4,6 +4,8 @@ import type { Route } from "./+types/inspection-edit";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { unwrapResultsResponse } from "~/lib/results";
+import { findRatingLevel, ratingAdvanceDecision } from "~/lib/rating-levels";
+import { makeCustomDefect } from "~/lib/custom-defects";
 import { useInspectionState, type InspectionSchema } from "~/hooks/useInspection";
 import type { RatingLevel, ResultMap } from "~/hooks/useInspection";
 import { useFindings } from "~/hooks/useFindings";
@@ -230,6 +232,30 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  }
  }
 
+ // FE-2: photo upload rides the BFF relay like every other mutation —
+ // the old client-side fetch('/api/…/upload') was unauthenticated in saas
+ // (C-12 class). Accepts one or many files (burst camera) per submission.
+ if (intent === "upload-photo") {
+ const itemId = String(formData.get("itemId"));
+ const files = formData.getAll("file").filter((f): f is File => f instanceof File);
+ const keys: string[] = [];
+ ok = files.length > 0 && Boolean(itemId);
+ for (const file of files) {
+ const res = await api.inspections[":id"].upload.$post({
+ param: { id: params.id },
+ form: { file, itemId },
+ });
+ if (res.ok) {
+ const j = (await res.json()) as { data?: { key?: string } };
+ if (j.data?.key) keys.push(j.data.key);
+ else ok = false;
+ } else {
+ ok = false;
+ }
+ }
+ return { ok, keys, itemId };
+ }
+
  return { ok };
 }
 
@@ -258,6 +284,9 @@ export default function InspectionEditPage() {
  // submit (React Router aborts the previous submission on re-submit) — the
  // note was silently lost. Notes get their own fetcher instance.
  const notesFetcher = useFetcher();
+ // FE-2: photo uploads also get a dedicated fetcher — sharing the mutation
+ // fetcher would let an autosave abort an in-flight upload (and vice versa).
+ const uploadFetcher = useFetcher();
  const navigate = useNavigate();
  const photoInputRef = useRef<HTMLInputElement>(null);
  const { scheme, setColorScheme } = useTheme();
@@ -604,10 +633,14 @@ export default function InspectionEditPage() {
  useEffect(() => {
  // B-17: "fetcher went idle" is NOT "saved" — check the action's ok flag.
  // A failed write keeps dirty=true so the unsaved-changes blocker still arms.
- const submitting = fetcher.state !== "idle" || notesFetcher.state !== "idle";
+ // FE-2: uploadFetcher participates too — otherwise a photo upload leaves
+ // dirty=true forever and the beforeunload blocker traps the inspector.
+ const submitting =
+ fetcher.state !== "idle" || notesFetcher.state !== "idle" || uploadFetcher.state !== "idle";
  const failed =
  (fetcher.data as { ok?: boolean } | undefined)?.ok === false ||
- (notesFetcher.data as { ok?: boolean } | undefined)?.ok === false;
+ (notesFetcher.data as { ok?: boolean } | undefined)?.ok === false ||
+ (uploadFetcher.data as { ok?: boolean } | undefined)?.ok === false;
  if (submitting) {
  state.setSaveStatus("saving");
  } else if (state.saveStatus === "saving") {
@@ -624,22 +657,38 @@ export default function InspectionEditPage() {
  return () => clearTimeout(timer);
  }
  }
- }, [fetcher.state, notesFetcher.state]);
+ }, [fetcher.state, notesFetcher.state, uploadFetcher.state]);
 
  /* ---------------------------------------------------------------- */
  /* Rating handler with auto-advance */
  /* ---------------------------------------------------------------- */
 
+ /**
+ * B-18 — two root causes lived here:
+ * 1. `find(l => l.id === rating)` missed because the old hardcoded
+ * buttons emitted 'DEF' while levels carry ids like 'Defect', so
+ * `pausesAdvance` (Defect/Monitor stop for notes) never fired.
+ * `findRatingLevel` normalises the lookup.
+ * 2. Advance ran for every input source. Pointer clicks are the
+ * deliberate-editing path (rate → describe → photo); only keyboard
+ * rating speed-scans forward (configurable via prefs.autoAdvance).
+ */
  const handleRating = useCallback(
- (rating: string) => {
+ (rating: string, source: 'pointer' | 'keyboard' = 'pointer') => {
  if (!state.activeItemId || !state.currentSection) return;
  findings.setRating(state.currentSection.id, state.activeItemId, rating);
- const level = state.ratingLevels?.find((l: { id: string; pausesAdvance?: boolean }) => l.id === rating);
- if (level?.pausesAdvance) {
+ const level = findRatingLevel(state.ratingLevels ?? [], rating);
+ const decision = ratingAdvanceDecision({
+ source,
+ level,
+ mode: inspectionPrefs.autoAdvance,
+ });
+ if (decision.focusNotes) {
  const ta = document.getElementById('notes-textarea') as HTMLTextAreaElement | null;
  ta?.focus({ preventScroll: true });
  return;
  }
+ if (!decision.advance) return;
  setTimeout(
  () => state.advanceToNextUnrated((newSectionTitle: string) => {
  pushToast({
@@ -650,7 +699,7 @@ export default function InspectionEditPage() {
  inspectionPrefs.autoAdvanceDelayMs,
  );
  },
- [state.activeItemId, state.currentSection, findings, state.advanceToNextUnrated, state.ratingLevels, inspectionPrefs.autoAdvanceDelayMs],
+ [state.activeItemId, state.currentSection, findings, state.advanceToNextUnrated, state.ratingLevels, inspectionPrefs.autoAdvance, inspectionPrefs.autoAdvanceDelayMs],
  );
 
  /* ---------------------------------------------------------------- */
@@ -744,66 +793,64 @@ export default function InspectionEditPage() {
  /* Photo upload */
  /* ---------------------------------------------------------------- */
 
+ /**
+ * FE-2 — uploads go through the route action ("upload-photo" intent) on a
+ * dedicated fetcher: the old direct fetch('/api/…/upload') bypassed the
+ * BFF token relay (unauthenticated in saas, C-12 class) and swallowed
+ * every failure silently. The effect below attaches returned keys and
+ * surfaces failures as a toast.
+ */
  const handlePhotoUpload = useCallback(
- async (e: React.ChangeEvent<HTMLInputElement>) => {
+ (e: React.ChangeEvent<HTMLInputElement>) => {
  const file = e.target.files?.[0];
  if (!file || !state.activeItemId) return;
  const formData = new FormData();
- formData.append("file", file);
+ formData.append("intent", "upload-photo");
  formData.append("itemId", state.activeItemId);
- try {
- const res = await fetch(
- `/api/inspections/${state.inspection.id}/upload`,
- {
- method: "POST",
- body: formData,
- credentials: "include",
- },
- );
- if (res.ok) {
- const json = (await res.json()) as {
- data: { key: string };
- };
- findings.addPhotoToItem(state.activeItemId, json.data.key);
- }
- } catch {
- /* swallow */
- }
- // Reset input
+ formData.append("file", file);
+ uploadFetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
+ // Reset input so picking the same file twice re-fires onChange
  if (photoInputRef.current) photoInputRef.current.value = "";
  },
- [state.activeItemId, state.inspection.id, findings],
+ [state.activeItemId, uploadFetcher],
  );
 
  const handleBurstCommit = useCallback(
- async (blobs: Blob[]) => {
- if (!state.burstCameraItemId) return;
- for (const blob of blobs) {
+ (blobs: Blob[]) => {
+ if (!state.burstCameraItemId || blobs.length === 0) return;
  const formData = new FormData();
- formData.append("file", blob, `burst-${Date.now()}.jpg`);
+ formData.append("intent", "upload-photo");
  formData.append("itemId", state.burstCameraItemId);
- try {
- const res = await fetch(
- `/api/inspections/${state.inspection.id}/upload`,
- {
- method: "POST",
- body: formData,
- credentials: "include",
+ blobs.forEach((blob, i) => {
+ formData.append("file", new File([blob], `burst-${i + 1}.jpg`, { type: "image/jpeg" }));
+ });
+ uploadFetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
  },
+ [state.burstCameraItemId, uploadFetcher],
  );
- if (res.ok) {
- const json = (await res.json()) as {
- data: { key: string };
- };
- findings.addPhotoToItem(state.burstCameraItemId!, json.data.key);
+
+ // Attach uploaded photo keys to the item once the action responds.
+ const processedUploadData = useRef<unknown>(null);
+ useEffect(() => {
+ const d = uploadFetcher.data as
+ | { ok?: boolean; keys?: string[]; itemId?: string }
+ | undefined;
+ if (uploadFetcher.state !== "idle" || !d || processedUploadData.current === d) return;
+ processedUploadData.current = d;
+ if (d.keys?.length && d.itemId) {
+ for (const k of d.keys) findings.addPhotoToItem(d.itemId, k);
+ pushToast({
+ message: `${d.keys.length} photo${d.keys.length === 1 ? "" : "s"} added`,
+ durationMs: 2000,
+ });
  }
- } catch {
- /* swallow */
+ if (d.ok === false) {
+ pushToast({
+ message: "Photo upload failed — your photo did NOT reach the server.",
+ durationMs: 8000,
+ });
  }
- }
- },
- [state.burstCameraItemId, state.inspection.id, findings],
- );
+ }, [uploadFetcher.state, uploadFetcher.data, findings]);
 
  /* ---------------------------------------------------------------- */
  /* Keyboard shortcuts */
@@ -813,7 +860,7 @@ export default function InspectionEditPage() {
  () => ({
  onRate: (level: number) => {
  if (state.activeItemId && state.currentSection && state.ratingLevels[level - 1]) {
- handleRating(state.ratingLevels[level - 1].id);
+ handleRating(state.ratingLevels[level - 1].id, 'keyboard');
  }
  },
  onClearRating: () => {
@@ -829,7 +876,7 @@ export default function InspectionEditPage() {
  return ab === "NA" || ab === "N/A" || nm.includes("not applicable");
  });
  if (naLevel) {
- handleRating(naLevel.id);
+ handleRating(naLevel.id, 'keyboard');
  }
  },
  onNextItem: () => state.navigateItem(1),
@@ -1016,7 +1063,31 @@ export default function InspectionEditPage() {
  )
  : {}
  }
+ ratingLevels={state.ratingLevels}
  onRating={handleRating}
+ onAddPhoto={() => photoInputRef.current?.click()}
+ photoUploading={uploadFetcher.state !== "idle"}
+ onAddCustomDefect={(input) => {
+ if (state.activeItemId && state.currentSection) {
+ const d = makeCustomDefect(input);
+ if (d) {
+ findings.addCustomDefect(state.currentSection.id, state.activeItemId, {
+ ...d,
+ comment: d.comment ?? "",
+ });
+ }
+ }
+ }}
+ onToggleCustomDefect={(customId, included) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.toggleCustomDefect(
+ state.currentSection.id,
+ state.activeItemId,
+ customId,
+ included,
+ );
+ }
+ }}
  onNotes={(notes) => {
  if (state.activeItemId && state.currentSection) {
  findings.setNotes(
@@ -1096,6 +1167,17 @@ export default function InspectionEditPage() {
  return (
  <div className="min-h-screen pb-14">
  <ToastPortal />
+ {/* FE-2: the hidden photo input previously rendered only in the desktop
+ tree — on mobile photoInputRef.current was null and every photo
+ entry point was dead. */}
+ <input
+ ref={photoInputRef}
+ type="file"
+ accept="image/*"
+ capture="environment"
+ className="hidden"
+ onChange={handlePhotoUpload}
+ />
  <MobileAppBar
  sectionTitle={state.currentSection?.title ?? ''}
  itemLabel={((state.activeItem?.label || state.activeItem?.name) as string | undefined) ?? 'Select an item'}
@@ -1927,7 +2009,7 @@ export default function InspectionEditPage() {
  {/* ------------------------------------------------------------ */}
  {/* Footer Bar */}
  {/* ------------------------------------------------------------ */}
- <FooterBar connected={presence.connected} roster={presence.roster} />
+ <FooterBar connected={presence.connected} status={presence.status} roster={presence.roster} />
 
  {/* ------------------------------------------------------------ */}
  {/* Inspector Tools Dock (FAB) */}
@@ -1960,17 +2042,15 @@ export default function InspectionEditPage() {
  hidden={state.speedMode}
  />
 
- {/* Offline reconnect banner */}
+ {/* Offline banner — honest version. The old copy promised "changes
+ will sync when you reconnect", but useOfflineQueue.enqueue has zero
+ call sites: nothing was ever queued (B-17 post-mortem / B-3). Until
+ a real offline queue ships, warn the inspector NOT to keep editing. */}
  {!offline.online && (
- <div className="fixed top-14 left-0 right-0 z-40 bg-ih-watch-bg border-b border-ih-watch px-4 py-2 text-center">
- <span className="text-[12px] font-bold text-ih-watch-fg">
- You are offline. Changes will sync when you reconnect.
+ <div className="fixed top-14 left-0 right-0 z-40 bg-ih-bad-bg border-b border-ih-bad px-4 py-2 text-center">
+ <span className="text-[12px] font-bold text-ih-bad-fg">
+ You are offline — edits are NOT being saved. Reconnect before continuing.
  </span>
- {offline.pendingCount > 0 && (
- <span className="text-[11px] text-ih-watch-fg ml-2">
- ({offline.pendingCount} pending)
- </span>
- )}
  </div>
  )}
  </div>
