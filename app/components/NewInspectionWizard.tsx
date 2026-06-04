@@ -159,21 +159,21 @@ export function NewInspectionWizard({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={handleBackdrop}>
-      <div className="w-full max-w-lg bg-ih-bg-card rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={handleBackdrop}>
+      <div className="w-full max-w-lg bg-ih-bg-card rounded-xl shadow-ih-popover" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-ih-border">
           <h2 className="text-[16px] font-bold">New Inspection</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg leading-none">&times;</button>
+          <button onClick={onClose} className="text-ih-fg-4 hover:text-ih-fg-2 text-lg leading-none">&times;</button>
         </div>
 
         {/* Step indicator */}
         <div className="flex items-center gap-1 px-6 pt-4">
           {steps.map((s, i) => (
             <div key={s} className="flex items-center gap-1 flex-1">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${i <= stepIdx ? "bg-ih-primary text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-400"}`}>{i + 1}</div>
-              <span className={`text-[11px] font-medium hidden sm:inline ${i <= stepIdx ? "text-ih-primary" : "text-slate-400"}`}>{STEP_LABELS[s]}</span>
-              {i < steps.length - 1 && <div className={`flex-1 h-px mx-1 ${i < stepIdx ? "bg-ih-primary" : "bg-slate-200 dark:bg-slate-700"}`} />}
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${i <= stepIdx ? "bg-ih-primary text-white" : "bg-ih-bg-muted text-ih-fg-4"}`}>{i + 1}</div>
+              <span className={`text-[11px] font-medium hidden sm:inline ${i <= stepIdx ? "text-ih-primary" : "text-ih-fg-4"}`}>{STEP_LABELS[s]}</span>
+              {i < steps.length - 1 && <div className={`flex-1 h-px mx-1 ${i < stepIdx ? "bg-ih-primary" : "bg-ih-bg-muted"}`} />}
             </div>
           ))}
         </div>
@@ -187,7 +187,7 @@ export function NewInspectionWizard({
                 <div className="flex gap-2">
                   {PROPERTY_TYPES.map((pt) => (
                     <button key={pt.value} onClick={() => setPropertyType(pt.value)}
-                      className={`flex-1 py-2 rounded-md text-[12px] font-bold border transition-colors ${propertyType === pt.value ? "border-indigo-600 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" : "border-ih-border text-ih-fg-3"}`}
+                      className={`flex-1 py-2 rounded-md text-[12px] font-bold border transition-colors ${propertyType === pt.value ? "border-ih-primary bg-ih-primary-tint text-ih-primary" : "border-ih-border text-ih-fg-3"}`}
                     >{pt.label}</button>
                   ))}
                 </div>
@@ -245,7 +245,7 @@ export function NewInspectionWizard({
               <div className="grid grid-cols-2 gap-2">
                 {serviceCatalog.map((s) => (
                   <button key={s.id} onClick={() => toggleService(s.id)}
-                    className={`text-left px-3 py-2 rounded-md text-[12px] font-medium border transition-colors ${services.has(s.id) ? "border-indigo-600 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" : "border-ih-border text-ih-fg-3"}`}
+                    className={`text-left px-3 py-2 rounded-md text-[12px] font-medium border transition-colors ${services.has(s.id) ? "border-ih-primary bg-ih-primary-tint text-ih-primary" : "border-ih-border text-ih-fg-3"}`}
                   >
                     {services.has(s.id) ? "✓ " : ""}{s.name}
                     {typeof s.price === "number" && s.price > 0 ? (
@@ -275,8 +275,8 @@ export function NewInspectionWizard({
               <div>
                 <label className="block text-[12px] font-bold text-ih-fg-3 mb-1.5">Team Mode</label>
                 <div className="flex gap-2">
-                  <button onClick={() => setSoloMode(true)} className={`flex-1 py-2 rounded-md text-[12px] font-bold border transition-colors ${soloMode ? "border-indigo-600 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" : "border-ih-border text-ih-fg-3"}`}>Solo</button>
-                  <button onClick={() => setSoloMode(false)} className={`flex-1 py-2 rounded-md text-[12px] font-bold border transition-colors ${!soloMode ? "border-indigo-600 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400" : "border-ih-border text-ih-fg-3"}`}>Team</button>
+                  <button onClick={() => setSoloMode(true)} className={`flex-1 py-2 rounded-md text-[12px] font-bold border transition-colors ${soloMode ? "border-ih-primary bg-ih-primary-tint text-ih-primary" : "border-ih-border text-ih-fg-3"}`}>Solo</button>
+                  <button onClick={() => setSoloMode(false)} className={`flex-1 py-2 rounded-md text-[12px] font-bold border transition-colors ${!soloMode ? "border-ih-primary bg-ih-primary-tint text-ih-primary" : "border-ih-border text-ih-fg-3"}`}>Team</button>
                 </div>
               </div>
               {!soloMode && (

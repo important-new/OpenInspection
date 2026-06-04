@@ -720,7 +720,7 @@ export default function DashboardPage() {
           { label: "Needs Attention", value: counts.needsAttention, icon: "zap" as const, color: "text-ih-bad-fg bg-ih-bad-bg" },
           { label: "Recent Reports", value: counts.recent, icon: "check" as const, color: "text-ih-ok-fg bg-ih-ok-bg" },
         ].map((stat) => (
-          <Card key={stat.label} className="p-[14px] cursor-pointer hover:shadow-md transition-all">
+          <Card key={stat.label} className="p-[14px] cursor-pointer hover:shadow-ih-popover transition-all">
             <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${stat.color}`}>
               <Icon name={stat.icon} size={20} />
             </div>
@@ -859,8 +859,8 @@ export default function DashboardPage() {
 
       {/* Filters modal */}
       {filtersOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setFiltersOpen(false)}>
-          <div className="w-full max-w-sm bg-ih-bg-card rounded-xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={() => setFiltersOpen(false)}>
+          <div className="w-full max-w-sm bg-ih-bg-card rounded-xl shadow-ih-popover p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[16px] font-bold text-ih-fg-1">Filters</h2>
               <button onClick={() => setFiltersOpen(false)} className="text-ih-fg-4 hover:text-ih-fg-2 text-lg">&times;</button>
@@ -893,8 +893,8 @@ export default function DashboardPage() {
 
       {/* Columns modal */}
       {columnsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setColumnsOpen(false)}>
-          <div className="w-full max-w-sm bg-ih-bg-card rounded-xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={() => setColumnsOpen(false)}>
+          <div className="w-full max-w-sm bg-ih-bg-card rounded-xl shadow-ih-popover p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[16px] font-bold text-ih-fg-1">Customize Columns</h2>
               <button onClick={() => setColumnsOpen(false)} className="text-ih-fg-4 hover:text-ih-fg-2 text-lg">&times;</button>

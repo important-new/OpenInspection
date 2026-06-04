@@ -143,8 +143,8 @@ function ContactModal({
   if (!open) return null;
   const isEdit = !!contact;
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-ih-bg-card rounded-md shadow-2xl max-w-lg w-full">
+    <div className="fixed inset-0 z-50 bg-[rgba(15,23,42,0.5)] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-ih-bg-card rounded-md shadow-ih-popover max-w-lg w-full">
         <header className="px-4 py-3 border-b border-ih-border flex items-center justify-between">
           <h3 className="text-lg font-bold text-ih-fg-1">{isEdit ? "Edit Contact" : "Add Contact"}</h3>
           <button onClick={onClose} className="w-8 h-8 rounded-xl bg-ih-bg-muted hover:opacity-80 flex items-center justify-center text-ih-fg-3">
@@ -211,8 +211,8 @@ function CsvImportModal({ open, onClose }: { open: boolean; onClose: () => void 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-ih-bg-card rounded-md shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 bg-[rgba(15,23,42,0.5)] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-ih-bg-card rounded-md shadow-ih-popover max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <header className="px-4 py-3 border-b border-ih-border flex items-center justify-between">
           <h2 className="text-lg font-bold text-ih-fg-1">Import contacts from CSV</h2>
           <button onClick={onClose} className="text-ih-fg-4 hover:text-ih-fg-1 text-xl">&times;</button>
@@ -260,7 +260,7 @@ function CsvImportModal({ open, onClose }: { open: boolean; onClose: () => void 
                   fetcher.submit({ intent: "csv-import", csvText }, { method: "post" });
                   setStep("done");
                 }}
-                className="px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold uppercase tracking-widest hover:bg-emerald-700"
+                className="px-5 py-2 rounded-lg bg-ih-ok text-white text-xs font-bold uppercase tracking-widest hover:bg-ih-ok/85"
               >
                 Confirm Import
               </button>
@@ -274,7 +274,7 @@ function CsvImportModal({ open, onClose }: { open: boolean; onClose: () => void 
             <p className="text-lg font-bold text-ih-ok-fg">
               Imported {(importResult as Record<string, number>)?.imported || 0} contacts
             </p>
-            <button onClick={onClose} className="mt-4 px-5 py-2 rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold uppercase tracking-widest">Done</button>
+            <button onClick={onClose} className="mt-4 px-5 py-2 rounded-lg bg-ih-bg-inverse text-ih-fg-inverse text-xs font-bold uppercase tracking-widest">Done</button>
           </div>
         )}
       </div>
@@ -367,7 +367,7 @@ export default function ContactsPage() {
                       <deleteFetcher.Form method="post" className="inline">
                         <input type="hidden" name="intent" value="delete" />
                         <input type="hidden" name="id" value={c.id} />
-                        <button type="submit" className="text-red-500 dark:text-red-400 text-[12px] font-bold hover:underline">Delete</button>
+                        <button type="submit" className="text-ih-bad-fg text-[12px] font-bold hover:underline">Delete</button>
                       </deleteFetcher.Form>
                     </td>
                   </tr>
@@ -403,7 +403,7 @@ export default function ContactsPage() {
                     </td>
                     <td className="py-3 px-4 text-[13px] text-ih-fg-3">{a.linkedAt || "—"}</td>
                     <td className="py-3 px-4 text-right">
-                      <button className="text-red-500 text-[12px] font-bold hover:underline">Revoke</button>
+                      <button className="text-ih-bad-fg text-[12px] font-bold hover:underline">Revoke</button>
                     </td>
                   </tr>
                 ))

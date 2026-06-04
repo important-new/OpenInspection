@@ -27,19 +27,19 @@ export function NetworkPill({ online, pendingItems, tier, onRetryOne, onSyncNow 
   }, []);
 
   const dotClass = online
-    ? pendingItems.length > 0 ? "bg-amber-400 animate-pulse" : "bg-ih-ok-bg0"
-    : "bg-slate-400";
+    ? pendingItems.length > 0 ? "bg-ih-watch animate-pulse" : "bg-ih-ok"
+    : "bg-ih-fg-4";
   const label = !online ? "Offline" : pendingItems.length > 0 ? "Syncing" : "Online";
 
   return (
     <div className="fixed top-4 right-4 z-40" ref={ref}>
-      <button type="button" onClick={() => setPopoverOpen(!popoverOpen)} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-ih-bg-card shadow-md ring-1 ring-ih-border text-xs font-bold text-ih-fg-2 hover:bg-ih-bg-muted">
+      <button type="button" onClick={() => setPopoverOpen(!popoverOpen)} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-ih-bg-card shadow-ih-card ring-1 ring-ih-border text-xs font-bold text-ih-fg-2 hover:bg-ih-bg-muted">
         <span className={`w-2 h-2 rounded-full ${dotClass}`} />
         <span>{label}</span>
       </button>
 
       {popoverOpen && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-ih-bg-card rounded-xl shadow-xl ring-1 ring-slate-200 dark:ring-slate-700 p-4 text-sm">
+        <div className="absolute right-0 top-full mt-2 w-72 bg-ih-bg-card rounded-xl shadow-ih-popover ring-1 ring-ih-border p-4 text-sm">
           <div className="font-semibold text-ih-fg-1 mb-2">
             {!online ? "Working offline" : pendingItems.length > 0 ? `Syncing ${pendingItems.length} change${pendingItems.length === 1 ? "" : "s"}` : "All synced"}
           </div>
@@ -59,11 +59,11 @@ export function NetworkPill({ online, pendingItems, tier, onRetryOne, onSyncNow 
             <div className="text-xs text-ih-fg-3 mb-2">Tip: install this app from your browser menu so the device keeps your data permanently.</div>
           )}
           {pendingItems.length > 0 && (
-            <ul className="space-y-2 max-h-60 overflow-y-auto mt-2 border-t border-slate-100 dark:border-slate-700 pt-2">
+            <ul className="space-y-2 max-h-60 overflow-y-auto mt-2 border-t border-ih-border pt-2">
               {pendingItems.map((it) => (
                 <li key={it.id} className="flex items-start justify-between gap-2 text-xs">
                   <span>{it.op} · {new Date(it.createdAt).toLocaleTimeString()}</span>
-                  <button onClick={() => onRetryOne?.(it.id)} className="text-indigo-600 hover:underline">Retry</button>
+                  <button onClick={() => onRetryOne?.(it.id)} className="text-ih-primary hover:underline">Retry</button>
                 </li>
               ))}
             </ul>

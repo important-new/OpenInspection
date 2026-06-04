@@ -205,6 +205,7 @@ export default function InspectorProfilePage() {
       )}
 
       {/* Trust strip */}
+      {/* ds-allow: fixed-dark marketing panel */}
       <div className="bg-slate-900 dark:bg-slate-800 text-white dark:text-slate-300 py-6 px-6 lg:px-16 mt-12 flex flex-wrap justify-center gap-12 text-[13px] tracking-wide">
         <span>Insured</span>
         <span>

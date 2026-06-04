@@ -201,3 +201,26 @@ These rules are **mandatory** for any code that touches authentication. Violatio
 - **DB queries**: All database queries MUST filter by `tenantId`. Use service-layer methods that enforce this automatically.
 - **Cross-tenant prevention**: Never trust client-supplied `tenantId`. The middleware sets it from the verified JWT — use that value exclusively.
 - **Data responses**: API responses MUST NOT leak data from other tenants. Verify tenant ownership before returning any entity.
+
+## Schema Rules
+
+DB design policies (2026-06-04 DBA review). These apply to ALL new tables/columns; legacy columns converge opportunistically when a table is already being touched — no big-bang migrations.
+
+- **Timestamps**: new columns MUST be `integer(..., { mode: 'timestamp_ms' })` (epoch milliseconds). Calendar-semantic fields with no time component (e.g. `due_date`) MAY be `YYYY-MM-DD` TEXT but must say so in a comment. Never introduce new raw `integer` or text-datetime timestamp columns.
+- **Foreign keys**: referential integrity is enforced at the APPLICATION layer (ScopedDB + tenant filters), not the database. New tables MUST NOT declare `.references()` — D1 cannot rebuild a table that is referenced by an FK (no `PRAGMA foreign_keys=OFF` outside a transaction), so every FK is a permanent migration liability. Existing FKs are frozen as legacy; do not extend them. Delete-ordering in purge/cascade paths is the service layer's responsibility.
+- **Naming**: money columns end in `_cents` (integer cents, never floats); encrypted-at-rest columns end in `_enc`; booleans always use `integer(..., { mode: 'boolean' })` (never raw 0/1); index names are prefixed `idx_`.
+- **Money authority chain**: when an invoice exists it is authoritative; otherwise the sum of `inspection_services` price snapshots; `inspections.price` is a denormalized cache only — never reconcile the other way.
+- **Status fields**: any column that models a state machine MUST declare a drizzle `{ enum: [...] }` (type-layer only, no DDL cost).
+- **Column retirement**: D1 cannot drop columns on FK-referenced tables. Retired columns are FROZEN: stop all reads/writes, add a `-- DEAD (date, reason)` schema comment, never reuse the name.
+
+## Product Terminology (canonical)
+
+User-facing copy and NEW code identifiers use these terms. (Existing surfaces are renamed in a dedicated terminology pass — don't mix renames into feature work.)
+
+| Use | Not |
+|---|---|
+| **Inspection** | Order, Job |
+| **Company** (name/branding settings) | Workspace (user-facing) |
+| **Repair Items** | Recommendations (user-facing) |
+| **Canned Comment** (library entry) | "Comment" unqualified — distinguish from per-inspection **Notes** (inspector free text) |
+| **Client** / **Agent** (contact types) | Customer |

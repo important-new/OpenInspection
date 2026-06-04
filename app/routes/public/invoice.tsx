@@ -75,7 +75,7 @@ function money(n: number): string {
 
 const STATUS_PILL: Record<string, string> = {
   paid: "bg-ih-ok-bg text-ih-ok-fg",
-  sent: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400",
+  sent: "bg-ih-info-bg text-ih-info-fg",
   overdue: "bg-ih-bad-bg text-ih-bad-fg",
   draft: "bg-ih-bg-muted text-ih-fg-3",
   void: "bg-ih-bg-muted text-ih-fg-3",
@@ -133,7 +133,7 @@ export default function InvoicePage() {
           </div>
         )}
         {/* Document */}
-        <div className="relative bg-ih-bg-card border border-ih-border rounded-2xl shadow-sm overflow-hidden print:shadow-none print:border-0">
+        <div className="relative bg-ih-bg-card border border-ih-border rounded-2xl shadow-ih-card overflow-hidden print:shadow-none print:border-0">
           {/* PAID stamp */}
           {isPaid && (
             <div className="pointer-events-none absolute top-16 right-6 -rotate-12 select-none">
@@ -294,7 +294,7 @@ function PayPanel({ id, balanceDue, inspectorName, brandColor }: { id: string; b
     typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}?return=1` : "";
 
   return (
-    <div className="rounded-xl border border-ih-border bg-slate-50 dark:bg-slate-800/40 p-4">
+    <div className="rounded-xl border border-ih-border bg-ih-bg-muted p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-[13px] font-semibold text-ih-fg-1">Pay this invoice</span>
         <span className="font-serif text-[18px] font-semibold text-ih-fg-1">{money(balanceDue)}</span>
@@ -306,7 +306,7 @@ function PayPanel({ id, balanceDue, inspectorName, brandColor }: { id: string; b
             type="button"
             onClick={startPayment}
             disabled={phase === "loading"}
-            className="w-full h-11 rounded-lg bg-ih-primary text-white font-bold text-sm hover:opacity-95 hover:-translate-y-px transition-all shadow-sm disabled:opacity-60 disabled:cursor-wait disabled:translate-y-0"
+            className="w-full h-11 rounded-lg bg-ih-primary text-white font-bold text-sm hover:opacity-95 hover:-translate-y-px transition-all shadow-ih-card disabled:opacity-60 disabled:cursor-wait disabled:translate-y-0"
           >
             {phase === "loading" ? "Starting secure checkout…" : `Pay ${money(balanceDue)}`}
           </button>
@@ -381,7 +381,7 @@ function CheckoutForm({ balanceDue, returnUrl }: { balanceDue: number; returnUrl
       <button
         type="submit"
         disabled={!stripe || submitting}
-        className="w-full h-11 rounded-lg bg-ih-primary text-white font-bold text-sm hover:opacity-95 hover:-translate-y-px transition-all shadow-sm disabled:opacity-60 disabled:cursor-wait disabled:translate-y-0"
+        className="w-full h-11 rounded-lg bg-ih-primary text-white font-bold text-sm hover:opacity-95 hover:-translate-y-px transition-all shadow-ih-card disabled:opacity-60 disabled:cursor-wait disabled:translate-y-0"
       >
         {submitting ? "Processing…" : `Pay ${money(balanceDue)}`}
       </button>

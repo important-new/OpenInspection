@@ -352,7 +352,7 @@ export default function ConciergeBookPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full px-6 py-3.5 bg-ih-primary text-white rounded-lg font-bold text-base hover:brightness-95 disabled:bg-slate-400 disabled:cursor-wait transition-all"
+                className="w-full px-6 py-3.5 bg-ih-primary text-white rounded-lg font-bold text-base hover:brightness-95 disabled:bg-ih-bg-muted disabled:cursor-wait transition-all"
               >
                 {submitting ? "Sending..." : "Send booking"}
               </button>
@@ -372,7 +372,7 @@ export default function ConciergeBookPage() {
                 <span
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                     step.done
-                      ? "bg-green-500 text-white"
+                      ? "bg-ih-ok text-white"
                       : step.active
                         ? "bg-ih-primary text-white animate-pulse"
                         : "bg-ih-bg-muted text-ih-fg-3"

@@ -27,23 +27,25 @@ const FALLBACK_LEVELS: EditorRatingLevel[] = [
  { id: "Not Present", label: "Not Present", abbreviation: "N/P", severity: "minor" },
 ];
 
-/* Solid active fills — readable in direct sunlight (field eval FE/C-14a). */
+/* Solid active fills — readable in direct sunlight (field eval FE/C-14a).
+ * DS tokens flip in dark mode automatically; the `minor` active fill uses the
+ * inverse pair so its solid chip stays high-contrast in both themes. */
 const SEVERITY_STYLES: Record<string, { active: string; idle: string }> = {
  good: {
- active: "bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-700",
- idle: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300",
+ active: "bg-ih-ok text-white ring-2 ring-ih-ok/40",
+ idle: "bg-ih-ok-bg text-ih-ok-fg hover:bg-ih-ok/20",
  },
  marginal: {
- active: "bg-amber-500 text-white ring-2 ring-amber-300 dark:ring-amber-700",
- idle: "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300",
+ active: "bg-ih-watch text-white ring-2 ring-ih-watch/40",
+ idle: "bg-ih-watch-bg text-ih-watch-fg hover:bg-ih-watch/20",
  },
  significant: {
- active: "bg-rose-600 text-white ring-2 ring-rose-300 dark:ring-rose-700",
- idle: "bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-300",
+ active: "bg-ih-bad text-white ring-2 ring-ih-bad/40",
+ idle: "bg-ih-bad-bg text-ih-bad-fg hover:bg-ih-bad/20",
  },
  minor: {
- active: "bg-slate-600 text-white ring-2 ring-slate-300 dark:ring-slate-500",
- idle: "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700/40 dark:text-slate-300",
+ active: "bg-ih-bg-inverse text-ih-fg-inverse ring-2 ring-ih-border-strong",
+ idle: "bg-ih-bg-muted text-ih-fg-2 hover:bg-ih-border",
  },
 };
 
@@ -231,7 +233,7 @@ export function ItemEditor({
  <div className="max-w-2xl space-y-6">
  {/* Eyebrow + title */}
  <div>
- <div className="text-[11px] text-indigo-600 font-bold uppercase tracking-wide">
+ <div className="text-[11px] text-ih-primary font-bold uppercase tracking-wide">
  {sectionTitle}
  </div>
  <h2 className="text-[19px] font-bold mt-1">{item.label}</h2>
@@ -288,18 +290,18 @@ export function ItemEditor({
  {/* C-14b — contradiction lint: the rating says defect/monitor while an
  included canned narrative still claims "no visible defects". */}
  {contradictions.length > 0 && (
- <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-2">
- <p className="text-[12px] font-bold text-amber-800 dark:text-amber-200">
+ <div className="rounded-lg border border-ih-watch/40 bg-ih-watch-bg px-3 py-2">
+ <p className="text-[12px] font-bold text-ih-watch-fg">
  Rating contradicts {contradictions.length === 1 ? "a checked comment" : `${contradictions.length} checked comments`}
  </p>
  <ul className="mt-1 space-y-1">
  {contradictions.map((hit) => (
- <li key={hit.id} className="flex items-center justify-between gap-2 text-[12px] text-amber-800 dark:text-amber-200">
+ <li key={hit.id} className="flex items-center justify-between gap-2 text-[12px] text-ih-watch-fg">
  <span className="truncate">“{hit.title}” still says all-clear</span>
  <button
  type="button"
  onClick={() => onToggleCanned?.(hit.tab, hit.id, false)}
- className="shrink-0 text-[11px] font-bold underline decoration-amber-400 hover:text-amber-900 dark:hover:text-amber-100"
+ className="shrink-0 text-[11px] font-bold underline decoration-ih-watch hover:text-ih-fg-1"
  >
  Uncheck it
  </button>
@@ -312,13 +314,13 @@ export function ItemEditor({
  {/* Notes textarea with character count */}
  <div>
  <div className="flex items-center justify-between mb-1">
- <label className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+ <label className="text-[11px] font-bold uppercase tracking-wide text-ih-fg-4">
  Notes
  </label>
  <span className={`text-[10px] font-mono tabular-nums ${
  ((result.notes as string) || "").length > 2000
- ? "text-ih-bad"
- : "text-slate-400"
+ ? "text-ih-bad-fg"
+ : "text-ih-fg-4"
  }`}>
  {((result.notes as string) || "").length} chars
  </span>
@@ -329,7 +331,7 @@ export function ItemEditor({
  onChange={(e) => onNotes(e.target.value)}
  onBlur={(e) => onNotesBlur(e.target.value)}
  placeholder="Add notes — type / for snippets"
- className="w-full h-28 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+ className="w-full h-28 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-ih-primary outline-none"
  />
  {tagChipRow}
  </div>
@@ -353,7 +355,7 @@ export function ItemEditor({
  onChange={(e) => setDefectQuery(e.target.value)}
  placeholder="Search defects…"
  aria-label="Search defects"
- className="w-full h-9 px-3 mb-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus focus:border-indigo-500 outline-none placeholder:text-ih-fg-4"
+ className="w-full h-9 px-3 mb-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus focus:border-ih-primary outline-none placeholder:text-ih-fg-4"
  />
  )}
 
@@ -373,8 +375,8 @@ export function ItemEditor({
  key={entry.id}
  className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer transition-colors ${
  isIncluded
- ? "bg-ih-primary-tint ring-1 ring-indigo-200 dark:ring-indigo-700"
- : "bg-ih-bg-app/50 hover:bg-slate-100 dark:hover:bg-slate-800"
+ ? "bg-ih-primary-tint ring-1 ring-ih-primary/30"
+ : "bg-ih-bg-app/50 hover:bg-ih-bg-muted"
  }`}
  >
  <input
@@ -383,7 +385,7 @@ export function ItemEditor({
  onChange={() => {
  onToggleCanned?.(activeTab, entry.id, !isIncluded);
  }}
- className="mt-0.5 w-4 h-4 rounded border-ih-border-strong text-indigo-600 focus:ring-indigo-500/30"
+ className="mt-0.5 w-4 h-4 rounded border-ih-border-strong text-ih-primary focus:ring-ih-primary/30"
  />
  <div className="flex-1 min-w-0">
  <div className="text-[12px] font-bold text-ih-fg-2">
@@ -391,10 +393,10 @@ export function ItemEditor({
  {"category" in entry && (entry as CannedDefect).category && (
  <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
  (entry as CannedDefect).category === "safety"
- ? "bg-rose-100 text-ih-bad-fg dark:bg-rose-900/30"
+ ? "bg-ih-bad-bg text-ih-bad-fg"
  : (entry as CannedDefect).category === "recommendation"
- ? "bg-amber-100 text-ih-watch-fg dark:bg-amber-900/30"
- : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+ ? "bg-ih-watch-bg text-ih-watch-fg"
+ : "bg-ih-bg-muted text-ih-fg-3"
  }`}>
  {(entry as CannedDefect).category}
  </span>
@@ -458,29 +460,29 @@ export function ItemEditor({
  key={cd.id}
  className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer transition-colors ${
  cd.included !== false
- ? "bg-ih-primary-tint ring-1 ring-indigo-200 dark:ring-indigo-700"
- : "bg-ih-bg-app/50 hover:bg-slate-100 dark:hover:bg-slate-800"
+ ? "bg-ih-primary-tint ring-1 ring-ih-primary/30"
+ : "bg-ih-bg-app/50 hover:bg-ih-bg-muted"
  }`}
  >
  <input
  type="checkbox"
  checked={cd.included !== false}
  onChange={() => onToggleCustomDefect?.(cd.id, !(cd.included !== false))}
- className="mt-0.5 w-4 h-4 rounded border-ih-border-strong text-indigo-600 focus:ring-indigo-500/30"
+ className="mt-0.5 w-4 h-4 rounded border-ih-border-strong text-ih-primary focus:ring-ih-primary/30"
  />
  <div className="flex-1 min-w-0">
  <div className="text-[12px] font-bold text-ih-fg-2">
  {cd.title}
  <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
  cd.category === "safety"
- ? "bg-rose-100 text-ih-bad-fg dark:bg-rose-900/30"
+ ? "bg-ih-bad-bg text-ih-bad-fg"
  : cd.category === "recommendation"
- ? "bg-amber-100 text-ih-watch-fg dark:bg-amber-900/30"
- : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+ ? "bg-ih-watch-bg text-ih-watch-fg"
+ : "bg-ih-bg-muted text-ih-fg-2"
  }`}>
  {cd.category}
  </span>
- <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+ <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-ih-primary-tint text-ih-primary">
  custom
  </span>
  </div>
@@ -500,14 +502,14 @@ export function ItemEditor({
  placeholder="Defect title — e.g. Water stain at sheathing"
  aria-label="Custom defect title"
  autoFocus
- className="w-full h-9 px-3 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+ className="w-full h-9 px-3 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus focus:border-ih-primary outline-none"
  />
  <textarea
  value={customComment}
  onChange={(e) => setCustomComment(e.target.value)}
  placeholder="Narrative for the report (optional)"
  aria-label="Custom defect narrative"
- className="w-full h-16 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+ className="w-full h-16 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-ih-primary outline-none"
  />
  <div className="flex items-center gap-2">
  <select
@@ -547,7 +549,7 @@ export function ItemEditor({
  }
  setCustomFormOpen(true);
  }}
- className="w-full p-2.5 rounded-lg border border-dashed border-ih-border-strong text-[12px] font-bold text-ih-fg-3 hover:border-indigo-400 hover:text-indigo-600 transition-colors text-left"
+ className="w-full p-2.5 rounded-lg border border-dashed border-ih-border-strong text-[12px] font-bold text-ih-fg-3 hover:border-ih-primary hover:text-ih-primary transition-colors text-left"
  >
  + Add custom defect
  </button>
@@ -562,7 +564,7 @@ export function ItemEditor({
  {/* Photo strip with count badge */}
  <div>
  <div className="flex items-center justify-between mb-1">
- <label className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+ <label className="text-[11px] font-bold uppercase tracking-wide text-ih-fg-4">
  Photos
  </label>
  {((result.photos as unknown[]) || []).length > 0 && (
@@ -582,7 +584,7 @@ export function ItemEditor({
  onClick={onAddPhoto}
  disabled={photoUploading || !onAddPhoto}
  aria-label="Add photo"
- className="w-16 h-16 rounded-lg border-2 border-dashed border-ih-border flex items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors disabled:opacity-50"
+ className="w-16 h-16 rounded-lg border-2 border-dashed border-ih-border flex items-center justify-center text-ih-fg-4 hover:border-ih-primary hover:text-ih-primary transition-colors disabled:opacity-50"
  >
  {photoUploading ? (
  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
@@ -595,7 +597,7 @@ export function ItemEditor({
  </svg>
  )}
  </button>
- <span className="text-[12px] text-slate-400">
+ <span className="text-[12px] text-ih-fg-4">
  {photoUploading
  ? "Uploading…"
  : ((result.photos as unknown[]) || []).length === 0

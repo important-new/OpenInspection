@@ -146,7 +146,7 @@ export default function GuestJoinPage() {
               autoFocus
               placeholder="Jane Smith"
               aria-invalid={fields.name.errors ? true : undefined}
-              className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-ih-primary outline-none"
             />
             {fields.name.errors && (
               <p className="mt-1 text-xs text-ih-bad-fg">{fields.name.errors[0]}</p>
@@ -164,7 +164,7 @@ export default function GuestJoinPage() {
               autoComplete="email"
               placeholder="jane@example.com"
               aria-invalid={fields.email.errors ? true : undefined}
-              className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-ih-primary outline-none"
             />
             {fields.email.errors && (
               <p className="mt-1 text-xs text-ih-bad-fg">{fields.email.errors[0]}</p>
@@ -182,7 +182,7 @@ export default function GuestJoinPage() {
               autoComplete="new-password"
               placeholder="At least 8 characters"
               aria-invalid={fields.password.errors ? true : undefined}
-              className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+              className="w-full px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-ih-fg-1 text-sm focus:shadow-ih-focus focus:border-ih-primary outline-none"
             />
             {fields.password.errors && (
               <p className="mt-1 text-xs text-ih-bad-fg">{fields.password.errors[0]}</p>

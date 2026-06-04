@@ -207,7 +207,7 @@ export default function SettingsAccountPage() {
                 Cancel
               </button>
               <button type="submit"
-                className="h-9 px-4 rounded-md bg-rose-600 text-white font-bold text-[13px] hover:bg-ih-bad-fg active:scale-[.98] transition-all">
+                className="h-9 px-4 rounded-md bg-ih-bad text-white font-bold text-[13px] hover:bg-ih-bad/85 active:scale-[.98] transition-all">
                 Permanently delete
               </button>
             </div>
