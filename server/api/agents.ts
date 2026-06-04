@@ -66,7 +66,7 @@ const AcceptBodySchema = z
         name: z.string().min(2).max(120).describe('TODO describe name field for the OpenInspection MCP integration'),
         // Legal-links feature — required (true) only when the operator configured
         // TERMS_URL/PRIVACY_URL; enforced in the handler, optional on the wire.
-        termsAccepted: z.boolean().optional(),
+        termsAccepted: z.boolean().optional().describe('Acceptance of operator Terms of Service and Privacy Policy; required when the operator has configured TERMS_URL/PRIVACY_URL'),
     })
     .openapi('AgentAcceptBody');
 

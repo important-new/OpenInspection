@@ -33,7 +33,7 @@ const claimRoute = createRoute(withMcpMetadata({
             password: z.string().min(8).max(128).describe('TODO describe password field for the OpenInspection MCP integration'),
             // Legal-links feature — required (true) only when the operator configured
             // TERMS_URL/PRIVACY_URL; enforced in the handler, optional on the wire.
-            termsAccepted: z.boolean().optional(),
+            termsAccepted: z.boolean().optional().describe('Acceptance of operator Terms of Service and Privacy Policy; required when the operator has configured TERMS_URL/PRIVACY_URL'),
         }).describe('TODO describe schema field for the OpenInspection MCP integration') } } },
     },
     responses: {
