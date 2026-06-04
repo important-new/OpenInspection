@@ -1,7 +1,26 @@
 // apps/openinspection/tests/portal-isolation.spec.ts
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
+
+/**
+ * Shell-free `git grep -l` returning matching paths ([] when none).
+ * execFileSync avoids the platform shell entirely — the previous
+ * `execSync("git grep ... || true")` form broke on Windows (cmd.exe has no
+ * `true`, and its quoting mangled patterns containing escaped quotes).
+ * git grep exits 1 on "no matches", which is a result here, not an error.
+ */
+function gitGrepFiles(pattern: string, ...pathspecs: string[]): string[] {
+  try {
+    return execFileSync('git', ['grep', '-lE', pattern, '--', ...pathspecs], {
+      cwd: __dirname + '/..',
+      encoding: 'utf8',
+    }).split('\n').filter(Boolean);
+  } catch (e) {
+    const err = e as { status?: number };
+    if (err.status === 1) return []; // no matches
+    throw e;
+  }
+}
 
 describe('SaaS-Portal isolation', () => {
   // Confinement: PORTAL_API_URL / PORTAL_SERVICE may appear ONLY in these files.
@@ -14,10 +33,7 @@ describe('SaaS-Portal isolation', () => {
     'workers/app.ts',                       // entry-level APP_MODE 404 guard
   ];
   it('PORTAL_API_URL / PORTAL_SERVICE appear only in allowed files', () => {
-    const hits = execSync(
-      `git grep -lE "PORTAL_API_URL|PORTAL_SERVICE" -- server workers || true`,
-      { cwd: __dirname + '/..', encoding: 'utf8' },
-    ).split('\n').filter(Boolean);
+    const hits = gitGrepFiles('PORTAL_API_URL|PORTAL_SERVICE', 'server', 'workers');
     const stray = hits.filter(f => !ALLOWED.some(a => f.startsWith(a)));
     expect(stray, `stray PORTAL_* references: ${stray.join(', ')}`).toEqual([]);
   });
@@ -26,10 +42,7 @@ describe('SaaS-Portal isolation', () => {
     // NOTE: portal.provider is intentionally EXCLUDED — di.ts is wiring point #3
     // and legitimately imports PortalProvider directly. Only the route/outbox
     // files must funnel through integration.module.
-    const hits = execSync(
-      `git grep -lE "portal/integration.routes|portal/outbox.service" -- server || true`,
-      { cwd: __dirname + '/..', encoding: 'utf8' },
-    ).split('\n').filter(Boolean);
+    const hits = gitGrepFiles('portal/integration.routes|portal/outbox.service', 'server');
     const stray = hits.filter(
       f => !f.startsWith('server/portal/') && f !== 'server/lib/middleware/di.ts',
     );
@@ -40,10 +53,7 @@ describe('SaaS-Portal isolation', () => {
     // Stricter than the route/outbox gate: catches ANY import from server/portal/*
     // (service-binding-guard, portal.provider, etc.). The three composition points
     // are the only allowed importers; everything else uses the seams/abstractions.
-    const hits = execSync(
-      `git grep -lE "(from|import\\()[[:space:]]*['\\"][^'\\"]*portal/" -- server || true`,
-      { cwd: __dirname + '/..', encoding: 'utf8' },
-    ).split('\n').filter(Boolean);
+    const hits = gitGrepFiles(`(from|import\\()[[:space:]]*['"][^'"]*portal/`, 'server');
     const ALLOWED_IMPORTERS = [
       'server/index.ts',
       'server/scheduled.ts',
