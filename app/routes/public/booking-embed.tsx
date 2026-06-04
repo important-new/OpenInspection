@@ -21,6 +21,7 @@ interface EmbedData {
   siteKey: string;
   theme: "light" | "dark" | "branded";
   brand: TenantBrand | null;
+  bookingOpen: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -52,6 +53,7 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
               inspectorId?: string;
               name?: string;
               turnstileSiteKey?: string | null;
+              bookingOpen?: boolean;
             }
           | null)
       : null;
@@ -65,6 +67,7 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
             siteKey: d.turnstileSiteKey ?? "",
             theme,
             brand,
+            bookingOpen: d.bookingOpen !== false,
           } satisfies EmbedData)
         : null,
       error: res.ok ? null : "Not found",
@@ -116,10 +119,19 @@ export default function BookingEmbedPage() {
         <h2 className="text-base font-bold text-ih-fg-1 mb-1">
           Book with {data.inspectorName}
         </h2>
-        <p className="text-[13px] text-ih-fg-3 mb-4">
-          Pick a date and we'll confirm by email.
-        </p>
-        <BookingForm data={data} />
+        {data.bookingOpen ? (
+          <>
+            <p className="text-[13px] text-ih-fg-3 mb-4">
+              Pick a date and we'll confirm by email.
+            </p>
+            <BookingForm data={data} />
+          </>
+        ) : (
+          // B-16 — no working hours configured: honest not-open state.
+          <p className="text-[13px] text-ih-fg-3">
+            Online booking isn&rsquo;t open yet — please contact {data.inspectorName} directly to schedule.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -144,6 +156,7 @@ function BookingForm({ data }: { data: EmbedData }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          tenant: data.tenantSlug,
           slug: fd.get("slug"),
           inspectorId: fd.get("inspectorId"),
           address: fd.get("address"),

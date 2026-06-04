@@ -27,6 +27,7 @@ interface InspectorProfile {
   company?: string;
   avatar?: string;
   turnstileSiteKey?: string | null;
+  bookingOpen?: boolean;
   services: { id: string; name: string; price: number; duration: number }[];
 }
 
@@ -77,7 +78,7 @@ const TIME_WINDOWS = [
 ] as const;
 
 export default function BookingPage() {
-  const { profile, error, agentRefSlug, brand } = useLoaderData<typeof loader>();
+  const { profile, error, agentRefSlug, brand, tenant } = useLoaderData<typeof loader>();
   const [step, setStep] = useState(0);
 
   // Form state
@@ -149,6 +150,7 @@ export default function BookingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          tenant,
           address,
           date: inspectionDate,
           timeSlot: timeWindow === "custom" ? "custom" : timeWindow,
@@ -182,6 +184,22 @@ export default function BookingPage() {
           <h1 className="text-2xl font-bold text-ih-fg-1">Not Available</h1>
           <p className="text-ih-fg-3 mt-2">
             {error ?? "This booking page is not available."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // B-16 — the inspector hasn't configured working hours yet: show an honest
+  // not-open state instead of a wizard whose submit can only fail.
+  if (profile.bookingOpen === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-ih-bg-app" style={brandTokens(brand.primaryColor)}>
+        <div className="max-w-md text-center p-8 bg-ih-bg-card border border-ih-border rounded-xl">
+          <h1 className="text-xl font-bold text-ih-fg-1">Online booking isn&rsquo;t open yet</h1>
+          <p className="text-[14px] text-ih-fg-3 mt-3 leading-relaxed">
+            {profile.name} hasn&rsquo;t opened online scheduling. Please contact{" "}
+            {profile.company ? `${profile.company}` : "them"} directly to book your inspection.
           </p>
         </div>
       </div>

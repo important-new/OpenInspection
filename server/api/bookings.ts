@@ -2,7 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq, and, inArray } from 'drizzle-orm';
-import { users, inspections, services as servicesTable, agentTenantLinks, tenants } from '../lib/db/schema';
+import { users, inspections, services as servicesTable, agentTenantLinks, tenants, availability } from '../lib/db/schema';
 import { isNull } from 'drizzle-orm';
 import { createCalendarEvent } from './calendar';
 import { Errors } from '../lib/errors';
@@ -332,8 +332,16 @@ export const bookingsRoutes = createApiRouter()
         await checkRateLimit(c, 'book');
 
         const body = c.req.valid('json');
-        const tenantId = c.get('tenantId') || c.get('requestedTenantSlug');
-        if (!tenantId) throw Errors.Forbidden('Tenant context missing.');
+        // B-16 — the submitted tenant slug is authoritative, mirroring how the
+        // GET /book/:tenant/:slug page data resolves. The old context fallback
+        // (SINGLE_TENANT_ID / requestedTenantSlug) pointed at the WRONG tenant
+        // whenever the fixed tenant differed from the page's tenant, and at no
+        // tenant at all in saas mode (this path is not slug-routed).
+        const tenantRow = await drizzle(c.env.DB)
+            .select({ id: tenants.id })
+            .from(tenants).where(eq(tenants.slug, body.tenant)).get();
+        if (!tenantRow) throw Errors.NotFound('Tenant not found.');
+        const tenantId = tenantRow.id;
 
         const service = c.var.services.booking;
 
@@ -406,6 +414,25 @@ export const bookingsRoutes = createApiRouter()
         const inspectorId = body.inspectorId;
         if (!inspectorId) {
             throw Errors.BadRequest('Booking link missing inspector context. Please use the link your inspector provided.');
+        }
+
+        // B-16 — the inspector must belong to the resolved tenant; a mismatched
+        // id (tampered payload or stale form) must not reach into another
+        // tenant's availability/inspection space.
+        const inspectorRow = await db.select({ id: users.id }).from(users)
+            .where(and(eq(users.id, inspectorId), eq(users.tenantId, tenantId)))
+            .get();
+        if (!inspectorRow) throw Errors.NotFound('Inspector not found.');
+
+        // B-16 — distinguish "never configured working hours" from a genuinely
+        // taken slot. With zero availability rows every submit would otherwise
+        // 409 with a misleading "slot no longer available".
+        const hasHours = await db.select({ id: availability.id }).from(availability)
+            .where(and(eq(availability.tenantId, tenantId), eq(availability.inspectorId, inspectorId)))
+            .limit(1)
+            .get();
+        if (!hasHours) {
+            throw Errors.Conflict('Online booking is not open for this inspector yet. Please contact them directly to schedule.');
         }
 
         // Spec 3C — enforce inspector availability + availability_overrides + existing-bookings collision check.
@@ -887,6 +914,13 @@ export const bookingsRoutes = createApiRouter()
             durationMinutes: servicesTable.durationMinutes,
         }).from(servicesTable).where(and(eq(servicesTable.tenantId, tenantRow.id), eq(servicesTable.active, true))).all();
 
+        // B-16 — online booking is "open" only once the inspector has working
+        // hours configured; the page renders an honest not-open state otherwise.
+        const hasHours = await db.select({ id: availability.id }).from(availability)
+            .where(and(eq(availability.tenantId, tenantRow.id), eq(availability.inspectorId, inspector.id)))
+            .limit(1)
+            .get();
+
         return c.json({
             success: true,
             data: {
@@ -895,6 +929,7 @@ export const bookingsRoutes = createApiRouter()
                 company: tenantRow.name,
                 avatar: inspector.photoUrl,
                 turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || null,
+                bookingOpen: !!hasHours,
                 services: svcRows.map(s => ({
                     id: s.id, name: s.name, price: Number(s.price || 0), duration: Number(s.durationMinutes || 60),
                 })),
