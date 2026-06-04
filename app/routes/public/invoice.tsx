@@ -5,6 +5,7 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 import type { Route } from "./+types/invoice";
 import { createApi } from "~/lib/api-client.server";
 import { brandTokens, EMPTY_BRAND, type TenantBrand } from "~/lib/brand";
+import { readLegalLinks } from "~/lib/legal-links.server";
 
 export function meta() {
   return [{ title: "Invoice - OpenInspection" }];
@@ -34,6 +35,7 @@ interface RawInvoice {
 }
 
 export async function loader({ params, context }: Route.LoaderArgs) {
+  const privacyUrl = readLegalLinks(context)?.privacyUrl ?? null;
   try {
     const api = createApi(context);
     const res = await api.publicReport.r[":id"].invoice.$get({ param: { id: params.id ?? "" } });
@@ -56,9 +58,10 @@ export async function loader({ params, context }: Route.LoaderArgs) {
       brand: d?.brand ?? EMPTY_BRAND,
       error: res.ok ? null : "Invoice not found",
       id: params.id ?? "",
+      privacyUrl,
     };
   } catch {
-    return { invoice: null, brand: EMPTY_BRAND, error: "Service unavailable", id: params.id ?? "" };
+    return { invoice: null, brand: EMPTY_BRAND, error: "Service unavailable", id: params.id ?? "", privacyUrl };
   }
 }
 
@@ -83,7 +86,7 @@ const STATUS_PILL: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 
 export default function InvoicePage() {
-  const { invoice, brand, error, id } = useLoaderData<typeof loader>();
+  const { invoice, brand, error, id, privacyUrl } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   // After Stripe's confirmPayment redirect the page reloads with
   // ?redirect_status=succeeded. The webhook flips the invoice to paid
@@ -237,6 +240,11 @@ export default function InvoicePage() {
             Questions? Contact {invoice.inspectorName || "your inspector"}.
           </p>
         </div>
+        {privacyUrl && (
+          <p className="mt-8 text-center text-xs text-ih-fg-3 print:hidden">
+            <a href={privacyUrl} target="_blank" rel="noreferrer" className="hover:underline">Privacy Policy</a>
+          </p>
+        )}
       </div>
     </div>
   );

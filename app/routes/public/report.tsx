@@ -3,6 +3,7 @@ import type { Route } from "./+types/report";
 import { createApi } from "~/lib/api-client.server";
 import { resolveTenantBrand } from "~/lib/tenant-brand.server";
 import { brandTokens, EMPTY_BRAND, type TenantBrand } from "~/lib/brand";
+import { readLegalLinks } from "~/lib/legal-links.server";
 
 export function meta() {
  return [{ title: "Inspection Report - OpenInspection" }];
@@ -34,6 +35,7 @@ interface ReportData {
 }
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
+ const privacyUrl = readLegalLinks(context)?.privacyUrl ?? null;
  try {
  const api = createApi(context);
  const token = new URL(request.url).searchParams.get("token") ?? undefined;
@@ -55,14 +57,15 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
  report: reportData,
  brand,
  error: res.ok ? null : "Report not found",
+ privacyUrl,
  };
  } catch {
- return { report: null, brand: EMPTY_BRAND as TenantBrand, error: "Service unavailable" };
+ return { report: null, brand: EMPTY_BRAND as TenantBrand, error: "Service unavailable", privacyUrl };
  }
 }
 
 export default function ReportPage() {
- const { report, brand, error } = useLoaderData<typeof loader>();
+ const { report, brand, error, privacyUrl } = useLoaderData<typeof loader>();
 
  if (error || !report) {
  return (
@@ -164,6 +167,11 @@ export default function ReportPage() {
  )}
  </p>
  </section>
+ )}
+ {privacyUrl && (
+ <p className="mt-8 text-center text-xs text-ih-fg-3">
+ <a href={privacyUrl} target="_blank" rel="noreferrer" className="hover:underline">Privacy Policy</a>
+ </p>
  )}
  </div>
  </>

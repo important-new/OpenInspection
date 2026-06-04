@@ -4,6 +4,7 @@ import type { Route } from "./+types/booking";
 import { createApi } from "~/lib/api-client.server";
 import { resolveTenantBrand } from "~/lib/tenant-brand.server";
 import { brandTokens, EMPTY_BRAND, type TenantBrand } from "~/lib/brand";
+import { readLegalLinks } from "~/lib/legal-links.server";
 
 declare global {
   interface Window {
@@ -50,6 +51,7 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
     ]);
     const body = res.ok ? await res.json() : {};
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
+    const legal = readLegalLinks(context);
     return {
       profile: (Object.keys(d).length > 0 ? d : null) as InspectorProfile | null,
       error: res.ok ? null : "Inspector not found",
@@ -57,9 +59,10 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
       slug: params.slug,
       agentRefSlug,
       brand,
+      privacyUrl: legal?.privacyUrl ?? null,
     };
   } catch {
-    return { profile: null, error: "Service unavailable", tenant: "", slug: "", agentRefSlug: null, brand: EMPTY_BRAND as TenantBrand };
+    return { profile: null, error: "Service unavailable", tenant: "", slug: "", agentRefSlug: null, brand: EMPTY_BRAND as TenantBrand, privacyUrl: null };
   }
 }
 
@@ -78,7 +81,7 @@ const TIME_WINDOWS = [
 ] as const;
 
 export default function BookingPage() {
-  const { profile, error, agentRefSlug, brand, tenant } = useLoaderData<typeof loader>();
+  const { profile, error, agentRefSlug, brand, tenant, privacyUrl } = useLoaderData<typeof loader>();
   const [step, setStep] = useState(0);
 
   // Form state
@@ -499,13 +502,19 @@ export default function BookingPage() {
                   Continue
                 </button>
               ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={submitting || (needsTurnstile && !turnstileToken)}
-                  className="h-9 px-5 rounded-md bg-ih-primary text-white font-bold text-[13px] hover:bg-ih-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {submitting ? "Submitting..." : "Request Inspection"}
-                </button>
+                <div className="text-right">
+                  <p className="mb-2 text-xs text-ih-fg-3">
+                    Your information is shared with {profile.company ?? profile.name} to schedule your inspection.
+                    {privacyUrl && <> See our <a href={privacyUrl} target="_blank" rel="noreferrer" className="underline">Privacy Policy</a>.</>}
+                  </p>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting || (needsTurnstile && !turnstileToken)}
+                    className="h-9 px-5 rounded-md bg-ih-primary text-white font-bold text-[13px] hover:bg-ih-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {submitting ? "Submitting..." : "Request Inspection"}
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -514,6 +523,11 @@ export default function BookingPage() {
         <p className="text-center text-[11px] text-ih-fg-4 mt-6">
           Powered by OpenInspection
         </p>
+        {privacyUrl && (
+          <p className="mt-8 text-center text-xs text-ih-fg-3">
+            <a href={privacyUrl} target="_blank" rel="noreferrer" className="hover:underline">Privacy Policy</a>
+          </p>
+        )}
       </div>
     </div>
   );

@@ -129,6 +129,7 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
   const siteName = ctx?.branding?.siteName || "OpenInspection";
   const logoUrl = ctx?.branding?.logoUrl || "/logo.svg";
   const showSwitchWorkspace = ctx?.branding?.isSaas && ctx?.branding?.portalBaseUrl;
+  const privacyUrl = ctx?.branding?.privacyUrl ?? null;
 
   if (!open) return null;
   return (
@@ -176,6 +177,12 @@ function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void })
               <a href={`${ctx.branding.portalBaseUrl}/workspace/switch`} onClick={onClose} className="flex items-center gap-3 px-3 py-2 rounded-[6px] text-[13px] font-medium text-ih-fg-2 hover:bg-ih-bg-muted hover:text-ih-primary transition-all">
                 <svg className={IC} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                 <span>Switch workspace</span>
+              </a>
+            )}
+            {privacyUrl && (
+              <a href={privacyUrl} target="_blank" rel="noreferrer" onClick={onClose} className="flex items-center gap-3 px-3 py-2 rounded-[6px] text-[13px] font-medium text-ih-fg-2 hover:bg-ih-bg-muted hover:text-ih-primary transition-all">
+                <svg className={IC} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                <span>Privacy Policy</span>
               </a>
             )}
           </div>
@@ -240,6 +247,7 @@ export function Sidebar() {
   const userSubline = ctx?.branding?.tenantSlug || "openinspection.dev";
   const userInitials = ctx?.user?.initials || "OI";
   const showSwitchWorkspace = ctx?.branding?.isSaas && ctx?.branding?.portalBaseUrl;
+  const privacyUrl = ctx?.branding?.privacyUrl ?? null;
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -349,6 +357,20 @@ export function Sidebar() {
           >
             <svg className={IC} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
             {!collapsed && <span>Switch workspace</span>}
+          </a>
+        )}
+
+        {/* Privacy Policy — shown when PRIVACY_URL env is set */}
+        {privacyUrl && (
+          <a
+            href={privacyUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`flex items-center gap-2.5 px-[10px] py-[7px] rounded-[6px] text-[13px] font-medium text-ih-fg-2 hover:bg-ih-bg-muted hover:text-ih-primary transition-all ${collapsed ? "justify-center" : ""}`}
+            title={collapsed ? "Privacy Policy" : undefined}
+          >
+            <svg className={IC} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            {!collapsed && <span>Privacy Policy</span>}
           </a>
         )}
 
