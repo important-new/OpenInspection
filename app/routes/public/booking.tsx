@@ -71,7 +71,8 @@ const STEPS = ["Property", "Services", "Schedule", "Confirm"] as const;
 const TIME_WINDOWS = [
   { id: "morning", label: "Morning", detail: "8:00 AM - 12:00 PM" },
   { id: "afternoon", label: "Afternoon", detail: "12:00 PM - 5:00 PM" },
-  { id: "allday", label: "All Day", detail: "Flexible timing" },
+  // id must match the API timeSlot enum ('all-day', not 'allday')
+  { id: "all-day", label: "All Day", detail: "Flexible timing" },
   { id: "custom", label: "Custom", detail: "Pick a specific time" },
 ] as const;
 

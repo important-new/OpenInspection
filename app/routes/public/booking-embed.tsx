@@ -151,6 +151,9 @@ function BookingForm({ data }: { data: EmbedData }) {
           clientEmail: fd.get("clientEmail"),
           clientPhone: fd.get("clientPhone") || undefined,
           date: fd.get("date"),
+          // The embed has no time picker — the API requires a timeSlot, and
+          // 'all-day' is the honest default (server collapses it internally).
+          timeSlot: "all-day",
           turnstileToken: fd.get("cf-turnstile-response") || undefined,
         }),
       });
