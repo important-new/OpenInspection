@@ -46,7 +46,7 @@ describe('DataExportService.buildZip — photo bytes', () => {
         expect(names).toContain(`photos/tenants/${TENANT}/sub/b.jpg`);
         expect(unzipped[`photos/tenants/${TENANT}/a.jpg`]).toEqual(new Uint8Array([1, 2, 3]));
         expect(manifest.photos).toBe(2);
-        expect(manifest.photoBytesIncluded).toBe(2);
+        expect(manifest.photosEmbedded).toBe(2);
 
         // manifest records inclusion status
         const man = JSON.parse(strFromU8(unzipped['photos-manifest.json'])) as { key: string; included: boolean }[];
@@ -68,7 +68,7 @@ describe('DataExportService.buildZip — photo bytes', () => {
         expect(Object.keys(unzipped)).toContain(`photos/tenants/${TENANT}/small.jpg`);
 
         expect(manifest.photos).toBe(2);
-        expect(manifest.photoBytesIncluded).toBe(1);
+        expect(manifest.photosEmbedded).toBe(1);
         const man = JSON.parse(strFromU8(unzipped['photos-manifest.json'])) as { key: string; included: boolean }[];
         const big = man.find(p => p.key.endsWith('big.jpg'))!;
         const small = man.find(p => p.key.endsWith('small.jpg'))!;

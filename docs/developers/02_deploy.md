@@ -100,13 +100,11 @@ Configure it once per environment:
 #   Action: "Transition to Infrequent Access", Age: 365 days, scope: whole bucket.
 
 # Or via Wrangler:
-wrangler r2 bucket lifecycle add PHOTOS \
-  --name ia-after-365d \
-  --transition-to InfrequentAccess \
-  --transition-days 365
+wrangler r2 bucket lifecycle add PHOTOS ia-after-365d \
+  --ia-transition-days 365
 ```
 
-> SaaS runs the same rule on the saas `PHOTOS` bucket. Self-hosters who do not want Infrequent Access can simply skip this step — it is a cost optimization, not a correctness requirement.
+> A hosted/managed deployment runs the same rule on its own `PHOTOS` bucket. Self-hosters who do not want Infrequent Access can simply skip this step — it is a cost optimization, not a correctness requirement.
 
 ### Tenant offboarding (export then purge)
 

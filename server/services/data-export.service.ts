@@ -8,7 +8,7 @@ export interface ExportManifest {
     rows:    number;
     photos:  number;
     /** Number of photos whose bytes were embedded in the ZIP (rest are manifest-only). */
-    photoBytesIncluded: number;
+    photosEmbedded: number;
 }
 
 export interface DataExportOptions {
@@ -74,7 +74,7 @@ export class DataExportService {
                 logger.error('Photo fetch failed during export', { tenantId, key: p.key }, err instanceof Error ? err : undefined);
             }
         }
-        const photoBytesIncluded = photos.filter(p => p.included).length;
+        const photosEmbedded = photos.filter(p => p.included).length;
 
         const enc = new TextEncoder();
         const zipped = zipSync({
@@ -86,11 +86,11 @@ export class DataExportService {
             'README.txt':            enc.encode(
                 `Tenant ${tenantId} data export. Generated ${new Date().toISOString()}.\n` +
                 `${insps.length} inspections, ${tpls.length} templates, ${photos.length} photos ` +
-                `(${photoBytesIncluded} with embedded bytes under photos/, the rest listed in ` +
+                `(${photosEmbedded} with embedded bytes under photos/, the rest listed in ` +
                 `photos-manifest.json with included=false).\n`
             ),
         });
-        const manifest: ExportManifest = { rows: insps.length, photos: photos.length, photoBytesIncluded };
+        const manifest: ExportManifest = { rows: insps.length, photos: photos.length, photosEmbedded };
         logger.info('Data export built', { tenantId, ...manifest, photoBytes });
         return { buffer: zipped, manifest };
     }
