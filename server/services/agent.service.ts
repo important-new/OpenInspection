@@ -336,7 +336,12 @@ export class AgentService {
      * surface every tenant that already had this email as a contact, return
      * the user id. Conflict (existing email) -> 409 with loginUrl hint.
      */
-    async signup(input: { email: string; password: string; name: string }): Promise<{ userId: string; email: string }> {
+    async signup(input: {
+        email: string;
+        password: string;
+        name: string;
+        termsAccepted?: { at: string; ip?: string; country?: string; termsUrl?: string; privacyUrl?: string };
+    }): Promise<{ userId: string; email: string }> {
         const db = this.getDrizzle();
         const email = normalizeEmail(input.email);
 
@@ -359,6 +364,7 @@ export class AgentService {
             name: input.name,
             role: 'agent',
             createdAt: new Date(),
+            termsAccepted: input.termsAccepted ?? null,
         });
 
         await this.autoLinkSameEmail(id, email);

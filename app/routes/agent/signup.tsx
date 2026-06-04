@@ -1,4 +1,4 @@
-import { Form, Link, useActionData, useNavigation } from "react-router";
+import { Form, Link, useActionData, useLoaderData, useNavigation } from "react-router";
 import { useForm } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/signup";
@@ -7,6 +7,20 @@ import { agentSignupSchema } from "~/lib/forms/auth.schema";
 
 export function meta() {
   return [{ title: "Become a partner agent - OpenInspection" }];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Loader                                                             */
+/* ------------------------------------------------------------------ */
+
+export async function loader({ context }: Route.LoaderArgs) {
+  const env = context.cloudflare?.env as
+    | { TERMS_URL?: string; PRIVACY_URL?: string }
+    | undefined;
+  const termsUrl = env?.TERMS_URL?.trim() || undefined;
+  const privacyUrl = env?.PRIVACY_URL?.trim() || undefined;
+  const legal = termsUrl || privacyUrl ? { termsUrl, privacyUrl } : null;
+  return { legal };
 }
 
 /* ------------------------------------------------------------------ */
@@ -27,6 +41,7 @@ export async function action({ request, context }: Route.ActionArgs) {
     email,
     password,
     ...(turnstileTokenRaw ? { turnstileToken: String(turnstileTokenRaw) } : {}),
+    termsAccepted: fd.get("termsAccepted") === "on",
   };
 
   const api = createApi(context);
@@ -74,6 +89,7 @@ const VALUE_PROPS = [
 /* ------------------------------------------------------------------ */
 
 export default function AgentSignupPage() {
+  const { legal } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
@@ -208,6 +224,23 @@ export default function AgentSignupPage() {
                 )}
               </div>
             </div>
+
+            {legal && (
+              <label className="flex items-start gap-2 text-sm text-ih-fg-2 mt-5">
+                <input type="checkbox" name="termsAccepted" required className="mt-0.5" />
+                <span>
+                  I agree to the
+                  {legal.termsUrl && (
+                    <>{" "}<a href={legal.termsUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Terms of Service</a></>
+                  )}
+                  {legal.termsUrl && legal.privacyUrl && <> and acknowledge the</>}
+                  {legal.privacyUrl && (
+                    <>{" "}<a href={legal.privacyUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Privacy Policy</a></>
+                  )}
+                  .
+                </span>
+              </label>
+            )}
 
             <button
               type="submit"
