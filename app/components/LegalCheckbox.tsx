@@ -3,10 +3,7 @@
  * Renders only when at least one of termsUrl / privacyUrl is configured.
  */
 
-interface LegalLinks {
-  termsUrl?: string;
-  privacyUrl?: string;
-}
+import type { LegalLinks } from "~/lib/legal-links.server";
 
 export function LegalCheckbox({ legal }: { legal: LegalLinks }) {
   return (
