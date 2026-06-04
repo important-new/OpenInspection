@@ -4,6 +4,8 @@ import { parseWithZod } from "@conform-to/zod/v4";
 import type { Route } from "./+types/invite-accept";
 import { createApi } from "~/lib/api-client.server";
 import { agentInviteAcceptSchema } from "~/lib/forms/auth.schema";
+import { readLegalLinks } from "~/lib/legal-links.server";
+import { LegalCheckbox } from "~/components/LegalCheckbox";
 
 export function meta() {
   return [{ title: "You're invited - OpenInspection" }];
@@ -28,12 +30,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
 
-  const env = context.cloudflare?.env as
-    | { TERMS_URL?: string; PRIVACY_URL?: string }
-    | undefined;
-  const termsUrl = env?.TERMS_URL?.trim() || undefined;
-  const privacyUrl = env?.PRIVACY_URL?.trim() || undefined;
-  const legal = termsUrl || privacyUrl ? { termsUrl, privacyUrl } : null;
+  const legal = readLegalLinks(context);
 
   if (!token) {
     return { invite: null, error: "no-token" as const, legal };
@@ -283,22 +280,7 @@ export default function AgentInviteAcceptPage() {
             </div>
           </div>
 
-          {legal && (
-            <label className="flex items-start gap-2 text-sm text-ih-fg-2 mt-5">
-              <input type="checkbox" name="termsAccepted" required className="mt-0.5" />
-              <span>
-                I agree to the
-                {legal.termsUrl && (
-                  <>{" "}<a href={legal.termsUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Terms of Service</a></>
-                )}
-                {legal.termsUrl && legal.privacyUrl && <> and acknowledge the</>}
-                {legal.privacyUrl && (
-                  <>{" "}<a href={legal.privacyUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Privacy Policy</a></>
-                )}
-                .
-              </span>
-            </label>
-          )}
+          {legal && <LegalCheckbox legal={legal} />}
 
           <button
             type="submit"
