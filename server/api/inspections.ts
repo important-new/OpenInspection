@@ -2815,7 +2815,7 @@ export const inspectionsRoutes = createApiRouter()
         }
 
         const db = drizzle(c.env.DB);
-        const data = await listPendingConflicts(db, id);
+        const data = await listPendingConflicts(db, tenantId, id);
         return c.json({ success: true as const, data }, 200);
     })
     // Typed-Hono dead-routes cleanup Task 13 — clear adjudicated conflicts.
@@ -2834,7 +2834,7 @@ export const inspectionsRoutes = createApiRouter()
         }
 
         const db = drizzle(c.env.DB);
-        const data = await resolveConflicts(db, id, resolutions);
+        const data = await resolveConflicts(db, tenantId, id, resolutions);
         auditFromContext(c, 'inspection.conflicts_resolved', 'inspection', {
             entityId: id, metadata: { resolved: data.resolved, by: userId },
         });

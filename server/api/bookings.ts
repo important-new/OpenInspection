@@ -86,6 +86,9 @@ const getAvailabilityRoute = createRoute(withMcpMetadata({
     request: {
         params: z.object({ inspectorId: z.string().uuid().describe('TODO describe inspectorId field for the OpenInspection MCP integration') }).describe('TODO describe params field for the OpenInspection MCP integration'),
         query: z.object({
+            // A-17 — the tenant slug is authoritative (B-16 pattern): this public
+            // endpoint is not slug-routed, so context resolution never applies.
+            tenant: z.string().min(1).openapi({ example: 'acme-inspections' }).describe('Tenant slug from the booking page URL; resolved server-side to the tenant id.'),
             start: z.string().optional().describe('TODO describe start field for the OpenInspection MCP integration'),
             end: z.string().optional().describe('TODO describe end field for the OpenInspection MCP integration'),
         }).describe('TODO describe query field for the OpenInspection MCP integration'),
@@ -315,11 +318,21 @@ export const bookingsRoutes = createApiRouter()
         }, 200);
     })
     .openapi(getAvailabilityRoute, async (c) => {
-        const tenantId = c.get('tenantId') || c.get('requestedTenantSlug');
-        if (!tenantId) throw Errors.Forbidden('Tenant context missing.');
+        // A-17 — public read endpoint: rate-limit like the other public surfaces.
+        await checkRateLimit(c, 'availability');
 
         const { inspectorId } = c.req.valid('param');
-        const { start, end } = c.req.valid('query');
+        const { start, end, tenant } = c.req.valid('query');
+
+        // A-17 — slug-authoritative tenant resolution (B-16 pattern). The old
+        // context fallback (tenantId || requestedTenantSlug) pointed at the fixed
+        // tenant in standalone and at NOTHING in saas mode (this path is not
+        // slug-routed), so it 403'd there. No context fallback.
+        const tenantRow = await drizzle(c.env.DB)
+            .select({ id: tenants.id })
+            .from(tenants).where(eq(tenants.slug, tenant)).get();
+        if (!tenantRow) throw Errors.NotFound('Tenant not found.');
+        const tenantId = tenantRow.id;
 
         const startDate = start || new Date().toISOString().split('T')[0];
         const endDate = end || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
