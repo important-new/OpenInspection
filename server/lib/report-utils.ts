@@ -11,6 +11,8 @@ export interface RatingLevel {
   severity: 'good' | 'marginal' | 'significant' | 'minor';
   isDefect: boolean;
   description?: string;
+  /** B-18: Defect/Monitor-style levels pause auto-advance so the inspector can describe the finding. */
+  pausesAdvance?: boolean;
 }
 
 export interface ReportStats {
