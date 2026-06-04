@@ -1,8 +1,10 @@
 import { useState } from "react";
-import type { PresenceUser } from "~/hooks/usePresence";
+import type { PresenceUser, PresenceStatus } from "~/hooks/usePresence";
 
 interface FooterBarProps {
   connected?: boolean;
+  /** FE-5 — distinguishes "still connecting" from "lost an open connection". */
+  status?: PresenceStatus;
   roster?: PresenceUser[];
 }
 
@@ -21,7 +23,8 @@ const SHORTCUTS = [
   { keys: ["?"], desc: "This help" },
 ];
 
-export function FooterBar({ connected = false, roster = [] }: FooterBarProps) {
+export function FooterBar({ connected = false, status, roster = [] }: FooterBarProps) {
+  const effectiveStatus: PresenceStatus = status ?? (connected ? "connected" : "connecting");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   return (
@@ -74,10 +77,21 @@ export function FooterBar({ connected = false, roster = [] }: FooterBarProps) {
         </div>
       )}
 
-      {/* Sync status */}
+      {/* Sync status — FE-5: a fresh page shows neutral "Connecting…", not a
+          scary "Disconnected"; a lost connection shows amber "Reconnecting…". */}
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-ih-border font-bold text-[10px]">
-        <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-ih-ok-bg0' : 'bg-ih-fg-4'}`} />
-        {connected ? 'Connected' : 'Disconnected'}
+        <span className={`w-1.5 h-1.5 rounded-full ${
+          effectiveStatus === 'connected'
+            ? 'bg-ih-ok-bg0'
+            : effectiveStatus === 'reconnecting'
+            ? 'bg-ih-watch-bg0'
+            : 'bg-ih-fg-4 animate-pulse'
+        }`} />
+        {effectiveStatus === 'connected'
+          ? 'Connected'
+          : effectiveStatus === 'reconnecting'
+          ? 'Reconnecting…'
+          : 'Connecting…'}
       </span>
     </div>
   );

@@ -409,19 +409,29 @@ export function useFindings(
       const sid = sectionIdForItem(itemId);
       if (!sid) return;
       const key = fKey(sid, itemId);
-      setResults((prev) => {
-        const existing =
-          (prev[key] as Record<string, unknown>) || {};
-        const photos = [
-          ...((existing.photos as Array<{ key: string }>) || []),
-          { key: photoKey },
-        ];
-        const updated = { ...existing, photos };
-        return { ...prev, [key]: updated, [itemId]: updated };
-      });
+      // FE-2: persist immediately. The previous version only updated local
+      // state + dirty — the photos array never reached the server unless an
+      // unrelated save-all happened to fire later, so "1 photo" silently
+      // vanished on reload (the R2 object survived, orphaned).
+      const existing =
+        (results[key] as Record<string, unknown>) ||
+        (results[itemId] as Record<string, unknown>) ||
+        {};
+      const photos = [
+        ...((existing.photos as Array<{ key: string }>) || []),
+        { key: photoKey },
+      ];
+      const updated = { ...existing, photos };
+      const next = { ...results, [key]: updated, [itemId]: updated };
+      setResults(() => next);
       setDirty(true);
+      setSaveStatus("saving");
+      fetcher.submit(
+        { intent: "save-all", data: JSON.stringify(next) },
+        { method: "POST" },
+      );
     },
-    [sectionIdForItem, setResults, setDirty],
+    [results, sectionIdForItem, setResults, fetcher, setDirty, setSaveStatus],
   );
 
   const getPhotoCount = useCallback(
@@ -431,6 +441,69 @@ export function useFindings(
       return Array.isArray(photos) ? photos.length : 0;
     },
     [getResult],
+  );
+
+  /* ---------------------------------------------------------------- */
+  /*  Custom defects (B-20)                                            */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Custom defects live under `result.customComments.defects` — the shape
+   * the report renderer + dashboard stats already consume. There is no
+   * per-field PATCH for them, so persistence rides the save-all intent with
+   * the freshly-computed map (NOT the closure's `results`, which would race).
+   */
+  const addCustomDefect = useCallback(
+    (sectionId: string, itemId: string, defect: CustomCommentEntry) => {
+      const key = fKey(sectionId, itemId);
+      const existing =
+        (results[key] as Record<string, unknown>) ||
+        (results[itemId] as Record<string, unknown>) ||
+        {};
+      const cc = (existing.customComments ?? {}) as { defects?: CustomCommentEntry[] };
+      const updated = {
+        ...existing,
+        customComments: { ...cc, defects: [...(cc.defects ?? []), defect] },
+      };
+      const next = { ...results, [key]: updated, [itemId]: updated };
+      setResults(() => next);
+      setDirty(true);
+      setSaveStatus("saving");
+      fetcher.submit(
+        { intent: "save-all", data: JSON.stringify(next) },
+        { method: "POST" },
+      );
+    },
+    [results, setResults, fetcher, setDirty, setSaveStatus],
+  );
+
+  const toggleCustomDefect = useCallback(
+    (sectionId: string, itemId: string, customId: string, included: boolean) => {
+      const key = fKey(sectionId, itemId);
+      const existing =
+        (results[key] as Record<string, unknown>) ||
+        (results[itemId] as Record<string, unknown>) ||
+        {};
+      const cc = (existing.customComments ?? {}) as { defects?: CustomCommentEntry[] };
+      const updated = {
+        ...existing,
+        customComments: {
+          ...cc,
+          defects: (cc.defects ?? []).map((d) =>
+            d.id === customId ? { ...d, included } : d,
+          ),
+        },
+      };
+      const next = { ...results, [key]: updated, [itemId]: updated };
+      setResults(() => next);
+      setDirty(true);
+      setSaveStatus("saving");
+      fetcher.submit(
+        { intent: "save-all", data: JSON.stringify(next) },
+        { method: "POST" },
+      );
+    },
+    [results, setResults, fetcher, setDirty, setSaveStatus],
   );
 
   return {
@@ -446,6 +519,8 @@ export function useFindings(
     batchSetRating,
     addPhotoToItem,
     getPhotoCount,
+    addCustomDefect,
+    toggleCustomDefect,
     debounceSave,
     saveNow,
   };

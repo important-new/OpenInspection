@@ -10,39 +10,42 @@ import {
  DEFECT_DEADLINE_LABELS,
  DEFECT_TIMEFRAME_LABELS,
 } from "../../lib/defect-fields";
+import { findRatingLevel, type EditorRatingLevel } from "../../lib/rating-levels";
+import { findRatingContradictions } from "../../lib/contradiction-lint";
+import { filterCannedEntries, type CustomDefect, type CustomDefectCategory } from "../../lib/custom-defects";
 
-const RATINGS = [
- {
- id: "SAT",
- label: "Sat",
- full: "Satisfactory",
- active: "bg-emerald-100 text-ih-ok-fg ring-2 ring-emerald-400 dark:bg-emerald-900/30",
+/* C-14a — rating buttons render from the inspection's rating-system levels
+ * (full words + always-on semantic colour). The hardcoded SAT/MON/DEF row
+ * wrote ids the rest of the editor (bucketForRatingId, getRatingColor,
+ * pausesAdvance lookup) could never match. This fallback only covers the
+ * no-levels edge and mirrors the server's fallback ids. */
+const FALLBACK_LEVELS: EditorRatingLevel[] = [
+ { id: "Satisfactory", label: "Satisfactory", abbreviation: "Sat", severity: "good" },
+ { id: "Monitor", label: "Monitor", abbreviation: "Mon", severity: "marginal", pausesAdvance: true },
+ { id: "Defect", label: "Defect", abbreviation: "Def", severity: "significant", isDefect: true, pausesAdvance: true },
+ { id: "Not Inspected", label: "Not Inspected", abbreviation: "N/I", severity: "minor" },
+ { id: "Not Present", label: "Not Present", abbreviation: "N/P", severity: "minor" },
+];
+
+/* Solid active fills — readable in direct sunlight (field eval FE/C-14a). */
+const SEVERITY_STYLES: Record<string, { active: string; idle: string }> = {
+ good: {
+ active: "bg-emerald-600 text-white ring-2 ring-emerald-300 dark:ring-emerald-700",
+ idle: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-300",
  },
- {
- id: "MON",
- label: "Mon",
- full: "Monitor",
- active: "bg-amber-100 text-ih-watch-fg ring-2 ring-amber-400 dark:bg-amber-900/30",
+ marginal: {
+ active: "bg-amber-500 text-white ring-2 ring-amber-300 dark:ring-amber-700",
+ idle: "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300",
  },
- {
- id: "DEF",
- label: "Def",
- full: "Defect",
- active: "bg-rose-100 text-ih-bad-fg ring-2 ring-rose-400 dark:bg-rose-900/30",
+ significant: {
+ active: "bg-rose-600 text-white ring-2 ring-rose-300 dark:ring-rose-700",
+ idle: "bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-300",
  },
- {
- id: "NI",
- label: "N/I",
- full: "Not Inspected",
- active: "bg-slate-200 text-slate-700 ring-2 ring-slate-400 dark:bg-slate-600/30 dark:text-slate-300",
+ minor: {
+ active: "bg-slate-600 text-white ring-2 ring-slate-300 dark:ring-slate-500",
+ idle: "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700/40 dark:text-slate-300",
  },
- {
- id: "NP",
- label: "N/P",
- full: "Not Present",
- active: "bg-slate-200 text-slate-700 ring-2 ring-slate-400 dark:bg-slate-600/30 dark:text-slate-300",
- },
-] as const;
+};
 
 /* ------------------------------------------------------------------ */
 /* Canned comment types */
@@ -87,10 +90,18 @@ interface ItemEditorProps {
  item: { id: string; label: string; type: string; tabs?: unknown; attributes?: ItemAttribute[] } | undefined;
  sectionTitle: string | undefined;
  result: Record<string, unknown>;
+ /** Rating-system levels for this inspection; falls back to the standard five. */
+ ratingLevels?: EditorRatingLevel[];
  onRating: (rating: string) => void;
  onNotes: (notes: string) => void;
  onNotesBlur: (notes: string) => void;
  onToggleCanned?: (tabName: string, cannedId: string, included: boolean) => void;
+ /** FE-2 — opens the photo picker (the button was previously unwired). */
+ onAddPhoto?: () => void;
+ photoUploading?: boolean;
+ /** B-20 — add a field-authored defect into result.customComments.defects. */
+ onAddCustomDefect?: (input: { title: string; comment: string; category: CustomDefectCategory }) => void;
+ onToggleCustomDefect?: (customId: string, included: boolean) => void;
  defectStates?: Map<string, DefectFieldsValue>;
  locationSuggestions?: string[];
  onDefectFields?: (cannedId: string, patch: Partial<DefectFieldsValue>) => void;
@@ -109,10 +120,15 @@ export function ItemEditor({
  item,
  sectionTitle,
  result,
+ ratingLevels,
  onRating,
  onNotes,
  onNotesBlur,
  onToggleCanned,
+ onAddPhoto,
+ photoUploading,
+ onAddCustomDefect,
+ onToggleCustomDefect,
  defectStates,
  locationSuggestions,
  onDefectFields,
@@ -123,6 +139,11 @@ export function ItemEditor({
  tagChipRow,
 }: ItemEditorProps) {
  const [activeTab, setActiveTab] = useState<CannedTabId>("information");
+ const [defectQuery, setDefectQuery] = useState("");
+ const [customFormOpen, setCustomFormOpen] = useState(false);
+ const [customTitle, setCustomTitle] = useState("");
+ const [customComment, setCustomComment] = useState("");
+ const [customCategory, setCustomCategory] = useState<CustomDefectCategory>("recommendation");
 
  if (!item) return null;
 
@@ -152,8 +173,47 @@ export function ItemEditor({
  return included;
  };
 
- const currentTabEntries = (tabs[activeTab] || []) as Array<CannedInfoComment | CannedDefect>;
+ const rawTabEntries = (tabs[activeTab] || []) as Array<CannedInfoComment | CannedDefect>;
+ // B-20: the Defects tab is searchable — canned libraries grow long and the
+ // inspector is hunting for "water stain" with one thumb on a roof.
+ const currentTabEntries =
+ activeTab === "defects" && defectQuery.trim()
+ ? filterCannedEntries(rawTabEntries, defectQuery)
+ : rawTabEntries;
  const includedSet = getIncludedSet(activeTab);
+
+ const levels = ratingLevels && ratingLevels.length > 0 ? ratingLevels : FALLBACK_LEVELS;
+ // Normalised lookup: legacy stored values ('DEF') resolve onto the system's
+ // level ('Defect'), so highlights survive the id-scheme split (B-18).
+ const activeLevel = findRatingLevel(levels, (result.rating as string) || null);
+
+ // C-14b — included "all clear" narratives that contradict a Defect/Monitor
+ // rating (e.g. the pre-checked "no visible defects" Condition line).
+ const lintEntries = ([
+ ...((tabs.information || []).map((e) => ({ ...e, tab: "information" as const }))),
+ ...((tabs.limitations || []).map((e) => ({ ...e, tab: "limitations" as const }))),
+ ]);
+ const lintIncluded = new Set([
+ ...getIncludedSet("information"),
+ ...getIncludedSet("limitations"),
+ ]);
+ const contradictions = hasTabs
+ ? findRatingContradictions({ level: activeLevel, entries: lintEntries, includedIds: lintIncluded })
+  .map((hit) => hit as typeof hit & { tab: "information" | "limitations" })
+ : [];
+
+ // B-20 — field-authored custom defects already persisted on this item.
+ const customDefects = (((result.customComments as { defects?: CustomDefect[] } | undefined)?.defects) ?? []);
+
+ const submitCustomDefect = () => {
+ const title = customTitle.trim();
+ if (!title || !onAddCustomDefect) return;
+ onAddCustomDefect({ title, comment: customComment.trim(), category: customCategory });
+ setCustomTitle("");
+ setCustomComment("");
+ setCustomCategory("recommendation");
+ setCustomFormOpen(false);
+ };
 
  // Count included per tab for badge
  const countIncluded = (tabName: CannedTabId): number => {
@@ -197,24 +257,55 @@ export function ItemEditor({
  </div>
  )}
 
- {/* Rating buttons */}
+ {/* Rating buttons — driven by the rating system's levels (C-14a):
+ full words on ≥sm, abbreviation on narrow, always-on semantic colour. */}
  {item.type === "rich" && (
  <div className="flex gap-2">
- {RATINGS.map((r, idx) => (
+ {levels.map((r, idx) => {
+ const sev = SEVERITY_STYLES[r.severity ?? "minor"] ?? SEVERITY_STYLES.minor;
+ const isActive = activeLevel?.id === r.id;
+ const full = r.label ?? r.name ?? r.id;
+ const abbr = r.abbreviation ?? full;
+ return (
  <button
  key={r.id}
  onClick={() => onRating(r.id)}
- title={`${r.full} (${idx + 1})`}
- className={`flex-1 h-[52px] rounded-lg text-[13px] font-bold transition-all ${
- result.rating === r.id
- ? r.active
- : "bg-ih-bg-muted text-ih-fg-3 hover:bg-slate-200 dark:hover:bg-slate-600"
+ title={`${full} (${idx + 1})`}
+ aria-pressed={isActive}
+ className={`flex-1 min-w-0 h-[52px] rounded-lg text-[13px] font-bold transition-all ${
+ isActive ? sev.active : sev.idle
  }`}
  >
- {r.label}
- <span className="block text-[9px] font-mono opacity-50 mt-0.5">{idx + 1}</span>
+ <span className="hidden sm:inline truncate px-1">{full}</span>
+ <span className="sm:hidden">{abbr}</span>
+ <span className="block text-[9px] font-mono opacity-60 mt-0.5">{idx + 1}</span>
  </button>
+ );
+ })}
+ </div>
+ )}
+
+ {/* C-14b — contradiction lint: the rating says defect/monitor while an
+ included canned narrative still claims "no visible defects". */}
+ {contradictions.length > 0 && (
+ <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-2">
+ <p className="text-[12px] font-bold text-amber-800 dark:text-amber-200">
+ Rating contradicts {contradictions.length === 1 ? "a checked comment" : `${contradictions.length} checked comments`}
+ </p>
+ <ul className="mt-1 space-y-1">
+ {contradictions.map((hit) => (
+ <li key={hit.id} className="flex items-center justify-between gap-2 text-[12px] text-amber-800 dark:text-amber-200">
+ <span className="truncate">“{hit.title}” still says all-clear</span>
+ <button
+ type="button"
+ onClick={() => onToggleCanned?.(hit.tab, hit.id, false)}
+ className="shrink-0 text-[11px] font-bold underline decoration-amber-400 hover:text-amber-900 dark:hover:text-amber-100"
+ >
+ Uncheck it
+ </button>
+ </li>
  ))}
+ </ul>
  </div>
  )}
 
@@ -255,10 +346,25 @@ export function ItemEditor({
  />
  </div>
 
+ {/* B-20 — searchable defect library */}
+ {activeTab === "defects" && rawTabEntries.length > 0 && (
+ <input
+ value={defectQuery}
+ onChange={(e) => setDefectQuery(e.target.value)}
+ placeholder="Search defects…"
+ aria-label="Search defects"
+ className="w-full h-9 px-3 mb-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus focus:border-indigo-500 outline-none placeholder:text-ih-fg-4"
+ />
+ )}
+
  {/* Tab content: list of canned comments with toggles */}
  <div className="space-y-1.5">
  {currentTabEntries.length === 0 ? (
- <p className="text-[13px] text-ih-fg-3 text-center py-8">No pre-built comments for this tab.</p>
+ <p className="text-[13px] text-ih-fg-3 text-center py-8">
+ {activeTab === "defects" && defectQuery.trim()
+ ? <>No defects match “{defectQuery.trim()}” — add it as a custom defect below.</>
+ : "No pre-built comments for this tab."}
+ </p>
  ) : (
  currentTabEntries.map((entry) => {
  const isIncluded = includedSet.has(entry.id);
@@ -343,6 +449,112 @@ export function ItemEditor({
  );
  })
  )}
+
+ {/* B-20 — field-authored custom defects + inline add form */}
+ {activeTab === "defects" && (
+ <>
+ {customDefects.map((cd) => (
+ <label
+ key={cd.id}
+ className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer transition-colors ${
+ cd.included !== false
+ ? "bg-ih-primary-tint ring-1 ring-indigo-200 dark:ring-indigo-700"
+ : "bg-ih-bg-app/50 hover:bg-slate-100 dark:hover:bg-slate-800"
+ }`}
+ >
+ <input
+ type="checkbox"
+ checked={cd.included !== false}
+ onChange={() => onToggleCustomDefect?.(cd.id, !(cd.included !== false))}
+ className="mt-0.5 w-4 h-4 rounded border-ih-border-strong text-indigo-600 focus:ring-indigo-500/30"
+ />
+ <div className="flex-1 min-w-0">
+ <div className="text-[12px] font-bold text-ih-fg-2">
+ {cd.title}
+ <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+ cd.category === "safety"
+ ? "bg-rose-100 text-ih-bad-fg dark:bg-rose-900/30"
+ : cd.category === "recommendation"
+ ? "bg-amber-100 text-ih-watch-fg dark:bg-amber-900/30"
+ : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+ }`}>
+ {cd.category}
+ </span>
+ <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+ custom
+ </span>
+ </div>
+ {cd.comment && (
+ <p className="text-[12px] mt-0.5 leading-relaxed text-ih-fg-3">{cd.comment}</p>
+ )}
+ </div>
+ </label>
+ ))}
+
+ {onAddCustomDefect && (
+ customFormOpen ? (
+ <div className="p-2.5 rounded-lg border border-dashed border-ih-border-strong space-y-2">
+ <input
+ value={customTitle}
+ onChange={(e) => setCustomTitle(e.target.value)}
+ placeholder="Defect title — e.g. Water stain at sheathing"
+ aria-label="Custom defect title"
+ autoFocus
+ className="w-full h-9 px-3 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+ />
+ <textarea
+ value={customComment}
+ onChange={(e) => setCustomComment(e.target.value)}
+ placeholder="Narrative for the report (optional)"
+ aria-label="Custom defect narrative"
+ className="w-full h-16 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+ />
+ <div className="flex items-center gap-2">
+ <select
+ value={customCategory}
+ onChange={(e) => setCustomCategory(e.target.value as CustomDefectCategory)}
+ aria-label="Custom defect category"
+ className="h-8 px-2 rounded-lg border border-ih-border bg-ih-bg-card text-[12px] outline-none"
+ >
+ <option value="safety">Safety</option>
+ <option value="recommendation">Recommendation</option>
+ <option value="maintenance">Maintenance</option>
+ </select>
+ <span className="flex-1" />
+ <button
+ type="button"
+ onClick={() => setCustomFormOpen(false)}
+ className="h-8 px-3 rounded-lg text-[12px] font-medium text-ih-fg-3 hover:bg-ih-bg-muted"
+ >
+ Cancel
+ </button>
+ <button
+ type="button"
+ onClick={submitCustomDefect}
+ disabled={!customTitle.trim()}
+ className="h-8 px-3 rounded-lg bg-ih-primary text-white text-[12px] font-bold hover:bg-ih-primary-600 disabled:opacity-40"
+ >
+ Add defect
+ </button>
+ </div>
+ </div>
+ ) : (
+ <button
+ type="button"
+ onClick={() => {
+ if (defectQuery.trim() && currentTabEntries.length === 0) {
+ setCustomTitle(defectQuery.trim());
+ }
+ setCustomFormOpen(true);
+ }}
+ className="w-full p-2.5 rounded-lg border border-dashed border-ih-border-strong text-[12px] font-bold text-ih-fg-3 hover:border-indigo-400 hover:text-indigo-600 transition-colors text-left"
+ >
+ + Add custom defect
+ </button>
+ )
+ )}
+ </>
+ )}
  </div>
  </div>
  )}
@@ -363,13 +575,30 @@ export function ItemEditor({
  )}
  </div>
  <div className="flex items-center gap-2">
- <button className="w-16 h-16 rounded-lg border-2 border-dashed border-ih-border flex items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+ {/* FE-2 — this button shipped with no onClick at all (dead in the
+ field). It now opens the route's hidden file input. */}
+ <button
+ type="button"
+ onClick={onAddPhoto}
+ disabled={photoUploading || !onAddPhoto}
+ aria-label="Add photo"
+ className="w-16 h-16 rounded-lg border-2 border-dashed border-ih-border flex items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors disabled:opacity-50"
+ >
+ {photoUploading ? (
+ <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+ <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+ <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+ </svg>
+ ) : (
  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
  </svg>
+ )}
  </button>
- <span className="text-[11px] text-slate-400">
- {((result.photos as unknown[]) || []).length === 0
+ <span className="text-[12px] text-slate-400">
+ {photoUploading
+ ? "Uploading…"
+ : ((result.photos as unknown[]) || []).length === 0
  ? "No photos yet"
  : `${((result.photos as unknown[]) || []).length} photo${((result.photos as unknown[]) || []).length === 1 ? "" : "s"}`}
  </span>

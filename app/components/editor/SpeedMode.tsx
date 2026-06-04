@@ -24,27 +24,32 @@ interface SpeedModeProps {
   onNextItem?: () => void;
   onPrevItem?: () => void;
   onJumpTo?: (sectionId: string, itemId: string) => void;
-  ratingLevels?: Array<{ id: string; label: string }>;
+  ratingLevels?: Array<{ id: string; label?: string; name?: string; abbreviation?: string; severity?: string }>;
   sections?: JumpToSection[];
 }
 
-const SPEED_RATINGS = [
-  { id: "SAT", label: "Satisfactory", color: "emerald" },
-  { id: "MON", label: "Monitor", color: "amber" },
-  { id: "DEF", label: "Defect", color: "rose" },
-  { id: "NI", label: "N/I", color: "slate" },
-  { id: "NP", label: "N/P", color: "slate" },
-] as const;
+/* B-18 — the old hardcoded SAT/MON/DEF buttons emitted ids the route's
+ * `ratingLevels.findIndex(l => l.id === rating)` could never match, so
+ * TAPPING a rating in Speed Mode was a silent no-op (only keyboard worked).
+ * Buttons now render from the inspection's actual levels; this fallback
+ * mirrors the server's fallback ids for the no-levels edge. */
+const SPEED_FALLBACK_LEVELS: Array<{ id: string; label?: string; name?: string; abbreviation?: string; severity?: string }> = [
+  { id: "Satisfactory", label: "Satisfactory", severity: "good" },
+  { id: "Monitor", label: "Monitor", severity: "marginal" },
+  { id: "Defect", label: "Defect", severity: "significant" },
+  { id: "Not Inspected", label: "N/I", severity: "minor" },
+  { id: "Not Present", label: "N/P", severity: "minor" },
+];
 
-function ratingButtonClass(ratingId: string, currentRating: string | undefined): string {
-  if (currentRating !== ratingId) {
+function ratingButtonClass(severity: string | undefined, isActive: boolean): string {
+  if (!isActive) {
     return "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700";
   }
-  switch (ratingId) {
-    case "SAT": return "bg-emerald-600 text-white ring-4 ring-emerald-400/50";
-    case "MON": return "bg-amber-600 text-white ring-4 ring-amber-400/50";
-    case "DEF": return "bg-rose-600 text-white ring-4 ring-rose-400/50";
-    default:    return "bg-slate-600 text-white ring-4 ring-slate-400/50";
+  switch (severity) {
+    case "good":        return "bg-emerald-600 text-white ring-4 ring-emerald-400/50";
+    case "marginal":    return "bg-amber-600 text-white ring-4 ring-amber-400/50";
+    case "significant": return "bg-rose-600 text-white ring-4 ring-rose-400/50";
+    default:            return "bg-slate-600 text-white ring-4 ring-slate-400/50";
   }
 }
 
@@ -80,13 +85,14 @@ export function SpeedMode({
 
   if (!item) return null;
 
+  const levels = ratingLevels && ratingLevels.length > 0 ? ratingLevels : SPEED_FALLBACK_LEVELS;
+
   const handleRatingWithUndo = (newRating: string) => {
     const prevRating: string | null = (result?.rating as string | null) ?? null;
     onRating(newRating);
 
     const ratingLabel =
-      ratingLevels?.find((l) => l.id === newRating)?.label
-      ?? SPEED_RATINGS.find((r) => r.id === newRating)?.label
+      levels.find((l) => l.id === newRating)?.label
       ?? newRating;
     const message = prevRating
       ? `Changed to ${ratingLabel}.`
@@ -121,17 +127,20 @@ export function SpeedMode({
         </div>
 
         {/* Large rating buttons (kept outside gesture surface so taps fire cleanly) */}
-        <div className="flex gap-3">
-          {SPEED_RATINGS.map((r, idx) => (
-            <button
-              key={r.id}
-              onClick={() => { handleRatingWithUndo(r.id); onNext(); }}
-              className={`w-20 h-20 rounded-xl text-sm font-bold transition-all ${ratingButtonClass(r.id, result.rating as string | undefined)}`}
-            >
-              {r.label.split(" ")[0]}
-              <span className="block text-[10px] opacity-50 mt-1">{idx + 1}</span>
-            </button>
-          ))}
+        <div className="flex gap-3 flex-wrap justify-center">
+          {levels.map((r, idx) => {
+            const label = r.label ?? r.name ?? r.id;
+            return (
+              <button
+                key={r.id}
+                onClick={() => { handleRatingWithUndo(r.id); onNext(); }}
+                className={`w-20 h-20 rounded-xl text-sm font-bold transition-all ${ratingButtonClass(r.severity, result.rating === r.id)}`}
+              >
+                {(r.abbreviation ?? label).split(" ")[0]}
+                <span className="block text-[10px] opacity-50 mt-1">{idx + 1}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Nav */}

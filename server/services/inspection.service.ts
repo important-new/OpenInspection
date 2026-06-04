@@ -4,6 +4,7 @@ import { inspections, inspectionResults, templates, inspectionAgreements, users,
 import { contacts } from '../lib/db/schema/contact';
 import { Errors } from '../lib/errors';
 import { computeReportStats, getRatingColor, getRatingBucket, type RatingLevel } from '../lib/report-utils';
+import { mapRatingSystemLevels } from '../lib/map-rating-levels';
 import { z } from 'zod';
 import { InspectionSchema, InspectionListQuerySchema, CreateInspectionSchema } from '../lib/validations/inspection.schema';
 
@@ -95,40 +96,8 @@ function fireAutomation(db: D1Database, tenantId: string, inspectionId: string, 
         .catch(err => logger.error('automation trigger failed', { event }, err instanceof Error ? err : undefined));
 }
 
-/**
- * Sprint 2 S2-1 — Translate a rating_systems.levels[] payload into the
- * legacy `RatingLevel` shape consumed by computeReportStats / getRatingColor.
- *
- *   `bucket: 'satisfactory'` → severity: 'good'  / isDefect: false
- *   `bucket: 'monitor'`      → severity: 'marginal' / isDefect: false
- *   `bucket: 'defect'`       → severity: 'significant' / isDefect: true
- *   `bucket: 'na'`           → severity: 'minor' / isDefect: false
- */
-function mapRatingSystemLevels(levels: Array<Record<string, unknown>>): RatingLevel[] {
-    const sevByBucket: Record<string, RatingLevel['severity']> = {
-        satisfactory: 'good',
-        monitor:      'marginal',
-        defect:       'significant',
-        na:           'minor',
-    };
-    return levels
-        .slice()
-        .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0))
-        .map((lvl) => {
-            const bucket = String(lvl.bucket ?? 'na');
-            const severity = sevByBucket[bucket] ?? 'minor';
-            const id = String(lvl.id ?? lvl.label ?? lvl.abbr ?? crypto.randomUUID());
-            return {
-                id,
-                label:        String(lvl.label ?? lvl.abbr ?? id),
-                abbreviation: String(lvl.abbr ?? lvl.label ?? id),
-                color:        String(lvl.color ?? '#9ca3af'),
-                severity,
-                isDefect:     bucket === 'defect',
-                ...(typeof lvl.description === 'string' ? { description: lvl.description } : {}),
-            };
-        });
-}
+// mapRatingSystemLevels moved to ../lib/map-rating-levels (B-18: pure +
+// unit-tested so the pausesAdvance passthrough can't silently regress).
 
 /**
  * Resolve a defect-state row into the variables consumed by the Mustache

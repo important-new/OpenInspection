@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   Links,
   Meta,
@@ -88,6 +89,31 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function Root() {
+  // FE-1 / B-3 — zombie service-worker exorcism. Older builds shipped a SW
+  // (public/sw.js, oi-sync) that production browsers still carry; the current
+  // app registers none, yet the stale SW keeps intercepting GETs cache-first
+  // and is the prime suspect for the editor's 30-45s renderer stalls observed
+  // in the field eval. Unregister every registration + drop its caches once
+  // per boot; harmless no-op for fresh browsers.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((regs) => {
+        for (const reg of regs) reg.unregister().catch(() => {});
+        if (regs.length > 0 && "caches" in window) {
+          caches
+            .keys()
+            .then((keys) => {
+              for (const key of keys) {
+                if (key.startsWith("oi-")) caches.delete(key).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
   return <Outlet />;
 }
 
