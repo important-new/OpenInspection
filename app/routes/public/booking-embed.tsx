@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/booking-embed";
 import { createApi } from "~/lib/api-client.server";
+import { resolveTenantBrand } from "~/lib/tenant-brand.server";
+import { brandTokens, type TenantBrand } from "~/lib/brand";
 
 export function meta() {
   return [{ title: "Book inspection" }];
@@ -18,6 +20,7 @@ interface EmbedData {
   tenantSlug: string;
   siteKey: string;
   theme: "light" | "dark" | "branded";
+  brand: TenantBrand | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -26,15 +29,18 @@ interface EmbedData {
 
 export async function loader({ params, request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
-  // Branded mode currently renders as light — backlog C-6 will wire tenant.primaryColor through the public booking API.
   const raw = url.searchParams.get("style");
   const theme: EmbedData["theme"] =
     raw === "dark" ? "dark" : raw === "branded" ? "branded" : "light";
   try {
     const api = createApi(context);
-    const res = await api.bookings.book[":tenant"][":slug"].$get({
-      param: { tenant: params.tenant ?? "", slug: params.slug ?? "" },
-    });
+    // C-6 — branded mode renders light with the tenant's accent tokens.
+    const [res, brand] = await Promise.all([
+      api.bookings.book[":tenant"][":slug"].$get({
+        param: { tenant: params.tenant ?? "", slug: params.slug ?? "" },
+      }),
+      theme === "branded" ? resolveTenantBrand(context, params.tenant) : Promise.resolve(null),
+    ]);
     const body = res.ok ? await res.json() : {};
     // Shape returned by GET /api/public/book/:tenant/:slug — see server/api/bookings.ts:
     //   { inspectorId, name, company, avatar, turnstileSiteKey, services }
@@ -58,6 +64,7 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
             tenantSlug: params.tenant ?? "",
             siteKey: d.turnstileSiteKey ?? "",
             theme,
+            brand,
           } satisfies EmbedData)
         : null,
       error: res.ok ? null : "Not found",
@@ -94,8 +101,18 @@ export default function BookingEmbedPage() {
   }
 
   return (
-    <div className="p-4">
+    <div
+      className="p-4"
+      style={data.theme === "branded" ? brandTokens(data.brand?.primaryColor) : undefined}
+    >
       <div className="bg-ih-bg-card border border-ih-border rounded-xl p-5">
+        {data.theme === "branded" && data.brand?.logoUrl && (
+          <img
+            src={data.brand.logoUrl}
+            alt={data.brand.siteName ?? "Logo"}
+            className="h-7 w-auto mb-3"
+          />
+        )}
         <h2 className="text-base font-bold text-ih-fg-1 mb-1">
           Book with {data.inspectorName}
         </h2>
@@ -170,7 +187,7 @@ function BookingForm({ data }: { data: EmbedData }) {
           name="address"
           required
           placeholder="123 Main St, Austin, TX"
-          className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-indigo-500 focus:shadow-ih-focus"
+          className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-ih-primary focus:shadow-ih-focus"
         />
       </div>
 
@@ -184,7 +201,7 @@ function BookingForm({ data }: { data: EmbedData }) {
             name="clientName"
             required
             placeholder="Jane Doe"
-            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-indigo-500 focus:shadow-ih-focus"
+            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-ih-primary focus:shadow-ih-focus"
           />
         </div>
         <div>
@@ -196,7 +213,7 @@ function BookingForm({ data }: { data: EmbedData }) {
             name="clientEmail"
             required
             placeholder="jane@example.com"
-            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-indigo-500 focus:shadow-ih-focus"
+            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-ih-primary focus:shadow-ih-focus"
           />
         </div>
       </div>
@@ -210,7 +227,7 @@ function BookingForm({ data }: { data: EmbedData }) {
             type="tel"
             name="clientPhone"
             placeholder="(555) 555-5555"
-            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-indigo-500 focus:shadow-ih-focus"
+            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-ih-primary focus:shadow-ih-focus"
           />
         </div>
         <div>
@@ -221,7 +238,7 @@ function BookingForm({ data }: { data: EmbedData }) {
             type="date"
             name="date"
             required
-            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-indigo-500 focus:shadow-ih-focus"
+            className="w-full px-2.5 py-2 border border-ih-border rounded-md text-sm bg-ih-bg-card text-ih-fg-1 outline-none focus:border-ih-primary focus:shadow-ih-focus"
           />
         </div>
       </div>

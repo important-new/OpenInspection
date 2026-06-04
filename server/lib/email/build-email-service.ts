@@ -17,6 +17,20 @@ export interface EmailServiceEnv {
     SENDER_EMAIL?: string;
     APP_NAME?: string;
     PRIMARY_COLOR?: string;
+    APP_BASE_URL?: string;
+}
+
+/**
+ * A-10 — email clients can't resolve app-relative URLs, so the stored logo
+ * path (`/api/public/brand-asset?key=...`) must be absolutized against
+ * APP_BASE_URL before it goes into an email body. Without a base URL the
+ * logo is dropped (the layout falls back to the siteName text header).
+ */
+function absoluteLogoUrl(logoUrl: string | null | undefined, baseUrl: string | undefined): string | null {
+    if (!logoUrl) return null;
+    if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
+    if (!baseUrl) return null;
+    return `${baseUrl.replace(/\/$/, '')}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
 }
 
 /** Tenant email config the assembler needs — loaded by `di` (pre-fetched) or by `buildTenantEmailService`. */
@@ -50,7 +64,7 @@ export function assembleTenantEmailService(env: EmailServiceEnv, cfg: LoadedEmai
     const renderer = new EmailTemplateRenderer({
         tenantBrand: {
             name: emailBrand?.siteName || appName,
-            logoUrl: emailBrand?.logoUrl ?? null,
+            logoUrl: absoluteLogoUrl(emailBrand?.logoUrl, env.APP_BASE_URL),
             primaryColor: emailBrand?.primaryColor || platformColor,
         },
         platformBrand: {

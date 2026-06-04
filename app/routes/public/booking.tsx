@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/booking";
 import { createApi } from "~/lib/api-client.server";
+import { resolveTenantBrand } from "~/lib/tenant-brand.server";
+import { brandTokens, EMPTY_BRAND, type TenantBrand } from "~/lib/brand";
 
 declare global {
   interface Window {
@@ -39,9 +41,12 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
 
   try {
     const api = createApi(context);
-    const res = await api.bookings.book[":tenant"][":slug"].$get({
-      param: { tenant: params.tenant ?? "", slug: params.slug ?? "" },
-    });
+    const [res, brand] = await Promise.all([
+      api.bookings.book[":tenant"][":slug"].$get({
+        param: { tenant: params.tenant ?? "", slug: params.slug ?? "" },
+      }),
+      resolveTenantBrand(context, params.tenant),
+    ]);
     const body = res.ok ? await res.json() : {};
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
     return {
@@ -50,9 +55,10 @@ export async function loader({ params, request, context }: Route.LoaderArgs) {
       tenant: params.tenant,
       slug: params.slug,
       agentRefSlug,
+      brand,
     };
   } catch {
-    return { profile: null, error: "Service unavailable", tenant: "", slug: "", agentRefSlug: null };
+    return { profile: null, error: "Service unavailable", tenant: "", slug: "", agentRefSlug: null, brand: EMPTY_BRAND as TenantBrand };
   }
 }
 
@@ -70,7 +76,7 @@ const TIME_WINDOWS = [
 ] as const;
 
 export default function BookingPage() {
-  const { profile, error, agentRefSlug } = useLoaderData<typeof loader>();
+  const { profile, error, agentRefSlug, brand } = useLoaderData<typeof loader>();
   const [step, setStep] = useState(0);
 
   // Form state
@@ -182,13 +188,17 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-ih-bg-app py-12 px-4">
+    <div className="min-h-screen bg-ih-bg-app py-12 px-4" style={brandTokens(brand.primaryColor)}>
       <div className="max-w-2xl mx-auto">
         {/* Inspector header */}
         <nav className="mb-8 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-ih-primary text-lg font-bold">
-            {profile.name.charAt(0)}
-          </div>
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.siteName ?? profile.company ?? "Logo"} className="h-10 w-auto" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-ih-primary-tint flex items-center justify-center text-ih-primary text-lg font-bold">
+              {profile.name.charAt(0)}
+            </div>
+          )}
           <div>
             <p className="text-[15px] font-semibold text-ih-fg-1">{profile.name}</p>
             {profile.company && (
@@ -241,7 +251,7 @@ export default function BookingPage() {
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="123 Main St, City, State ZIP"
                   autoFocus
-                  className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-indigo-500 focus:shadow-ih-focus outline-none text-[14px] font-medium transition-colors"
+                  className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none text-[14px] font-medium transition-colors"
                 />
               </label>
             </section>
@@ -267,7 +277,7 @@ export default function BookingPage() {
                       />
                       <div className={`px-4 py-3 rounded-md border transition-all flex items-center justify-between gap-3 ${
                         selected
-                          ? "border-indigo-500 bg-ih-primary-tint ring-2 ring-indigo-500/10"
+                          ? "border-ih-primary bg-ih-primary-tint ring-2 ring-ih-primary/10"
                           : "border-ih-border bg-ih-bg-card hover:border-slate-300 dark:hover:border-slate-600"
                       }`}>
                         <div className="min-w-0">
@@ -279,7 +289,7 @@ export default function BookingPage() {
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-sm font-semibold text-ih-fg-1">${(svc.price / 100).toFixed(2)}</span>
                           {selected && (
-                            <svg className="w-4 h-4 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-4 h-4 text-ih-primary" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                           )}
@@ -316,7 +326,7 @@ export default function BookingPage() {
                     type="date"
                     value={inspectionDate}
                     onChange={(e) => setInspectionDate(e.target.value)}
-                    className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-indigo-500 focus:shadow-ih-focus outline-none text-[14px] font-medium tabular-nums transition-colors"
+                    className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none text-[14px] font-medium tabular-nums transition-colors"
                   />
                 </label>
                 <div>
@@ -327,7 +337,7 @@ export default function BookingPage() {
                         <input type="radio" name="timeSlot" value={w.id} checked={timeWindow === w.id} onChange={() => setTimeWindow(w.id)} className="sr-only" />
                         <div className={`px-3 py-2.5 rounded-md border transition-all ${
                           timeWindow === w.id
-                            ? "border-indigo-500 bg-ih-primary-tint ring-2 ring-indigo-500/10"
+                            ? "border-ih-primary bg-ih-primary-tint ring-2 ring-ih-primary/10"
                             : "border-ih-border bg-ih-bg-card"
                         }`}>
                           <div className="text-[13px] font-bold text-ih-fg-1">{w.label}</div>
@@ -342,7 +352,7 @@ export default function BookingPage() {
                         type="time"
                         value={customTime}
                         onChange={(e) => setCustomTime(e.target.value)}
-                        className="h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-indigo-500 focus:shadow-ih-focus outline-none text-[13px] font-medium tabular-nums"
+                        className="h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none text-[13px] font-medium tabular-nums"
                       />
                       <span className="text-[11px] text-slate-400">on selected date</span>
                     </div>
@@ -363,7 +373,7 @@ export default function BookingPage() {
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
                       placeholder="Jane Doe"
-                      className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-indigo-500 focus:shadow-ih-focus outline-none text-[14px] font-medium transition-colors"
+                      className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none text-[14px] font-medium transition-colors"
                     />
                   </label>
                   <label className="block">
@@ -373,7 +383,7 @@ export default function BookingPage() {
                       value={clientEmail}
                       onChange={(e) => setClientEmail(e.target.value)}
                       placeholder="jane@example.com"
-                      className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-indigo-500 focus:shadow-ih-focus outline-none text-[14px] font-medium transition-colors"
+                      className="mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none text-[14px] font-medium transition-colors"
                     />
                   </label>
                 </div>

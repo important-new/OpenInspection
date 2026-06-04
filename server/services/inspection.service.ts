@@ -1926,7 +1926,7 @@ export class InspectionService {
     async getReportGate(inspectionId: string, tenantId: string, tenantSlug: string): Promise<{
         reason: 'payment' | 'agreement';
         companyName: string;
-        primaryColor: string;
+        primaryColor: string | null;
         actionUrl: string;
         actionLabel: string;
         propertyAddress: string | null;
@@ -2013,7 +2013,9 @@ export class InspectionService {
         return {
             reason,
             companyName: branding?.siteName ?? 'OpenInspection',
-            primaryColor: branding?.primaryColor ?? '#2563eb',
+            // A-10 — nullable: null means "tenant set no accent", the page
+            // keeps the platform design tokens (no per-surface fallback hex).
+            primaryColor: branding?.primaryColor ?? null,
             actionUrl,
             actionLabel: reason === 'payment' ? 'Pay invoice' : 'Sign agreement',
             propertyAddress: insp.propertyAddress ?? null,
