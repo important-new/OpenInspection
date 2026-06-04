@@ -2,6 +2,8 @@ import { EmailService } from '../../services/email.service';
 import { BrandingService } from '../../services/branding.service';
 import { EmailTemplateService } from '../../services/email-template.service';
 import { EmailTemplateRenderer } from '../email-templates/renderer';
+import { decryptSecrets } from '../config-crypto';
+import { loadEncryptedSecretsBlob } from '../secrets-cache';
 import type { EmailIdentityConfig } from './sender-identity';
 import type { TemplateOverride } from '../email-templates/types';
 
@@ -78,23 +80,50 @@ export function assembleTenantEmailService(env: EmailServiceEnv, cfg: LoadedEmai
 }
 
 /**
+ * A-16 — the tenant's Resend + Gemini keys come from the CANONICAL secrets
+ * store (`tenant_configs.encrypted_secrets`, ENV-name keys — the column every
+ * Settings page writes via PUT/POST /api/admin/secrets). The legacy camelCase
+ * `secrets` column this used to read has no remaining UI write path, so keys
+ * saved in Settings never reached email/AI construction. Blob is KV-cached
+ * ciphertext (see lib/secrets-cache.ts).
+ */
+async function loadEmailSecrets(env: EmailServiceEnv, tenantId: string): Promise<LoadedEmailConfig['dbSecrets']> {
+    const blob = await loadEncryptedSecretsBlob(env.DB, env.TENANT_CACHE, tenantId);
+    if (!blob) return {};
+    const dec = await decryptSecrets(blob, env.JWT_SECRET) as Record<string, string | undefined>;
+    return {
+        ...(dec.RESEND_API_KEY ? { resendApiKey: dec.RESEND_API_KEY } : {}),
+        ...(dec.GEMINI_API_KEY ? { geminiApiKey: dec.GEMINI_API_KEY } : {}),
+    };
+}
+
+/**
  * Async: load a tenant's email config (identity, brand, secrets, overrides)
- * then assemble the EmailService. For NON-request contexts where
- * `diMiddleware` never ran — Cloudflare Workflows, scheduled handlers — so
- * those sends still honor the tenant's sender identity + branded templates
- * (B-13). Pass `undefined` tenantId for platform defaults (no overrides).
+ * with all four reads in parallel. Shared by `diMiddleware` (per-request,
+ * A-16) and `buildTenantEmailService` (non-request contexts, B-13).
+ */
+export async function loadTenantEmailConfig(env: EmailServiceEnv, tenantId: string): Promise<LoadedEmailConfig> {
+    const branding = new BrandingService(env.DB, env.TENANT_CACHE);
+    const [emailIdentity, emailBrand, dbSecrets, overrides] = await Promise.all([
+        branding.getEmailIdentity(tenantId).catch(() => undefined),
+        branding.getEmailBrand(tenantId).catch(() => undefined),
+        loadEmailSecrets(env, tenantId).catch(() => ({} as LoadedEmailConfig['dbSecrets'])),
+        new EmailTemplateService(env.DB).listForTenant(tenantId).catch(() => []),
+    ]);
+    const emailOverrides = overrides.length ? new Map(overrides.map(o => [o.trigger, o])) : undefined;
+    return { emailIdentity, emailBrand, dbSecrets, emailOverrides };
+}
+
+/**
+ * Async: load a tenant's email config then assemble the EmailService. For
+ * NON-request contexts where `diMiddleware` never ran — Cloudflare Workflows,
+ * scheduled handlers — so those sends still honor the tenant's sender
+ * identity + branded templates (B-13). Pass `undefined` tenantId for platform
+ * defaults (no overrides).
  */
 export async function buildTenantEmailService(env: EmailServiceEnv, tenantId: string | undefined): Promise<EmailService> {
     if (!tenantId) {
         return assembleTenantEmailService(env, { dbSecrets: {} });
     }
-    const branding = new BrandingService(env.DB, env.TENANT_CACHE);
-    const [emailIdentity, emailBrand, dbSecrets, overrides] = await Promise.all([
-        branding.getEmailIdentity(tenantId).catch(() => undefined),
-        branding.getEmailBrand(tenantId).catch(() => undefined),
-        branding.getDecryptedSecrets(tenantId, env.JWT_SECRET).catch(() => ({} as LoadedEmailConfig['dbSecrets'])),
-        new EmailTemplateService(env.DB).listForTenant(tenantId).catch(() => []),
-    ]);
-    const emailOverrides = overrides.length ? new Map(overrides.map(o => [o.trigger, o])) : undefined;
-    return assembleTenantEmailService(env, { emailIdentity, emailBrand, dbSecrets, emailOverrides });
+    return assembleTenantEmailService(env, await loadTenantEmailConfig(env, tenantId));
 }

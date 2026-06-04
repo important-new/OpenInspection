@@ -14,6 +14,7 @@ import { tenantConfigs } from '../lib/db/schema';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { encryptSecrets, decryptSecrets, maskSecret, isMasked } from '../lib/config-crypto';
+import { secretsCacheKey } from '../lib/secrets-cache';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
 
 /**
@@ -191,6 +192,9 @@ export const secretsRoutes = createApiRouter()
             });
         }
 
+        // A-16 — drop the cached encrypted blob so the next request re-reads D1.
+        await c.env.TENANT_CACHE?.delete(secretsCacheKey(tenantId)).catch(() => {});
+
         auditFromContext(c, 'config.secrets.update', 'tenant_config', {
             metadata: { keysUpdated: Object.keys(body).filter(k => allowedKeys.has(k) && body[k] && !isMasked(body[k])) },
         });
@@ -264,6 +268,9 @@ export const secretsRoutes = createApiRouter()
                 updatedAt: new Date(),
             });
         }
+
+        // A-16 — drop the cached encrypted blob so the next request re-reads D1.
+        await c.env.TENANT_CACHE?.delete(secretsCacheKey(tenantId)).catch(() => {});
 
         auditFromContext(c, 'config.secrets.update', 'tenant_config');
         return c.json({ success: true as const }, 200);

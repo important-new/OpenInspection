@@ -12,7 +12,7 @@ import { OutboxService } from '../../portal/outbox.service';
 import { publishRow } from '../../portal/outbox.service';
 import { BookingService } from '../../services/booking.service';
 import { BrandingService } from '../../services/branding.service';
-import { assembleTenantEmailService } from '../email/build-email-service';
+import { assembleTenantEmailService, loadTenantEmailConfig, type LoadedEmailConfig } from '../email/build-email-service';
 import { InspectionService } from '../../services/inspection.service';
 import { TeamService } from '../../services/team.service';
 import { TemplateService } from '../../services/template.service';
@@ -49,78 +49,37 @@ import { QBOService } from '../../services/qbo.service';
 import { IdentityService } from '../../services/identity.service';
 import { IntegrationsService } from '../../services/integrations.service';
 import { AnalyticsService } from '../../services/analytics.service';
-import { EmailTemplateService } from '../../services/email-template.service';
-
 import { StandaloneProvider } from '../integration/standalone';
 import { PortalProvider } from '../../portal/portal.provider';
-import { getDeploymentProfile } from '../deployment-profile';
-import { buildKeyring } from '../jwt-keyring';
 
 /**
  * Middleware that injects a lazy-loaded service registry into the Hono context.
  * When env vars for email/AI are absent, falls back to AES-GCM-decrypted DB secrets.
+ *
+ * ORDERING (A-16): registered AFTER the JWT middleware. The tenant-scoped
+ * email/AI config below reads `c.get('tenantId')`, which the JWT middleware
+ * (authed API) or tenantRouter (standalone / public slug paths) sets — when
+ * this middleware ran first, the gate never opened and per-tenant email
+ * identity + Gemini BYOK silently fell back to platform defaults on every
+ * request. The profile/keyring bootstrap that earlier middlewares need lives
+ * in `contextBootstrap` now.
  */
 export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
-    c.set('profile', getDeploymentProfile(c.env));
-    // Per-request ES256 keyring. PEM → CryptoKey imports happen at most once
-    // per request; downstream sign/verify call sites share the same Promise.
-    // .catch() suppresses the "unhandled rejection" diagnostic for requests
-    // that never touch JWTs (webhooks, healthchecks). Real awaiters still see
-    // the original rejection — the .catch() returns a separate, swallowed
-    // chain that never sees an `await`.
-    const keyringPromise = buildKeyring(c.env as unknown as Record<string, string | undefined>);
-    keyringPromise.catch(() => { /* defer reporting to the first awaiter */ });
-    c.set('keyringPromise', keyringPromise);
     const tenantId = c.get('tenantId');
 
-    // Phase 1 (B-4/A-7) — load the tenant's email identity once per request so
-    // the lazily-constructed EmailService can pick own vs platform Resend.
-    // Must be loaded BEFORE the dbSecrets guard so own-mode can widen it.
-    let emailIdentity: import('../email/sender-identity').EmailIdentityConfig | undefined;
-    if (tenantId) {
-        try {
-            const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
-            emailIdentity = await bSvc.getEmailIdentity(tenantId);
-        } catch {
-            // No config row yet — platform defaults apply at construction.
-        }
-    }
-
-    let emailBrand: { siteName: string | null; logoUrl: string | null; primaryColor: string | null } | undefined;
-    if (tenantId) {
-        try {
-            const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
-            emailBrand = await bSvc.getEmailBrand(tenantId);
-        } catch { /* defaults apply */ }
-    }
-
-    let emailOverrides: Map<string, import('../email-templates/types').TemplateOverride> | undefined;
-    if (tenantId) {
-        try {
-            const svc = new EmailTemplateService(c.env.DB);
-            const list = await svc.listForTenant(tenantId);
-            if (list.length) emailOverrides = new Map(list.map(o => [o.trigger, o]));
-        } catch { /* no overrides — defaults apply */ }
-    }
-
-    // Pre-load the tenant's encrypted DB secrets. Gemini is bring-your-own-key
-    // (per-tenant, both SaaS and standalone — see the AIService construction
-    // below), so these are always needed once a tenant is resolved; own-mode
-    // Resend also reads its key from here.
-    let dbSecrets: { resendApiKey?: string; senderEmail?: string; geminiApiKey?: string } = {};
-    if (tenantId) {
-        try {
-            const bSvc = new BrandingService(c.env.DB, c.env.TENANT_CACHE);
-            dbSecrets = await bSvc.getDecryptedSecrets(tenantId, c.env.JWT_SECRET);
-        } catch {
-            // Secrets not yet configured — proceed without them
-        }
+    // A-16 — one parallel batch (identity / brand / secrets / overrides)
+    // replacing four serial awaits. Only API requests consume these (email
+    // sends + AI), so page/asset requests skip the D1 reads entirely. The
+    // root-mounted auth duplicates (/forgot-password) send platform-branded
+    // mail by design, so the /api/ gate loses nothing there.
+    let emailCfg: LoadedEmailConfig = { dbSecrets: {} };
+    if (tenantId && c.req.path.startsWith('/api/')) {
+        emailCfg = await loadTenantEmailConfig(c.env, tenantId);
     }
 
     // One place decides own-vs-platform Resend + branded renderer, shared with
     // non-request contexts (workflows/scheduled) via assembleTenantEmailService.
-    const buildEmailService = () =>
-        assembleTenantEmailService(c.env, { emailIdentity, emailBrand, dbSecrets, emailOverrides });
+    const buildEmailService = () => assembleTenantEmailService(c.env, emailCfg);
 
     // Build the core->portal outbox sink (SaaS-only, gated on PORTAL_SERVICE as
     // before). When SYNC_QUEUE is also bound, attach an inline-publish hook: on
@@ -163,7 +122,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                         // Bring-your-own-key: the Gemini key comes solely from the
                         // tenant's own bound key (Settings → Advanced → AI), never a
                         // shared platform env key — applies to SaaS and standalone.
-                        dbSecrets.geminiApiKey || '',
+                        emailCfg.dbSecrets.geminiApiKey || '',
                         // Sprint 1 A-4: pass effective deployment mode so the
                         // service can return dev-mock suggestions when the
                         // active profile permits it (standalone) and
