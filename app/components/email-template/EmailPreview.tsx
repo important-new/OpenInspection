@@ -23,7 +23,11 @@ export function EmailPreview({ subject, blocks }: { trigger: string; subject: st
       fetcher.submit(fd, { method: "post" });
     }, 350);
     return () => { if (timer.current) clearTimeout(timer.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deps intentionally omit `fetcher`/`blocks`: blocksKey is the stable
+    // serialization of blocks, and fetcher.submit is referentially unstable
+    // per render — including it would re-arm the debounce on every preview
+    // response. (react-hooks plugin is not registered in this flat config, so
+    // no disable directive — a dangling one fails lint as an unknown rule.)
   }, [subject, blocksKey]);
 
   const preview =
