@@ -25,6 +25,57 @@ export interface ReportStats {
   completionPercent: number;
 }
 
+/* ------------------------------------------------------------------ */
+/* FE-3/B-20 — custom defects in the published report                  */
+/* ------------------------------------------------------------------ */
+
+interface CustomDefectInput {
+  id: string;
+  title?: string;
+  comment?: string;
+  included?: boolean;
+  category?: string;
+  location?: string | null;
+  photos?: Array<{ key: string; annotatedKey?: string }>;
+}
+
+export interface ResolvedCustomDefect {
+  id: string;
+  title: string;
+  included: boolean;
+  isCustom: true;
+  effectiveComment: string;
+  effectiveCategory: string;
+  effectiveLocation: string | null;
+  defectPhotos: Array<{ key: string; originalKey: string; url: string }>;
+}
+
+/**
+ * Map `result.customComments.defects` (field-authored defects) into the same
+ * resolved shape getReportData emits for canned defects, so report renderers
+ * draw one list. Previously these rows reached only the repair list and the
+ * dashboard stats — the published report silently dropped them.
+ */
+export function mapCustomDefectsForReport(
+  customComments: { defects?: CustomDefectInput[] } | null | undefined,
+  makePhotoUrl: (key: string) => string,
+): ResolvedCustomDefect[] {
+  const rows = customComments?.defects ?? [];
+  return rows.map((d) => ({
+    id: d.id,
+    title: d.title ?? '',
+    included: d.included !== false,
+    isCustom: true as const,
+    effectiveComment: d.comment ?? '',
+    effectiveCategory: d.category ?? 'recommendation',
+    effectiveLocation: typeof d.location === 'string' && d.location.length > 0 ? d.location : null,
+    defectPhotos: (d.photos ?? []).map((p) => {
+      const displayKey = p.annotatedKey || p.key;
+      return { key: displayKey, originalKey: p.key, url: makePhotoUrl(displayKey) };
+    }),
+  }));
+}
+
 interface SchemaSection {
   id: string;
   title: string;
