@@ -143,6 +143,30 @@ export const slugReservations = sqliteTable('slug_reservations', {
     blockedAt: integer('blocked_at').notNull(),
 });
 
+// Privacy & Compliance P3 (§3.2) — durable, non-personal proof that a tenant's
+// data was physically destroyed during offboarding purge. Deliberately a
+// PLATFORM-LEVEL table with NO foreign key to `tenants`: the tenant row is
+// deleted in the same purge pass, so an audit_logs row (NOT NULL FK ->
+// tenants.id, and tenant-scoped → cascade-deleted by the purge filter) cannot
+// survive. The spec text names `audit_logs`, but the spec itself documents
+// (§1.5) that audit_logs is infeasible for records that must OUTLIVE the
+// tenant; this standalone table — like `slug_reservations`, never listed in
+// TenantPurgeService.TENANT_TABLES — is the durable equivalent. Stores only
+// non-personal aggregates (id string snapshot + counts + byte totals + ts).
+export const tenantDestructionRecords = sqliteTable('tenant_destruction_records', {
+    id:          text('id').primaryKey(),
+    tenantId:    text('tenant_id').notNull(),   // string snapshot — intentionally NOT an FK (tenant row is gone)
+    tenantSlug:  text('tenant_slug'),           // non-personal label for the destroyed tenant
+    rowsDeleted: integer('rows_deleted').notNull().default(0),
+    r2Objects:   integer('r2_objects').notNull().default(0),
+    r2Bytes:     integer('r2_bytes').notNull().default(0),
+    kvKeys:      integer('kv_keys').notNull().default(0),
+    destroyedAt: integer('destroyed_at', { mode: 'timestamp' }).notNull(),
+}, (t) => [
+    index('idx_destruction_tenant').on(t.tenantId),
+    index('idx_destruction_destroyed_at').on(t.destroyedAt),
+]);
+
 export const tenantInvites = sqliteTable('tenant_invites', {
     id: text('id').primaryKey(),
     tenantId: text('tenant_id').notNull().references(() => tenants.id),

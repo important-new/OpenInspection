@@ -71,6 +71,13 @@
       "when": 1780564318371,
       "tag": "0009_gorgeous_black_bolt",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1780583561889,
+      "tag": "0010_naive_bruce_banner",
+      "breakpoints": true
     }
   ]
 }
