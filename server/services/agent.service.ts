@@ -59,6 +59,7 @@ export interface ResolvedInvite {
 export interface AcceptInviteInput {
     password: string;
     name: string;
+    termsAccepted?: { at: string; ip?: string; country?: string; termsUrl?: string; privacyUrl?: string };
 }
 
 export interface AcceptInviteResult {
@@ -291,6 +292,7 @@ export class AgentService {
                 name: input.name,
                 role: 'agent',
                 createdAt: new Date(),
+                termsAccepted: input.termsAccepted ?? null,
             });
             agent = { id, name: input.name, email, role: 'agent', tenantId: null };
         } else if (agent.role !== 'agent') {

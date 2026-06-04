@@ -14,8 +14,15 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") || "";
 
+  const env = context.cloudflare?.env as
+    | { TERMS_URL?: string; PRIVACY_URL?: string }
+    | undefined;
+  const termsUrl = env?.TERMS_URL?.trim() || undefined;
+  const privacyUrl = env?.PRIVACY_URL?.trim() || undefined;
+  const legal = termsUrl || privacyUrl ? { termsUrl, privacyUrl } : null;
+
   if (!token) {
-    return { valid: false, error: "Missing invite token", invite: null };
+    return { valid: false, error: "Missing invite token", invite: null, legal };
   }
 
   try {
@@ -23,7 +30,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     const api = createApi(context);
     const res = await api.guest["invite-info"].$get({ query: { token } });
     if (!res.ok) {
-      return { valid: false, error: "Invalid or expired guest link", invite: null };
+      return { valid: false, error: "Invalid or expired guest link", invite: null, legal };
     }
     const body = await res.json();
     const d = ((body as Record<string, unknown>).data ?? {}) as Record<string, unknown>;
@@ -31,9 +38,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       valid: true,
       error: null,
       invite: (Object.keys(d).length > 0 ? d : null) as { workspaceName: string; role: string; expiresAt: number } | null,
+      legal,
     };
   } catch {
-    return { valid: false, error: "Service unavailable", invite: null };
+    return { valid: false, error: "Service unavailable", invite: null, legal };
   }
 }
 
@@ -52,7 +60,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 
     const api = createApi(context);
     const res = await api.guest.claim.$post({
-      json: { token, name, email, password },
+      json: { token, name, email, password, termsAccepted: formData.get("termsAccepted") === "on" },
     });
 
     if (!res.ok) {
@@ -82,7 +90,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 }
 
 export default function GuestJoinPage() {
-  const { valid, error: loaderError, invite } = useLoaderData<typeof loader>();
+  const { valid, error: loaderError, invite, legal } = useLoaderData<typeof loader>();
   const lastResult = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
@@ -188,6 +196,23 @@ export default function GuestJoinPage() {
             <div className="px-3 py-2 rounded-lg bg-ih-bad-bg border border-ih-bad text-sm text-ih-bad-fg">
               {form.errors[0]}
             </div>
+          )}
+
+          {legal && (
+            <label className="flex items-start gap-2 text-sm text-ih-fg-2 mt-5">
+              <input type="checkbox" name="termsAccepted" required className="mt-0.5" />
+              <span>
+                I agree to the
+                {legal.termsUrl && (
+                  <>{" "}<a href={legal.termsUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Terms of Service</a></>
+                )}
+                {legal.termsUrl && legal.privacyUrl && <> and acknowledge the</>}
+                {legal.privacyUrl && (
+                  <>{" "}<a href={legal.privacyUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Privacy Policy</a></>
+                )}
+                .
+              </span>
+            </label>
           )}
 
           <button

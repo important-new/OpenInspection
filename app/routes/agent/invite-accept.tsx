@@ -27,23 +27,32 @@ interface InviteData {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
+
+  const env = context.cloudflare?.env as
+    | { TERMS_URL?: string; PRIVACY_URL?: string }
+    | undefined;
+  const termsUrl = env?.TERMS_URL?.trim() || undefined;
+  const privacyUrl = env?.PRIVACY_URL?.trim() || undefined;
+  const legal = termsUrl || privacyUrl ? { termsUrl, privacyUrl } : null;
+
   if (!token) {
-    return { invite: null, error: "no-token" as const };
+    return { invite: null, error: "no-token" as const, legal };
   }
   try {
     const api = createApi(context);
     const res = await api.agents["invite-info"].$get({ query: { token } });
     const body = res.ok ? await res.json() : {};
     if (!res.ok) {
-      return { invite: null, error: "expired" as const };
+      return { invite: null, error: "expired" as const, legal };
     }
     const data = ((body as Record<string, unknown>).data ?? {}) as unknown as InviteData | undefined;
     return {
       invite: data && Object.keys(data).length > 0 ? { ...data, token } : null,
       error: null,
+      legal,
     };
   } catch {
-    return { invite: null, error: "unknown" as const };
+    return { invite: null, error: "unknown" as const, legal };
   }
 }
 
@@ -63,7 +72,7 @@ export async function action({ request, context }: Route.ActionArgs) {
   const { name, password } = submission.value;
 
   const api = createApi(context);
-  const res = await api.agents.accept.$post({ json: { token, password, name } });
+  const res = await api.agents.accept.$post({ json: { token, password, name, termsAccepted: fd.get("termsAccepted") === "on" } });
 
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || !json.success) {
@@ -94,7 +103,7 @@ function getInitials(name: string): string {
 /* ------------------------------------------------------------------ */
 
 export default function AgentInviteAcceptPage() {
-  const { invite, error: loaderError } = useLoaderData<typeof loader>();
+  const { invite, error: loaderError, legal } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
@@ -273,6 +282,23 @@ export default function AgentInviteAcceptPage() {
               )}
             </div>
           </div>
+
+          {legal && (
+            <label className="flex items-start gap-2 text-sm text-ih-fg-2 mt-5">
+              <input type="checkbox" name="termsAccepted" required className="mt-0.5" />
+              <span>
+                I agree to the
+                {legal.termsUrl && (
+                  <>{" "}<a href={legal.termsUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Terms of Service</a></>
+                )}
+                {legal.termsUrl && legal.privacyUrl && <> and acknowledge the</>}
+                {legal.privacyUrl && (
+                  <>{" "}<a href={legal.privacyUrl} target="_blank" rel="noreferrer" className="font-semibold text-ih-primary hover:underline">Privacy Policy</a></>
+                )}
+                .
+              </span>
+            </label>
+          )}
 
           <button
             type="submit"
