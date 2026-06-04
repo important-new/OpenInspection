@@ -95,14 +95,17 @@ export interface AppEnv {
     // Spec 5H — Public verifier base URL embedded in Certificate of Completion
     ESIGN_PUBLIC_VERIFY_BASE?: string;
 
-    // SaaS Portal Integration (browser redirects)
+    // SaaS Portal Integration (browser redirects). NOTE: the PORTAL_SERVICE
+    // Service Binding was RETIRED (2026-06-04) — its last functional use was
+    // the old outbox drain POST, replaced by the sync queue. Portal->core RPC
+    // rides portal's CORE_SERVICE binding; core itself holds no binding to
+    // portal anymore.
     PORTAL_API_URL?: string;
-    PORTAL_SERVICE?: Fetcher;
 
     // Core -> portal user-sync transport (A-13/A-14). SaaS-only producer
     // binding to the `inspectorhub-sync-saas` Cloudflare Queue. Absent in
-    // standalone; producer code guards on it exactly like PORTAL_SERVICE, so
-    // standalone keeps appending inert outbox rows and never publishes.
+    // standalone — producer code guards on it, so standalone's outbox sink is
+    // never constructed and no rows accumulate.
     SYNC_QUEUE?: Queue<import('../lib/sync-events/envelope').SyncEnvelope>;
 
     // Spec 5D — Address Autofill. Server-side proxy holds the API key so it

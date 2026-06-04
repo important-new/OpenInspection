@@ -19,10 +19,6 @@ export interface ScheduledEnv {
     QBO_CLIENT_ID?: string;
     QBO_CLIENT_SECRET?: string;
     QBO_WEBHOOK_SECRET?: string;
-    // Multi-workspace sync: Service Binding to portal. Retained for the
-    // portal->core request/response M2M channel; no longer used by the outbox
-    // drain (the queue replaced the Service-Binding POST). Optional.
-    PORTAL_SERVICE?: Fetcher;
     // Core -> portal user-sync transport (A-13/A-14). Producer binding to the
     // sync queue; the outbox sweeper republishes pending rows through it.
     // Optional — sweeper is a no-op when missing (standalone).

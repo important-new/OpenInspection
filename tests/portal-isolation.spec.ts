@@ -23,19 +23,27 @@ function gitGrepFiles(pattern: string, ...pathspecs: string[]): string[] {
 }
 
 describe('SaaS-Portal isolation', () => {
-  // Confinement: PORTAL_API_URL / PORTAL_SERVICE may appear ONLY in these files.
+  // Confinement: PORTAL_API_URL may appear ONLY in these files. The
+  // PORTAL_SERVICE binding was RETIRED 2026-06-04 (queue replaced the drain
+  // POST); the second gate below pins that it never comes back as code.
   const ALLOWED = [
     'server/types/hono.ts',                 // env binding type declarations
     'server/lib/deployment-profile.ts',     // env -> capability seam
     'server/lib/middleware/di.ts',          // composition point #3: provider + OutboxService wiring
-    'server/scheduled.ts',                  // the one PORTAL_SERVICE drain guard
     'server/portal/',                       // the integration module itself
     'workers/app.ts',                       // entry-level APP_MODE 404 guard
   ];
-  it('PORTAL_API_URL / PORTAL_SERVICE appear only in allowed files', () => {
-    const hits = gitGrepFiles('PORTAL_API_URL|PORTAL_SERVICE', 'server', 'workers');
+  it('PORTAL_API_URL appears only in allowed files', () => {
+    const hits = gitGrepFiles('PORTAL_API_URL', 'server', 'workers');
     const stray = hits.filter(f => !ALLOWED.some(a => f.startsWith(a)));
-    expect(stray, `stray PORTAL_* references: ${stray.join(', ')}`).toEqual([]);
+    expect(stray, `stray PORTAL_API_URL references: ${stray.join(', ')}`).toEqual([]);
+  });
+
+  it('the retired PORTAL_SERVICE binding is referenced in no CODE file (hono.ts carries the retirement note; markdown docs are exempt)', () => {
+    const hits = gitGrepFiles('PORTAL_SERVICE', 'server', 'workers')
+      .filter(f => f.endsWith('.ts'));
+    const stray = hits.filter(f => f !== 'server/types/hono.ts');
+    expect(stray, `PORTAL_SERVICE crept back into: ${stray.join(', ')}`).toEqual([]);
   });
 
   it('integration.routes + outbox.service are wired only via integration.module (not imported raw)', () => {

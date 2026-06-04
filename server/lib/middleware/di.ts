@@ -81,17 +81,21 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
     // non-request contexts (workflows/scheduled) via assembleTenantEmailService.
     const buildEmailService = () => assembleTenantEmailService(c.env, emailCfg);
 
-    // Build the core->portal outbox sink (SaaS-only, gated on PORTAL_SERVICE as
-    // before). When SYNC_QUEUE is also bound, attach an inline-publish hook: on
-    // every append() the freshly-inserted row is pushed to the queue via
+    // Build the core->portal outbox sink, gated on the SYNC_QUEUE producer
+    // binding — the transport itself. No queue → no sink → append() no-ops:
+    // standalone never accumulates dead rows, and a misconfigured saas deploy
+    // (queue binding missing) fails loudly-by-absence instead of silently
+    // queueing rows nothing will ever publish. (The portal Service Binding was
+    // retired after the queue migration — the old drain POST was its last
+    // functional use; saas-mode detection now reads APP_MODE.)
+    // On every append() the freshly-inserted row is pushed to the queue via
     // executionCtx.waitUntil (zero user-facing latency). A send failure is
     // swallowed — the row stays `pending` and the cron sweeper republishes it.
     // AuthService / TeamService stay ignorant of the queue: they only see the
     // UserSyncOutbox.append seam.
     const buildOutbox = (): OutboxService | undefined => {
-        if (!c.env.PORTAL_SERVICE) return undefined;
         const queue = c.env.SYNC_QUEUE;
-        if (!queue) return new OutboxService(c.env.DB);
+        if (!queue) return undefined;
         return new OutboxService(c.env.DB, (row) => {
             c.executionCtx.waitUntil(
                 publishRow(c.env.DB, queue, row).catch(() => {
@@ -110,7 +114,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
             switch (prop) {
                 case 'admin':
                     {
-                        const provider = c.env.PORTAL_SERVICE
+                        // Provider selection is a deployment-MODE decision
+                        // (PortalProvider never fetched the retired binding —
+                        // it only encodes saas semantics over DB+KV).
+                        const provider = c.env.APP_MODE === 'saas'
                             ? new PortalProvider(c.env.DB, c.env.TENANT_CACHE)
                             : new StandaloneProvider(c.env.DB, c.env.TENANT_CACHE);
                         target.admin = new AdminService(c.env.DB, provider);
@@ -131,12 +138,10 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     );
                     break;
                 case 'auth':
-                    // Outbox forwarding to portal is SaaS-only: construct the
-                    // concrete sink only when the PORTAL_SERVICE binding is present
-                    // (buildOutbox returns undefined otherwise). Standalone leaves it
-                    // undefined → AuthService.append no-ops (guarded by `if
-                    // (this.outbox)`), so no portal code runs and no dead sync_outbox
-                    // rows accumulate.
+                    // Outbox forwarding to portal is SaaS-only: buildOutbox
+                    // returns undefined when SYNC_QUEUE is absent (standalone)
+                    // → AuthService.append no-ops (guarded by `if (this.outbox)`),
+                    // so no portal code runs and no dead sync_outbox rows accumulate.
                     target.auth = new AuthService(
                         c.env.DB,
                         c.env.TENANT_CACHE,
@@ -144,10 +149,9 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     );
                     break;
                 case 'outbox':
-                    // SaaS-only: only construct the concrete portal sink when the
-                    // PORTAL_SERVICE binding is present. Standalone leaves it undefined
-                    // (no consumer today; keeps standalone free of server/portal/ code
-                    // by construction, not by accident).
+                    // SaaS-only: concrete sink exists only when SYNC_QUEUE is
+                    // bound. Standalone leaves it undefined (keeps standalone
+                    // free of server/portal/ code by construction, not by accident).
                     target.outbox = buildOutbox();
                     break;
                 case 'booking':
