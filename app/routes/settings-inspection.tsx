@@ -33,7 +33,7 @@ export default function SettingsInspectionPage() {
             </div>
 
             <section>
-                <h2 className="text-[13px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Clone last (R key) default</h2>
+                <h2 className="text-[13px] font-bold uppercase tracking-[0.1em] text-ih-fg-4 mb-3">Clone last (R key) default</h2>
                 {(['rating', 'rating_notes', 'all'] as const).map(scope => (
                     <label key={scope} className="flex items-center gap-2 py-1.5 cursor-pointer">
                         <input
@@ -52,7 +52,7 @@ export default function SettingsInspectionPage() {
             </section>
 
             <section>
-                <h2 className="text-[13px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Auto-advance delay</h2>
+                <h2 className="text-[13px] font-bold uppercase tracking-[0.1em] text-ih-fg-4 mb-3">Auto-advance delay</h2>
                 <div className="flex items-center gap-3">
                     <input
                         type="range"
@@ -69,7 +69,7 @@ export default function SettingsInspectionPage() {
             </section>
 
             <section>
-                <h2 className="text-[13px] font-bold uppercase tracking-[0.1em] text-slate-400 mb-3">Pinned tags ({prefs.pinnedTagIds.length}/5)</h2>
+                <h2 className="text-[13px] font-bold uppercase tracking-[0.1em] text-ih-fg-4 mb-3">Pinned tags ({prefs.pinnedTagIds.length}/5)</h2>
                 <p className="text-[12px] text-ih-fg-3 mb-3">Up to 5 tags shown as 1-click chips below the Notes field.</p>
                 <ul className="space-y-1">
                     {tags.map(tag => {

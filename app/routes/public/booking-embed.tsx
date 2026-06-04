@@ -278,7 +278,7 @@ function BookingForm({ data, privacyUrl }: { data: EmbedData; privacyUrl: string
       {status && (
         <div
           className={`mt-3 text-[13px] ${
-            status.ok ? "text-green-700 dark:text-green-400" : "text-ih-bad-fg"
+            status.ok ? "text-ih-ok-fg" : "text-ih-bad-fg"
           }`}
         >
           {status.text}

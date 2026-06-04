@@ -38,12 +38,14 @@ const SPEED_RATINGS = [
 
 function ratingButtonClass(ratingId: string, currentRating: string | undefined): string {
   if (currentRating !== ratingId) {
+    // ds-allow: fixed-dark surface
     return "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700";
   }
   switch (ratingId) {
-    case "SAT": return "bg-emerald-600 text-white ring-4 ring-emerald-400/50";
-    case "MON": return "bg-amber-600 text-white ring-4 ring-amber-400/50";
-    case "DEF": return "bg-rose-600 text-white ring-4 ring-rose-400/50";
+    case "SAT": return "bg-ih-ok text-white ring-4 ring-ih-ok/50";
+    case "MON": return "bg-ih-watch text-white ring-4 ring-ih-watch/50";
+    case "DEF": return "bg-ih-bad text-white ring-4 ring-ih-bad/50";
+    // ds-allow: fixed-dark surface
     default:    return "bg-slate-600 text-white ring-4 ring-slate-400/50";
   }
 }
@@ -100,8 +102,10 @@ export function SpeedMode({
   };
 
   return (
+    /* ds-allow: fixed-dark surface */
     <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col">
       {/* Top bar */}
+      {/* ds-allow: fixed-dark surface */}
       <div className="h-12 flex items-center justify-between px-4 border-b border-slate-700">
         <span className="text-[12px] text-slate-400 font-bold uppercase tracking-wide">{sectionTitle}</span>
         <span className="text-[12px] text-ih-fg-3 font-mono">{currentIndex + 1} / {totalCount}</span>
@@ -115,6 +119,7 @@ export function SpeedMode({
           {...gesture}
         >
           <h2 className="text-2xl font-bold text-white mb-2 text-center">{item.label}</h2>
+          {/* ds-allow: fixed-dark surface */}
           <p className="text-[11px] text-slate-500 uppercase tracking-wide">
             Swipe to navigate · Long-press to jump
           </p>
@@ -135,6 +140,7 @@ export function SpeedMode({
         </div>
 
         {/* Nav */}
+        {/* ds-allow: fixed-dark surface */}
         <div className="flex gap-4 mt-8">
           <button onClick={onPrev} disabled={currentIndex === 0} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 text-sm">&larr; Prev</button>
           <button onClick={onNext} disabled={currentIndex >= totalCount - 1} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-30 text-sm">Next &rarr;</button>
@@ -142,6 +148,7 @@ export function SpeedMode({
       </div>
 
       {/* Footer */}
+      {/* ds-allow: fixed-dark surface */}
       <div className="h-10 flex items-center justify-center text-[11px] text-ih-fg-3 border-t border-slate-700">
         Press <kbd className="mx-1 px-1.5 py-0.5 bg-slate-800 rounded text-[10px] font-mono border border-slate-700">Z</kbd> or <kbd className="mx-1 px-1.5 py-0.5 bg-slate-800 rounded text-[10px] font-mono border border-slate-700">Esc</kbd> to exit
       </div>

@@ -1065,12 +1065,12 @@ export default function InspectionEditPage() {
  tagChipRow={tagChipRow}
  />
  ) : (
- <div className="flex items-center justify-center h-full text-slate-400">
+ <div className="flex items-center justify-center h-full text-ih-fg-4">
  <div className="text-center">
  <p className="text-[13px]">
  Select an item from the list to start editing
  </p>
- <p className="text-[11px] mt-2 text-slate-300">
+ <p className="text-[11px] mt-2 text-ih-fg-4">
  Press <kbd className="px-1.5 py-0.5 bg-ih-bg-muted rounded text-[10px] font-mono border">J</kbd> / <kbd className="px-1.5 py-0.5 bg-ih-bg-muted rounded text-[10px] font-mono border">K</kbd> to navigate
  </p>
  </div>
@@ -1230,10 +1230,10 @@ export default function InspectionEditPage() {
  {blocker.state === "blocked" && (
  <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
  <div
- className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+ className="absolute inset-0 bg-[rgba(15,23,42,0.6)] backdrop-blur-sm"
  onClick={cancelLeave}
  />
- <div className="relative bg-ih-bg-card rounded-lg shadow-xl p-6 max-w-sm w-full">
+ <div className="relative bg-ih-bg-card rounded-lg shadow-ih-popover p-6 max-w-sm w-full">
  <h3 className="text-[15px] font-bold text-ih-fg-1">
  Unsaved changes
  </h3>
@@ -1243,13 +1243,13 @@ export default function InspectionEditPage() {
  <div className="flex justify-end gap-2 mt-4">
  <button
  onClick={cancelLeave}
- className="px-4 py-2 text-[13px] font-bold text-slate-600 hover:bg-slate-100 rounded-md"
+ className="px-4 py-2 text-[13px] font-bold text-ih-fg-2 hover:bg-ih-bg-muted rounded-md"
  >
  Stay
  </button>
  <button
  onClick={confirmLeave}
- className="px-4 py-2 text-[13px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-md"
+ className="px-4 py-2 text-[13px] font-bold text-white bg-ih-bad hover:bg-ih-bad/85 rounded-md"
  >
  Leave
  </button>
@@ -1261,8 +1261,8 @@ export default function InspectionEditPage() {
  {/* Publish confirmation modal */}
  {state.showPublishModal && (
  <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
- <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => state.setShowPublishModal(false)} />
- <div className="relative bg-ih-bg-card rounded-xl shadow-2xl p-6 max-w-md w-full border border-ih-border">
+ <div className="absolute inset-0 bg-[rgba(15,23,42,0.6)] backdrop-blur-sm" onClick={() => state.setShowPublishModal(false)} />
+ <div className="relative bg-ih-bg-card rounded-xl shadow-ih-popover p-6 max-w-md w-full border border-ih-border">
  <h3 className="text-[16px] font-bold text-ih-fg-1">Publish Report</h3>
  <p className="text-[13px] text-ih-fg-3 mt-2">
  Publishing will finalize this inspection and make the report available to clients.
@@ -1278,13 +1278,13 @@ export default function InspectionEditPage() {
  <div className="flex justify-between"><span className="text-ih-fg-3">Status</span><span className="font-bold uppercase">{state.inspection.status as string}</span></div>
  </div>
  <div className="flex justify-end gap-2 mt-5">
- <button onClick={() => state.setShowPublishModal(false)} className="px-4 py-2 text-[13px] font-bold text-ih-fg-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md">Cancel</button>
+ <button onClick={() => state.setShowPublishModal(false)} className="px-4 py-2 text-[13px] font-bold text-ih-fg-3 hover:bg-ih-bg-muted rounded-md">Cancel</button>
  <button
  onClick={() => {
  fetcher.submit({ intent: "publish" }, { method: "post" });
  state.setShowPublishModal(false);
  }}
- className="px-4 py-2 text-[13px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md"
+ className="px-4 py-2 text-[13px] font-bold text-white bg-ih-ok hover:bg-ih-ok/85 rounded-md"
  >Publish Now</button>
  </div>
  </div>
@@ -1294,8 +1294,8 @@ export default function InspectionEditPage() {
  {/* Inspector sign modal */}
  {signModalOpen && (
  <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
- <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSignModalOpen(false)} />
- <div className="relative bg-ih-bg-card rounded-xl shadow-2xl p-6 max-w-md w-full border border-ih-border">
+ <div className="absolute inset-0 bg-[rgba(15,23,42,0.6)] backdrop-blur-sm" onClick={() => setSignModalOpen(false)} />
+ <div className="relative bg-ih-bg-card rounded-xl shadow-ih-popover p-6 max-w-md w-full border border-ih-border">
  <h3 className="text-[16px] font-bold text-ih-fg-1">Inspector Signature</h3>
  <p className="text-[13px] text-ih-fg-3 mt-2 mb-4">
  Sign this inspection. The signature will be saved and can be included in the published report.
@@ -1306,7 +1306,7 @@ export default function InspectionEditPage() {
  label="Save signature"
  />
  {signFetcher.data && !(signFetcher.data as { ok: boolean }).ok && (
- <p className="text-sm text-red-600 mt-2">Failed to save signature. Please try again.</p>
+ <p className="text-sm text-ih-bad-fg mt-2">Failed to save signature. Please try again.</p>
  )}
  </div>
  </div>
@@ -1316,15 +1316,15 @@ export default function InspectionEditPage() {
  {state.showCommentLibrary && (
  <div className="fixed inset-0 z-[80] flex">
  <div
- className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+ className="absolute inset-0 bg-[rgba(15,23,42,0.4)] backdrop-blur-sm"
  onClick={() => state.setShowCommentLibrary(false)}
  />
- <div className="relative ml-auto w-full max-w-md bg-ih-bg-card border-l border-ih-border shadow-2xl flex flex-col h-full">
+ <div className="relative ml-auto w-full max-w-md bg-ih-bg-card border-l border-ih-border shadow-ih-popover flex flex-col h-full">
  <div className="flex items-center justify-between px-4 py-3 border-b border-ih-border">
  <h3 className="text-[14px] font-bold">Comment Library</h3>
  <button
  onClick={() => state.setShowCommentLibrary(false)}
- className="text-slate-400 hover:text-slate-600 text-lg"
+ className="text-ih-fg-4 hover:text-ih-fg-2 text-lg"
  >
  &#x2715;
  </button>
@@ -1333,7 +1333,7 @@ export default function InspectionEditPage() {
  {/* Sort + Filter mode header */}
  <div className="flex items-center gap-3 px-3 py-2 border-b border-ih-border">
  <div className="flex items-center gap-1.5">
- <span className="text-[10px] uppercase tracking-[0.1em] text-slate-400">Filter</span>
+ <span className="text-[10px] uppercase tracking-[0.1em] text-ih-fg-4">Filter</span>
  <select
  value={comments.filterMode}
  onChange={e => comments.setFilterMode(e.target.value as 'auto' | 'all')}
@@ -1344,7 +1344,7 @@ export default function InspectionEditPage() {
  </select>
  </div>
  <div className="flex items-center gap-1.5 ml-auto">
- <span className="text-[10px] uppercase tracking-[0.1em] text-slate-400">Sort</span>
+ <span className="text-[10px] uppercase tracking-[0.1em] text-ih-fg-4">Sort</span>
  <select
  value={comments.sort}
  onChange={e => comments.setSort(e.target.value)}
@@ -1362,13 +1362,13 @@ export default function InspectionEditPage() {
  {/* Context strip (auto mode + active item) */}
  {comments.filterMode === 'auto' && state.activeItem && (
  <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] bg-ih-bg-muted border-b border-ih-border">
- <span className="text-slate-400">Context:</span>
+ <span className="text-ih-fg-4">Context:</span>
  <span>
  {state.currentSection?.title} › {(state.activeItem.label || state.activeItem.name) as string}
  </span>
  {Boolean(state.activeItemId && state.getResult(state.activeItemId)?.rating) && (
  <>
- <span className="text-slate-400">·</span>
+ <span className="text-ih-fg-4">·</span>
  <span>
  {state.getRatingLabel?.(state.getResult(state.activeItemId as string)?.rating as string) ?? ''}
  </span>
@@ -1376,7 +1376,7 @@ export default function InspectionEditPage() {
  )}
  <button
  onClick={() => comments.setFilterMode('all')}
- className="ml-auto text-slate-400 hover:text-slate-600"
+ className="ml-auto text-ih-fg-4 hover:text-ih-fg-2"
  aria-label="Clear filter"
  >×</button>
  </div>
@@ -1399,8 +1399,8 @@ export default function InspectionEditPage() {
  }}
  className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
  state.commentLibraryFilter === f.id
- ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
- : "text-slate-400 hover:text-slate-600"
+ ? "bg-ih-primary-tint text-ih-primary"
+ : "text-ih-fg-4 hover:text-ih-fg-2"
  }`}
  >
  {f.label}
@@ -1422,7 +1422,7 @@ export default function InspectionEditPage() {
  className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-app text-[12px]"
  autoFocus
  />
- <p className="text-[10px] text-slate-400 mt-1">
+ <p className="text-[10px] text-ih-fg-4 mt-1">
  {serverComments.length} comments
  </p>
  </div>
@@ -1445,7 +1445,7 @@ export default function InspectionEditPage() {
  }}
  className={`cursor-pointer ${
  idx === state.commentLibrarySelectedIdx
- ? "bg-ih-primary-tint ring-1 ring-inset ring-indigo-200 dark:ring-indigo-700"
+ ? "bg-ih-primary-tint ring-1 ring-inset ring-ih-primary/30"
  : ""
  }`}
  >
@@ -1453,7 +1453,7 @@ export default function InspectionEditPage() {
  <p className="flex-1 text-[12px] text-ih-fg-2 leading-relaxed">
  {c.text}
  </p>
- <span className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">
+ <span className="text-[10px] text-ih-fg-4 tabular-nums whitespace-nowrap">
  {comments.sort === 'recent'   && c.lastUsedAt ? formatRelativeTime(c.lastUsedAt) : ''}
  {comments.sort === 'frequent' && c.useCount   ? `${c.useCount}×`               : ''}
  </span>
@@ -1474,8 +1474,8 @@ export default function InspectionEditPage() {
  {/* Section picker modal */}
  {state.sectionPickerOpen && (
  <div className="fixed inset-0 z-[90] flex items-start justify-center pt-[20vh]">
- <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => state.closeSectionPicker()} />
- <div className="relative w-full max-w-md bg-ih-bg-card rounded-xl shadow-2xl border border-ih-border overflow-hidden">
+ <div className="absolute inset-0 bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={() => state.closeSectionPicker()} />
+ <div className="relative w-full max-w-md bg-ih-bg-card rounded-xl shadow-ih-popover border border-ih-border overflow-hidden">
  <div className="px-4 py-3 border-b border-ih-border">
  <input
  id="section-picker-input"
@@ -1509,13 +1509,13 @@ export default function InspectionEditPage() {
  {/* Tag picker modal */}
  {tagPickerOpen && state.activeItemId && (
  <div className="fixed inset-0 z-[95] flex items-start justify-center pt-[20vh]">
-  <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setTagPickerOpen(false)} />
-  <div className="relative w-full max-w-sm bg-ih-bg-card rounded-xl shadow-2xl border border-ih-border overflow-hidden">
+  <div className="absolute inset-0 bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={() => setTagPickerOpen(false)} />
+  <div className="relative w-full max-w-sm bg-ih-bg-card rounded-xl shadow-ih-popover border border-ih-border overflow-hidden">
   <div className="px-4 py-3 border-b border-ih-border flex items-center justify-between">
    <h3 className="text-[14px] font-bold text-ih-fg-1">Tags</h3>
    <button
    onClick={() => setTagPickerOpen(false)}
-   className="text-slate-400 hover:text-slate-600 text-lg"
+   className="text-ih-fg-4 hover:text-ih-fg-2 text-lg"
    >
    &#x2715;
    </button>
@@ -1531,7 +1531,7 @@ export default function InspectionEditPage() {
     className={`w-full text-left px-3 py-2.5 rounded-lg text-[13px] font-medium flex items-center gap-3 transition-colors ${
      isActive
      ? "bg-ih-bg-muted ring-1 ring-inset"
-     : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+     : "hover:bg-ih-bg-muted"
     }`}
     style={isActive ? { "--tw-ring-color": tag.color } as React.CSSProperties : undefined}
     >
@@ -1592,7 +1592,7 @@ export default function InspectionEditPage() {
  <div className="h-14 bg-ih-bg-card border-b border-ih-border flex items-center px-4 gap-3">
  <a
  href="/dashboard"
- className="w-9 h-9 rounded-md flex items-center justify-center text-ih-fg-3 hover:bg-slate-100 dark:hover:bg-slate-800"
+ className="w-9 h-9 rounded-md flex items-center justify-center text-ih-fg-3 hover:bg-ih-bg-muted"
  >
  <svg
  className="w-4 h-4"
@@ -1632,15 +1632,15 @@ export default function InspectionEditPage() {
  </div>
 
  {/* View mode */}
- <div className="hidden lg:flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-md p-0.5">
+ <div className="hidden lg:flex items-center gap-0.5 bg-ih-bg-muted rounded-md p-0.5">
  <button
  onClick={() => state.setViewMode("split")}
- className={`px-2 py-1 rounded text-[11px] font-bold ${state.viewMode === "split" ? "bg-white dark:bg-slate-700 text-ih-fg-1 shadow-sm" : "text-ih-fg-3"}`}
+ className={`px-2 py-1 rounded text-[11px] font-bold ${state.viewMode === "split" ? "bg-ih-bg-card text-ih-fg-1 shadow-ih-card" : "text-ih-fg-3"}`}
  title="Split view (Cmd+1)"
  >Split</button>
  <button
  onClick={() => state.setViewMode("focus")}
- className={`px-2 py-1 rounded text-[11px] font-bold ${state.viewMode === "focus" ? "bg-white dark:bg-slate-700 text-ih-fg-1 shadow-sm" : "text-ih-fg-3"}`}
+ className={`px-2 py-1 rounded text-[11px] font-bold ${state.viewMode === "focus" ? "bg-ih-bg-card text-ih-fg-1 shadow-ih-card" : "text-ih-fg-3"}`}
  title="Focus view (Cmd+2)"
  >Focus</button>
  </div>
@@ -1657,8 +1657,8 @@ export default function InspectionEditPage() {
  }}
  className={`hidden lg:flex w-9 h-9 rounded-md items-center justify-center ${
   state.batchMode
-  ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400"
-  : "text-ih-fg-3 hover:bg-slate-100 dark:hover:bg-slate-800"
+  ? "bg-ih-primary-tint text-ih-primary"
+  : "text-ih-fg-3 hover:bg-ih-bg-muted"
  }`}
  title={state.batchMode ? "Exit batch mode" : "Batch mode (B)"}
  >
@@ -1694,7 +1694,7 @@ export default function InspectionEditPage() {
  >
  {state.saveStatus === "saving" ? (
  <>
- <span className="w-1.5 h-1.5 rounded-full bg-ih-watch-bg0 animate-pulse" />
+ <span className="w-1.5 h-1.5 rounded-full bg-ih-watch animate-pulse" />
  Saving...
  </>
  ) : state.saveStatus === "saved" ? (
@@ -1716,7 +1716,7 @@ export default function InspectionEditPage() {
  </>
  ) : (
  <>
- <span className="w-1.5 h-1.5 rounded-full bg-ih-bad-bg0" />
+ <span className="w-1.5 h-1.5 rounded-full bg-ih-bad" />
  Error
  </>
  )}
@@ -1724,14 +1724,14 @@ export default function InspectionEditPage() {
  )}
 
  {/* Status badge */}
- <span className="px-2 h-7 rounded-md text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600 inline-flex items-center">
+ <span className="px-2 h-7 rounded-md text-[11px] font-bold uppercase tracking-wide ring-1 ring-inset bg-ih-bg-muted text-ih-fg-2 ring-ih-border inline-flex items-center">
  {state.inspection.status as string}
  </span>
 
  {/* Dark mode toggle */}
  <button
  onClick={() => setColorScheme(scheme === 'light' ? 'dark' : scheme === 'dark' ? 'auto' : 'light')}
- className="w-9 h-9 rounded-md flex items-center justify-center text-ih-fg-3 hover:bg-slate-100 dark:hover:bg-slate-800"
+ className="w-9 h-9 rounded-md flex items-center justify-center text-ih-fg-3 hover:bg-ih-bg-muted"
  title={`Theme: ${scheme}`}
  >
  {scheme === 'dark' ? (
@@ -1746,7 +1746,7 @@ export default function InspectionEditPage() {
  {/* Settings button */}
  <button
  onClick={() => state.setSettingsOpen(true)}
- className="w-9 h-9 rounded-md flex items-center justify-center text-ih-fg-3 hover:bg-slate-100 dark:hover:bg-slate-800"
+ className="w-9 h-9 rounded-md flex items-center justify-center text-ih-fg-3 hover:bg-ih-bg-muted"
  title="Inspection settings"
  >
  <svg
@@ -1776,7 +1776,7 @@ export default function InspectionEditPage() {
  type="checkbox"
  checked={autoSign}
  onChange={(e) => handleAutoSignToggle(e.target.checked)}
- className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+ className="h-3.5 w-3.5 rounded border-ih-border-strong text-ih-primary"
  />
  Auto-sign
  </label>
@@ -1784,7 +1784,7 @@ export default function InspectionEditPage() {
  {/* Sign now button */}
  <button
  onClick={() => setSignModalOpen(true)}
- className="hidden lg:inline-flex h-9 px-3 rounded-md border border-ih-border text-[12px] font-bold text-ih-fg-2 hover:bg-slate-100 dark:hover:bg-slate-800 items-center gap-1.5"
+ className="hidden lg:inline-flex h-9 px-3 rounded-md border border-ih-border text-[12px] font-bold text-ih-fg-2 hover:bg-ih-bg-muted items-center gap-1.5"
  title="Sign this inspection now"
  >
  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1796,7 +1796,7 @@ export default function InspectionEditPage() {
  {/* Publish button */}
  <button
  onClick={handlePublishClick}
- className="h-9 px-4 rounded-md bg-emerald-600 text-white font-bold text-[12px] hover:bg-emerald-700 transition-colors inline-flex items-center gap-1.5"
+ className="h-9 px-4 rounded-md bg-ih-ok text-white font-bold text-[12px] hover:bg-ih-ok/85 transition-colors inline-flex items-center gap-1.5"
  >
  <svg
  className="w-3.5 h-3.5"
@@ -1875,7 +1875,7 @@ export default function InspectionEditPage() {
  <div className="flex items-center gap-1 px-3 py-1 border-b border-ih-border">
   <button
   onClick={() => state.batchSelectAll()}
-  className="px-2 py-0.5 rounded text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20"
+  className="px-2 py-0.5 rounded text-[11px] font-bold text-ih-primary hover:bg-ih-primary-tint"
   >
   Select All
   </button>
@@ -1916,7 +1916,7 @@ export default function InspectionEditPage() {
  </div>
 
  {/* Column 3: Item Editor (flex-1, focal) */}
- <main className="flex-1 overflow-y-auto border-t-2 border-indigo-600 p-6">
+ <main className="flex-1 overflow-y-auto border-t-2 border-ih-primary p-6">
  {itemEditorEl}
  </main>
 

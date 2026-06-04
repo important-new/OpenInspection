@@ -122,7 +122,7 @@ export default function ReportPage() {
  </span>
  )}
  {ds.maintenance > 0 && (
- <span className="text-[11px] font-bold px-2 py-1 rounded bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+ <span className="text-[11px] font-bold px-2 py-1 rounded bg-ih-info-bg text-ih-info-fg">
  {ds.maintenance} Maintenance
  </span>
  )}
@@ -157,7 +157,7 @@ export default function ReportPage() {
  <img
  src={inspectorSig.signatureBase64}
  alt="Inspector signature"
- className="max-w-[240px] max-h-[80px] border border-ih-border bg-white p-1"
+ className="max-w-[240px] max-h-[80px] border border-ih-border bg-ih-bg-card p-1"
  />
  <p className="text-xs text-ih-fg-3 mt-1">
  {report.inspectorName || "Inspector"} &middot;{" "}

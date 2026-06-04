@@ -51,6 +51,14 @@ else
     fail "Lint failed  →  npx lint-staged"
 fi
 
+# 3. Design System token conformance (fast full-repo scan; also gated in CI via npm run lint)
+step "DS token conformance"
+if node scripts/check-ds-tokens.mjs > /dev/null 2>&1; then
+    pass "DS token conformance passed"
+else
+    fail "DS token check failed  →  npm run lint:ds"
+fi
+
 if [ "$FAILED" -eq 1 ]; then
     echo "\n${RED}Pre-commit checks failed. Fix the errors before committing.${NC}"
     exit 1

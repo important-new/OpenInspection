@@ -229,7 +229,7 @@ export default function BookingPage() {
           </div>
         </nav>
 
-        <div className="bg-ih-bg-card rounded-lg shadow-sm border border-ih-border p-6 md:p-10">
+        <div className="bg-ih-bg-card rounded-lg shadow-ih-card border border-ih-border p-6 md:p-10">
           <div className="mb-8 space-y-2">
             <h1 className="text-[28px] font-semibold tracking-tight text-ih-fg-1 leading-tight">
               Schedule an inspection
@@ -246,13 +246,13 @@ export default function BookingPage() {
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
                   i <= step
                     ? "bg-ih-primary text-white"
-                    : "bg-slate-200 dark:bg-slate-700 text-slate-400"
+                    : "bg-ih-bg-muted text-ih-fg-4"
                 }`}>{i + 1}</div>
                 <span className={`text-[11px] font-medium hidden sm:inline ${
-                  i <= step ? "text-ih-primary" : "text-slate-400"
+                  i <= step ? "text-ih-primary" : "text-ih-fg-4"
                 }`}>{s}</span>
                 {i < STEPS.length - 1 && (
-                  <div className={`flex-1 h-px mx-1 ${i < step ? "bg-ih-primary" : "bg-slate-200 dark:bg-slate-700"}`} />
+                  <div className={`flex-1 h-px mx-1 ${i < step ? "bg-ih-primary" : "bg-ih-bg-muted"}`} />
                 )}
               </div>
             ))}
@@ -300,7 +300,7 @@ export default function BookingPage() {
                       <div className={`px-4 py-3 rounded-md border transition-all flex items-center justify-between gap-3 ${
                         selected
                           ? "border-ih-primary bg-ih-primary-tint ring-2 ring-ih-primary/10"
-                          : "border-ih-border bg-ih-bg-card hover:border-slate-300 dark:hover:border-slate-600"
+                          : "border-ih-border bg-ih-bg-card hover:border-ih-border-strong"
                       }`}>
                         <div className="min-w-0">
                           <div className="text-[13px] font-bold text-ih-fg-1 truncate">{svc.name}</div>
@@ -322,7 +322,7 @@ export default function BookingPage() {
                 })}
               </div>
               {selectedServices.size > 0 && (
-                <div className="px-4 py-2 rounded-md bg-slate-50 dark:bg-slate-700/50 flex items-center justify-between">
+                <div className="px-4 py-2 rounded-md bg-ih-bg-muted flex items-center justify-between">
                   <span className="text-[12px] font-bold text-ih-fg-3">
                     {selectedServices.size} {selectedServices.size === 1 ? "inspection" : "inspections"}
                   </span>
@@ -376,7 +376,7 @@ export default function BookingPage() {
                         onChange={(e) => setCustomTime(e.target.value)}
                         className="h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card focus:border-ih-primary focus:shadow-ih-focus outline-none text-[13px] font-medium tabular-nums"
                       />
-                      <span className="text-[11px] text-slate-400">on selected date</span>
+                      <span className="text-[11px] text-ih-fg-4">on selected date</span>
                     </div>
                   )}
                 </div>
@@ -432,7 +432,7 @@ export default function BookingPage() {
                     <h2 className="text-[18px] font-semibold tracking-tight text-ih-fg-1">Confirm details</h2>
                     <p className="text-[13px] text-ih-fg-3">Review your booking before submitting.</p>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-md p-4 space-y-3 text-[13px]">
+                  <div className="bg-ih-bg-muted rounded-md p-4 space-y-3 text-[13px]">
                     <div className="flex justify-between">
                       <span className="text-ih-fg-3">Address</span>
                       <span className="font-medium text-ih-fg-1">{address}</span>

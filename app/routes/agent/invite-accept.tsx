@@ -253,7 +253,7 @@ export default function AgentInviteAcceptPage() {
                 name={fields.name.name}
                 placeholder="Jane Smith"
                 aria-invalid={fields.name.errors ? true : undefined}
-                className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-indigo-500 focus:shadow-ih-focus transition-all text-ih-fg-1"
+                className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-ih-primary focus:shadow-ih-focus transition-all text-ih-fg-1"
               />
               {fields.name.errors && (
                 <p className="mt-1.5 text-[13px] text-ih-bad-fg">{fields.name.errors[0]}</p>
@@ -272,7 +272,7 @@ export default function AgentInviteAcceptPage() {
                 name={fields.password.name}
                 placeholder="At least 12 characters"
                 aria-invalid={fields.password.errors ? true : undefined}
-                className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-indigo-500 focus:shadow-ih-focus transition-all text-ih-fg-1"
+                className="w-full px-4 py-3 text-[15px] bg-ih-bg-card border border-ih-border rounded-xl outline-none focus:border-ih-primary focus:shadow-ih-focus transition-all text-ih-fg-1"
               />
               {fields.password.errors && (
                 <p className="mt-1.5 text-[13px] text-ih-bad-fg">{fields.password.errors[0]}</p>

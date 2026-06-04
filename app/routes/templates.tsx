@@ -268,7 +268,7 @@ export default function TemplatesPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates..."
-              className="h-9 w-44 pl-8 pr-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-2 focus:border-ih-primary focus:shadow-ih-focus outline-none placeholder:text-slate-400"
+              className="h-9 w-44 pl-8 pr-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-2 focus:border-ih-primary focus:shadow-ih-focus outline-none placeholder:text-ih-fg-4"
             />
             <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ih-fg-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -288,13 +288,13 @@ export default function TemplatesPage() {
           <div className="flex bg-ih-bg-muted rounded-md p-0.5">
             <button
               onClick={() => setView("card")}
-              className={`px-3 py-1.5 rounded text-[12px] font-bold ${view === "card" ? "bg-ih-bg-card text-ih-primary shadow-sm" : "text-ih-fg-3"}`}
+              className={`px-3 py-1.5 rounded text-[12px] font-bold ${view === "card" ? "bg-ih-bg-card text-ih-primary shadow-ih-card" : "text-ih-fg-3"}`}
             >
               Cards
             </button>
             <button
               onClick={() => setView("list")}
-              className={`px-3 py-1.5 rounded text-[12px] font-bold ${view === "list" ? "bg-ih-bg-card text-ih-primary shadow-sm" : "text-ih-fg-3"}`}
+              className={`px-3 py-1.5 rounded text-[12px] font-bold ${view === "list" ? "bg-ih-bg-card text-ih-primary shadow-ih-card" : "text-ih-fg-3"}`}
             >
               List
             </button>
@@ -342,7 +342,7 @@ export default function TemplatesPage() {
                               {t.name}
                             </Link>
                             {t.source === "marketplace" && (
-                              <span className="ml-2 text-[9px] font-bold uppercase tracking-widest text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded">Marketplace</span>
+                              <span className="ml-2 text-[9px] font-bold uppercase tracking-widest text-ih-info-fg bg-ih-info-bg px-1.5 py-0.5 rounded">Marketplace</span>
                             )}
                             {t.description && (
                               <p className="text-[11px] text-ih-fg-4 mt-0.5 line-clamp-1">{t.description}</p>
@@ -415,7 +415,7 @@ export default function TemplatesPage() {
                     <span>{items} items</span>
                     <span>used {t.usageCount || 0}&times;</span>
                     {t.source === "marketplace" && (
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-violet-700 bg-violet-100 px-1 py-0.5 rounded">MP</span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-ih-info-fg bg-ih-info-bg px-1 py-0.5 rounded">MP</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3 pt-1 border-t border-ih-border mt-auto">
@@ -447,8 +447,8 @@ export default function TemplatesPage() {
 
       {/* Create modal */}
       {createOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setCreateOpen(false)}>
-          <div className="w-full max-w-sm bg-ih-bg-card rounded-xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={() => setCreateOpen(false)}>
+          <div className="w-full max-w-sm bg-ih-bg-card rounded-xl shadow-ih-popover p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[16px] font-bold text-ih-fg-1">New Template</h2>
               <button onClick={() => setCreateOpen(false)} className="text-ih-fg-4 hover:text-ih-fg-2 text-lg">&times;</button>
@@ -482,8 +482,8 @@ export default function TemplatesPage() {
 
       {/* Import Spectora modal */}
       {importOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setImportOpen(false)}>
-          <div className="w-full max-w-lg bg-ih-bg-card rounded-xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={() => setImportOpen(false)}>
+          <div className="w-full max-w-lg bg-ih-bg-card rounded-xl shadow-ih-popover p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-[16px] font-bold text-ih-fg-1">Import from Spectora</h2>
               <button onClick={() => setImportOpen(false)} className="text-ih-fg-4 hover:text-ih-fg-2 text-lg">&times;</button>
@@ -527,8 +527,8 @@ export default function TemplatesPage() {
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)}>
-          <div className="w-full max-w-xs bg-ih-bg-card rounded-xl shadow-2xl p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={() => setDeleteConfirm(null)}>
+          <div className="w-full max-w-xs bg-ih-bg-card rounded-xl shadow-ih-popover p-6" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-[16px] font-bold text-ih-fg-1 mb-2">Delete Template</h2>
             <p className="text-[13px] text-ih-fg-3 mb-5">
               Are you sure you want to delete this template? This cannot be undone.

@@ -16,31 +16,31 @@ const RATINGS = [
  id: "SAT",
  label: "Sat",
  full: "Satisfactory",
- active: "bg-emerald-100 text-ih-ok-fg ring-2 ring-emerald-400 dark:bg-emerald-900/30",
+ active: "bg-ih-ok-bg text-ih-ok-fg ring-2 ring-ih-ok",
  },
  {
  id: "MON",
  label: "Mon",
  full: "Monitor",
- active: "bg-amber-100 text-ih-watch-fg ring-2 ring-amber-400 dark:bg-amber-900/30",
+ active: "bg-ih-watch-bg text-ih-watch-fg ring-2 ring-ih-watch",
  },
  {
  id: "DEF",
  label: "Def",
  full: "Defect",
- active: "bg-rose-100 text-ih-bad-fg ring-2 ring-rose-400 dark:bg-rose-900/30",
+ active: "bg-ih-bad-bg text-ih-bad-fg ring-2 ring-ih-bad",
  },
  {
  id: "NI",
  label: "N/I",
  full: "Not Inspected",
- active: "bg-slate-200 text-slate-700 ring-2 ring-slate-400 dark:bg-slate-600/30 dark:text-slate-300",
+ active: "bg-ih-bg-muted text-ih-fg-2 ring-2 ring-ih-border-strong",
  },
  {
  id: "NP",
  label: "N/P",
  full: "Not Present",
- active: "bg-slate-200 text-slate-700 ring-2 ring-slate-400 dark:bg-slate-600/30 dark:text-slate-300",
+ active: "bg-ih-bg-muted text-ih-fg-2 ring-2 ring-ih-border-strong",
  },
 ] as const;
 
@@ -171,7 +171,7 @@ export function ItemEditor({
  <div className="max-w-2xl space-y-6">
  {/* Eyebrow + title */}
  <div>
- <div className="text-[11px] text-indigo-600 font-bold uppercase tracking-wide">
+ <div className="text-[11px] text-ih-primary font-bold uppercase tracking-wide">
  {sectionTitle}
  </div>
  <h2 className="text-[19px] font-bold mt-1">{item.label}</h2>
@@ -208,7 +208,7 @@ export function ItemEditor({
  className={`flex-1 h-[52px] rounded-lg text-[13px] font-bold transition-all ${
  result.rating === r.id
  ? r.active
- : "bg-ih-bg-muted text-ih-fg-3 hover:bg-slate-200 dark:hover:bg-slate-600"
+ : "bg-ih-bg-muted text-ih-fg-3 hover:bg-ih-border"
  }`}
  >
  {r.label}
@@ -221,13 +221,13 @@ export function ItemEditor({
  {/* Notes textarea with character count */}
  <div>
  <div className="flex items-center justify-between mb-1">
- <label className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+ <label className="text-[11px] font-bold uppercase tracking-wide text-ih-fg-4">
  Notes
  </label>
  <span className={`text-[10px] font-mono tabular-nums ${
  ((result.notes as string) || "").length > 2000
- ? "text-ih-bad"
- : "text-slate-400"
+ ? "text-ih-bad-fg"
+ : "text-ih-fg-4"
  }`}>
  {((result.notes as string) || "").length} chars
  </span>
@@ -238,7 +238,7 @@ export function ItemEditor({
  onChange={(e) => onNotes(e.target.value)}
  onBlur={(e) => onNotesBlur(e.target.value)}
  placeholder="Add notes — type / for snippets"
- className="w-full h-28 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-indigo-500 outline-none"
+ className="w-full h-28 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-ih-primary outline-none"
  />
  {tagChipRow}
  </div>
@@ -267,8 +267,8 @@ export function ItemEditor({
  key={entry.id}
  className={`flex items-start gap-2.5 p-2.5 rounded-lg cursor-pointer transition-colors ${
  isIncluded
- ? "bg-ih-primary-tint ring-1 ring-indigo-200 dark:ring-indigo-700"
- : "bg-ih-bg-app/50 hover:bg-slate-100 dark:hover:bg-slate-800"
+ ? "bg-ih-primary-tint ring-1 ring-ih-primary/30"
+ : "bg-ih-bg-app/50 hover:bg-ih-bg-muted"
  }`}
  >
  <input
@@ -277,7 +277,7 @@ export function ItemEditor({
  onChange={() => {
  onToggleCanned?.(activeTab, entry.id, !isIncluded);
  }}
- className="mt-0.5 w-4 h-4 rounded border-ih-border-strong text-indigo-600 focus:ring-indigo-500/30"
+ className="mt-0.5 w-4 h-4 rounded border-ih-border-strong text-ih-primary focus:ring-ih-primary/30"
  />
  <div className="flex-1 min-w-0">
  <div className="text-[12px] font-bold text-ih-fg-2">
@@ -285,10 +285,10 @@ export function ItemEditor({
  {"category" in entry && (entry as CannedDefect).category && (
  <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
  (entry as CannedDefect).category === "safety"
- ? "bg-rose-100 text-ih-bad-fg dark:bg-rose-900/30"
+ ? "bg-ih-bad-bg text-ih-bad-fg"
  : (entry as CannedDefect).category === "recommendation"
- ? "bg-amber-100 text-ih-watch-fg dark:bg-amber-900/30"
- : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+ ? "bg-ih-watch-bg text-ih-watch-fg"
+ : "bg-ih-bg-muted text-ih-fg-3"
  }`}>
  {(entry as CannedDefect).category}
  </span>
@@ -350,7 +350,7 @@ export function ItemEditor({
  {/* Photo strip with count badge */}
  <div>
  <div className="flex items-center justify-between mb-1">
- <label className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+ <label className="text-[11px] font-bold uppercase tracking-wide text-ih-fg-4">
  Photos
  </label>
  {((result.photos as unknown[]) || []).length > 0 && (
@@ -363,12 +363,12 @@ export function ItemEditor({
  )}
  </div>
  <div className="flex items-center gap-2">
- <button className="w-16 h-16 rounded-lg border-2 border-dashed border-ih-border flex items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+ <button className="w-16 h-16 rounded-lg border-2 border-dashed border-ih-border flex items-center justify-center text-ih-fg-4 hover:border-ih-primary hover:text-ih-primary transition-colors">
  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
  </svg>
  </button>
- <span className="text-[11px] text-slate-400">
+ <span className="text-[11px] text-ih-fg-4">
  {((result.photos as unknown[]) || []).length === 0
  ? "No photos yet"
  : `${((result.photos as unknown[]) || []).length} photo${((result.photos as unknown[]) || []).length === 1 ? "" : "s"}`}

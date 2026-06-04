@@ -70,7 +70,7 @@ export default function SettingsHub() {
         <Link
           key={g.to}
           to={g.to}
-          className="group p-4 bg-ih-bg-card border border-ih-border rounded-lg hover:shadow-md hover:border-ih-border transition-all"
+          className="group p-4 bg-ih-bg-card border border-ih-border rounded-lg hover:shadow-ih-popover hover:border-ih-border transition-all"
         >
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-lg bg-ih-primary-tint text-ih-primary flex items-center justify-center flex-shrink-0">
