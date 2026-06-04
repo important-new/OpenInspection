@@ -9,6 +9,7 @@ import { GuestInviteService } from '../../services/guest-invite.service';
 import { AIService } from '../../services/ai.service';
 import { AuthService } from '../../services/auth.service';
 import { OutboxService } from '../../portal/outbox.service';
+import { publishRow } from '../../portal/outbox.service';
 import { BookingService } from '../../services/booking.service';
 import { BrandingService } from '../../services/branding.service';
 import { assembleTenantEmailService } from '../email/build-email-service';
@@ -121,6 +122,26 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
     const buildEmailService = () =>
         assembleTenantEmailService(c.env, { emailIdentity, emailBrand, dbSecrets, emailOverrides });
 
+    // Build the core->portal outbox sink (SaaS-only, gated on PORTAL_SERVICE as
+    // before). When SYNC_QUEUE is also bound, attach an inline-publish hook: on
+    // every append() the freshly-inserted row is pushed to the queue via
+    // executionCtx.waitUntil (zero user-facing latency). A send failure is
+    // swallowed — the row stays `pending` and the cron sweeper republishes it.
+    // AuthService / TeamService stay ignorant of the queue: they only see the
+    // UserSyncOutbox.append seam.
+    const buildOutbox = (): OutboxService | undefined => {
+        if (!c.env.PORTAL_SERVICE) return undefined;
+        const queue = c.env.SYNC_QUEUE;
+        if (!queue) return new OutboxService(c.env.DB);
+        return new OutboxService(c.env.DB, (row) => {
+            c.executionCtx.waitUntil(
+                publishRow(c.env.DB, queue, row).catch(() => {
+                    /* send failed — row stays pending; the sweeper handles it */
+                }),
+            );
+        });
+    };
+
     const services = {} as AppServices;
 
     c.set('services', new Proxy(services, {
@@ -152,14 +173,15 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     break;
                 case 'auth':
                     // Outbox forwarding to portal is SaaS-only: construct the
-                    // concrete sink only when the PORTAL_SERVICE binding is present.
-                    // Standalone leaves it undefined → AuthService.append no-ops
-                    // (guarded by `if (this.outbox)`), so no portal code runs and
-                    // no dead sync_outbox rows accumulate.
+                    // concrete sink only when the PORTAL_SERVICE binding is present
+                    // (buildOutbox returns undefined otherwise). Standalone leaves it
+                    // undefined → AuthService.append no-ops (guarded by `if
+                    // (this.outbox)`), so no portal code runs and no dead sync_outbox
+                    // rows accumulate.
                     target.auth = new AuthService(
                         c.env.DB,
                         c.env.TENANT_CACHE,
-                        c.env.PORTAL_SERVICE ? new OutboxService(c.env.DB) : undefined,
+                        buildOutbox(),
                     );
                     break;
                 case 'outbox':
@@ -167,7 +189,7 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     // PORTAL_SERVICE binding is present. Standalone leaves it undefined
                     // (no consumer today; keeps standalone free of server/portal/ code
                     // by construction, not by accident).
-                    target.outbox = c.env.PORTAL_SERVICE ? new OutboxService(c.env.DB) : undefined;
+                    target.outbox = buildOutbox();
                     break;
                 case 'booking':
                     target.booking = new BookingService(c.env.DB);
@@ -182,7 +204,9 @@ export async function diMiddleware(c: Context<HonoConfig>, next: Next) {
                     target.inspection = new InspectionService(c.env.DB, c.env.PHOTOS, c.get('sdb'), c.env.TENANT_CACHE);
                     break;
                 case 'team':
-                    target.team = new TeamService(c.env.DB);
+                    // Member removal emits `user.deleted` through the same
+                    // SaaS-only outbox sink (undefined in standalone → no-op).
+                    target.team = new TeamService(c.env.DB, buildOutbox());
                     break;
                 case 'template':
                     target.template = new TemplateService(c.env.DB);

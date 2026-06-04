@@ -706,10 +706,17 @@ app.notFound((c) => {
 // without this `Handler does not export a scheduled() function` fires
 // on every cron tick and the automation flush never runs.
 import { scheduled as baseScheduled } from './scheduled';
+import { handleSyncDlqBatch } from './portal/integration.module';
 export default {
     fetch: app.fetch.bind(app),
     scheduled: async (event: ScheduledEvent, env: HonoConfig['Bindings'], ctx: ExecutionContext) => {
         await baseScheduled(event, env, ctx);
+    },
+    // Queue consumer: this worker consumes ONLY the sync DLQ
+    // (`inspectorhub-sync-dlq-saas`). Each dead message's outbox row is marked
+    // `failed` so the failure is durable + visible in the console. Never throws.
+    queue: async (batch: MessageBatch<unknown>, env: HonoConfig['Bindings'], _ctx: ExecutionContext) => {
+        await handleSyncDlqBatch(env.DB, batch);
     },
 };
 export { SignCompletionWorkflow } from './workflows/sign-completion-workflow';

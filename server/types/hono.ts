@@ -99,6 +99,12 @@ export interface AppEnv {
     PORTAL_API_URL?: string;
     PORTAL_SERVICE?: Fetcher;
 
+    // Core -> portal user-sync transport (A-13/A-14). SaaS-only producer
+    // binding to the `inspectorhub-sync-saas` Cloudflare Queue. Absent in
+    // standalone; producer code guards on it exactly like PORTAL_SERVICE, so
+    // standalone keeps appending inert outbox rows and never publishes.
+    SYNC_QUEUE?: Queue<import('../lib/sync-events/envelope').SyncEnvelope>;
+
     // Spec 5D — Address Autofill. Server-side proxy holds the API key so it
     // never leaks to the client. Optional: when absent, dashboard.tsx falls
     // back to a free-text address input (no autocomplete dropdown).

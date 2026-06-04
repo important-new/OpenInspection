@@ -16,7 +16,8 @@ export interface UserSyncEvent {
 }
 
 /** Minimal surface core services use. The concrete OutboxService adds
- *  listPending/markDone/markFailed for the scheduled flush — not needed here. */
+ *  listPending/publishRow/markFailedFromDlq for the queue transport — not
+ *  needed here. */
 export interface UserSyncOutbox {
     append(event: UserSyncEvent): Promise<string>;
 }
