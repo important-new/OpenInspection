@@ -27,3 +27,11 @@ export function todayLocalISO(now: Date = new Date()): string {
   const d = String(now.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
+
+/**
+ * FE-7 — services.price is stored in cents (see services schema comment);
+ * render it like every other consumer ($X.XX), not as the raw integer.
+ */
+export function formatPriceCents(cents: number | null | undefined): string {
+  return `$${((cents ?? 0) / 100).toFixed(2)}`;
+}

@@ -3,7 +3,7 @@ import { eq, and, or, lt, gte, lte, sql, inArray, desc } from 'drizzle-orm';
 import { inspections, inspectionResults, templates, inspectionAgreements, users, services, inspectionServices, tenantConfigs, invoices, inspectionMediaPool, tenants, agreementRequests } from '../lib/db/schema';
 import { contacts } from '../lib/db/schema/contact';
 import { Errors } from '../lib/errors';
-import { computeReportStats, getRatingColor, getRatingBucket, type RatingLevel } from '../lib/report-utils';
+import { computeReportStats, getRatingColor, getRatingBucket, mapCustomDefectsForReport, type RatingLevel } from '../lib/report-utils';
 import { mapRatingSystemLevels } from '../lib/map-rating-levels';
 import { z } from 'zod';
 import { InspectionSchema, InspectionListQuerySchema, CreateInspectionSchema } from '../lib/validations/inspection.schema';
@@ -1716,6 +1716,14 @@ export class InspectionService {
                     };
                 });
 
+                // FE-3/B-20 — field-authored custom defects join the resolved
+                // list (they previously reached only the repair list + stats;
+                // the published report silently dropped them).
+                const customDefects = mapCustomDefectsForReport(
+                    (res as { customComments?: { defects?: Array<{ id: string }> } }).customComments,
+                    makePhotoUrl,
+                );
+
                 // Sprint 2 S2-3 / S2-4 — when the inspector left the legacy
                 // top-level recommendation / estimate empty but tagged the
                 // included canned defects with per-defect values, surface
@@ -1788,7 +1796,9 @@ export class InspectionService {
                     resolvedTabs: {
                         information,
                         limitations,
-                        defects,
+                        // Canned first, then custom — single list for renderers
+                        // (custom rows carry isCustom: true).
+                        defects: [...defects, ...customDefects],
                     },
                 };
             }),
@@ -2075,10 +2085,14 @@ export class InspectionService {
 
         for (const section of report.sections) {
             for (const item of section.items) {
-                // Canned defects from the resolved tabs.
+                // Canned defects from the resolved tabs. FE-3: the resolved
+                // list now also carries custom rows (isCustom) — skip them
+                // here, the dedicated custom pass below already emits them
+                // (with their richer per-row fields).
                 const cannedDefects = item.resolvedTabs?.defects ?? [];
                 for (const d of cannedDefects) {
-                    if (!d.included) continue;
+                    if (!d.included || ('isCustom' in d && d.isCustom)) continue;
+                    if (!('recommendationId' in d)) continue; // type guard: canned shape only
                     const cat = (d.effectiveCategory ?? 'maintenance') as RepairListEntry['category'];
                     const slug = d.recommendationId ?? null;
                     entries.push({

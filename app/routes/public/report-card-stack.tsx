@@ -15,6 +15,17 @@ export function meta({ data }: Route.MetaArgs) {
 /* Types */
 /* ------------------------------------------------------------------ */
 
+interface ResolvedDefect {
+ id: string;
+ title: string;
+ included: boolean;
+ isCustom?: boolean;
+ effectiveComment: string;
+ effectiveCategory?: string;
+ effectiveLocation?: string | null;
+ defectPhotos?: Array<{ key: string; url: string }>;
+}
+
 interface ReportItem {
  id: string;
  label: string;
@@ -30,6 +41,10 @@ interface ReportItem {
  estimateMax?: number | null;
  value?: unknown;
  unit?: string | null;
+ /** FE-3/B-20 — resolved canned + custom defects (server emits both). */
+ resolvedTabs?: {
+ defects?: ResolvedDefect[];
+ };
 }
 
 interface ReportSection {
@@ -376,6 +391,70 @@ export default function ReportCardStackPage() {
  <p className="text-sm text-ih-fg-3 mt-2 leading-relaxed">
  {item.notes}
  </p>
+ )}
+
+ {/* FE-3/B-20 — findings: included canned + custom defects with their
+ own photos. Previously the viewer rendered neither (field-authored
+ defects never appeared in the published report at all). */}
+ {(item.resolvedTabs?.defects ?? []).filter((d) => d.included).length > 0 && (
+ <div className="mt-3 space-y-2">
+ {(item.resolvedTabs?.defects ?? [])
+ .filter((d) => d.included)
+ .map((d) => (
+ <div
+ key={d.id}
+ className="rounded-md border border-ih-border bg-ih-bg-app/60 px-3 py-2"
+ >
+ <div className="flex items-center gap-1.5 flex-wrap">
+ <span className="text-[13px] font-bold text-ih-fg-1">{d.title}</span>
+ {d.effectiveCategory && (
+ <span
+ className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+ d.effectiveCategory === "safety"
+ ? "bg-rose-100 text-rose-700"
+ : d.effectiveCategory === "recommendation"
+ ? "bg-amber-100 text-amber-700"
+ : "bg-slate-100 text-slate-600"
+ }`}
+ >
+ {d.effectiveCategory}
+ </span>
+ )}
+ {d.isCustom && (
+ <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+ inspector-added
+ </span>
+ )}
+ {d.effectiveLocation && (
+ <span className="text-[11px] text-ih-fg-4">@ {d.effectiveLocation}</span>
+ )}
+ </div>
+ {d.effectiveComment && (
+ <p className="text-[13px] text-ih-fg-3 mt-1 leading-relaxed">
+ {d.effectiveComment}
+ </p>
+ )}
+ {(d.defectPhotos ?? []).length > 0 && (
+ <div className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-1.5">
+ {(d.defectPhotos ?? []).map((photo) => {
+ const name = photoDisplayName(photo.key);
+ return (
+ <img
+ key={photo.key}
+ src={photo.url}
+ alt={name}
+ title={name}
+ className="w-full h-20 object-cover rounded cursor-pointer"
+ loading="lazy"
+ onClick={() => setLightboxUrl(photo.url)}
+ />
+ );
+ })}
+ </div>
+ )}
+ </div>
+ ))}
+ </div>
  )}
 
  {item.recommendation && (

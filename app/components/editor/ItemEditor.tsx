@@ -104,6 +104,8 @@ interface ItemEditorProps {
  /** B-20 — add a field-authored defect into result.customComments.defects. */
  onAddCustomDefect?: (input: { title: string; comment: string; category: CustomDefectCategory }) => void;
  onToggleCustomDefect?: (customId: string, included: boolean) => void;
+ /** FE-3 — open the photo picker targeting a specific defect row. */
+ onAddDefectPhoto?: (target: { kind: "canned" | "custom"; id: string }) => void;
  defectStates?: Map<string, DefectFieldsValue>;
  locationSuggestions?: string[];
  onDefectFields?: (cannedId: string, patch: Partial<DefectFieldsValue>) => void;
@@ -128,6 +130,7 @@ export function ItemEditor({
  onNotesBlur,
  onToggleCanned,
  onAddPhoto,
+ onAddDefectPhoto,
  photoUploading,
  onAddCustomDefect,
  onToggleCustomDefect,
@@ -205,7 +208,35 @@ export function ItemEditor({
  : [];
 
  // B-20 — field-authored custom defects already persisted on this item.
- const customDefects = (((result.customComments as { defects?: CustomDefect[] } | undefined)?.defects) ?? []);
+ const customDefects = (((result.customComments as { defects?: (CustomDefect & { photos?: Array<{ key: string }> })[] } | undefined)?.defects) ?? []);
+
+ // FE-3 — photo count on a canned defect's STATE row (tabs.defects[].photos).
+ const cannedDefectPhotoCount = (cannedId: string): number => {
+ const rows = ((result.tabs as { defects?: Array<{ cannedId: string; photos?: unknown[] }> } | undefined)?.defects) ?? [];
+ const row = Array.isArray(rows) ? rows.find((r) => r.cannedId === cannedId) : undefined;
+ return Array.isArray(row?.photos) ? row.photos.length : 0;
+ };
+
+ // Shared per-defect photo chip (canned + custom rows).
+ const defectPhotoChip = (target: { kind: "canned" | "custom"; id: string }, count: number) =>
+ onAddDefectPhoto ? (
+ <button
+ type="button"
+ onClick={(e) => {
+ e.preventDefault();
+ e.stopPropagation();
+ onAddDefectPhoto(target);
+ }}
+ disabled={photoUploading}
+ aria-label="Add photo to this defect"
+ className="inline-flex items-center gap-1 mt-1.5 px-2 py-1 rounded-md border border-dashed border-ih-border-strong text-[11px] font-bold text-ih-fg-3 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+ >
+ <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+ <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+ </svg>
+ {count > 0 ? `${count} photo${count === 1 ? "" : "s"} · add` : "Add photo"}
+ </button>
+ ) : null;
 
  const submitCustomDefect = () => {
  const title = customTitle.trim();
@@ -434,6 +465,7 @@ export function ItemEditor({
  {vars ? renderTemplate(entry.comment, vars) : entry.comment}
  </p>
  {isDefectIncluded && (
+ <>
  <DefectFieldsRow
  cannedId={entry.id}
  value={st!}
@@ -442,6 +474,9 @@ export function ItemEditor({
  locationRequired={missingFields?.get(entry.id)?.location}
  tradeRequired={missingFields?.get(entry.id)?.trade}
  />
+ {/* FE-3 — photo pinned to THIS defect, not the item */}
+ {defectPhotoChip({ kind: "canned", id: entry.id }, cannedDefectPhotoCount(entry.id))}
+ </>
  )}
  </>
  );
@@ -489,6 +524,9 @@ export function ItemEditor({
  {cd.comment && (
  <p className="text-[12px] mt-0.5 leading-relaxed text-ih-fg-3">{cd.comment}</p>
  )}
+ {/* FE-3 — photo pinned to this custom defect */}
+ {cd.included !== false &&
+ defectPhotoChip({ kind: "custom", id: cd.id }, Array.isArray(cd.photos) ? cd.photos.length : 0)}
  </div>
  </label>
  ))}

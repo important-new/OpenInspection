@@ -2,6 +2,7 @@ import { useCallback, useRef } from "react";
 import type { useFetcher } from "react-router";
 import type { ResultMap } from "./useInspection";
 import { fKey } from "./useInspection";
+import { attachPhotoToDefectState, attachPhotoToCustomDefect } from "~/lib/defect-photos";
 
 const DEFAULT_UNIT = "_default";
 
@@ -443,6 +444,43 @@ export function useFindings(
     [getResult],
   );
 
+  /**
+   * FE-3 — attach an uploaded photo to a specific defect instead of the item
+   * as a whole. Canned defects keep photos on their state row
+   * (tabs.defects[].photos — the shape getReportData maps to defectPhotos),
+   * custom defects on customComments.defects[].photos. Same persist-the-
+   * computed-map discipline as addPhotoToItem.
+   */
+  const addPhotoToDefect = useCallback(
+    (
+      itemId: string,
+      target: { kind: "canned" | "custom"; id: string },
+      photoKey: string,
+    ) => {
+      const sid = sectionIdForItem(itemId);
+      if (!sid) return;
+      const key = fKey(sid, itemId);
+      const existing =
+        (results[key] as Record<string, unknown>) ||
+        (results[itemId] as Record<string, unknown>) ||
+        {};
+      const updated =
+        target.kind === "canned"
+          ? attachPhotoToDefectState(existing, target.id, photoKey)
+          : attachPhotoToCustomDefect(existing, target.id, photoKey);
+      if (updated === existing) return; // unknown custom id — nothing to do
+      const next = { ...results, [key]: updated, [itemId]: updated };
+      setResults(() => next);
+      setDirty(true);
+      setSaveStatus("saving");
+      fetcher.submit(
+        { intent: "save-all", data: JSON.stringify(next) },
+        { method: "POST" },
+      );
+    },
+    [results, sectionIdForItem, setResults, fetcher, setDirty, setSaveStatus],
+  );
+
   /* ---------------------------------------------------------------- */
   /*  Custom defects (B-20)                                            */
   /* ---------------------------------------------------------------- */
@@ -518,6 +556,7 @@ export function useFindings(
     cloneLast,
     batchSetRating,
     addPhotoToItem,
+    addPhotoToDefect,
     getPhotoCount,
     addCustomDefect,
     toggleCustomDefect,

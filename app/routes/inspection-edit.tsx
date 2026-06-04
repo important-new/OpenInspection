@@ -235,15 +235,26 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  // FE-2: photo upload rides the BFF relay like every other mutation —
  // the old client-side fetch('/api/…/upload') was unauthenticated in saas
  // (C-12 class). Accepts one or many files (burst camera) per submission.
+ // FE-3: optional targetType='defect' + customId pins the photo to a
+ // specific defect row; defectKind ('canned' | 'custom') is a client-side
+ // routing hint echoed back so the effect attaches the key to the right
+ // store (it never reaches the API).
  if (intent === "upload-photo") {
  const itemId = String(formData.get("itemId"));
+ const targetType = formData.get("targetType") === "defect" ? ("defect" as const) : ("item" as const);
+ const customId = String(formData.get("customId") ?? "");
+ const defectKind = formData.get("defectKind") === "custom" ? ("custom" as const) : ("canned" as const);
  const files = formData.getAll("file").filter((f): f is File => f instanceof File);
  const keys: string[] = [];
  ok = files.length > 0 && Boolean(itemId);
  for (const file of files) {
  const res = await api.inspections[":id"].upload.$post({
  param: { id: params.id },
- form: { file, itemId },
+ form: {
+ file,
+ itemId,
+ ...(targetType === "defect" ? { targetType, customId } : {}),
+ },
  });
  if (res.ok) {
  const j = (await res.json()) as { data?: { key?: string } };
@@ -253,7 +264,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  ok = false;
  }
  }
- return { ok, keys, itemId };
+ return { ok, keys, itemId, targetType, customId, defectKind };
  }
 
  return { ok };
@@ -800,6 +811,11 @@ export default function InspectionEditPage() {
  * every failure silently. The effect below attaches returned keys and
  * surfaces failures as a toast.
  */
+ // FE-3 — when set, the next picked photo pins to this defect row instead
+ // of the item; armed by ItemEditor's per-defect chip right before the
+ // picker opens, consumed (and cleared) by handlePhotoUpload.
+ const pendingPhotoTargetRef = useRef<{ kind: "canned" | "custom"; id: string } | null>(null);
+
  const handlePhotoUpload = useCallback(
  (e: React.ChangeEvent<HTMLInputElement>) => {
  const file = e.target.files?.[0];
@@ -808,6 +824,13 @@ export default function InspectionEditPage() {
  formData.append("intent", "upload-photo");
  formData.append("itemId", state.activeItemId);
  formData.append("file", file);
+ const target = pendingPhotoTargetRef.current;
+ pendingPhotoTargetRef.current = null;
+ if (target) {
+ formData.append("targetType", "defect");
+ formData.append("customId", target.id);
+ formData.append("defectKind", target.kind);
+ }
  uploadFetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
  // Reset input so picking the same file twice re-fires onChange
  if (photoInputRef.current) photoInputRef.current.value = "";
@@ -829,18 +852,36 @@ export default function InspectionEditPage() {
  [state.burstCameraItemId, uploadFetcher],
  );
 
- // Attach uploaded photo keys to the item once the action responds.
+ // Attach uploaded photo keys once the action responds — to the item, or
+ // (FE-3) to the specific defect row the action echoes back.
  const processedUploadData = useRef<unknown>(null);
  useEffect(() => {
  const d = uploadFetcher.data as
- | { ok?: boolean; keys?: string[]; itemId?: string }
+ | {
+ ok?: boolean;
+ keys?: string[];
+ itemId?: string;
+ targetType?: "item" | "defect";
+ customId?: string;
+ defectKind?: "canned" | "custom";
+ }
  | undefined;
  if (uploadFetcher.state !== "idle" || !d || processedUploadData.current === d) return;
  processedUploadData.current = d;
  if (d.keys?.length && d.itemId) {
- for (const k of d.keys) findings.addPhotoToItem(d.itemId, k);
+ for (const k of d.keys) {
+ if (d.targetType === "defect" && d.customId) {
+ findings.addPhotoToDefect(
+ d.itemId,
+ { kind: d.defectKind ?? "canned", id: d.customId },
+ k,
+ );
+ } else {
+ findings.addPhotoToItem(d.itemId, k);
+ }
+ }
  pushToast({
- message: `${d.keys.length} photo${d.keys.length === 1 ? "" : "s"} added`,
+ message: `${d.keys.length} photo${d.keys.length === 1 ? "" : "s"} added${d.targetType === "defect" ? " to defect" : ""}`,
  durationMs: 2000,
  });
  }
@@ -1066,6 +1107,10 @@ export default function InspectionEditPage() {
  ratingLevels={state.ratingLevels}
  onRating={handleRating}
  onAddPhoto={() => photoInputRef.current?.click()}
+ onAddDefectPhoto={(target) => {
+ pendingPhotoTargetRef.current = target;
+ photoInputRef.current?.click();
+ }}
  photoUploading={uploadFetcher.state !== "idle"}
  onAddCustomDefect={(input) => {
  if (state.activeItemId && state.currentSection) {

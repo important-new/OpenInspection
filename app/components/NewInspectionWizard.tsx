@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useFetcher } from "react-router";
-import { buildWizardSteps, todayLocalISO, type WizardStepId } from "~/lib/wizard-steps";
+import { buildWizardSteps, todayLocalISO, formatPriceCents, type WizardStepId } from "~/lib/wizard-steps";
 
 const STEP_LABELS: Record<WizardStepId, string> = {
   property: "Property",
@@ -249,7 +249,8 @@ export function NewInspectionWizard({
                   >
                     {services.has(s.id) ? "✓ " : ""}{s.name}
                     {typeof s.price === "number" && s.price > 0 ? (
-                      <span className="ml-1 text-ih-fg-4">${s.price}</span>
+                      // FE-7: price is stored in cents — "$400.00", not "$40000"
+                      <span className="ml-1 text-ih-fg-4">{formatPriceCents(s.price)}</span>
                     ) : null}
                   </button>
                 ))}

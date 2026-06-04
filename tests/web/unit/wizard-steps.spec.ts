@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { buildWizardSteps, todayLocalISO } from '~/lib/wizard-steps';
+import { buildWizardSteps, todayLocalISO, formatPriceCents } from '~/lib/wizard-steps';
+
+/**
+ * FE-7 — services.price is stored in CENTS (schema comment, and every other
+ * consumer divides by 100); the wizard rendered the raw integer ("$40000"
+ * for a $400 inspection).
+ */
+describe('formatPriceCents', () => {
+  it('formats cents as dollars with two decimals', () => {
+    expect(formatPriceCents(40000)).toBe('$400.00');
+    expect(formatPriceCents(15000)).toBe('$150.00');
+    expect(formatPriceCents(9950)).toBe('$99.50');
+  });
+
+  it('handles zero and null-ish safely', () => {
+    expect(formatPriceCents(0)).toBe('$0.00');
+    expect(formatPriceCents(null)).toBe('$0.00');
+    expect(formatPriceCents(undefined)).toBe('$0.00');
+  });
+});
 
 /**
  * B-21 — the New Inspection wizard always walked Property → Services →
