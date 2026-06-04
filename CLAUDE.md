@@ -17,10 +17,14 @@ npm run dev          # Build + run the worker locally (react-router build + wran
 npm run build        # react-router build — bundles server/ (API) + app/ (RR SSR) into one worker
 npm run deploy       # standalone: build + wrangler deploy (real ids via wrangler.local.jsonc)
 npm run deploy:saas  # saas: build + wrangler deploy with wrangler.saas.jsonc
-npm run type-check   # react-router typegen + tsc (app tsconfig.json + api tsconfig.api.json)
+npm run type-check   # react-router typegen, then the app + api tsc passes run CONCURRENTLY
+npm run type-check:app   # tsc app side only (tsconfig.json)
+npm run type-check:api   # tsc api side only (tsconfig.api.json) — fastest loop for server/ work
+npm run type-check:fast  # tsgo (@typescript/native-preview) both passes; tsc stays the CI gate
 npm run lint
 npm run test:unit    # API unit tests (vitest --config vitest.api.config.ts)
 npm run test:web     # Web unit tests (vitest --config vitest.config.ts)
+npm run test:workers # Real-runtime (workerd) queue-path tests (vitest.workers.config.ts)
 npm run test:e2e     # Playwright E2E
 
 # Database — drizzle-kit schema-first (server/lib/db/schema is the source of truth)
@@ -39,7 +43,7 @@ One file per deploy target; the build bakes whichever config wins (vite `configP
 |---|---|---|
 | `wrangler.jsonc` | committed (PLACEHOLDER ids) | standalone + the **Deploy to Cloudflare** one-click default — CF auto-provisions D1/KV/R2 and injects real ids (no real ids in the repo). |
 | `wrangler.local.jsonc` | gitignored | your real standalone ids (written by `scripts/setup-cloudflare.js`). |
-| `wrangler.saas.jsonc` | gitignored | InspectorHub private SaaS (`APP_MODE=saas`, `PORTAL_SERVICE`, crons, `*-saas` resources). |
+| `wrangler.saas.jsonc` | gitignored | InspectorHub private SaaS (`APP_MODE=saas`, `SYNC_QUEUE` producer + sync-DLQ consumer, crons, `*-saas` resources). |
 
 `wrangler deploy` runs against the built `build/server/wrangler.json`. `scripts/wrangler.mjs`
 applies the same config resolution to direct wrangler commands (db:migrate).
@@ -123,16 +127,16 @@ OpenInspection runs as ONE Cloudflare Worker (cloudflare/react-router-hono-fulls
 | `TENANT_CACHE`| Yes | Cloudflare KV for configuration caching |
 | `TURNSTILE_SECRET_KEY` | No | Server-side Turnstile verification — `POST /api/book` enforces this when set. Use test secret `1x0000000000000000000000000000000AA` for local dev. |
 | `APP_BASE_URL` | No | Public URL for OAuth and link generation |
-| `RESEND_API_KEY`| No | Email delivery (via Resend.com) |
-| `GEMINI_API_KEY`| No | AI-powered inspection assistance |
+| `RESEND_API_KEY`| No | Platform-default email delivery (Resend). Tenants may switch to their OWN Resend key + verified sender via Settings → Communication (per-tenant override; the email pipeline resolves own-vs-platform explicitly). |
+| `GEMINI_API_KEY`| No | DEPRECATED as a platform key — AI assistance is strictly bring-your-own-key: `AIService` reads the tenant's own stored key (Settings → Advanced) and ignores this env. AI features stay off until a tenant configures a key. |
 | `APP_MODE` | No | `standalone` (default) or `saas` — controls tenant resolution |
 | `APP_NAME` | No | Custom branding name |
 | `PRIMARY_COLOR` | No | Custom branding color |
 | `SINGLE_TENANT_ID` | No | Fixed tenant ID for standalone mode |
 | `SETUP_CODE` | No | Verification code for first-time setup |
 | `PORTAL_API_URL` | No | Portal URL for browser redirects (login bounce, billing, workspace switch) |
-| `PORTAL_SERVICE` | No | Service Binding to portal worker (SaaS mode only, declared in `wrangler.saas.toml`). Replaces HTTP+HMAC M2M auth. |
-| `STRIPE_SECRET_KEY` | No | Stripe API key (for Connect payments) |
+| `SYNC_QUEUE` | No | Cloudflare Queue producer binding for the SaaS user-sync seam (SaaS only; absent in standalone). The outbox publishes CloudEvents envelopes here; a cron sweeper republishes stragglers; this worker also consumes the matching DLQ to mark failed rows. (The former `PORTAL_SERVICE` Service Binding was RETIRED 2026-06-04 — core holds no binding to portal; inbound M2M is guarded by the `x-portal-m2m` HMAC.) |
+| `STRIPE_SECRET_KEY` | No | Stripe Connect (each tenant's OWN account; the platform never collects payments). Resolution is tenant-DB-preferred: a tenant's stored key always beats this env, so a platform-level binding can never hijack tenant payments. |
 | `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook HMAC verification |
 | `GOOGLE_PLACES_API_KEY` | No | Google Places API key powering address autocomplete on the dashboard new-inspection wizard and the public `/book` page (proxied via `/api/places/*` and `/public/geocode`). When unset, both endpoints return `{ data: [], reason: 'NO_API_KEY' }` and the address inputs degrade gracefully to plain text — the customer can still type a free-form address and submit. |
 | `ESTATED_API_KEY` | No | Estated.io public-records key for the `POST /api/inspections/:id/property-facts/autofill` endpoint. Resolves year built / sqft / foundation / lot size / bedrooms / bathrooms by address. When unset, the endpoint returns `{ data: null, reason: 'NO_API_KEY' }` and the Property Facts card displays a polite "auto-fill not configured" hint while still accepting manual entry. Same graceful-degrade pattern as `GOOGLE_PLACES_API_KEY`. |
