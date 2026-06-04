@@ -1,12 +1,19 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { HonoConfig } from '../types/hono';
 import { TenantUpdateParams } from '../lib/integration';
 import { TenantStatusBodySchema, StripeConnectBodySchema, SeedStarterContentBodySchema } from '../lib/validations/admin.schema';
 import { SyncQuotaSchema } from '../lib/validations/sync-quota.schema';
 import { logger } from '../lib/logger';
+import { OutboxService } from './outbox.service';
 import { requireServiceBinding } from './service-binding-guard';
 
 const api = new Hono<HonoConfig>();
+
+/** Body for POST /sync-redrive. Empty/omitted `ids` re-drives every failed row. */
+const SyncRedriveSchema = z.object({
+    ids: z.array(z.string()).optional(),
+});
 
 /**
  * PATCH /api/integration/tenants/:slug
@@ -250,6 +257,43 @@ api.post('/backfill-default-templates', requireServiceBinding, async (c) => {
     const totalSkipped = results.reduce((sum, r) => sum + r.skipped, 0);
     logger.info('Backfill complete', { tenantCount: results.length, totalSeeded, totalSkipped });
     return c.json({ success: true });
+});
+
+/**
+ * GET /api/integration/sync-health
+ * Operability snapshot of the core->portal sync outbox for the sysadmin
+ * console badge: pending + failed counts and the age (seconds) of the oldest
+ * pending row. Same requireServiceBinding guard as the sibling M2M routes.
+ */
+api.get('/sync-health', requireServiceBinding, async (c) => {
+    try {
+        const counts = await new OutboxService(c.env.DB).counts();
+        return c.json({ success: true, data: counts });
+    } catch (error: unknown) {
+        logger.error('sync-health failed', {}, error instanceof Error ? error : undefined);
+        return c.json({ success: false, error: { message: 'Internal server error' } }, 500);
+    }
+});
+
+/**
+ * POST /api/integration/sync-redrive
+ * Reset failed outbox rows back to `pending` so the next sweeper tick
+ * republishes them. Body: { ids?: string[] } — omit `ids` to re-drive every
+ * failed row. Returns the number of rows reset.
+ */
+api.post('/sync-redrive', requireServiceBinding, async (c) => {
+    const parsed = SyncRedriveSchema.safeParse(await c.req.json().catch(() => ({})));
+    if (!parsed.success) {
+        return c.json({ success: false, error: { message: 'Invalid input' } }, 400);
+    }
+    try {
+        const redriven = await new OutboxService(c.env.DB).redrive(parsed.data.ids);
+        logger.info('sync-redrive applied', { redriven, scoped: !!parsed.data.ids });
+        return c.json({ success: true, data: { redriven } });
+    } catch (error: unknown) {
+        logger.error('sync-redrive failed', {}, error instanceof Error ? error : undefined);
+        return c.json({ success: false, error: { message: 'Internal server error' } }, 500);
+    }
 });
 
 export default api;

@@ -5,15 +5,17 @@
 // (workers/app.ts) 404s /api/integration/* unless APP_MODE=saas.
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import type { HonoConfig } from '../types/hono';
+import type { SyncEnvelope } from '../lib/sync-events/envelope';
 import integrationRoutes from './integration.routes';
-import { flushOutboxOnce } from './outbox.service';
-import { signM2mHeader } from '../lib/m2m-auth';
+import { flushOutboxOnce, OutboxService } from './outbox.service';
+import { logger } from '../lib/logger';
 
-/** Minimal env shape the outbox drain needs — satisfied by both AppEnv and
- *  ScheduledEnv. `PORTAL_SERVICE` is the portal Service Binding (saas only). */
+/** Minimal env shape the outbox sweeper needs — satisfied by both AppEnv and
+ *  ScheduledEnv. `SYNC_QUEUE` is the producer binding to the sync queue (saas
+ *  only); absent in standalone, where the sweeper is a no-op. */
 interface PortalDrainEnv {
     DB: D1Database;
-    PORTAL_SERVICE?: Fetcher;
+    SYNC_QUEUE?: Queue<SyncEnvelope>;
 }
 
 /** Mount the portal->core M2M integration routes on the API app. */
@@ -21,9 +23,50 @@ export function registerPortalIntegration(app: OpenAPIHono<HonoConfig>): void {
     app.route('/api/integration', integrationRoutes);
 }
 
-/** Drain the core->portal user-sync outbox via the PORTAL_SERVICE binding.
- *  Call only when env.PORTAL_SERVICE is bound (saas). */
+/** Sweeper pass: republish any `pending` outbox rows (older than the inline
+ *  publish window) to the sync queue. Gated on env.SYNC_QUEUE — when the queue
+ *  binding is absent this is a no-op (logged once). The queue is the sole
+ *  transport; the legacy Service-Binding POST drain has been removed. */
 export async function drainPortalOutbox(env: PortalDrainEnv): Promise<void> {
-    const m2m = await signM2mHeader(env as unknown as Record<string, string | undefined>);
-    await flushOutboxOnce(env.DB, env.PORTAL_SERVICE!, m2m, 50);
+    if (!env.SYNC_QUEUE) {
+        logger.info('[cron:outbox] SYNC_QUEUE not bound — sweeper skipped');
+        return;
+    }
+    await flushOutboxOnce(env.DB, env.SYNC_QUEUE, 50);
+}
+
+/**
+ * DLQ writeback core. Processes one batch of dead messages from
+ * `inspectorhub-sync-dlq-saas`: each message body is a SyncEnvelope that
+ * exhausted the portal consumer's retries. For each, mark the originating
+ * outbox row `failed` (the durable failure record surfaced by the console),
+ * then ack the message. Tolerant: a malformed body is logged and acked (never
+ * recycled — there is nothing to retry on a dead message). Never throws the
+ * batch. Exported standalone so unit tests can drive it without a worker.
+ */
+export async function handleSyncDlqBatch(
+    db: D1Database,
+    batch: MessageBatch<unknown>,
+): Promise<void> {
+    const svc = new OutboxService(db);
+    for (const msg of batch.messages) {
+        try {
+            const body = msg.body as Partial<SyncEnvelope> | undefined;
+            const id = body && typeof body.id === 'string' ? body.id : undefined;
+            if (id) {
+                await svc.markFailedFromDlq(id, 'dlq: retries exhausted');
+            } else {
+                logger.warn('[dlq] message without a parseable envelope id — acking', {
+                    messageId: msg.id,
+                });
+            }
+        } catch (err) {
+            logger.error('[dlq] writeback failed for message', { messageId: msg.id },
+                err instanceof Error ? err : undefined);
+        } finally {
+            // Always ack: a dead message has nothing left to retry. Re-driving
+            // happens via the outbox row (sync-redrive), not the DLQ.
+            msg.ack();
+        }
+    }
 }
