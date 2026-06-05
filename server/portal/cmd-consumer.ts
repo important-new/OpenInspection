@@ -7,6 +7,7 @@ import {
     type CmdEnvelope,
 } from '../lib/sync-events/cmd-envelope';
 import { applySyncQuota, applyTenantUpdate } from './apply-commands';
+import { applyAdminCredential } from './admin-credential';
 
 /**
  * A-21 — consumer for `inspectorhub-cmd-saas` (portal→core commands).
@@ -20,7 +21,7 @@ import { applySyncQuota, applyTenantUpdate } from './apply-commands';
  * retries with backoff; exhaustion → cmd-DLQ → portal marks the row failed.
  */
 
-export type CmdApplyResult = 'applied' | 'duplicate' | 'stale' | 'parked';
+export type CmdApplyResult = 'applied' | 'duplicate' | 'stale' | 'stale-credential-applied' | 'parked';
 
 const PARSE_FAIL_MAX = 2000;
 
@@ -65,11 +66,34 @@ export async function applyCmdEnvelope(
 
     // Per-tenant stale guard. Tenant row absent → first contact (tenant.update
     // upserts it) → guard passes vacuously.
+    //
+    // Correctness of read-guard-then-apply relies on the consumer running with
+    // max_concurrency: 1 (wrangler consumer config) — the lt-guarded seq advance
+    // protects the counter, but concurrent applies could still interleave row
+    // writes. Do not raise concurrency without revisiting this.
     const tenantId = env.data['tenantId'] as string | undefined;
     if (tenantId) {
         const row = await db.select({ applied: tenants.appliedCmdSeq })
             .from(tenants).where(eq(tenants.id, tenantId)).get();
         if (row && env.tenantseq <= row.applied) {
+            // Stale tenant-field state — superseded by a newer command. But
+            // credentials ride cmd.tenant.update SPARSELY (only password-change
+            // commands carry them), so a stale credential-bearing command must
+            // still salvage the credential or core never receives the new hash
+            // (the newer, higher-seq command didn't carry one). Email-keyed
+            // idempotent upsert; tenant fields stay dropped; seq not advanced.
+            if (env.type === 'io.inspectorhub.cmd.tenant.update') {
+                const cred = cmdTenantUpdateDataSchema.safeParse(env.data);
+                if (cred.success && cred.data.adminEmail && cred.data.adminPasswordHash) {
+                    await applyAdminCredential(dbBinding, {
+                        tenantId: cred.data.tenantId,
+                        adminEmail: cred.data.adminEmail,
+                        adminPasswordHash: cred.data.adminPasswordHash,
+                    });
+                    logger.info('[cmd] stale command — credential salvaged', { id: env.id, tenantseq: env.tenantseq, applied: row.applied });
+                    return 'stale-credential-applied';
+                }
+            }
             logger.info('[cmd] stale command dropped', { id: env.id, tenantseq: env.tenantseq, applied: row.applied });
             return 'stale'; // dedup marker stays — a redelivery is equally stale
         }

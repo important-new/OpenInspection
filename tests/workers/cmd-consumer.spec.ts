@@ -24,7 +24,7 @@ async function seedSchema(): Promise<void> {
         "CREATE TABLE IF NOT EXISTS tenants (id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT UNIQUE NOT NULL, tier TEXT NOT NULL DEFAULT 'free', stripe_connect_account_id TEXT, status TEXT NOT NULL DEFAULT 'pending', max_users INTEGER NOT NULL DEFAULT 5, deployment_mode TEXT NOT NULL DEFAULT 'shared', nachi_number TEXT, applied_cmd_seq INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);",
     );
     await b.DB.exec(
-        "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, tenant_id TEXT, email TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'admin', created_at INTEGER NOT NULL);",
+        "CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, tenant_id TEXT, email TEXT NOT NULL, password_hash TEXT NOT NULL, name TEXT, phone TEXT, license_number TEXT, photo_url TEXT, default_signature_base64 TEXT, bio TEXT, service_areas TEXT, slug TEXT, role TEXT NOT NULL DEFAULT 'admin', google_refresh_token TEXT, google_calendar_id TEXT, google_access_token TEXT, google_token_expiry INTEGER, locale TEXT, onboarding_state TEXT, created_at INTEGER NOT NULL, totp_secret TEXT, totp_enabled INTEGER NOT NULL DEFAULT false, totp_recovery_codes TEXT, totp_verified_at INTEGER, notify_on_referral INTEGER NOT NULL DEFAULT true, notify_on_report INTEGER NOT NULL DEFAULT true, notify_on_paid INTEGER NOT NULL DEFAULT false, last_active_at INTEGER, mentor_id TEXT, assigned_section_ids TEXT NOT NULL DEFAULT '[]', expires_at INTEGER, signup_role TEXT, deleted_at INTEGER, terms_accepted TEXT);",
     );
     await b.DB.exec(
         'CREATE TABLE IF NOT EXISTS processed_cmd_events (event_id TEXT PRIMARY KEY, cmd_type TEXT NOT NULL, processed_at INTEGER NOT NULL);',
@@ -96,6 +96,47 @@ describe('core cmd consumer — real D1 (A-21)', () => {
         expect(await applyCmdEnvelope(b.DB, undefined, 'not json at all {{')).toBe('parked');
         const n = await b.DB.prepare('SELECT count(*) AS n FROM parked_cmd_events').first<{ n: number }>();
         expect(n?.n).toBe(2);
+    });
+
+    it('stale credential-bearing command salvages the credential without regressing tenant state or seq', async () => {
+        expect(await applyCmdEnvelope(b.DB, undefined, envelope({
+            tenantseq: 2, data: { tenantId: 'ct1', slug: 'ws-1', status: 'suspended' },
+        }))).toBe('applied');
+        expect(await applyCmdEnvelope(b.DB, undefined, envelope({
+            tenantseq: 1,
+            data: { tenantId: 'ct1', slug: 'ws-1', status: 'active', adminEmail: 'boss@x.com', adminPasswordHash: 'newhash' },
+        }))).toBe('stale-credential-applied');
+        const t = await b.DB.prepare('SELECT status, applied_cmd_seq FROM tenants WHERE id = ?').bind('ct1')
+            .first<{ status: string; applied_cmd_seq: number }>();
+        expect(t?.status).toBe('suspended');        // tenant fields NOT regressed
+        expect(t?.applied_cmd_seq).toBe(2);         // seq NOT advanced
+        const u = await b.DB.prepare('SELECT password_hash, role FROM users WHERE email = ?').bind('boss@x.com')
+            .first<{ password_hash: string; role: string }>();
+        expect(u?.password_hash).toBe('newhash');   // credential salvaged
+        expect(u?.role).toBe('owner');
+    });
+
+    it('re-delivery of an already-judged-stale envelope returns duplicate (marker kept)', async () => {
+        await applyCmdEnvelope(b.DB, undefined, envelope({ tenantseq: 2 }));
+        const staleEnv = envelope({ tenantseq: 1, data: { tenantId: 'ct1', slug: 'ws-1', status: 'suspended' } });
+        expect(await applyCmdEnvelope(b.DB, undefined, staleEnv)).toBe('stale');
+        expect(await applyCmdEnvelope(b.DB, undefined, staleEnv)).toBe('duplicate');
+    });
+
+    it('transient apply failure rolls back the dedup marker so a retry re-applies', async () => {
+        const e = envelope({
+            type: 'io.inspectorhub.cmd.tenant.sync_quota',
+            dataschema: 'cmd-tenant-sync-quota/v1',
+            tenantseq: 1, data: { tenantId: 'ct1', maxUsers: 9 },
+        });
+        await expect(applyCmdEnvelope(b.DB, undefined, e)).rejects.toThrow(/tenant not found/); // ct1 doesn't exist yet
+        await applyCmdEnvelope(b.DB, undefined, envelope({ tenantseq: 2 }));                    // tenant arrives (note: higher seq)
+        // Retry of the SAME envelope id must re-evaluate (marker was rolled back on failure).
+        // But seq 1 <= applied 2 → stale path; sync_quota has no credentials → plain drop.
+        // NOTE: this is an accepted edge — if the higher-seq tenant.update carried no maxUsers,
+        // the quota is permanently lost. sync_quota is absolute full-state, so the next portal
+        // emit with the correct quota value will supersede; the drop here is by design.
+        expect(await applyCmdEnvelope(b.DB, undefined, e)).toBe('stale');
     });
 
     it('handleCmdBatch acks applied/parked and retries failures per-message with backoff', async () => {
