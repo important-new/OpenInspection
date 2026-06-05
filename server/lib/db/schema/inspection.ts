@@ -36,6 +36,7 @@ export const templates = sqliteTable('templates', {
     description: text('description'),
     featured: integer('featured').notNull().default(0),
 }, (t) => [
+    index('idx_templates_tenant').on(t.tenantId),
     index('idx_templates_rating_system').on(t.ratingSystemId),
 ]);
 
@@ -127,10 +128,13 @@ export const inspections = sqliteTable('inspections', {
     dataVersion:         integer('data_version').notNull().default(0),
 }, (t) => [
     index('idx_inspections_tenant').on(t.tenantId),
-    index('idx_inspections_status').on(t.status),
     index('idx_inspections_request').on(t.requestId),
     index('idx_inspections_inspector').on(t.inspectorId),
     index('idx_inspections_agent').on(t.referredByAgentId),
+    index('idx_inspections_tenant_status').on(t.tenantId, t.status),
+    index('idx_inspections_tenant_date').on(t.tenantId, t.date),
+    index('idx_inspections_tenant_client_email').on(t.tenantId, t.clientEmail),
+    index('idx_inspections_inspector_date').on(t.inspectorId, t.date),
 ]);
 
 // Sprint 2 S2-2 — A single customer booking can spawn multiple inspections
@@ -358,7 +362,6 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 }, (t) => [
     uniqueIndex('idx_agreement_requests_verify_token').on(t.verificationToken),
-    index('idx_agreement_requests_token').on(t.token),
     index('idx_agreement_requests_tenant').on(t.tenantId),
     index('idx_agreement_requests_inspection').on(t.inspectionId),
 ]);
