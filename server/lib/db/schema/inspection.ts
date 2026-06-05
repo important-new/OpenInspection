@@ -265,6 +265,7 @@ export const inspectionResults = sqliteTable('inspection_results', {
 }, (t) => [
     index('idx_results_tenant').on(t.tenantId),
     index('idx_results_inspection').on(t.inspectionId),
+    uniqueIndex('uq_results_inspection').on(t.inspectionId),
 ]);
 
 export const availability = sqliteTable('availability', {
