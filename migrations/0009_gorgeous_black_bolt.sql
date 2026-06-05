@@ -1,2 +1,2 @@
 ALTER TABLE `users` ADD `terms_accepted` text;
--- intentionally empty (drizzle drift artifact; applied everywhere as a no-op — do not delete: the journal references it)
+-- NOTE: this file has no trailing newline, so `wc -l` reports 0 — it is NOT empty.
