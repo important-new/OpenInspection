@@ -102,7 +102,8 @@ export const users = sqliteTable('users', {
     } | null>(),
 }, (t) => [
     index('idx_users_deleted_at').on(t.deletedAt),
-    uniqueIndex('users_tenant_email_unique').on(t.tenantId, t.email),
+    // DB-2: soft-deleted rows must not block re-inviting the same email.
+    uniqueIndex('users_tenant_email_unique').on(t.tenantId, t.email).where(sql`deleted_at IS NULL`),
     index('idx_users_tenant').on(t.tenantId),
     uniqueIndex('idx_users_slug_per_tenant').on(t.tenantId, t.slug),
     index('idx_users_email').on(t.email),
