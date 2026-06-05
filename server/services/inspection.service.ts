@@ -1429,7 +1429,16 @@ export class InspectionService {
         tenantId: string,
         poolId: string,
     ): Promise<void> {
-        await this.getInspection(inspectionId, tenantId); // ownership check
+        // DB-6 (symmetric guard): fetch inspection for ownership check AND cover check.
+        const { inspection } = await this.getInspection(inspectionId, tenantId);
+
+        // Refuse hard-delete when the pool row is the current report cover.
+        // The user explicitly asked to delete, so rejecting is correct (not silently keeping).
+        // They must pick a different cover first, mirroring the attachPoolPhoto strategy-A guard.
+        if ((inspection.coverPhotoId as string | null) === poolId) {
+            throw Errors.BadRequest('This photo is the report cover — choose a different cover before deleting it');
+        }
+
         const db = this.getDrizzle();
 
         const row = await db.select().from(inspectionMediaPool)

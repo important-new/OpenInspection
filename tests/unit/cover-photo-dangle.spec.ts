@@ -158,3 +158,57 @@ describe('DB-6 — attachPoolPhoto cover-photo dangle', () => {
         expect(gone).toBeUndefined();
     });
 });
+
+describe('DB-6 — deletePoolPhoto cover-photo dangle (symmetric guard)', () => {
+    it('deletePoolPhoto rejects when the pool row is the report cover', async () => {
+        // POOL_ID is the cover (seeded in beforeEach with coverPhotoId = POOL_ID).
+        await expect(
+            svc.deletePoolPhoto(INSP_ID, TENANT, POOL_ID),
+        ).rejects.toMatchObject({
+            message: expect.stringContaining('report cover'),
+        });
+
+        // The pool row must still exist — the R2 object must NOT have been deleted.
+        const stillThere = await testDb
+            .select()
+            .from(schema.inspectionMediaPool)
+            .where(and(
+                eq(schema.inspectionMediaPool.id, POOL_ID),
+                eq(schema.inspectionMediaPool.tenantId, TENANT),
+            ))
+            .get();
+        expect(stillThere).not.toBeUndefined();
+        expect(r2Mock.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletePoolPhoto succeeds and removes the R2 object when the row is NOT the cover', async () => {
+        const NON_COVER_POOL_ID = 'pool-delete-non-cover';
+        const NON_COVER_R2_KEY  = `${TENANT}/${INSP_ID}/_pool_${NON_COVER_POOL_ID}_nc.jpg`;
+
+        // Insert a second pool row that is NOT the cover.
+        await testDb.insert(schema.inspectionMediaPool).values({
+            id:           NON_COVER_POOL_ID,
+            inspectionId: INSP_ID,
+            tenantId:     TENANT,
+            r2Key:        NON_COVER_R2_KEY,
+            url:          `/api/inspections/${INSP_ID}/photo?key=${encodeURIComponent(NON_COVER_R2_KEY)}`,
+            uploadedAt:   Date.now(),
+        });
+
+        await svc.deletePoolPhoto(INSP_ID, TENANT, NON_COVER_POOL_ID);
+
+        // DB row gone.
+        const gone = await testDb
+            .select()
+            .from(schema.inspectionMediaPool)
+            .where(and(
+                eq(schema.inspectionMediaPool.id, NON_COVER_POOL_ID),
+                eq(schema.inspectionMediaPool.tenantId, TENANT),
+            ))
+            .get();
+        expect(gone).toBeUndefined();
+
+        // R2 delete was called with the correct key.
+        expect(r2Mock.delete).toHaveBeenCalledWith(NON_COVER_R2_KEY);
+    });
+});
