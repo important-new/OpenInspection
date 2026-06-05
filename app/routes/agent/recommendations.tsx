@@ -4,7 +4,7 @@ import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 
 export function meta() {
-  return [{ title: "Recommendations - OpenInspection" }];
+  return [{ title: "Repair Items - OpenInspection" }];
 }
 
 interface Recommendation {
@@ -55,7 +55,7 @@ export default function AgentRecommendationsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-ih-fg-1">Recommendations</h1>
+          <h1 className="text-[28px] font-bold tracking-tight text-ih-fg-1">Repair Items</h1>
           <p className="text-[14px] text-ih-fg-3 mt-1">
             Every defect flagged in delivered inspection reports, grouped by category.
             {total > 0 && ` ${total} total items.`}

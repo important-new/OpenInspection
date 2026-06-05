@@ -101,10 +101,10 @@ export default function SetupPage() {
         </div>
 
         <h1 className="text-2xl font-bold text-ih-fg-1 mb-2">
-          Set up your workspace
+          Set up your account
         </h1>
         <p className="text-sm text-ih-fg-3 mb-6">
-          Create the first admin account and configure your inspection workspace.
+          Create the first admin account and configure your inspection company.
         </p>
 
         <Form
@@ -116,7 +116,7 @@ export default function SetupPage() {
         >
           <div>
             <label htmlFor={fields.workspaceName.id} className="block text-xs font-bold text-ih-fg-3 mb-1">
-              Workspace name
+              Company name
             </label>
             <input
               id={fields.workspaceName.id}
@@ -222,7 +222,7 @@ export default function SetupPage() {
             disabled={isSubmitting}
             className="w-full py-2.5 rounded-lg bg-ih-primary text-white font-bold text-sm hover:bg-ih-primary-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? "Creating workspace…" : "Create Workspace"}
+            {isSubmitting ? "Creating your account…" : "Create Account"}
           </button>
         </Form>
       </div>

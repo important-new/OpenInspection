@@ -8,13 +8,16 @@
  * inspector's local timezone — on-site creation is overwhelmingly same-day.
  */
 
-export type WizardStepId = 'property' | 'services' | 'schedule' | 'team';
+export type WizardStepId = 'property' | 'people' | 'services' | 'schedule' | 'team';
 
 export function buildWizardSteps(opts: {
   hasServiceCatalog: boolean;
   hasTeamChoices: boolean;
 }): WizardStepId[] {
   const steps: WizardStepId[] = ['property'];
+  // IA-1 — People (client + agent) is always present: capturing who is
+  // involved is useful for any inspection regardless of catalog or team size.
+  steps.push('people');
   if (opts.hasServiceCatalog) steps.push('services');
   steps.push('schedule');
   if (opts.hasTeamChoices) steps.push('team');

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4da31f5d-b374-47db-876c-471669cb16dc",
-  "prevId": "cecc2b20-848c-447c-a91c-4f590a4498f3",
+  "id": "26cb83e5-c6c3-46a0-a249-012891dca0c8",
+  "prevId": "4da31f5d-b374-47db-876c-471669cb16dc",
   "tables": {
     "agreement_requests": {
       "name": "agreement_requests",
@@ -6231,6 +6231,83 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "parked_cmd_events": {
+      "name": "parked_cmd_events",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "envelope": {
+          "name": "envelope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_parked_cmd_events_received_at": {
+          "name": "idx_parked_cmd_events_received_at",
+          "columns": [
+            "received_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "processed_cmd_events": {
+      "name": "processed_cmd_events",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cmd_type": {
+          "name": "cmd_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "slug_reservations": {
       "name": "slug_reservations",
       "columns": {
@@ -6854,6 +6931,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "applied_cmd_seq": {
+          "name": "applied_cmd_seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
