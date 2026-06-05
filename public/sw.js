@@ -5,7 +5,7 @@
 //   - HTML navigation: network-first, fall back to cache for offline shell
 //   - /api/* requests: network-only (offline handled by IndexedDB in the app)
 
-const SW_VERSION  = 'v2-b4';
+const SW_VERSION  = 'v3-a1';
 const CACHE_NAME  = `openinspection-${SW_VERSION}`;
 
 const PRECACHE_ASSETS = [
