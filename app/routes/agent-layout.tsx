@@ -9,7 +9,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 const NAV_ITEMS = [
   { to: "/agent-dashboard", label: "Dashboard" },
-  { to: "/agent-recommendations", label: "Recommendations" },
+  { to: "/agent-recommendations", label: "Repair Items" },
   { to: "/agent-inspectors", label: "Inspectors" },
   { to: "/agent-settings/profile", label: "Settings" },
 ];
