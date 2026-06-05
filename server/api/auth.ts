@@ -272,6 +272,25 @@ const skipSetupRoute = createRoute(withMcpMetadata({
     }
 }, { scopes: [], tier: 'excluded' }));
 
+const dismissChecklistRoute = createRoute(withMcpMetadata({
+    method: 'post',
+    path: '/checklist/dismiss',
+    operationId: 'dismissOnboardingChecklist',
+    summary: 'Dismiss the onboarding checklist',
+    description: 'Marks the dashboard onboarding checklist as dismissed for the current user. Idempotent — safe to call multiple times.',
+    tags: ['auth'],
+    middleware: [requireRole(['owner', 'admin', 'inspector'])] as const,
+    responses: {
+        200: {
+            content: {
+                'application/json': { schema: SuccessResponseSchema.describe('Checklist dismissed') }
+            },
+            description: 'Checklist marked as dismissed'
+        },
+        401: { description: 'Unauthorized' }
+    }
+}, { scopes: [], tier: 'excluded' }));
+
 const meRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/me',
@@ -734,6 +753,19 @@ export const coreAuthRoutes = createApiRouter()
         await db.update(users).set({ onboardingState }).where(eq(users.id, user.sub));
 
         return c.json({ success: true, data: { skipped: true } }, 200);
+    })
+    .openapi(dismissChecklistRoute, async (c) => {
+        const user = c.get('user');
+        if (!user?.sub) throw Errors.Unauthorized('Not signed in');
+
+        const db = drizzle(c.env.DB);
+        const me = await db.select().from(users).where(eq(users.id, user.sub)).get();
+        const onboardingState = ((me?.onboardingState ?? {}) as Record<string, boolean>);
+        onboardingState.checklistDismissed = true;
+
+        await db.update(users).set({ onboardingState }).where(eq(users.id, user.sub));
+
+        return c.json({ success: true, data: { checklistDismissed: true } }, 200);
     })
     .openapi(meRoute, async (c) => {
         const user = c.get('user');
