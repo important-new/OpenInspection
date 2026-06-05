@@ -1,3 +1,4 @@
+// NOTE: currently unused by routes — app/routes/dashboard.tsx has its own local InspectionRow. Kept in sync; candidates for consolidation.
 import { useNavigate } from "react-router";
 import { formatInspectionDateTime } from "~/lib/format-date";
 
