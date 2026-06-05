@@ -1749,6 +1749,10 @@ export const adminRoutes = createApiRouter()
             createdAt: new Date(),
         };
         await db.insert(comments).values(row);
+        auditFromContext(c, 'comment.created', 'comment', {
+            entityId: row.id,
+            metadata: { textPreview: text.slice(0, 80) },
+        });
         return c.json({ success: true as const, data: { comment: commentRowToResponse(row) } }, 201);
     })
     .openapi(deleteCommentRoute, async (c) => {
@@ -1759,6 +1763,10 @@ export const adminRoutes = createApiRouter()
             .where(and(eq(comments.id, id), eq(comments.tenantId, tenantId))).get();
         if (!existing) throw Errors.NotFound('Comment not found');
         await db.delete(comments).where(and(eq(comments.id, id), eq(comments.tenantId, tenantId)));
+        auditFromContext(c, 'comment.deleted', 'comment', {
+            entityId: id,
+            metadata: { textPreview: (existing.text as string).slice(0, 80) },
+        });
         return c.json({ success: true }, 200);
     })
     .openapi(updateCommentRoute, async (c) => {
