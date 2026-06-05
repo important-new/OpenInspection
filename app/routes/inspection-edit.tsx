@@ -330,18 +330,30 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   let apiStatus = 500;
   let apiOk = false;
 
+  // Optimistic-concurrency on replay: unlike the ONLINE single-field path
+  // (which deliberately force-writes — pre-existing, out of scope here), an
+  // offline write is replayed against state that may have moved while we were
+  // offline. useFindings froze the field's last-known version into the
+  // payload at enqueue time, so we forward it as a REAL check (force:false).
+  // The server returns 409 on a stale version, which propagates below via the
+  // explicit-status Response.json so the conflict path can pick it up. A
+  // missing version (legacy entry / older queued write) defaults to 0, which
+  // decideFieldWrite treats as the initial counter.
+  const expectedVersion =
+   typeof payload.expectedVersion === "number" ? payload.expectedVersion : 0;
+
   if (replayIntent === "rate") {
    const rating = String(payload.rating ?? "");
    const r = await api.inspections[":id"].items[":itemId"].$patch({
     param: { id: params.id, itemId },
-    json: { field: "rating", value: rating, sectionId, expectedVersion: 0, force: true },
+    json: { field: "rating", value: rating, sectionId, expectedVersion, force: false },
    });
    apiStatus = r.status; apiOk = r.ok;
   } else if (replayIntent === "notes") {
    const notes = String(payload.notes ?? "");
    const r = await api.inspections[":id"].items[":itemId"].$patch({
     param: { id: params.id, itemId },
-    json: { field: "notes", value: notes, sectionId, expectedVersion: 0, force: true },
+    json: { field: "notes", value: notes, sectionId, expectedVersion, force: false },
    });
    apiStatus = r.status; apiOk = r.ok;
   } else if (replayIntent === "toggle-canned") {
@@ -354,8 +366,8 @@ export async function action({ request, params, context }: Route.ActionArgs) {
      field: "cannedToggle",
      value: { tabName, cannedId, included },
      sectionId,
-     expectedVersion: 0,
-     force: true,
+     expectedVersion,
+     force: false,
     },
    });
    apiStatus = r.status; apiOk = r.ok;
@@ -364,11 +376,16 @@ export async function action({ request, params, context }: Route.ActionArgs) {
    // payload was validated when originally dispatched; the enum fields were
    // already type-safe at the call site. Use `as any` at the API boundary
    // since the replay path cannot re-run the original runtime type narrowing.
+   // Strip transport-only keys (sectionId is a separate json field;
+   // expectedVersion is the concurrency control, not a defect attribute) so
+   // they don't leak into the defectFields value object.
+   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   const { sectionId: _sid, expectedVersion: _ev, ...defectPatch } = payload;
    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-   const defectValue = { cannedId, ...(payload as any) } as any;
+   const defectValue = { cannedId, ...(defectPatch as any) } as any;
    const r = await api.inspections[":id"].items[":itemId"].$patch({
     param: { id: params.id, itemId },
-    json: { field: "defectFields", value: defectValue, sectionId, expectedVersion: 0, force: true },
+    json: { field: "defectFields", value: defectValue, sectionId, expectedVersion, force: false },
    });
    apiStatus = r.status; apiOk = r.ok;
   } else if (replayIntent === "save-all") {

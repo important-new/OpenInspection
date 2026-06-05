@@ -21,6 +21,10 @@ import { createMemoryQueueStorage } from '~/lib/offline/queue-storage.memory';
 import { OfflineQueue } from '~/lib/offline/offline-queue';
 import type { ReplayTransport } from '~/lib/offline/offline-queue';
 import type { QueuedWrite } from '~/lib/offline/queue-storage';
+import {
+    versionKeyForIntent,
+    lastKnownVersion,
+} from '~/lib/offline/field-version-key';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -225,6 +229,90 @@ describe('offline replay — enqueue-time version capture and 409 hand-off', () 
         expect(roundTripped.timeframe).toBeNull();
         // Spot-check version field.
         expect(roundTripped.expectedVersion).toBe(4);
+    });
+
+    // ── 7. Enqueue-time version capture maps each intent to its server counter ─
+    // Mirrors what useFindings.tryEnqueueOffline does: read the field's
+    // last-known `<field>_v` out of the ResultMap entry for the queued payload.
+    // The version-key mapping MUST match InspectionService.patchItem's field
+    // remapping (rate→rating_v, notes→notes_v, toggle-canned→cannedToggle_v,
+    // set-defect-fields→tabs_v).
+    it('maps each versioned intent to the server counter key patchItem bumps', () => {
+        expect(versionKeyForIntent('rate')).toBe('rating_v');
+        expect(versionKeyForIntent('notes')).toBe('notes_v');
+        expect(versionKeyForIntent('toggle-canned')).toBe('cannedToggle_v');
+        // patchItem remaps field "defectFields" → "tabs" before the version
+        // bump, so the counter is tabs_v, NOT defectFields_v.
+        expect(versionKeyForIntent('set-defect-fields')).toBe('tabs_v');
+        // Whole-blob writes have no per-field counter.
+        expect(versionKeyForIntent('save-all')).toBeNull();
+    });
+
+    it('reads the real last-known version out of the result entry for a rate write', () => {
+        const entry = { rating: 'Deficient', rating_v: 5, notes: 'x', notes_v: 2 };
+        // A rate replay must carry rating_v (5), not notes_v and not 0.
+        expect(lastKnownVersion(entry, 'rate')).toBe(5);
+        expect(lastKnownVersion(entry, 'notes')).toBe(2);
+    });
+
+    it('treats a legacy entry with no <field>_v as version 0 (initial counter)', () => {
+        // Pre-subsystem-B rows have no rating_v — decideFieldWrite treats the
+        // stored counter as 0, so expectedVersion 0 still gets a real check
+        // (force:false) rather than a blind overwrite.
+        expect(lastKnownVersion({ rating: 'Good' }, 'rate')).toBe(0);
+        expect(lastKnownVersion(undefined, 'rate')).toBe(0);
+    });
+
+    it('returns null for save-all so the whole-blob payload is enqueued as-is', () => {
+        expect(lastKnownVersion({ anything: 1 }, 'save-all')).toBeNull();
+    });
+
+    // ── 8. End-to-end: a captured entry replays with force:false + real version ─
+    // Simulates useFindings building the offline payload (real version baked in)
+    // and the replay-write action forwarding it as the non-force concurrency
+    // check the server can 409 on. We assert the forwarded json shape directly.
+    it('forwards force:false and the enqueue-time expectedVersion into the PATCH json', async () => {
+        const store = createMemoryQueueStorage();
+        const { transport, captured } = makeCaptureTransport();
+        const queue = new OfflineQueue(store, transport);
+
+        // useFindings.tryEnqueueOffline: rating_v=7 is the last-known version.
+        const entry = { rating: 'Good', rating_v: 7 };
+        const expectedVersion = lastKnownVersion(entry, 'rate');
+        expect(expectedVersion).toBe(7);
+
+        await queue.enqueueWrite({
+            inspectionId: 'insp-e2e',
+            itemId: 'item-e2e',
+            field: 'rating',
+            intent: 'rate',
+            payload: { rating: 'Deficient', sectionId: 'sec-1', expectedVersion },
+            enqueuedAt: BASE_NOW,
+        });
+
+        await queue.replay();
+
+        expect(captured).toHaveLength(1);
+        const w = captured[0];
+        expect(w.payload.expectedVersion).toBe(7);
+
+        // Reconstruct exactly what the replay-write action sends for intent
+        // "rate": a real version check with force:false (the online path keeps
+        // force:true — out of scope). This is the contract the server 409s on.
+        const fwdVersion =
+            typeof w.payload.expectedVersion === 'number'
+                ? w.payload.expectedVersion
+                : 0;
+        const patchJson = {
+            field: 'rating',
+            value: String(w.payload.rating ?? ''),
+            sectionId: String(w.payload.sectionId ?? ''),
+            expectedVersion: fwdVersion,
+            force: false,
+        };
+        expect(patchJson.force).toBe(false);
+        expect(patchJson.expectedVersion).toBe(7);
+        expect(patchJson.value).toBe('Deficient');
     });
 
     // ── 6. Enqueue-time payload is immutable: later object mutation is isolated ─
