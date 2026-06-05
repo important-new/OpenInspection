@@ -6,6 +6,7 @@ import { createApi } from "~/lib/api-client.server";
 import { unwrapResultsResponse } from "~/lib/results";
 import { findRatingLevel, ratingAdvanceDecision } from "~/lib/rating-levels";
 import { makeCustomDefect } from "~/lib/custom-defects";
+import { sanitizeSettingsPatch } from "~/lib/settings-patch";
 import { useInspectionState, type InspectionSchema } from "~/hooks/useInspection";
 import type { RatingLevel, ResultMap } from "~/hooks/useInspection";
 import { useFindings } from "~/hooks/useFindings";
@@ -219,9 +220,12 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  // Route it through the BFF relay like every other mutation.
  if (intent === "save-settings") {
  const payload = JSON.parse(String(formData.get("payload") ?? "{}"));
+ // The sheet forwards its WHOLE form; sanitize at the BFF boundary so
+ // empty-string "unchanged" fields and date-only <input type=date> values
+ // pass UpdateInspectionSchema (date wants ISO datetime, price a number).
  const res = await api.inspections[":id"].$patch({
  param: { id: params.id },
- json: payload,
+ json: sanitizeSettingsPatch(payload),
  });
  return { ok: res.ok, intent: "save-settings" };
  }
