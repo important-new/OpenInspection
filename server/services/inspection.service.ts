@@ -1165,7 +1165,7 @@ export class InspectionService {
         sectionId?: string,
     ): Promise<{ key: string; itemId: string; photoIndex: number }> {
         if (!itemId) throw Errors.BadRequest('itemId is required');
-        await this.getInspection(inspectionId, tenantId); // ownership check
+        const { inspection } = await this.getInspection(inspectionId, tenantId); // ownership check
         const db = this.getDrizzle();
 
         const poolRow = await db.select().from(inspectionMediaPool)
@@ -1209,11 +1209,19 @@ export class InspectionService {
             });
         }
 
-        await db.delete(inspectionMediaPool)
-            .where(and(
-                eq(inspectionMediaPool.id, poolId),
-                eq(inspectionMediaPool.tenantId, tenantId),
-            ));
+        // DB-6: skip the DELETE when this pool row is the report cover.
+        // The pool row stays alive so coverPhotoId remains a valid reference
+        // and the preflight gate + report renderer can still resolve the R2 key.
+        // The photo key has already been written to results.data, so the item
+        // still gets the photo — only the pool row lives on as a cover anchor.
+        const isCover = (inspection.coverPhotoId as string | null) === poolId;
+        if (!isCover) {
+            await db.delete(inspectionMediaPool)
+                .where(and(
+                    eq(inspectionMediaPool.id, poolId),
+                    eq(inspectionMediaPool.tenantId, tenantId),
+                ));
+        }
 
         return { key: poolRow.r2Key, itemId, photoIndex };
     }
