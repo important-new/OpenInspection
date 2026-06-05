@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildCreateInspectionJson } from "~/lib/inspection-create";
+import { buildCreateInspectionJson, dollarsToCents } from "~/lib/inspection-create";
 
 /**
  * B-8 fix — the New Inspection wizard posts { intent:"create", address,
@@ -108,5 +108,82 @@ describe("buildCreateInspectionJson", () => {
         }));
         expect(json.agentContactId).toBe(agentId);
         expect("newAgent" in json).toBe(false);
+    });
+
+    // P-4 serviceSelections / price override tests
+    it("maps serviceSelectionsJson with priceOverrideCents into serviceSelections", () => {
+        const selections = [
+            { serviceId: "svc-1", priceOverrideCents: 44999 },
+            { serviceId: "svc-2" },
+        ];
+        const json = buildCreateInspectionJson(fd({
+            address: "1 A St", templateId: "t",
+            serviceSelectionsJson: JSON.stringify(selections),
+        }));
+        expect(json.serviceSelections).toEqual(selections);
+        // Legacy serviceIds list is also emitted for backward compat.
+        expect(json.serviceIds).toEqual(["svc-1", "svc-2"]);
+    });
+
+    it("emits no priceOverrideCents for a service with no override", () => {
+        const selections = [{ serviceId: "svc-only" }];
+        const json = buildCreateInspectionJson(fd({
+            address: "1 A St", templateId: "t",
+            serviceSelectionsJson: JSON.stringify(selections),
+        }));
+        expect(json.serviceSelections).toHaveLength(1);
+        expect("priceOverrideCents" in json.serviceSelections![0]).toBe(false);
+    });
+
+    it("falls back to legacy serviceIds when serviceSelectionsJson is absent", () => {
+        const json = buildCreateInspectionJson(fd({
+            address: "1 A St", templateId: "t",
+            serviceIds: "svc-a,svc-b",
+        }));
+        expect(json.serviceIds).toEqual(["svc-a", "svc-b"]);
+        expect("serviceSelections" in json).toBe(false);
+    });
+
+    it("omits both serviceIds and serviceSelections when neither is provided", () => {
+        const json = buildCreateInspectionJson(fd({ address: "1 A St", templateId: "t" }));
+        expect("serviceIds" in json).toBe(false);
+        expect("serviceSelections" in json).toBe(false);
+    });
+});
+
+describe("dollarsToCents", () => {
+    it("converts '449.99' to 44999 (not 44998.999 float trap)", () => {
+        expect(dollarsToCents("449.99")).toBe(44999);
+    });
+
+    it("converts exact integers correctly", () => {
+        expect(dollarsToCents("400")).toBe(40000);
+        expect(dollarsToCents(400)).toBe(40000);
+    });
+
+    it("converts '0.01' to 1 cent", () => {
+        expect(dollarsToCents("0.01")).toBe(1);
+    });
+
+    it("returns undefined for empty string", () => {
+        expect(dollarsToCents("")).toBeUndefined();
+    });
+
+    it("returns undefined for null/undefined", () => {
+        expect(dollarsToCents(null)).toBeUndefined();
+        expect(dollarsToCents(undefined)).toBeUndefined();
+    });
+
+    it("returns undefined for negative values", () => {
+        expect(dollarsToCents("-1")).toBeUndefined();
+    });
+
+    it("uses Math.round so 449.99 never becomes 44998 (the float trap)", () => {
+        // parseFloat("449.99") * 100 = 44998.999999999996 in IEEE 754.
+        // Without Math.round (using Math.floor or truncation) this would be 44998.
+        // Math.round correctly gives 44999.
+        expect(dollarsToCents("449.99")).toBe(44999);
+        // Double-check: 99.99 * 100 = 9998.999... → must round to 9999.
+        expect(dollarsToCents("99.99")).toBe(9999);
     });
 });

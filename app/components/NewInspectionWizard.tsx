@@ -70,6 +70,9 @@ export function NewInspectionWizard({
   const [templateId, setTemplateId] = useState("");
   // Stores selected service IDs (matched against the tenant's services table).
   const [services, setServices] = useState<Set<string>>(new Set());
+  // P-4: per-service price overrides (serviceId → cents). Only populated when
+  // the inspector edits the price input for a selected service.
+  const [priceOverrides, setPriceOverrides] = useState<Map<string, number>>(new Map());
   // B-21: on-site creation is overwhelmingly same-day — default to today.
   const [date, setDate] = useState(() => todayLocalISO());
   const [time, setTime] = useState("09:00");
@@ -130,6 +133,7 @@ export function NewInspectionWizard({
     setTemplateId("");
     setTemplateQuery("");
     setServices(new Set());
+    setPriceOverrides(new Map());
     setDate(todayLocalISO());
     setTime("09:00");
     setSoloMode(true);
@@ -186,16 +190,52 @@ export function NewInspectionWizard({
 
   if (!open) return null;
 
-  const toggleService = (id: string) =>
+  const toggleService = (id: string) => {
     setServices((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
+        // Clear any price override when unselecting a service.
+        setPriceOverrides((po) => {
+          const m = new Map(po);
+          m.delete(id);
+          return m;
+        });
       } else {
         next.add(id);
       }
       return next;
     });
+  };
+
+  /** P-4: Update the price override for a selected service.
+   *  `dollarValue` is the raw string from the number input (e.g. "449.99").
+   *  Uses Math.round(v * 100) to avoid float precision errors (44999, not 44998.999).
+   *  Clearing the input (empty string) or matching the catalog price removes the override.
+   */
+  function handlePriceOverrideChange(serviceId: string, dollarValue: string, catalogCents: number | null | undefined) {
+    if (dollarValue === '') {
+      setPriceOverrides((prev) => {
+        const m = new Map(prev);
+        m.delete(serviceId);
+        return m;
+      });
+      return;
+    }
+    const parsed = parseFloat(dollarValue);
+    if (!isFinite(parsed) || parsed < 0) return;
+    const cents = Math.round(parsed * 100);
+    // If the value equals the catalog price, treat it as "no override".
+    if (catalogCents != null && cents === catalogCents) {
+      setPriceOverrides((prev) => {
+        const m = new Map(prev);
+        m.delete(serviceId);
+        return m;
+      });
+    } else {
+      setPriceOverrides((prev) => new Map(prev).set(serviceId, cents));
+    }
+  }
 
   // IA-1 — People step: block Next when email or phone is filled without a name.
   const clientHasContact = clientEmail.trim().length > 0 || clientPhone.trim().length > 0;
@@ -220,6 +260,18 @@ export function NewInspectionWizard({
   };
 
   function handleSubmit() {
+    // P-4: Build serviceSelections with optional per-row price overrides.
+    // Also keep legacy serviceIds for backward compat (the server uses
+    // serviceSelections as the authoritative source when both are present).
+    const serviceSelectionsJson = JSON.stringify(
+      [...services].map((id) => {
+        const override = priceOverrides.get(id);
+        return override !== undefined
+          ? { serviceId: id, priceOverrideCents: override }
+          : { serviceId: id };
+      }),
+    );
+
     fetcher.submit(
       {
         intent: "create",
@@ -227,6 +279,7 @@ export function NewInspectionWizard({
         address,
         templateId,
         serviceIds: [...services].join(","),
+        serviceSelectionsJson,
         date,
         time,
         soloMode: String(soloMode),
@@ -467,19 +520,73 @@ export function NewInspectionWizard({
           {step === "services" && (
             <div className="space-y-2">
               <label className="block text-[12px] font-bold text-ih-fg-3 mb-1.5">Select Services</label>
-              <div className="grid grid-cols-2 gap-2">
-                {serviceCatalog.map((s) => (
-                  <button key={s.id} onClick={() => toggleService(s.id)}
-                    className={`text-left px-3 py-2 rounded-md text-[12px] font-medium border transition-colors ${services.has(s.id) ? "border-ih-primary bg-ih-primary-tint text-ih-primary" : "border-ih-border text-ih-fg-3"}`}
-                  >
-                    {services.has(s.id) ? "✓ " : ""}{s.name}
-                    {typeof s.price === "number" && s.price > 0 ? (
-                      // FE-7: price is stored in cents — "$400.00", not "$40000"
-                      <span className="ml-1 text-ih-fg-4">{formatPriceCents(s.price)}</span>
-                    ) : null}
-                  </button>
-                ))}
+              <div className="space-y-1.5">
+                {serviceCatalog.map((s) => {
+                  const selected = services.has(s.id);
+                  const catalogCents = typeof s.price === "number" && s.price > 0 ? s.price : null;
+                  const overrideCents = priceOverrides.get(s.id);
+                  // Display value for the price input: override dollars, or catalog dollars, or empty.
+                  const priceInputDefault =
+                    overrideCents !== undefined
+                      ? (overrideCents / 100).toFixed(2)
+                      : catalogCents !== null
+                        ? (catalogCents / 100).toFixed(2)
+                        : "";
+                  return (
+                    <div
+                      key={s.id}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md border transition-colors ${selected ? "border-ih-primary bg-ih-primary-tint" : "border-ih-border"}`}
+                    >
+                      {/* Checkbox + service name — clicking the left area toggles selection */}
+                      <button
+                        type="button"
+                        onClick={() => toggleService(s.id)}
+                        className={`flex-1 text-left text-[12px] font-medium flex items-center gap-1.5 ${selected ? "text-ih-primary" : "text-ih-fg-3"}`}
+                      >
+                        <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${selected ? "border-ih-primary bg-ih-primary text-white" : "border-ih-border"}`}>
+                          {selected ? "✓" : ""}
+                        </span>
+                        {s.name}
+                      </button>
+                      {/* Price: editable input when selected, static text otherwise */}
+                      {selected ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[12px] text-ih-fg-4">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            defaultValue={priceInputDefault}
+                            onBlur={(e) => handlePriceOverrideChange(s.id, e.target.value, catalogCents)}
+                            onChange={(e) => handlePriceOverrideChange(s.id, e.target.value, catalogCents)}
+                            className="w-20 h-7 px-1.5 rounded border border-ih-border bg-ih-bg-card text-[12px] text-right focus:shadow-ih-focus outline-none"
+                            aria-label={`Price for ${s.name}`}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      ) : catalogCents !== null ? (
+                        // FE-7: price is stored in cents — "$400.00", not "$40000"
+                        <span className="text-[12px] text-ih-fg-4 flex-shrink-0">{formatPriceCents(catalogCents)}</span>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
+              {/* P-4: Live total across selected services (override ?? catalog) */}
+              {services.size > 0 && (
+                <div className="flex justify-end pt-1 border-t border-ih-border mt-2">
+                  <span className="text-[12px] font-bold text-ih-fg-2">
+                    Total:{" "}
+                    {formatPriceCents(
+                      [...services].reduce((sum, id) => {
+                        const svc = serviceCatalog.find((s) => s.id === id);
+                        const cents = priceOverrides.get(id) ?? (typeof svc?.price === "number" ? svc.price : 0);
+                        return sum + cents;
+                      }, 0),
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
