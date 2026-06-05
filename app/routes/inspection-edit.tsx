@@ -1212,6 +1212,22 @@ export default function InspectionEditPage() {
  />
  );
 
+ /* B-22: empty-template CTA — shown instead of normal editor body when the
+  * inspection has no sections (template not applied yet). Opens the
+  * InspectionSettingsSheet where the user can pick a template. */
+ const emptyTemplateEl = state.sections.length === 0 ? (
+ <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
+  <p className="text-[15px] font-semibold text-ih-fg-1">This inspection has no template content</p>
+  <p className="text-[13px] text-ih-fg-3 max-w-sm">Apply a template to get sections, items and canned comments — or import your Spectora template.</p>
+  <button
+  onClick={() => state.setSettingsOpen(true)}
+  className="px-4 h-10 rounded-lg bg-ih-primary text-white text-[13px] font-bold hover:bg-ih-primary-600"
+  >
+  Choose a template
+  </button>
+ </div>
+ ) : null;
+
  /* ---------------------------------------------------------------- */
  /* Render */
  /* ---------------------------------------------------------------- */
@@ -1234,15 +1250,19 @@ export default function InspectionEditPage() {
  <MobileAppBar
  sectionTitle={state.currentSection?.title ?? ''}
  itemLabel={((state.activeItem?.label || state.activeItem?.name) as string | undefined) ?? 'Select an item'}
- onBack={() => navigate('/dashboard')}
+ onBack={() => {
+  // B-22: back from item editor → item list; back from list → dashboard
+  if (state.activeItemId) { state.setActiveItemId(null); return; }
+  navigate('/dashboard');
+ }}
  onMore={() => { /* future: open more menu */ }}
  />
  <main className="p-4">
- {state.activeItemId ? (
- itemEditorEl
+ {emptyTemplateEl ?? (state.activeItemId ? (
+  itemEditorEl
  ) : (
- <p className="text-center text-ih-fg-3 mt-12">Tap [☰ Sections] below to begin</p>
- )}
+  <p className="text-center text-ih-fg-3 mt-12">Tap [☰ Sections] below to begin</p>
+ ))}
  </main>
  <MobileDrawerTriggers onOpen={(id) => setMobileDrawer(id)} />
  <MobileBottomDrawer
@@ -1955,6 +1975,13 @@ export default function InspectionEditPage() {
  {/* 4-column layout below header */}
  {/* ------------------------------------------------------------ */}
  <div className="flex flex-1 pt-14 pb-9">
+ {/* B-22: if no sections, show the empty-template CTA spanning the full body */}
+ {emptyTemplateEl ? (
+ <div className="flex-1 flex">
+  {emptyTemplateEl}
+ </div>
+ ) : (
+ <>
  {/* Column 1: Section Rail (200px) */}
  {sectionRailEl}
 
@@ -2057,6 +2084,8 @@ export default function InspectionEditPage() {
 
  {/* Column 4: SideRail */}
  {sideRailEl}
+ </>
+ )}
  </div>
 
  {/* ------------------------------------------------------------ */}
