@@ -1491,6 +1491,27 @@ export default function InspectionEditPage() {
  /* Render */
  /* ---------------------------------------------------------------- */
 
+ // Offline status surfaces — shared by BOTH layout branches (a phone in the
+ // field is exactly where the offline indicator matters most).
+ const offlineStatusEl = (
+  <>
+   {!offline.online && (
+    <div className="fixed top-14 left-0 right-0 z-40 bg-ih-watch-bg border-b border-ih-watch px-4 py-2 text-center">
+     <span className="text-[12px] font-bold text-ih-watch-fg">
+      Saved on this device — will sync when you&apos;re back online.
+     </span>
+    </div>
+   )}
+   <NetworkPill
+    online={offline.online}
+    pendingCount={offline.pendingCount}
+    failedCount={offline.failedCount}
+    syncing={offline.syncing}
+    onSyncNow={handleSyncNow}
+   />
+  </>
+ );
+
  if (isMobile) {
  return (
  <div className="min-h-screen pb-14">
@@ -1545,6 +1566,7 @@ export default function InspectionEditPage() {
  >
  {sideRailEl}
  </MobileBottomDrawer>
+   {offlineStatusEl}
  </div>
  );
  }
@@ -2387,25 +2409,7 @@ export default function InspectionEditPage() {
  hidden={state.speedMode}
  />
 
- {/* Offline banner — the real offline queue is now wired (Task 4+6), so we
- can give an honest, positive message: edits are saved on-device and will
- replay automatically once connectivity returns. */}
- {!offline.online && (
- <div className="fixed top-14 left-0 right-0 z-40 bg-ih-watch-bg border-b border-ih-watch px-4 py-2 text-center">
- <span className="text-[12px] font-bold text-ih-watch-fg">
- Saved on this device — will sync when you&apos;re back online.
- </span>
- </div>
- )}
-
- {/* Network status pill — shows real pending/failed counts and "Sync now" */}
- <NetworkPill
- online={offline.online}
- pendingCount={offline.pendingCount}
- failedCount={offline.failedCount}
- syncing={offline.syncing}
- onSyncNow={handleSyncNow}
- />
+ {offlineStatusEl}
  </div>
  );
 }
