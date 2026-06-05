@@ -2112,23 +2112,63 @@ export const inspectionsRoutes = createApiRouter()
     })
     .openapi(createInspectionRoute, async (c) => {
         const body = c.req.valid('json');
+        const tenantId = c.get('tenantId');
         const service = c.var.services.inspection;
-        
+        const contactService = c.var.services.contact;
+
         // Filter undefined values and handle inspectorId logic
         const createData = Object.fromEntries(
             Object.entries(body).filter(([_, v]) => v !== undefined)
         ) as typeof body;
 
-        const inspection = await service.createInspection(c.get('tenantId'), {
+        // IA-1: Resolve client contact before creating the inspection.
+        let clientContactId: string | undefined;
+        if (body.client) {
+            const { id } = await contactService.upsertClientContact(tenantId, {
+                name:  body.client.name,
+                email: body.client.email,
+                phone: body.client.phone,
+                type:  'client',
+            });
+            clientContactId = id;
+            // Double-write denormalized columns so legacy read paths keep working.
+            if (!createData.clientName) (createData as Record<string, unknown>).clientName = body.client.name;
+            if (!createData.clientEmail) (createData as Record<string, unknown>).clientEmail = body.client.email ?? null;
+            if (!createData.clientPhone) (createData as Record<string, unknown>).clientPhone = body.client.phone ?? null;
+        }
+
+        // IA-1: Resolve agent — newAgent creates/finds a contacts row; agentContactId uses an existing one.
+        let resolvedAgentId: string | undefined = createData.referredByAgentId as string | undefined;
+        if (body.newAgent) {
+            const { id } = await contactService.upsertClientContact(tenantId, {
+                name:  body.newAgent.name,
+                email: body.newAgent.email,
+                type:  'agent',
+            });
+            resolvedAgentId = id;
+        } else if (body.agentContactId) {
+            resolvedAgentId = body.agentContactId;
+        }
+
+        const inspection = await service.createInspection(tenantId, {
             ...createData,
-            inspectorId: body.inspectorId || c.get('user').sub
-        });
+            inspectorId:       body.inspectorId || c.get('user').sub,
+            referredByAgentId: resolvedAgentId ?? null,
+            // IA-1: pass the resolved contact ids through; createInspection stores them.
+            clientContactId,
+        } as Parameters<typeof service.createInspection>[1]);
+
+        // IA-1: Apply serviceSelections price overrides — replace null priceOverride
+        // for any service whose id appears in serviceSelections with a set override.
+        if (body.serviceSelections && body.serviceSelections.length > 0) {
+            await service.applyServicePriceOverrides(inspection.id, tenantId, body.serviceSelections);
+        }
 
         auditFromContext(c, 'inspection.create', 'inspection', {
             entityId: inspection.id,
             metadata: { propertyAddress: inspection.propertyAddress },
         });
-        
+
         return c.json({
             success: true,
             data: { inspection }

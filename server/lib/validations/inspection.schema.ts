@@ -61,7 +61,28 @@ export const CreateInspectionSchema = z.object({
     addressCounty:  z.string().max(100).optional().nullable().describe('TODO describe addressCounty field for the OpenInspection MCP integration'),
     addressLat:     z.number().min(-90).max(90).optional().nullable().describe('TODO describe addressLat field for the OpenInspection MCP integration'),
     addressLng:     z.number().min(-180).max(180).optional().nullable().describe('TODO describe addressLng field for the OpenInspection MCP integration'),
-    serviceIds:     z.array(z.string()).optional().describe('TODO describe serviceIds field for the OpenInspection MCP integration'),
+    serviceIds:     z.array(z.string()).optional().describe('Legacy flat service-id list. Kept for backward compat. When serviceSelections is also present, serviceSelections takes precedence for per-row price overrides; any serviceId listed here but absent from serviceSelections is linked without a priceOverride.'),
+    // IA-1 People step: richer service selection with optional per-line price overrides.
+    // Relationship to serviceIds: serviceSelections is the superset. Old callers that
+    // only post serviceIds keep working unchanged. New wizard posts serviceSelections
+    // which may carry priceOverrideCents per row. A serviceId present in serviceIds
+    // but absent from serviceSelections is linked with priceOverride=null.
+    serviceSelections: z.array(z.object({
+        serviceId:          z.string().describe('Service catalog id to link to the inspection.'),
+        priceOverrideCents: z.number().int().min(0).optional().describe('Per-line price override in cents. Omit to use the catalog price.'),
+    })).optional().describe('IA-1: Richer service list that carries optional per-row price overrides. Superset of serviceIds.'),
+    // IA-1 People step: client capture.
+    client: z.object({
+        name:  z.string().min(1).describe('Client full name.'),
+        email: z.string().email().optional().describe('Client email — used to deduplicate against the contacts table.'),
+        phone: z.string().optional().describe('Client phone number.'),
+    }).optional().describe('IA-1: When present, upserts a contact row and links it as client_contact_id.'),
+    // IA-1 People step: agent capture — exactly one of agentContactId or newAgent may be set.
+    agentContactId: z.string().optional().describe('IA-1: Existing contacts.id to link as referred_by_agent_id.'),
+    newAgent: z.object({
+        name:  z.string().min(1).describe('Agent full name.'),
+        email: z.string().email().optional().describe('Agent email — used to deduplicate against the contacts table.'),
+    }).optional().describe('IA-1: When present, upserts a contact row of type=agent and links it as referred_by_agent_id.'),
     discountCodeId: z.string().nullable().optional().describe('TODO describe discountCodeId field for the OpenInspection MCP integration'),
     discountAmount: z.number().int().nullable().optional().describe('TODO describe discountAmount field for the OpenInspection MCP integration'),
     price:          z.number().int().min(0).optional().describe('TODO describe price field for the OpenInspection MCP integration'),
