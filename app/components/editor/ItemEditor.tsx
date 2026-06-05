@@ -229,7 +229,7 @@ export function ItemEditor({
  }}
  disabled={photoUploading}
  aria-label="Add photo to this defect"
- className="inline-flex items-center gap-1 mt-1.5 px-2 py-1 rounded-md border border-dashed border-ih-border-strong text-[11px] font-bold text-ih-fg-3 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+ className="inline-flex items-center gap-1 mt-1.5 px-2 py-1 rounded-md border border-dashed border-ih-border-strong text-[11px] font-bold text-ih-fg-3 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50" // ds-allow: intentional indigo accent for add-photo hover affordance
  >
  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -293,7 +293,7 @@ export function ItemEditor({
  {/* Rating buttons — driven by the rating system's levels (C-14a):
  full words on ≥sm, abbreviation on narrow, always-on semantic colour. */}
  {item.type === "rich" && (
- <div className="flex gap-2">
+ <div data-shortcut-scope className="flex gap-2">
  {levels.map((r, idx) => {
  const sev = SEVERITY_STYLES[r.severity ?? "minor"] ?? SEVERITY_STYLES.minor;
  const isActive = activeLevel?.id === r.id;

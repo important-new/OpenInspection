@@ -407,6 +407,7 @@ export default function ReportCardStackPage() {
  >
  <div className="flex items-center gap-1.5 flex-wrap">
  <span className="text-[13px] font-bold text-ih-fg-1">{d.title}</span>
+ {/* ds-allow: category and custom-added badges use raw palette for semantic color coding */}
  {d.effectiveCategory && (
  <span
  className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
@@ -420,6 +421,7 @@ export default function ReportCardStackPage() {
  {d.effectiveCategory}
  </span>
  )}
+ {/* ds-allow: inspector-added badge uses indigo palette */}
  {d.isCustom && (
  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
  inspector-added

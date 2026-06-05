@@ -38,7 +38,7 @@ export function ItemList({ items, sectionId, activeItemId, onSelect, results, ba
   });
 
   return (
-    <div className="w-[280px] flex-shrink-0 border-r border-ih-border overflow-y-auto flex flex-col">
+    <div data-shortcut-scope className="w-[280px] flex-shrink-0 border-r border-ih-border overflow-y-auto flex flex-col">
       {/* Filter chips */}
       <div className="px-2 py-1.5 flex gap-1 border-b border-ih-border">
         {filters.map((f) => (

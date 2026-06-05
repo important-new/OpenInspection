@@ -11,7 +11,7 @@ interface SectionRailProps {
 
 export function SectionRail({ sections, activeSection, onSelect, results, sectionProgress, sectionDefectCount }: SectionRailProps) {
  return (
- <aside className="w-[200px] flex-shrink-0 border-r border-ih-border overflow-y-auto bg-ih-bg-app/50">
+ <aside data-shortcut-scope className="w-[200px] flex-shrink-0 border-r border-ih-border overflow-y-auto bg-ih-bg-app/50">
  <nav className="p-2 space-y-0.5">
  {sections.map((section) => {
  // Calculate completion
