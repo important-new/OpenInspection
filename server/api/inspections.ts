@@ -1870,6 +1870,10 @@ export const inspectionsRoutes = createApiRouter()
         const body = c.req.valid('json');
         const service = c.var.services.template;
         const template = await service.createTemplate(c.get('tenantId'), body.name, body.schema);
+        auditFromContext(c, 'template.create', 'template', {
+            entityId: template.id,
+            metadata: { name: template.name },
+        });
         return c.json({ success: true, data: { template } }, 201);
     })
     .openapi(importSpectoraRoute, async (c) => {
@@ -1885,6 +1889,10 @@ export const inspectionsRoutes = createApiRouter()
             body.name,
             schema as unknown as Record<string, unknown>,
         );
+        auditFromContext(c, 'template.create', 'template', {
+            entityId: template.id,
+            metadata: { name: template.name, source: 'spectora-import' },
+        });
         return c.json({ success: true, data: { template, stats } }, 201);
     })
     .openapi(updateTemplateRoute, async (c) => {
@@ -1892,12 +1900,17 @@ export const inspectionsRoutes = createApiRouter()
         const body = c.req.valid('json');
         const service = c.var.services.template;
         const template = await service.updateTemplate(id, c.get('tenantId'), body.name, body.schema);
+        auditFromContext(c, 'template.update', 'template', {
+            entityId: id,
+            metadata: { name: template.name },
+        });
         return c.json({ success: true, data: { template } }, 200);
     })
     .openapi(deleteTemplateRoute, async (c) => {
         const { id } = c.req.valid('param');
         const service = c.var.services.template;
         await service.deleteTemplate(id, c.get('tenantId'));
+        auditFromContext(c, 'template.delete', 'template', { entityId: id });
         return c.json({ success: true }, 200);
     })
     .openapi(listInspectorsRoute, async (c) => {

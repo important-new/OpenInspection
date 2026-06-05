@@ -36,6 +36,7 @@ export const templates = sqliteTable('templates', {
     description: text('description'),
     featured: integer('featured').notNull().default(0),
 }, (t) => [
+    index('idx_templates_tenant').on(t.tenantId),
     index('idx_templates_rating_system').on(t.ratingSystemId),
 ]);
 
@@ -61,8 +62,8 @@ export const inspections = sqliteTable('inspections', {
     clientPhone:         text('client_phone'),
     templateId:          text('template_id').references(() => templates.id),
     date:                text('date').notNull(),
-    status:              text('status').notNull().default('draft'),
-    paymentStatus:       text('payment_status').notNull().default('unpaid'),
+    status:              text('status', { enum: ['draft','scheduled','confirmed','in_progress','completed','delivered','published','cancelled'] }).notNull().default('draft'),
+    paymentStatus:       text('payment_status', { enum: ['unpaid','partial','paid'] }).notNull().default('unpaid'),
     referredByAgentId:   text('referred_by_agent_id'),   // Buyer's Agent — unkeyed TEXT (backward compat)
     price:               integer('price').notNull().default(0),
     createdAt:           integer('created_at', { mode: 'timestamp' }).notNull(),
@@ -127,10 +128,13 @@ export const inspections = sqliteTable('inspections', {
     dataVersion:         integer('data_version').notNull().default(0),
 }, (t) => [
     index('idx_inspections_tenant').on(t.tenantId),
-    index('idx_inspections_status').on(t.status),
     index('idx_inspections_request').on(t.requestId),
     index('idx_inspections_inspector').on(t.inspectorId),
     index('idx_inspections_agent').on(t.referredByAgentId),
+    index('idx_inspections_tenant_status').on(t.tenantId, t.status),
+    index('idx_inspections_tenant_date').on(t.tenantId, t.date),
+    index('idx_inspections_tenant_client_email').on(t.tenantId, t.clientEmail),
+    index('idx_inspections_inspector_date').on(t.inspectorId, t.date),
 ]);
 
 // Sprint 2 S2-2 — A single customer booking can spawn multiple inspections
@@ -261,6 +265,7 @@ export const inspectionResults = sqliteTable('inspection_results', {
 }, (t) => [
     index('idx_results_tenant').on(t.tenantId),
     index('idx_results_inspection').on(t.inspectionId),
+    uniqueIndex('uq_results_inspection').on(t.inspectionId),
 ]);
 
 export const availability = sqliteTable('availability', {
@@ -358,7 +363,6 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 }, (t) => [
     uniqueIndex('idx_agreement_requests_verify_token').on(t.verificationToken),
-    index('idx_agreement_requests_token').on(t.token),
     index('idx_agreement_requests_tenant').on(t.tenantId),
     index('idx_agreement_requests_inspection').on(t.inspectionId),
 ]);
