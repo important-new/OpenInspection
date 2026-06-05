@@ -5,9 +5,9 @@ export const tenants = sqliteTable('tenants', {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     slug: text('slug').unique().notNull(),
-    tier: text('tier').notNull().default('free'),
+    tier: text('tier', { enum: ['free','pro','enterprise'] }).notNull().default('free'),
     stripeConnectAccountId: text('stripe_connect_account_id'),
-    status: text('status').notNull().default('pending'),
+    status: text('status', { enum: ['pending','active','suspended','trial'] }).notNull().default('pending'),
     maxUsers: integer('max_users').notNull().default(5),
     deploymentMode: text('deployment_mode').notNull().default('shared'), // shared, silo
     // Design System 0520 subsystem E P8 — optional InterNACHI inspector
@@ -45,6 +45,9 @@ export const users = sqliteTable('users', {
     // Nullable until the inspector picks one. Per-tenant uniqueness enforced via
     // partial index `idx_users_slug_per_tenant` (migrations/0052_inspector_slug.sql).
     slug: text('slug'),
+    // DDL default 'admin' is FROZEN (D1 cannot alter column defaults without a
+    // table rebuild and users is FK-referenced). Every insert path MUST pass an
+    // explicit role — audited 2026-06-05; enforced by review, not DDL.
     role: text('role').notNull().default('admin'),
     googleRefreshToken: text('google_refresh_token'),
     googleCalendarId: text('google_calendar_id'),
@@ -102,7 +105,8 @@ export const users = sqliteTable('users', {
     } | null>(),
 }, (t) => [
     index('idx_users_deleted_at').on(t.deletedAt),
-    uniqueIndex('users_tenant_email_unique').on(t.tenantId, t.email),
+    // DB-2: soft-deleted rows must not block re-inviting the same email.
+    uniqueIndex('users_tenant_email_unique').on(t.tenantId, t.email).where(sql`deleted_at IS NULL`),
     index('idx_users_tenant').on(t.tenantId),
     uniqueIndex('idx_users_slug_per_tenant').on(t.tenantId, t.slug),
     index('idx_users_email').on(t.email),
