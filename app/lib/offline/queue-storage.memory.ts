@@ -24,7 +24,9 @@ export function createMemoryQueueStorage(): QueueStorage {
 
     return {
         async putWrite(w) {
-            const entry: QueuedWrite = { ...w, seq: nextSeq++, kind: 'write' };
+            // Deep-copy payload so post-enqueue mutations to the caller's object
+            // do not bleed into the stored entry (enqueue-time isolation).
+            const entry: QueuedWrite = { ...w, payload: { ...w.payload }, seq: nextSeq++, kind: 'write' };
             entries.set(entry.seq, entry);
             return entry;
         },
@@ -45,7 +47,9 @@ export function createMemoryQueueStorage(): QueueStorage {
                 }
             }
             // Re-enqueue at a new seq regardless of whether we found a match.
-            const entry: QueuedWrite = { ...w, seq: nextSeq++, kind: 'write' };
+            // Deep-copy payload so post-enqueue mutations to the caller's object
+            // do not bleed into the stored entry (enqueue-time isolation).
+            const entry: QueuedWrite = { ...w, payload: { ...w.payload }, seq: nextSeq++, kind: 'write' };
             entries.set(entry.seq, entry);
             return entry;
         },
