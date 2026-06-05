@@ -2132,9 +2132,12 @@ export const inspectionsRoutes = createApiRouter()
             });
             clientContactId = id;
             // Double-write denormalized columns so legacy read paths keep working.
-            if (!createData.clientName) (createData as Record<string, unknown>).clientName = body.client.name;
-            if (!createData.clientEmail) (createData as Record<string, unknown>).clientEmail = body.client.email ?? null;
-            if (!createData.clientPhone) (createData as Record<string, unknown>).clientPhone = body.client.phone ?? null;
+            // Unconditional: the structured client object is the authoritative
+            // source — the flat clientName carries a zod default ('Private
+            // Client') that would otherwise always win and mask the real name.
+            (createData as Record<string, unknown>).clientName = body.client.name;
+            (createData as Record<string, unknown>).clientEmail = body.client.email ?? null;
+            (createData as Record<string, unknown>).clientPhone = body.client.phone ?? null;
         }
 
         // IA-1: Resolve agent — newAgent creates/finds a contacts row; agentContactId uses an existing one.
