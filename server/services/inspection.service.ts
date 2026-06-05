@@ -435,7 +435,7 @@ export class InspectionService {
     /**
      * Creates a new inspection.
      */
-    async createInspection(tenantId: string, data: CreateInspectionData & { inspectorId?: string }): Promise<Inspection> {
+    async createInspection(tenantId: string, data: CreateInspectionData & { inspectorId?: string; clientContactId?: string }): Promise<Inspection> {
         if (!this.sdb) throw new Error('ScopedDB session missing');
         const id = crypto.randomUUID();
         const createdAt = new Date();
@@ -481,6 +481,8 @@ export class InspectionService {
             clientName: data.clientName || 'Private Client',
             clientEmail: (data.clientEmail as string | null) || null,
             clientPhone: data.clientPhone ?? null,
+            // IA-1: FK to contacts.id for the client (app-layer integrity).
+            clientContactId: (data as { clientContactId?: string }).clientContactId ?? null,
             templateId: data.templateId,
             templateSnapshot,
             templateSnapshotVersion,
@@ -538,18 +540,29 @@ export class InspectionService {
             }
         }
 
-        // Link selected services
-        if (data.serviceIds && data.serviceIds.length > 0) {
+        // Link selected services.
+        // serviceSelections (IA-1 superset) takes precedence when present; otherwise
+        // fall back to the legacy flat serviceIds list. The two may coexist — the
+        // handler already merges them so only one branch fires here.
+        const serviceSelectionsInput = (data as { serviceSelections?: Array<{ serviceId: string; priceOverrideCents?: number }> }).serviceSelections;
+        const effectiveServiceIds: string[] = serviceSelectionsInput && serviceSelectionsInput.length > 0
+            ? serviceSelectionsInput.map(s => s.serviceId)
+            : (data.serviceIds ?? []);
+        if (effectiveServiceIds.length > 0) {
             const db2 = this.getDrizzle();
             const svcRows = await db2.select().from(services)
-                .where(and(eq(services.tenantId, tenantId), inArray(services.id, data.serviceIds)));
+                .where(and(eq(services.tenantId, tenantId), inArray(services.id, effectiveServiceIds)));
             if (svcRows.length > 0) {
+                // Build a map from serviceId → priceOverrideCents for fast lookup.
+                const overrideMap = new Map<string, number | undefined>(
+                    (serviceSelectionsInput ?? []).map(s => [s.serviceId, s.priceOverrideCents]),
+                );
                 await db2.insert(inspectionServices).values(svcRows.map(s => ({
                     id:            crypto.randomUUID(),
                     tenantId,
                     inspectionId:  id,
                     serviceId:     s.id,
-                    priceOverride: null,
+                    priceOverride: overrideMap.get(s.id) ?? null,
                     nameSnapshot:  s.name,
                     priceSnapshot: s.price,
                 })));
@@ -562,6 +575,34 @@ export class InspectionService {
             inspectorId: newInspection.inspectorId as string | null,
             createdAt: safeISODate(newInspection.createdAt)
         } as Inspection;
+    }
+
+    /**
+     * IA-1: Post-create hook — write priceOverride onto inspection_services rows
+     * that were already inserted by createInspection. Called by the handler AFTER
+     * createInspection returns so it can use the resolved inspection id.
+     * Only rows whose serviceId appears in selections AND carry a priceOverrideCents
+     * value are updated; rows without an override are left with priceOverride=null.
+     */
+    async applyServicePriceOverrides(
+        inspectionId: string,
+        tenantId: string,
+        selections: Array<{ serviceId: string; priceOverrideCents?: number }>,
+    ): Promise<void> {
+        const db = this.getDrizzle();
+        for (const sel of selections) {
+            if (sel.priceOverrideCents !== undefined) {
+                await db.update(inspectionServices)
+                    .set({ priceOverride: sel.priceOverrideCents })
+                    .where(
+                        and(
+                            eq(inspectionServices.inspectionId, inspectionId),
+                            eq(inspectionServices.tenantId, tenantId),
+                            eq(inspectionServices.serviceId, sel.serviceId),
+                        ),
+                    );
+            }
+        }
     }
 
     /**

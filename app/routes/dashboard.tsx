@@ -282,7 +282,31 @@ export async function action({ request, context }: Route.ActionArgs) {
       const id = body?.data?.inspection?.id;
       if (id) return redirect(`/inspections/${id}/edit`);
     }
+    // Surface the API rejection in the worker log — silent { ok:false }
+    // responses have repeatedly cost full debugging rounds (see save-settings).
+    console.error("[create] POST /api/inspections failed", res.status, await res.text().catch(() => ""));
     return { ok: false, intent: "create" };
+  }
+  if (intent === "search-agents") {
+    // IA-1 People step — agent typeahead. Posted by a dedicated useFetcher in
+    // NewInspectionWizard with { intent:"search-agents", search }. Returns up
+    // to 8 contacts of type=agent matching the query. BFF pattern: no
+    // client-side fetch (C-12 rule).
+    const search = String(formData.get("search") || "").trim();
+    if (search.length < 2) {
+      return { intent: "search-agents" as const, agents: [] };
+    }
+    const res = await api.contacts.index.$get({
+      query: { type: "agent", search, limit: "8" },
+    }).catch(() => null);
+    if (res && res.ok) {
+      const body = (await res.json().catch(() => ({ data: [] }))) as { data?: { id: string; name: string; email: string | null }[] };
+      return {
+        intent: "search-agents" as const,
+        agents: (body.data ?? []).map((c) => ({ id: c.id, name: c.name, email: c.email })),
+      };
+    }
+    return { intent: "search-agents" as const, agents: [] };
   }
   if (intent === "delete") {
     const id = formData.get("id") as string;
@@ -626,6 +650,9 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+            {/* P-4: dashboard rows only carry inspections.price (cache tier 3).
+                Invoices and service-snapshot tiers are not loaded here — out of scope.
+                Use getEffectivePriceCents() when a full authority-chain read is needed. */}
             {isColumnVisible("price") && insp.price != null && (
               <span className="text-[11px] font-medium text-ih-fg-3">
                 ${insp.price}
