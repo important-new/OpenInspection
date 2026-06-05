@@ -16,6 +16,10 @@ import {
   DEFAULT_UI_PREFS,
   type UiPrefs,
 } from "~/lib/ui-prefs";
+import {
+  bootstrapServiceWorker,
+  type SWRegistrarLike,
+} from "~/lib/offline/sw-bootstrap";
 
 export function loader({ request }: Route.LoaderArgs): UiPrefs {
   return parseUiPrefs(request.headers.get("Cookie"));
@@ -89,30 +93,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function Root() {
-  // FE-1 / B-3 — zombie service-worker exorcism. Older builds shipped a SW
-  // (public/sw.js, oi-sync) that production browsers still carry; the current
-  // app registers none, yet the stale SW keeps intercepting GETs cache-first
-  // and is the prime suspect for the editor's 30-45s renderer stalls observed
-  // in the field eval. Unregister every registration + drop its caches once
-  // per boot; harmless no-op for fresh browsers.
+  // FE-1 / B-3 — versioned SW bootstrap with kill switch.
+  // Normal boots (re)register the current SW (/sw.js, v3-a1); the browser
+  // no-ops if the same script is already active and swaps in the new version
+  // via its normal update flow when the file changes.
+  // Kill switch: set ?no-sw=1 or localStorage 'oi:sw-disable'='1' to
+  // immediately unregister all registrations and stop any SW from running
+  // (zombie-exorcism behavior is preserved under the kill switch).
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker
-      .getRegistrations()
-      .then((regs) => {
-        for (const reg of regs) reg.unregister().catch(() => {});
-        if (regs.length > 0 && "caches" in window) {
-          caches
-            .keys()
-            .then((keys) => {
-              for (const key of keys) {
-                if (key.startsWith("oi-")) caches.delete(key).catch(() => {});
-              }
-            })
-            .catch(() => {});
-        }
-      })
-      .catch(() => {});
+    if (typeof navigator === "undefined") return;
+    void bootstrapServiceWorker(
+      navigator.serviceWorker as unknown as SWRegistrarLike,
+      window.location.search,
+      window.localStorage,
+    );
   }, []);
   return <Outlet />;
 }

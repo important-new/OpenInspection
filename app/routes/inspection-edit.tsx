@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, useRevalidator } from "react-router";
 import type { Route } from "./+types/inspection-edit";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
@@ -14,7 +14,16 @@ import { useInspectionPrefs } from "~/hooks/useInspectionPrefs";
 import { pushToast } from "~/hooks/useToast";
 import { useKeyboard } from "~/hooks/useKeyboard";
 import { useCannedComments } from "~/hooks/useCannedComments";
-import { useOfflineQueue } from "~/hooks/useOfflineQueue";
+import { useOfflineQueue, getOfflineQueue } from "~/hooks/useOfflineQueue";
+import { shouldQueue } from "~/lib/offline/should-queue";
+import { formatReplayToasts } from "~/lib/offline/replay-toasts";
+import { NetworkPill } from "~/components/sync/NetworkPill";
+import {
+ addQueuedPreview,
+ clearQueuedPreviews,
+ collectObjectUrls,
+ type QueuedPreviewMap,
+} from "~/lib/offline/queued-photo-previews";
 import { useUnsavedChanges } from "~/hooks/useUnsavedChanges";
 import { usePresence } from "~/hooks/usePresence";
 import { useTheme } from "~/hooks/useTheme";
@@ -290,6 +299,135 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  return { ok, keys, itemId, targetType, customId, defectKind };
  }
 
+ // ── Offline replay intents ────────────────────────────────────────────────
+ //
+ // The offline ActionTransport cannot parse React Router's turbo-stream body,
+ // so it can't distinguish a plain 200 from an {ok:false} result buried in the
+ // stream.  These two dedicated intents return Response.json() with an explicit
+ // HTTP status code so the transport can read res.status directly.
+ //
+ // replay-write: forwards the original intent payload through the same API
+ // call as if it had been submitted online.  Returns:
+ //   200 → success
+ //   409 → field-version conflict (pass through to the conflict-resolver UI)
+ //   4xx/5xx → active error (OfflineQueue will retry up to MAX_ATTEMPTS)
+ //
+ // replay-photo: forwards a single file upload (blob) to the photo upload API.
+
+ if (intent === "replay-write") {
+  const replayIntent = String(formData.get("replayIntent") ?? "");
+  const itemId = String(formData.get("itemId") ?? "");
+  let sectionId = String(formData.get("sectionId") ?? "");
+  let payload: Record<string, unknown> = {};
+  try {
+   payload = JSON.parse(String(formData.get("payload") ?? "{}"));
+  } catch {
+   return Response.json({ ok: false, apiStatus: 400 }, { status: 400 });
+  }
+
+  // The transport carries sectionId inside the JSON payload (not as a top-level
+  // form field) — fall back to it so replays don't 400 with an empty sectionId.
+  if (!sectionId && typeof payload.sectionId === "string") sectionId = payload.sectionId;
+
+  // Collect status/ok from whichever API call fires — extracted immediately
+  // so we never hold a ClientResponse<...> in a wider-typed variable.
+  let apiStatus = 500;
+  let apiOk = false;
+
+  // Optimistic-concurrency on replay: unlike the ONLINE single-field path
+  // (which deliberately force-writes — pre-existing, out of scope here), an
+  // offline write is replayed against state that may have moved while we were
+  // offline. useFindings froze the field's last-known version into the
+  // payload at enqueue time, so we forward it as a REAL check (force:false).
+  // The server returns 409 on a stale version, which propagates below via the
+  // explicit-status Response.json so the conflict path can pick it up. A
+  // missing version (legacy entry / older queued write) defaults to 0, which
+  // decideFieldWrite treats as the initial counter.
+  const expectedVersion =
+   typeof payload.expectedVersion === "number" ? payload.expectedVersion : 0;
+
+  if (replayIntent === "rate") {
+   const rating = String(payload.rating ?? "");
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: { field: "rating", value: rating, sectionId, expectedVersion, force: false },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "notes") {
+   const notes = String(payload.notes ?? "");
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: { field: "notes", value: notes, sectionId, expectedVersion, force: false },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "toggle-canned") {
+   const tabName = String(payload.tabName ?? "");
+   const cannedId = String(payload.cannedId ?? "");
+   const included = Boolean(payload.included);
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: {
+     field: "cannedToggle",
+     value: { tabName, cannedId, included },
+     sectionId,
+     expectedVersion,
+     force: false,
+    },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "set-defect-fields") {
+   const cannedId = String(payload.cannedId ?? "");
+   // payload was validated when originally dispatched; the enum fields were
+   // already type-safe at the call site. Use `as any` at the API boundary
+   // since the replay path cannot re-run the original runtime type narrowing.
+   // Strip transport-only keys (sectionId is a separate json field;
+   // expectedVersion is the concurrency control, not a defect attribute) so
+   // they don't leak into the defectFields value object.
+   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   const { sectionId: _sid, expectedVersion: _ev, ...defectPatch } = payload;
+   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   const defectValue = { cannedId, ...(defectPatch as any) } as any;
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: { field: "defectFields", value: defectValue, sectionId, expectedVersion, force: false },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "save-all") {
+   const r = await api.inspections[":id"].results.$patch({
+    param: { id: params.id },
+    json: { data: payload },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else {
+   // Unknown replayIntent — reject so the entry doesn't loop.
+   return Response.json({ ok: false, apiStatus: 400 }, { status: 400 });
+  }
+
+  return Response.json({ ok: apiOk, apiStatus }, { status: apiStatus });
+ }
+
+ if (intent === "replay-photo") {
+  const itemId = String(formData.get("itemId") ?? "");
+  const file = formData.get("file");
+  if (!file || !(file instanceof File) || !itemId) {
+   return Response.json({ ok: false, apiStatus: 400 }, { status: 400 });
+  }
+  const apiRes = await api.inspections[":id"].upload.$post({
+   param: { id: params.id },
+   form: { file, itemId },
+  });
+  const apiStatus = apiRes.status;
+  const apiOk = apiRes.ok;
+  let key: string | undefined;
+  if (apiOk) {
+   try {
+    const j = (await apiRes.json()) as { data?: { key?: string } };
+    key = j.data?.key;
+   } catch { /* ignore */ }
+  }
+  return Response.json({ ok: apiOk && Boolean(key), apiStatus, key }, { status: apiStatus });
+ }
+
  return { ok };
 }
 
@@ -346,6 +484,8 @@ export default function InspectionEditPage() {
  setSaveStatus: state.setSaveStatus,
  inspectionId: String(state.inspection.id),
  notesFetcher,
+    // Offline-first: route field writes into the queue when shouldQueue() says so.
+    offlineQueue: getOfflineQueue(),
  });
 
  /* ---------------------------------------------------------------- */
@@ -491,6 +631,56 @@ export default function InspectionEditPage() {
  /* ---------------------------------------------------------------- */
 
  const offline = useOfflineQueue();
+ const revalidator = useRevalidator();
+
+ /* ---------------------------------------------------------------- */
+ /* Queued photo previews (Task 4) */
+ /* ---------------------------------------------------------------- */
+
+ // itemId → Array<{ name, objectUrl }> — local blob previews for photos
+ // queued while offline.  Object URLs are created on enqueue and revoked
+ // on unmount or after a successful replay clears the queue.
+ const [queuedPhotoPreviews, setQueuedPhotoPreviews] = useState<QueuedPreviewMap>({});
+ const queuedPhotoPreviewsRef = useRef(queuedPhotoPreviews);
+ queuedPhotoPreviewsRef.current = queuedPhotoPreviews;
+
+ // Revoke all object URLs when the route unmounts.
+ useEffect(() => {
+  return () => {
+   for (const url of collectObjectUrls(queuedPhotoPreviewsRef.current)) {
+    URL.revokeObjectURL(url);
+   }
+  };
+ }, []);
+
+ // When a replay finishes (syncing flips false → true → false) AND pending
+ // count reaches 0, clear the preview map and revalidate loader data so the
+ // confirmed server photos appear in the strip.
+ const prevSyncing = useRef(false);
+ useEffect(() => {
+  const justFinished = prevSyncing.current && !offline.syncing;
+  prevSyncing.current = offline.syncing;
+  if (justFinished && offline.pendingCount === 0) {
+   // Revoke object URLs before clearing so the browser can GC the blobs.
+   for (const url of collectObjectUrls(queuedPhotoPreviewsRef.current)) {
+    URL.revokeObjectURL(url);
+   }
+   setQueuedPhotoPreviews(clearQueuedPreviews());
+   revalidator.revalidate();
+  }
+ }, [offline.syncing, offline.pendingCount, revalidator]);
+
+ /* ---------------------------------------------------------------- */
+ /* Manual sync — fires toasts from the ReplayResult */
+ /* ---------------------------------------------------------------- */
+
+ const handleSyncNow = useCallback(async () => {
+  const result = await offline.replayNow();
+  if (!result) return; // single-flight guard fired — a replay was already running
+  for (const t of formatReplayToasts(result)) {
+   pushToast({ message: t.message, durationMs: t.durationMs });
+  }
+ }, [offline]);
 
  /* ---------------------------------------------------------------- */
  /* Unsaved changes guard */
@@ -843,9 +1033,31 @@ export default function InspectionEditPage() {
  (e: React.ChangeEvent<HTMLInputElement>) => {
  const file = e.target.files?.[0];
  if (!file || !state.activeItemId) return;
+ const itemId = state.activeItemId;
+
+ // Task 4 — when offline, enqueue for later replay and show a local preview.
+ const nav = typeof navigator !== "undefined" ? navigator : undefined;
+ if (shouldQueue(nav)) {
+  const objectUrl = URL.createObjectURL(file);
+  setQueuedPhotoPreviews((prev) =>
+   addQueuedPreview(prev, itemId, { name: file.name, objectUrl }),
+  );
+  void getOfflineQueue().enqueuePhoto({
+   inspectionId: String(state.inspection.id),
+   itemId,
+   name: file.name,
+   blob: file,
+   enqueuedAt: Date.now(),
+  });
+  pushToast({ message: "Photo queued — will upload when back online", durationMs: 3000 });
+  // Reset input so picking the same file twice re-fires onChange
+  if (photoInputRef.current) photoInputRef.current.value = "";
+  return;
+ }
+
  const formData = new FormData();
  formData.append("intent", "upload-photo");
- formData.append("itemId", state.activeItemId);
+ formData.append("itemId", itemId);
  formData.append("file", file);
  const target = pendingPhotoTargetRef.current;
  pendingPhotoTargetRef.current = null;
@@ -858,21 +1070,48 @@ export default function InspectionEditPage() {
  // Reset input so picking the same file twice re-fires onChange
  if (photoInputRef.current) photoInputRef.current.value = "";
  },
- [state.activeItemId, uploadFetcher],
+ [state.activeItemId, state.inspection.id, uploadFetcher],
  );
 
  const handleBurstCommit = useCallback(
  (blobs: Blob[]) => {
  if (!state.burstCameraItemId || blobs.length === 0) return;
+ const itemId = state.burstCameraItemId;
+
+ // Task 6 (rider) — same offline branch as handlePhotoUpload: when offline,
+ // enqueue each captured blob and show a local preview instead of uploading.
+ const nav = typeof navigator !== "undefined" ? navigator : undefined;
+ if (shouldQueue(nav)) {
+  blobs.forEach((blob, i) => {
+  const name = `burst-${i + 1}.jpg`;
+  const objectUrl = URL.createObjectURL(blob);
+  setQueuedPhotoPreviews((prev) =>
+   addQueuedPreview(prev, itemId, { name, objectUrl }),
+  );
+  void getOfflineQueue().enqueuePhoto({
+   inspectionId: String(state.inspection.id),
+   itemId,
+   name,
+   blob,
+   enqueuedAt: Date.now(),
+  });
+  });
+  pushToast({
+  message: `${blobs.length} photo${blobs.length === 1 ? "" : "s"} queued — will upload when back online`,
+  durationMs: 3000,
+  });
+  return;
+ }
+
  const formData = new FormData();
  formData.append("intent", "upload-photo");
- formData.append("itemId", state.burstCameraItemId);
+ formData.append("itemId", itemId);
  blobs.forEach((blob, i) => {
  formData.append("file", new File([blob], `burst-${i + 1}.jpg`, { type: "image/jpeg" }));
  });
  uploadFetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
  },
- [state.burstCameraItemId, uploadFetcher],
+ [state.burstCameraItemId, state.inspection.id, uploadFetcher],
  );
 
  // Attach uploaded photo keys once the action responds — to the item, or
@@ -1210,6 +1449,7 @@ export default function InspectionEditPage() {
  cloneDefaultScope={inspectionPrefs.cloneDefault}
  tagChipRow={tagChipRow}
  onOpenSnippets={openSnippets}
+ queuedPreviews={state.activeItemId ? (queuedPhotoPreviews[state.activeItemId] ?? []) : []}
  />
  ) : (
  <div className="flex items-center justify-center h-full text-ih-fg-4">
@@ -1254,6 +1494,27 @@ export default function InspectionEditPage() {
  /* ---------------------------------------------------------------- */
  /* Render */
  /* ---------------------------------------------------------------- */
+
+ // Offline status surfaces — shared by BOTH layout branches (a phone in the
+ // field is exactly where the offline indicator matters most).
+ const offlineStatusEl = (
+  <>
+   {!offline.online && (
+    <div className="fixed top-14 left-0 right-0 z-40 bg-ih-watch-bg border-b border-ih-watch px-4 py-2 text-center">
+     <span className="text-[12px] font-bold text-ih-watch-fg">
+      Saved on this device — will sync when you&apos;re back online.
+     </span>
+    </div>
+   )}
+   <NetworkPill
+    online={offline.online}
+    pendingCount={offline.pendingCount}
+    failedCount={offline.failedCount}
+    syncing={offline.syncing}
+    onSyncNow={handleSyncNow}
+   />
+  </>
+ );
 
  if (isMobile) {
  return (
@@ -1309,6 +1570,7 @@ export default function InspectionEditPage() {
  >
  {sideRailEl}
  </MobileBottomDrawer>
+   {offlineStatusEl}
  </div>
  );
  }
@@ -2151,17 +2413,7 @@ export default function InspectionEditPage() {
  hidden={state.speedMode}
  />
 
- {/* Offline banner — honest version. The old copy promised "changes
- will sync when you reconnect", but useOfflineQueue.enqueue has zero
- call sites: nothing was ever queued (B-17 post-mortem / B-3). Until
- a real offline queue ships, warn the inspector NOT to keep editing. */}
- {!offline.online && (
- <div className="fixed top-14 left-0 right-0 z-40 bg-ih-bad-bg border-b border-ih-bad px-4 py-2 text-center">
- <span className="text-[12px] font-bold text-ih-bad-fg">
- You are offline — edits are NOT being saved. Reconnect before continuing.
- </span>
- </div>
- )}
+ {offlineStatusEl}
  </div>
  );
 }
