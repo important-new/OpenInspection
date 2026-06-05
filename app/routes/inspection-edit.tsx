@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, useRevalidator } from "react-router";
 import type { Route } from "./+types/inspection-edit";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
@@ -14,7 +14,14 @@ import { useInspectionPrefs } from "~/hooks/useInspectionPrefs";
 import { pushToast } from "~/hooks/useToast";
 import { useKeyboard } from "~/hooks/useKeyboard";
 import { useCannedComments } from "~/hooks/useCannedComments";
-import { useOfflineQueue } from "~/hooks/useOfflineQueue";
+import { useOfflineQueue, getOfflineQueue } from "~/hooks/useOfflineQueue";
+import { shouldQueue } from "~/lib/offline/should-queue";
+import {
+ addQueuedPreview,
+ clearQueuedPreviews,
+ collectObjectUrls,
+ type QueuedPreviewMap,
+} from "~/lib/offline/queued-photo-previews";
 import { useUnsavedChanges } from "~/hooks/useUnsavedChanges";
 import { usePresence } from "~/hooks/usePresence";
 import { useTheme } from "~/hooks/useTheme";
@@ -599,6 +606,44 @@ export default function InspectionEditPage() {
  /* ---------------------------------------------------------------- */
 
  const offline = useOfflineQueue();
+ const revalidator = useRevalidator();
+
+ /* ---------------------------------------------------------------- */
+ /* Queued photo previews (Task 4) */
+ /* ---------------------------------------------------------------- */
+
+ // itemId → Array<{ name, objectUrl }> — local blob previews for photos
+ // queued while offline.  Object URLs are created on enqueue and revoked
+ // on unmount or after a successful replay clears the queue.
+ const [queuedPhotoPreviews, setQueuedPhotoPreviews] = useState<QueuedPreviewMap>({});
+ const queuedPhotoPreviewsRef = useRef(queuedPhotoPreviews);
+ queuedPhotoPreviewsRef.current = queuedPhotoPreviews;
+
+ // Revoke all object URLs when the route unmounts.
+ useEffect(() => {
+  return () => {
+   for (const url of collectObjectUrls(queuedPhotoPreviewsRef.current)) {
+    URL.revokeObjectURL(url);
+   }
+  };
+ }, []);
+
+ // When a replay finishes (syncing flips false → true → false) AND pending
+ // count reaches 0, clear the preview map and revalidate loader data so the
+ // confirmed server photos appear in the strip.
+ const prevSyncing = useRef(false);
+ useEffect(() => {
+  const justFinished = prevSyncing.current && !offline.syncing;
+  prevSyncing.current = offline.syncing;
+  if (justFinished && offline.pendingCount === 0) {
+   // Revoke object URLs before clearing so the browser can GC the blobs.
+   for (const url of collectObjectUrls(queuedPhotoPreviewsRef.current)) {
+    URL.revokeObjectURL(url);
+   }
+   setQueuedPhotoPreviews(clearQueuedPreviews());
+   revalidator.revalidate();
+  }
+ }, [offline.syncing, offline.pendingCount, revalidator]);
 
  /* ---------------------------------------------------------------- */
  /* Unsaved changes guard */
@@ -951,9 +996,31 @@ export default function InspectionEditPage() {
  (e: React.ChangeEvent<HTMLInputElement>) => {
  const file = e.target.files?.[0];
  if (!file || !state.activeItemId) return;
+ const itemId = state.activeItemId;
+
+ // Task 4 — when offline, enqueue for later replay and show a local preview.
+ const nav = typeof navigator !== "undefined" ? navigator : undefined;
+ if (shouldQueue(nav)) {
+  const objectUrl = URL.createObjectURL(file);
+  setQueuedPhotoPreviews((prev) =>
+   addQueuedPreview(prev, itemId, { name: file.name, objectUrl }),
+  );
+  void getOfflineQueue().enqueuePhoto({
+   inspectionId: String(state.inspection.id),
+   itemId,
+   name: file.name,
+   blob: file,
+   enqueuedAt: Date.now(),
+  });
+  pushToast({ message: "Photo queued — will upload when back online", durationMs: 3000 });
+  // Reset input so picking the same file twice re-fires onChange
+  if (photoInputRef.current) photoInputRef.current.value = "";
+  return;
+ }
+
  const formData = new FormData();
  formData.append("intent", "upload-photo");
- formData.append("itemId", state.activeItemId);
+ formData.append("itemId", itemId);
  formData.append("file", file);
  const target = pendingPhotoTargetRef.current;
  pendingPhotoTargetRef.current = null;
@@ -966,7 +1033,7 @@ export default function InspectionEditPage() {
  // Reset input so picking the same file twice re-fires onChange
  if (photoInputRef.current) photoInputRef.current.value = "";
  },
- [state.activeItemId, uploadFetcher],
+ [state.activeItemId, state.inspection.id, uploadFetcher],
  );
 
  const handleBurstCommit = useCallback(
@@ -1318,6 +1385,7 @@ export default function InspectionEditPage() {
  cloneDefaultScope={inspectionPrefs.cloneDefault}
  tagChipRow={tagChipRow}
  onOpenSnippets={openSnippets}
+ queuedPreviews={state.activeItemId ? (queuedPhotoPreviews[state.activeItemId] ?? []) : []}
  />
  ) : (
  <div className="flex items-center justify-center h-full text-ih-fg-4">

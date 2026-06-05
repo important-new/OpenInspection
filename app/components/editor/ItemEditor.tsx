@@ -117,6 +117,11 @@ interface ItemEditorProps {
  tagChipRow?: React.ReactNode;
  /** B-19b — called when "/" is typed at a line/word start in the notes field. */
  onOpenSnippets?: () => void;
+ /**
+  * Task 4 — local blob previews for photos queued while offline.
+  * Rendered in the photo strip after confirmed server photos.
+  */
+ queuedPreviews?: Array<{ name: string; objectUrl: string }>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -146,6 +151,7 @@ export function ItemEditor({
  cloneDefaultScope,
  tagChipRow,
  onOpenSnippets,
+ queuedPreviews,
 }: ItemEditorProps) {
  const [activeTab, setActiveTab] = useState<CannedTabId>("information");
  const [defectQuery, setDefectQuery] = useState("");
@@ -628,7 +634,7 @@ export function ItemEditor({
  </span>
  )}
  </div>
- <div className="flex items-center gap-2">
+ <div className="flex flex-wrap items-center gap-2">
  {/* FE-2 — this button shipped with no onClick at all (dead in the
  field). It now opens the route's hidden file input. */}
  <button
@@ -649,12 +655,27 @@ export function ItemEditor({
  </svg>
  )}
  </button>
+ {/* Task 4 — queued offline photo previews rendered after the add button */}
+ {(queuedPreviews ?? []).map((preview) => (
+ <div key={preview.objectUrl} className="relative w-16 h-16 rounded-lg overflow-hidden border border-ih-border flex-shrink-0">
+  <img
+  src={preview.objectUrl}
+  alt={preview.name}
+  className="w-full h-full object-cover opacity-70"
+  />
+  <span className="absolute bottom-0 left-0 right-0 flex justify-center pb-0.5">
+  <span className="text-[9px] font-bold uppercase bg-ih-watch-bg text-ih-watch-fg rounded px-1">
+   QUEUED
+  </span>
+  </span>
+ </div>
+ ))}
  <span className="text-[12px] text-ih-fg-4">
  {photoUploading
  ? "Uploading…"
- : ((result.photos as unknown[]) || []).length === 0
+ : ((result.photos as unknown[]) || []).length === 0 && !(queuedPreviews?.length)
  ? "No photos yet"
- : `${((result.photos as unknown[]) || []).length} photo${((result.photos as unknown[]) || []).length === 1 ? "" : "s"}`}
+ : `${((result.photos as unknown[]) || []).length} photo${((result.photos as unknown[]) || []).length === 1 ? "" : "s"}${(queuedPreviews?.length) ? ` · ${queuedPreviews.length} queued` : ""}`}
  </span>
  </div>
  </div>
