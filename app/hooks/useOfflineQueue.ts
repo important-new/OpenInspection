@@ -29,6 +29,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { idbAvailable, createIdbQueueStorage } from "~/lib/offline/queue-storage.idb";
 import { createMemoryQueueStorage } from "~/lib/offline/queue-storage.memory";
 import { OfflineQueue } from "~/lib/offline/offline-queue";
+import type { ReplayResult } from "~/lib/offline/offline-queue";
 import { createActionTransport } from "~/lib/offline/action-transport";
 
 // ── Module-level singleton ────────────────────────────────────────────────────
@@ -52,12 +53,17 @@ function getQueue(): OfflineQueue {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
+// Re-export so callers can type the result without importing from offline-queue directly.
+export type { ReplayResult };
+
 export interface OfflineQueueState {
     online: boolean;
     pendingCount: number;
     failedCount: number;
     syncing: boolean;
-    replayNow: () => void;
+    /** Trigger an immediate replay. Resolves with the ReplayResult when the run
+     * completes, or null when a replay is already in progress (single-flight). */
+    replayNow: () => Promise<ReplayResult | null>;
 }
 
 export function useOfflineQueue(): OfflineQueueState {
@@ -83,14 +89,21 @@ export function useOfflineQueue(): OfflineQueueState {
 
     // ── replayNow ─────────────────────────────────────────────────────────────
 
-    const replayNow = useCallback(() => {
-        if (syncingRef.current) return;
+    const replayNow = useCallback((): Promise<ReplayResult | null> => {
+        // Single-flight guard: if a replay is already running, return null immediately.
+        if (syncingRef.current) return Promise.resolve(null);
         syncingRef.current = true;
         setSyncing(true);
-        getQueue()
+        return getQueue()
             .replay()
-            .then(() => refreshCounts())
-            .catch(() => { /* network error — counts will refresh on next online event */ })
+            .then((result) => {
+                void refreshCounts();
+                return result;
+            })
+            .catch((): ReplayResult => {
+                // Network error — counts will refresh on next online event.
+                return { synced: 0, conflicts: 0, failed: 0 };
+            })
             .finally(() => {
                 syncingRef.current = false;
                 setSyncing(false);

@@ -16,6 +16,8 @@ import { useKeyboard } from "~/hooks/useKeyboard";
 import { useCannedComments } from "~/hooks/useCannedComments";
 import { useOfflineQueue, getOfflineQueue } from "~/hooks/useOfflineQueue";
 import { shouldQueue } from "~/lib/offline/should-queue";
+import { formatReplayToasts } from "~/lib/offline/replay-toasts";
+import { NetworkPill } from "~/components/sync/NetworkPill";
 import {
  addQueuedPreview,
  clearQueuedPreviews,
@@ -646,6 +648,18 @@ export default function InspectionEditPage() {
  }, [offline.syncing, offline.pendingCount, revalidator]);
 
  /* ---------------------------------------------------------------- */
+ /* Manual sync — fires toasts from the ReplayResult */
+ /* ---------------------------------------------------------------- */
+
+ const handleSyncNow = useCallback(async () => {
+  const result = await offline.replayNow();
+  if (!result) return; // single-flight guard fired — a replay was already running
+  for (const t of formatReplayToasts(result)) {
+   pushToast({ message: t.message, durationMs: t.durationMs });
+  }
+ }, [offline]);
+
+ /* ---------------------------------------------------------------- */
  /* Unsaved changes guard */
  /* ---------------------------------------------------------------- */
 
@@ -1039,15 +1053,42 @@ export default function InspectionEditPage() {
  const handleBurstCommit = useCallback(
  (blobs: Blob[]) => {
  if (!state.burstCameraItemId || blobs.length === 0) return;
+ const itemId = state.burstCameraItemId;
+
+ // Task 6 (rider) — same offline branch as handlePhotoUpload: when offline,
+ // enqueue each captured blob and show a local preview instead of uploading.
+ const nav = typeof navigator !== "undefined" ? navigator : undefined;
+ if (shouldQueue(nav)) {
+  blobs.forEach((blob, i) => {
+  const name = `burst-${i + 1}.jpg`;
+  const objectUrl = URL.createObjectURL(blob);
+  setQueuedPhotoPreviews((prev) =>
+   addQueuedPreview(prev, itemId, { name, objectUrl }),
+  );
+  void getOfflineQueue().enqueuePhoto({
+   inspectionId: String(state.inspection.id),
+   itemId,
+   name,
+   blob,
+   enqueuedAt: Date.now(),
+  });
+  });
+  pushToast({
+  message: `${blobs.length} photo${blobs.length === 1 ? "" : "s"} queued — will upload when back online`,
+  durationMs: 3000,
+  });
+  return;
+ }
+
  const formData = new FormData();
  formData.append("intent", "upload-photo");
- formData.append("itemId", state.burstCameraItemId);
+ formData.append("itemId", itemId);
  blobs.forEach((blob, i) => {
  formData.append("file", new File([blob], `burst-${i + 1}.jpg`, { type: "image/jpeg" }));
  });
  uploadFetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
  },
- [state.burstCameraItemId, uploadFetcher],
+ [state.burstCameraItemId, state.inspection.id, uploadFetcher],
  );
 
  // Attach uploaded photo keys once the action responds — to the item, or
@@ -2327,17 +2368,25 @@ export default function InspectionEditPage() {
  hidden={state.speedMode}
  />
 
- {/* Offline banner — honest version. The old copy promised "changes
- will sync when you reconnect", but useOfflineQueue.enqueue has zero
- call sites: nothing was ever queued (B-17 post-mortem / B-3). Until
- a real offline queue ships, warn the inspector NOT to keep editing. */}
+ {/* Offline banner — the real offline queue is now wired (Task 4+6), so we
+ can give an honest, positive message: edits are saved on-device and will
+ replay automatically once connectivity returns. */}
  {!offline.online && (
- <div className="fixed top-14 left-0 right-0 z-40 bg-ih-bad-bg border-b border-ih-bad px-4 py-2 text-center">
- <span className="text-[12px] font-bold text-ih-bad-fg">
- You are offline — edits are NOT being saved. Reconnect before continuing.
+ <div className="fixed top-14 left-0 right-0 z-40 bg-ih-watch-bg border-b border-ih-watch px-4 py-2 text-center">
+ <span className="text-[12px] font-bold text-ih-watch-fg">
+ Saved on this device — will sync when you&apos;re back online.
  </span>
  </div>
  )}
+
+ {/* Network status pill — shows real pending/failed counts and "Sync now" */}
+ <NetworkPill
+ online={offline.online}
+ pendingCount={offline.pendingCount}
+ failedCount={offline.failedCount}
+ syncing={offline.syncing}
+ onSyncNow={handleSyncNow}
+ />
  </div>
  );
 }
