@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { buildWizardSteps, todayLocalISO, formatPriceCents, type WizardStepId } from "~/lib/wizard-steps";
 
 const STEP_LABELS: Record<WizardStepId, string> = {
   property: "Property",
+  people: "People",
   services: "Services",
   schedule: "Schedule",
   team: "Team",
@@ -32,6 +33,13 @@ export interface WizardTeamMember {
   name: string;
 }
 
+/** Agent row returned by the search-agents action intent. */
+interface AgentResult {
+  id: string;
+  name: string;
+  email: string | null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
@@ -51,6 +59,11 @@ export function NewInspectionWizard({
   teamMembers?: WizardTeamMember[];
 }) {
   const fetcher = useFetcher();
+  // IA-1 — dedicated fetcher for agent typeahead (B-17: per-intent convention,
+  // separate fetcher prevents competing mutations from cancelling each other).
+  const agentFetcher = useFetcher<{ intent: "search-agents"; agents: AgentResult[] }>();
+  const agentDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [stepIdx, setStepIdx] = useState(0);
   const [propertyType, setPropertyType] = useState("single_family");
   const [address, setAddress] = useState("");
@@ -62,6 +75,18 @@ export function NewInspectionWizard({
   const [time, setTime] = useState("09:00");
   const [soloMode, setSoloMode] = useState(true);
   const [inspectorId, setInspectorId] = useState("");
+
+  // IA-1 People step state
+  const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  // Agent: either a selected existing contact or inline-new mode.
+  const [agentSearch, setAgentSearch] = useState("");
+  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<AgentResult | null>(null);
+  const [newAgentMode, setNewAgentMode] = useState(false);
+  const [newAgentName, setNewAgentName] = useState("");
+  const [newAgentEmail, setNewAgentEmail] = useState("");
 
   const hasServiceCatalog = serviceCatalog.length > 0;
 
@@ -109,7 +134,55 @@ export function NewInspectionWizard({
     setTime("09:00");
     setSoloMode(true);
     setInspectorId("");
+    // IA-1 People step reset
+    setClientName("");
+    setClientEmail("");
+    setClientPhone("");
+    setAgentSearch("");
+    setAgentDropdownOpen(false);
+    setSelectedAgent(null);
+    setNewAgentMode(false);
+    setNewAgentName("");
+    setNewAgentEmail("");
   }, [open]);
+
+  // IA-1 — agent typeahead: debounce ~300 ms, then POST search-agents intent
+  // via the dedicated agentFetcher (BFF pattern, no direct client fetch).
+  function handleAgentSearchChange(value: string) {
+    setAgentSearch(value);
+    setAgentDropdownOpen(value.trim().length >= 2);
+    if (agentDebounceRef.current) clearTimeout(agentDebounceRef.current);
+    if (value.trim().length >= 2) {
+      agentDebounceRef.current = setTimeout(() => {
+        agentFetcher.submit(
+          { intent: "search-agents", search: value.trim() },
+          { method: "post", action: "/dashboard" },
+        );
+      }, 300);
+    }
+  }
+
+  function selectAgent(agent: AgentResult) {
+    setSelectedAgent(agent);
+    setAgentSearch("");
+    setAgentDropdownOpen(false);
+    setNewAgentMode(false);
+    setNewAgentName("");
+    setNewAgentEmail("");
+  }
+
+  function clearAgent() {
+    setSelectedAgent(null);
+    setAgentSearch("");
+    setAgentDropdownOpen(false);
+  }
+
+  function enableNewAgentMode() {
+    setNewAgentMode(true);
+    setSelectedAgent(null);
+    setAgentSearch("");
+    setAgentDropdownOpen(false);
+  }
 
   if (!open) return null;
 
@@ -124,10 +197,16 @@ export function NewInspectionWizard({
       return next;
     });
 
+  // IA-1 — People step: block Next when email or phone is filled without a name.
+  const clientHasContact = clientEmail.trim().length > 0 || clientPhone.trim().length > 0;
+  const clientNameMissing = clientHasContact && clientName.trim().length === 0;
+
   const canNext =
     // propertyAddress has a min(5) server constraint — enforce it here so the
     // wizard cannot advance into an inevitable 400.
     step === "property" ? address.trim().length >= 5 && templateId.length > 0 :
+    // People: optional, but name is required when email or phone are filled.
+    step === "people" ? !clientNameMissing :
     step === "services" ? services.size > 0 :
     step === "schedule" ? date.length > 0 :
     true;
@@ -152,6 +231,13 @@ export function NewInspectionWizard({
         time,
         soloMode: String(soloMode),
         inspectorId,
+        // IA-1 People step fields
+        clientName,
+        clientEmail,
+        clientPhone,
+        agentContactId: selectedAgent?.id ?? "",
+        newAgentName: !selectedAgent ? newAgentName : "",
+        newAgentEmail: !selectedAgent ? newAgentEmail : "",
       },
       { method: "post", action: "/dashboard" },
     );
@@ -234,6 +320,145 @@ export function NewInspectionWizard({
                       </p>
                     )}
                   </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === "people" && (
+            <div className="space-y-5">
+              {/* CLIENT section */}
+              <div className="space-y-3">
+                <p className="text-[12px] font-bold text-ih-fg-3 uppercase tracking-wide">Client</p>
+                <div>
+                  <label className="block text-[12px] font-bold text-ih-fg-3 mb-1.5">Name</label>
+                  <input
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Client full name"
+                    className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus outline-none placeholder:text-ih-fg-4"
+                  />
+                  {clientNameMissing && (
+                    <p className="text-[12px] text-ih-danger mt-1">Name is required when adding a client.</p>
+                  )}
+                  {!clientNameMissing && clientName.trim().length > 0 && clientEmail.trim().length === 0 && (
+                    <p className="text-[12px] text-ih-fg-4 mt-1">Without an email you can&apos;t send the agreement or report later.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold text-ih-fg-3 mb-1.5">Email</label>
+                  <input
+                    type="email"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    placeholder="client@example.com"
+                    className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus outline-none placeholder:text-ih-fg-4"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold text-ih-fg-3 mb-1.5">Phone</label>
+                  <input
+                    type="tel"
+                    value={clientPhone}
+                    onChange={(e) => setClientPhone(e.target.value)}
+                    placeholder="(555) 123-4567"
+                    className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus outline-none placeholder:text-ih-fg-4"
+                  />
+                </div>
+              </div>
+
+              {/* AGENT section */}
+              <div className="space-y-3">
+                <p className="text-[12px] font-bold text-ih-fg-3 uppercase tracking-wide">Agent</p>
+
+                {selectedAgent ? (
+                  /* Chip for the selected agent */
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-ih-primary bg-ih-primary-tint">
+                    <span className="flex-1 text-[13px] font-medium text-ih-primary">
+                      {selectedAgent.name}
+                      {selectedAgent.email ? <span className="ml-1 text-ih-fg-4 font-normal text-[12px]">({selectedAgent.email})</span> : null}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearAgent}
+                      className="text-ih-fg-4 hover:text-ih-fg-2 text-base leading-none"
+                      aria-label="Remove selected agent"
+                    >&times;</button>
+                  </div>
+                ) : newAgentMode ? (
+                  /* Inline new-agent form */
+                  <div className="space-y-3 p-3 rounded-md border border-ih-border bg-ih-bg-muted">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[12px] font-bold text-ih-fg-3">New Agent</p>
+                      <button
+                        type="button"
+                        onClick={() => setNewAgentMode(false)}
+                        className="text-[12px] text-ih-fg-4 hover:text-ih-fg-2"
+                      >Cancel</button>
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-bold text-ih-fg-3 mb-1.5">Name</label>
+                      <input
+                        value={newAgentName}
+                        onChange={(e) => setNewAgentName(e.target.value)}
+                        placeholder="Agent full name"
+                        className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus outline-none placeholder:text-ih-fg-4"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[12px] font-bold text-ih-fg-3 mb-1.5">Email</label>
+                      <input
+                        type="email"
+                        value={newAgentEmail}
+                        onChange={(e) => setNewAgentEmail(e.target.value)}
+                        placeholder="agent@realty.com"
+                        className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus outline-none placeholder:text-ih-fg-4"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* Typeahead search */
+                  <div className="relative">
+                    <input
+                      value={agentSearch}
+                      onChange={(e) => handleAgentSearchChange(e.target.value)}
+                      onBlur={() => {
+                        // Small delay so click on dropdown item fires first.
+                        setTimeout(() => setAgentDropdownOpen(false), 150);
+                      }}
+                      placeholder="Search agents…"
+                      className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] focus:shadow-ih-focus outline-none placeholder:text-ih-fg-4"
+                    />
+                    {agentDropdownOpen && (
+                      <div className="absolute z-10 w-full mt-1 rounded-md border border-ih-border bg-ih-bg-card shadow-ih-popover overflow-hidden">
+                        {agentFetcher.state === "submitting" || agentFetcher.state === "loading" ? (
+                          <p className="px-3 py-2 text-[12px] text-ih-fg-4">Searching…</p>
+                        ) : agentFetcher.data?.agents && agentFetcher.data.agents.length > 0 ? (
+                          agentFetcher.data.agents.map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onMouseDown={() => selectAgent(a)}
+                              className="w-full text-left px-3 py-2 text-[13px] hover:bg-ih-bg-muted border-b border-ih-border last:border-b-0"
+                            >
+                              <span className="font-medium">{a.name}</span>
+                              {a.email ? <span className="ml-2 text-ih-fg-4 text-[12px]">{a.email}</span> : null}
+                            </button>
+                          ))
+                        ) : agentFetcher.data ? (
+                          <p className="px-3 py-2 text-[12px] text-ih-fg-4">No agents found.</p>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!selectedAgent && !newAgentMode && (
+                  <button
+                    type="button"
+                    onClick={enableNewAgentMode}
+                    className="text-[12px] font-medium text-ih-primary hover:underline"
+                  >+ New agent</button>
                 )}
               </div>
             </div>

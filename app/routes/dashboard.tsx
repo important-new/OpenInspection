@@ -284,6 +284,27 @@ export async function action({ request, context }: Route.ActionArgs) {
     }
     return { ok: false, intent: "create" };
   }
+  if (intent === "search-agents") {
+    // IA-1 People step — agent typeahead. Posted by a dedicated useFetcher in
+    // NewInspectionWizard with { intent:"search-agents", search }. Returns up
+    // to 8 contacts of type=agent matching the query. BFF pattern: no
+    // client-side fetch (C-12 rule).
+    const search = String(formData.get("search") || "").trim();
+    if (search.length < 2) {
+      return { intent: "search-agents" as const, agents: [] };
+    }
+    const res = await api.contacts.index.$get({
+      query: { type: "agent", search, limit: "8" },
+    }).catch(() => null);
+    if (res && res.ok) {
+      const body = (await res.json().catch(() => ({ data: [] }))) as { data?: { id: string; name: string; email: string | null }[] };
+      return {
+        intent: "search-agents" as const,
+        agents: (body.data ?? []).map((c) => ({ id: c.id, name: c.name, email: c.email })),
+      };
+    }
+    return { intent: "search-agents" as const, agents: [] };
+  }
   if (intent === "delete") {
     const id = formData.get("id") as string;
     const res = await api.inspections[":id"].$delete({ param: { id } });

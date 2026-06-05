@@ -15,6 +15,14 @@
  * `inspectorId` is only forwarded when it looks like a UUID — the schema types
  * it as `z.string().uuid()`, and the wizard's free-text "Inspector ID or name"
  * field could otherwise carry a name that would fail validation.
+ *
+ * IA-1 People step fields:
+ * - `clientName/clientEmail/clientPhone` → `client{name,email?,phone?}` only
+ *   when `clientName` is non-empty (omitting client entirely when no name).
+ * - `agentContactId` → forwarded when it is a UUID (existing contact link).
+ * - `newAgentName/newAgentEmail` → `newAgent{name,email?}` when `newAgentName`
+ *   is non-empty and `agentContactId` is absent. The two are mutually exclusive
+ *   in the UI; we enforce the same here: agentContactId wins if both are sent.
  */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -24,6 +32,10 @@ export interface CreateInspectionJson {
   date?: string;
   inspectorId?: string;
   serviceIds?: string[];
+  // IA-1 People step
+  client?: { name: string; email?: string; phone?: string };
+  agentContactId?: string;
+  newAgent?: { name: string; email?: string };
 }
 
 export function buildCreateInspectionJson(formData: FormData): CreateInspectionJson {
@@ -37,11 +49,40 @@ export function buildCreateInspectionJson(formData: FormData): CreateInspectionJ
     .map((s) => s.trim())
     .filter(Boolean);
 
+  // IA-1 People step fields
+  const clientName = String(formData.get("clientName") || "").trim();
+  const clientEmail = String(formData.get("clientEmail") || "").trim();
+  const clientPhone = String(formData.get("clientPhone") || "").trim();
+  const agentContactId = String(formData.get("agentContactId") || "").trim();
+  const newAgentName = String(formData.get("newAgentName") || "").trim();
+  const newAgentEmail = String(formData.get("newAgentEmail") || "").trim();
+
+  // Build client object only when a name is provided.
+  let client: CreateInspectionJson["client"] | undefined;
+  if (clientName) {
+    client = { name: clientName };
+    if (clientEmail) client.email = clientEmail;
+    if (clientPhone) client.phone = clientPhone;
+  }
+
+  // agentContactId wins over newAgent when both are somehow present.
+  let agentId: string | undefined;
+  let newAgent: CreateInspectionJson["newAgent"] | undefined;
+  if (agentContactId && UUID_RE.test(agentContactId)) {
+    agentId = agentContactId;
+  } else if (newAgentName) {
+    newAgent = { name: newAgentName };
+    if (newAgentEmail) newAgent.email = newAgentEmail;
+  }
+
   return {
     propertyAddress: address,
     templateId,
     ...(dateStr ? { date: `${dateStr}T${time}:00Z` } : {}),
     ...(inspectorId && UUID_RE.test(inspectorId) ? { inspectorId } : {}),
     ...(serviceIds.length > 0 ? { serviceIds } : {}),
+    ...(client ? { client } : {}),
+    ...(agentId ? { agentContactId: agentId } : {}),
+    ...(newAgent ? { newAgent } : {}),
   };
 }
