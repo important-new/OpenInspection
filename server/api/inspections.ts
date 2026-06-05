@@ -1966,7 +1966,17 @@ export const inspectionsRoutes = createApiRouter()
         const db = drizzle(c.env.DB);
 
         const { inspection } = await c.var.services.inspection.getInspection(id, tenantId);
-        await db.update(inspectionTable).set(body).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
+
+        // Tenant-ownership pre-check above guards access. The validated `body`
+        // can legitimately be empty: the settings sheet forwards its whole form
+        // and the BFF sanitizer drops empty-string "unchanged" fields, so a save
+        // that touched nothing (or only fields outside UpdateInspectionSchema)
+        // arrives as `{}`. drizzle throws "No values to set" on `.set({})`, which
+        // used to surface as a 500 → the sheet's "Error — try again". Treat the
+        // no-op as a successful save instead of writing an empty UPDATE.
+        if (Object.keys(body).length > 0) {
+            await db.update(inspectionTable).set(body).where(and(eq(inspectionTable.id, id), eq(inspectionTable.tenantId, tenantId)));
+        }
 
         if (body.status && body.status !== inspection.status) {
             auditFromContext(c, 'inspection.status_change', 'inspection', {

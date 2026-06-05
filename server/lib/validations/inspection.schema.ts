@@ -109,6 +109,12 @@ export const UpdateInspectionSchema = z.object({
     // (maps to inspections.auto_sign_on_publish). Toggled from the editor's
     // "toggle-auto-sign" action via PATCH /{id}.
     autoSignOnPublish: z.boolean().optional().openapi({ example: true }).describe('Whether the inspector signature is auto-applied when the report is published.'),
+    // The settings sheet's "Template" selector reassigns the inspection's
+    // template (inspections.template_id). The column is a free-text id
+    // (templates.id is `text`, not a UUID — seed/imported ids like
+    // 'tpl-e2e-trackA' are valid), so this is a plain string, not `.uuid()`.
+    // null detaches the template; omitted leaves it unchanged.
+    templateId: z.string().min(1).nullable().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440002' }).describe('Template assigned to this inspection (free-text template id).'),
 }).openapi('UpdateInspection');
 
 /**
