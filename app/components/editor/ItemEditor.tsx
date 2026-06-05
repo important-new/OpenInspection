@@ -5,6 +5,7 @@ import { DefectFieldsRow, type DefectFieldsValue } from "./DefectFieldsRow";
 import { ItemAttributesPanel } from "./ItemAttributesPanel";
 import type { ItemAttribute } from "../../lib/types";
 import { renderTemplate } from "../../lib/mustache";
+import { shouldTriggerSlash } from "../../lib/slash-trigger";
 import {
  DEFECT_TRADE_LABELS,
  DEFECT_DEADLINE_LABELS,
@@ -114,6 +115,8 @@ interface ItemEditorProps {
  onCloneLast?: (scope: 'rating' | 'rating_notes' | 'all') => void;
  cloneDefaultScope?: 'rating' | 'rating_notes' | 'all';
  tagChipRow?: React.ReactNode;
+ /** B-19b — called when "/" is typed at a line/word start in the notes field. */
+ onOpenSnippets?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -142,6 +145,7 @@ export function ItemEditor({
  onCloneLast,
  cloneDefaultScope,
  tagChipRow,
+ onOpenSnippets,
 }: ItemEditorProps) {
  const [activeTab, setActiveTab] = useState<CannedTabId>("information");
  const [defectQuery, setDefectQuery] = useState("");
@@ -229,7 +233,7 @@ export function ItemEditor({
  }}
  disabled={photoUploading}
  aria-label="Add photo to this defect"
- className="inline-flex items-center gap-1 mt-1.5 px-2 py-1 rounded-md border border-dashed border-ih-border-strong text-[11px] font-bold text-ih-fg-3 hover:border-indigo-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+ className="inline-flex items-center gap-1 mt-1.5 px-2 py-1 rounded-md border border-dashed border-ih-border-strong text-[11px] font-bold text-ih-fg-3 hover:border-ih-primary hover:text-ih-primary transition-colors disabled:opacity-50"
  >
  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -293,7 +297,7 @@ export function ItemEditor({
  {/* Rating buttons — driven by the rating system's levels (C-14a):
  full words on ≥sm, abbreviation on narrow, always-on semantic colour. */}
  {item.type === "rich" && (
- <div className="flex gap-2">
+ <div data-shortcut-scope className="flex gap-2">
  {levels.map((r, idx) => {
  const sev = SEVERITY_STYLES[r.severity ?? "minor"] ?? SEVERITY_STYLES.minor;
  const isActive = activeLevel?.id === r.id;
@@ -361,6 +365,16 @@ export function ItemEditor({
  value={(result.notes as string) || ""}
  onChange={(e) => onNotes(e.target.value)}
  onBlur={(e) => onNotesBlur(e.target.value)}
+ onKeyDown={(e) => {
+  if (
+   e.key === '/' &&
+   !e.nativeEvent.isComposing &&
+   shouldTriggerSlash(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)
+  ) {
+   e.preventDefault();
+   onOpenSnippets?.();
+  }
+ }}
  placeholder="Add notes — type / for snippets"
  className="w-full h-28 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-ih-primary outline-none"
  />

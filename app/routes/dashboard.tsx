@@ -8,6 +8,7 @@ import { NewInspectionWizard } from "~/components/NewInspectionWizard";
 import { CommandPalette } from "~/components/CommandPalette";
 import { SeatBanner } from "~/components/SeatBanner";
 import { useSessionContext } from "~/hooks/useSessionContext";
+import { formatInspectionDateTime } from "~/lib/format-date";
 import { PageHeader, TabStrip, Pill, Card, EmptyState, Button, Icon } from "@core/shared-ui";
 
 export function meta() {
@@ -596,7 +597,7 @@ export default function DashboardPage() {
               )}
               {isColumnVisible("date") && insp.date && (
                 <span className="text-[11px] text-ih-fg-3">
-                  &middot; {insp.date}
+                  &middot; {formatInspectionDateTime(insp.date)}
                 </span>
               )}
               {isColumnVisible("agent") && insp.agentName && (

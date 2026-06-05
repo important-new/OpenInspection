@@ -6,6 +6,7 @@ import { createApi } from "~/lib/api-client.server";
 import { unwrapResultsResponse } from "~/lib/results";
 import { findRatingLevel, ratingAdvanceDecision } from "~/lib/rating-levels";
 import { makeCustomDefect } from "~/lib/custom-defects";
+import { sanitizeSettingsPatch } from "~/lib/settings-patch";
 import { useInspectionState, type InspectionSchema } from "~/hooks/useInspection";
 import type { RatingLevel, ResultMap } from "~/hooks/useInspection";
 import { useFindings } from "~/hooks/useFindings";
@@ -210,6 +211,28 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  if (intent === "publish") {
  const res = await api.inspections[":id"].publish.$post({ param: { id: params.id }, json: {} });
  ok = res.ok;
+ }
+
+ // B-22 follow-up (C-12 class): the settings sheet's "Save changes" used to
+ // do a raw client-side fetch('/api/inspections/:id', PATCH) which could never
+ // pass requireCsrfToken (the __Host-csrf cookie can't be set by client JS and
+ // the pair is attached server-side only) — every save 401/403'd silently.
+ // Route it through the BFF relay like every other mutation.
+ if (intent === "save-settings") {
+ const payload = JSON.parse(String(formData.get("payload") ?? "{}"));
+ // The sheet forwards its WHOLE form; sanitize at the BFF boundary so
+ // empty-string "unchanged" fields and date-only <input type=date> values
+ // pass UpdateInspectionSchema (date wants ISO datetime, price a number).
+ const res = await api.inspections[":id"].$patch({
+ param: { id: params.id },
+ json: sanitizeSettingsPatch(payload),
+ });
+ if (!res.ok) {
+ // Surface the API rejection in the worker log — a silent { ok:false }
+ // already cost two debugging rounds on this path.
+ console.error("[save-settings] PATCH failed", res.status, await res.text().catch(() => ""));
+ }
+ return { ok: res.ok, intent: "save-settings" };
  }
 
  if (intent === "toggle-auto-sign") {
@@ -894,6 +917,18 @@ export default function InspectionEditPage() {
  }, [uploadFetcher.state, uploadFetcher.data, findings]);
 
  /* ---------------------------------------------------------------- */
+ /* Open-snippets callback (shared by keyboard shortcut + textarea trigger) */
+ /* ---------------------------------------------------------------- */
+
+ const openSnippets = useCallback(() => {
+ if (!state.activeItemId) return;
+ state.setCommentLibraryFilter("my-snippets");
+ state.setCommentLibrarySearch("");
+ state.setCommentLibrarySelectedIdx(0);
+ state.setShowCommentLibrary(true);
+ }, [state]);
+
+ /* ---------------------------------------------------------------- */
  /* Keyboard shortcuts */
  /* ---------------------------------------------------------------- */
 
@@ -957,13 +992,7 @@ export default function InspectionEditPage() {
  state.setCommentLibrarySelectedIdx(0);
  state.setShowCommentLibrary(true);
  },
- onOpenSnippets: () => {
- if (!state.activeItemId) return;
- state.setCommentLibraryFilter("my-snippets");
- state.setCommentLibrarySearch("");
- state.setCommentLibrarySelectedIdx(0);
- state.setShowCommentLibrary(true);
- },
+ onOpenSnippets: openSnippets,
  showCommentLibrary: state.showCommentLibrary,
  onLibraryDown: () => {
  state.setCommentLibrarySelectedIdx(
@@ -1034,6 +1063,7 @@ export default function InspectionEditPage() {
  handleRating,
  toggleSpeedMode,
  speedRate,
+ openSnippets,
  comments,
  commentLibraryItems,
  serverComments,
@@ -1179,6 +1209,7 @@ export default function InspectionEditPage() {
  onCloneLast={handleCloneLast}
  cloneDefaultScope={inspectionPrefs.cloneDefault}
  tagChipRow={tagChipRow}
+ onOpenSnippets={openSnippets}
  />
  ) : (
  <div className="flex items-center justify-center h-full text-ih-fg-4">
@@ -1204,6 +1235,22 @@ export default function InspectionEditPage() {
  />
  );
 
+ /* B-22: empty-template CTA — shown instead of normal editor body when the
+  * inspection has no sections (template not applied yet). Opens the
+  * InspectionSettingsSheet where the user can pick a template. */
+ const emptyTemplateEl = state.sections.length === 0 ? (
+ <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
+  <p className="text-[15px] font-semibold text-ih-fg-1">This inspection has no template content</p>
+  <p className="text-[13px] text-ih-fg-3 max-w-sm">Apply a template to get sections, items and canned comments — or import your Spectora template.</p>
+  <button
+  onClick={() => state.setSettingsOpen(true)}
+  className="px-4 h-10 rounded-lg bg-ih-primary text-white text-[13px] font-bold hover:bg-ih-primary-600"
+  >
+  Choose a template
+  </button>
+ </div>
+ ) : null;
+
  /* ---------------------------------------------------------------- */
  /* Render */
  /* ---------------------------------------------------------------- */
@@ -1226,15 +1273,19 @@ export default function InspectionEditPage() {
  <MobileAppBar
  sectionTitle={state.currentSection?.title ?? ''}
  itemLabel={((state.activeItem?.label || state.activeItem?.name) as string | undefined) ?? 'Select an item'}
- onBack={() => navigate('/dashboard')}
+ onBack={() => {
+  // B-22: back from item editor → item list; back from list → dashboard
+  if (state.activeItemId) { state.setActiveItemId(null); return; }
+  navigate('/dashboard');
+ }}
  onMore={() => { /* future: open more menu */ }}
  />
  <main className="p-4">
- {state.activeItemId ? (
- itemEditorEl
+ {emptyTemplateEl ?? (state.activeItemId ? (
+  itemEditorEl
  ) : (
- <p className="text-center text-ih-fg-3 mt-12">Tap [☰ Sections] below to begin</p>
- )}
+  <p className="text-center text-ih-fg-3 mt-12">Tap [☰ Sections] below to begin</p>
+ ))}
  </main>
  <MobileDrawerTriggers onOpen={(id) => setMobileDrawer(id)} />
  <MobileBottomDrawer
@@ -1351,6 +1402,10 @@ export default function InspectionEditPage() {
  open={state.settingsOpen}
  onClose={() => state.setSettingsOpen(false)}
  inspectionId={String(state.inspection.id)}
+ // Template schema drives the whole editor state (frozen at mount in useInspection),
+ // so a template change requires a full route reload — this also fixes the same
+ // staleness for mid-inspection template switches, not just the empty case.
+ onTemplateApplied={() => window.location.reload()}
  />
 
  {/* Unsaved changes blocker dialog */}
@@ -1947,6 +2002,13 @@ export default function InspectionEditPage() {
  {/* 4-column layout below header */}
  {/* ------------------------------------------------------------ */}
  <div className="flex flex-1 pt-14 pb-9">
+ {/* B-22: if no sections, show the empty-template CTA spanning the full body */}
+ {emptyTemplateEl ? (
+ <div className="flex-1 flex">
+  {emptyTemplateEl}
+ </div>
+ ) : (
+ <>
  {/* Column 1: Section Rail (200px) */}
  {sectionRailEl}
 
@@ -2049,6 +2111,8 @@ export default function InspectionEditPage() {
 
  {/* Column 4: SideRail */}
  {sideRailEl}
+ </>
+ )}
  </div>
 
  {/* ------------------------------------------------------------ */}

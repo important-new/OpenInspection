@@ -1,4 +1,6 @@
+// NOTE: currently unused by routes — app/routes/dashboard.tsx has its own local InspectionRow. Kept in sync; candidates for consolidation.
 import { useNavigate } from "react-router";
+import { formatInspectionDateTime } from "~/lib/format-date";
 
 interface DefectStats {
  safety: number;
@@ -37,7 +39,7 @@ function isVisible(columns: Set<string> | undefined, id: string): boolean {
 function ClosingDateBadge({ closingDate }: { closingDate: string }) {
  const days = Math.round((new Date(closingDate).getTime() - Date.now()) / 86400000);
  if (days > 7) {
- return <span> · <span className="text-ih-fg-4">closes</span> {new Date(closingDate).toLocaleDateString()}</span>;
+ return <span> · <span className="text-ih-fg-4">closes</span> {formatInspectionDateTime(closingDate)}</span>;
  }
  const tone = days <= 0 ? "late" : days <= 3 ? "rush" : "watch";
  const label = tone === "late" ? "Overdue" : tone === "rush" ? `Due ${days}d` : `Closes ${days}d`;
@@ -75,7 +77,7 @@ export function InspectionRow({ inspection: i, visibleColumns }: InspectionRowPr
  {i.siblingCount != null && i.siblingCount > 1 && (
  <span> · <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-ih-primary-tint text-ih-primary text-[10px] font-bold ring-1 ring-inset ring-ih-primary-tint">{i.siblingCount} inspections</span></span>
  )}
- {isVisible(cols, "date") && <span> · {i.date ? new Date(i.date).toLocaleString() : "no date"}</span>}
+ {isVisible(cols, "date") && <span> · {formatInspectionDateTime(i.date)}</span>}
  {isVisible(cols, "inspector") && i.inspectorName && <span> · <span className="text-ih-fg-4">by</span> {i.inspectorName}</span>}
  {isVisible(cols, "closingDate") && i.closingDate && <ClosingDateBadge closingDate={i.closingDate} />}
  {isVisible(cols, "orderId") && i.orderId && <span> · <span className="text-ih-fg-4">#</span><span className="font-mono">{i.orderId}</span></span>}
