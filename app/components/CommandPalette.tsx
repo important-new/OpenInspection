@@ -33,6 +33,7 @@ const PAGES: PaletteItem[] = [
   { id: "p-invoices", label: "Invoices", group: "Pages", icon: "page", to: "/invoices" },
   { id: "p-ratings", label: "Rating Systems", group: "Pages", icon: "page", to: "/library/rating-systems" },
   { id: "p-metrics", label: "Metrics", group: "Pages", icon: "page", to: "/metrics" },
+  { id: "p-team", label: "Team", group: "Pages", icon: "page", to: "/team" },
   { id: "p-notifications", label: "Notifications", group: "Pages", icon: "page", to: "/notifications" },
 ];
 
