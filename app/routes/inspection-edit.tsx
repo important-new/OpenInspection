@@ -480,6 +480,8 @@ export default function InspectionEditPage() {
  setSaveStatus: state.setSaveStatus,
  inspectionId: String(state.inspection.id),
  notesFetcher,
+    // Offline-first: route field writes into the queue when shouldQueue() says so.
+    offlineQueue: getOfflineQueue(),
  });
 
  /* ---------------------------------------------------------------- */
