@@ -62,8 +62,8 @@ export const inspections = sqliteTable('inspections', {
     clientPhone:         text('client_phone'),
     templateId:          text('template_id').references(() => templates.id),
     date:                text('date').notNull(),
-    status:              text('status').notNull().default('draft'),
-    paymentStatus:       text('payment_status').notNull().default('unpaid'),
+    status:              text('status', { enum: ['draft','scheduled','confirmed','in_progress','completed','delivered','published','cancelled'] }).notNull().default('draft'),
+    paymentStatus:       text('payment_status', { enum: ['unpaid','partial','paid'] }).notNull().default('unpaid'),
     referredByAgentId:   text('referred_by_agent_id'),   // Buyer's Agent — unkeyed TEXT (backward compat)
     price:               integer('price').notNull().default(0),
     createdAt:           integer('created_at', { mode: 'timestamp' }).notNull(),

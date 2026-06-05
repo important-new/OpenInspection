@@ -5,9 +5,9 @@ export const tenants = sqliteTable('tenants', {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     slug: text('slug').unique().notNull(),
-    tier: text('tier').notNull().default('free'),
+    tier: text('tier', { enum: ['free','pro','enterprise'] }).notNull().default('free'),
     stripeConnectAccountId: text('stripe_connect_account_id'),
-    status: text('status').notNull().default('pending'),
+    status: text('status', { enum: ['pending','active','suspended','trial'] }).notNull().default('pending'),
     maxUsers: integer('max_users').notNull().default(5),
     deploymentMode: text('deployment_mode').notNull().default('shared'), // shared, silo
     // Design System 0520 subsystem E P8 — optional InterNACHI inspector

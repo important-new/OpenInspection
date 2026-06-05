@@ -1247,10 +1247,11 @@ export const adminRoutes = createApiRouter()
 
         interface TemplateImport { id: string; name: string; version?: number; schema: unknown; createdAt?: string }
         interface AgreementImport { id: string; name: string; content: string; version?: number; createdAt?: string }
-        interface InspectionImport { 
-            id: string; propertyAddress: string; inspectorId?: string; clientName?: string; 
-            clientEmail?: string; templateId?: string; date?: string; status?: string; 
-            paymentStatus?: string; price?: number; createdAt?: string 
+        interface InspectionImport {
+            id: string; propertyAddress: string; inspectorId?: string; clientName?: string;
+            clientEmail?: string; templateId?: string; date?: string;
+            status?: 'draft' | 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'delivered' | 'published' | 'cancelled';
+            paymentStatus?: 'unpaid' | 'partial' | 'paid'; price?: number; createdAt?: string
         }
         interface ResultImport { id: string; inspectionId: string; data: unknown; lastSyncedAt?: string }
 
