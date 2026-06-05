@@ -66,13 +66,28 @@ export interface OfflineQueueState {
     replayNow: () => Promise<ReplayResult | null>;
 }
 
+/**
+ * SSR-safe initial state. The server has no navigator / IndexedDB, so it
+ * always renders `{ online: true, pendingCount: 0, failedCount: 0,
+ * syncing: false }`. The client's FIRST render MUST produce the exact same
+ * values or React throws hydration-mismatch errors (#418 → #423, then a forced
+ * client re-render that dropped the live event listeners). Real values
+ * (navigator.onLine, storage counts) are read post-mount in the effect below.
+ */
+export const OFFLINE_QUEUE_INITIAL_STATE = {
+    online: true,
+    pendingCount: 0,
+    failedCount: 0,
+    syncing: false,
+} as const;
+
 export function useOfflineQueue(): OfflineQueueState {
-    const [online, setOnline] = useState(
-        typeof navigator !== "undefined" ? navigator.onLine : true,
-    );
-    const [pendingCount, setPendingCount] = useState(0);
-    const [failedCount, setFailedCount] = useState(0);
-    const [syncing, setSyncing] = useState(false);
+    // Initialize to the SSR-safe constants — never read navigator.onLine here,
+    // or the first client render diverges from the server HTML (React #418).
+    const [online, setOnline] = useState<boolean>(OFFLINE_QUEUE_INITIAL_STATE.online);
+    const [pendingCount, setPendingCount] = useState<number>(OFFLINE_QUEUE_INITIAL_STATE.pendingCount);
+    const [failedCount, setFailedCount] = useState<number>(OFFLINE_QUEUE_INITIAL_STATE.failedCount);
+    const [syncing, setSyncing] = useState<boolean>(OFFLINE_QUEUE_INITIAL_STATE.syncing);
     const syncingRef = useRef(false);
 
     // ── Queue counts refresh ──────────────────────────────────────────────────
@@ -113,6 +128,13 @@ export function useOfflineQueue(): OfflineQueueState {
     // ── Effects ───────────────────────────────────────────────────────────────
 
     useEffect(() => {
+        // Post-mount reconciliation: now that we're on the client, read the
+        // REAL connectivity status. This runs after hydration, so updating
+        // state here is a normal commit, not a hydration mismatch.
+        if (typeof navigator !== "undefined") {
+            setOnline(navigator.onLine);
+        }
+
         // Read initial counts from storage.
         void refreshCounts();
 
