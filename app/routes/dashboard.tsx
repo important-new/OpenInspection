@@ -282,6 +282,9 @@ export async function action({ request, context }: Route.ActionArgs) {
       const id = body?.data?.inspection?.id;
       if (id) return redirect(`/inspections/${id}/edit`);
     }
+    // Surface the API rejection in the worker log — silent { ok:false }
+    // responses have repeatedly cost full debugging rounds (see save-settings).
+    console.error("[create] POST /api/inspections failed", res.status, await res.text().catch(() => ""));
     return { ok: false, intent: "create" };
   }
   if (intent === "search-agents") {
