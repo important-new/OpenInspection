@@ -45,6 +45,9 @@ export const users = sqliteTable('users', {
     // Nullable until the inspector picks one. Per-tenant uniqueness enforced via
     // partial index `idx_users_slug_per_tenant` (migrations/0052_inspector_slug.sql).
     slug: text('slug'),
+    // DDL default 'admin' is FROZEN (D1 cannot alter column defaults without a
+    // table rebuild and users is FK-referenced). Every insert path MUST pass an
+    // explicit role — audited 2026-06-05; enforced by review, not DDL.
     role: text('role').notNull().default('admin'),
     googleRefreshToken: text('google_refresh_token'),
     googleCalendarId: text('google_calendar_id'),
