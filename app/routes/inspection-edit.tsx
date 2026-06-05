@@ -894,6 +894,18 @@ export default function InspectionEditPage() {
  }, [uploadFetcher.state, uploadFetcher.data, findings]);
 
  /* ---------------------------------------------------------------- */
+ /* Open-snippets callback (shared by keyboard shortcut + textarea trigger) */
+ /* ---------------------------------------------------------------- */
+
+ const openSnippets = useCallback(() => {
+ if (!state.activeItemId) return;
+ state.setCommentLibraryFilter("my-snippets");
+ state.setCommentLibrarySearch("");
+ state.setCommentLibrarySelectedIdx(0);
+ state.setShowCommentLibrary(true);
+ }, [state]);
+
+ /* ---------------------------------------------------------------- */
  /* Keyboard shortcuts */
  /* ---------------------------------------------------------------- */
 
@@ -957,13 +969,7 @@ export default function InspectionEditPage() {
  state.setCommentLibrarySelectedIdx(0);
  state.setShowCommentLibrary(true);
  },
- onOpenSnippets: () => {
- if (!state.activeItemId) return;
- state.setCommentLibraryFilter("my-snippets");
- state.setCommentLibrarySearch("");
- state.setCommentLibrarySelectedIdx(0);
- state.setShowCommentLibrary(true);
- },
+ onOpenSnippets: openSnippets,
  showCommentLibrary: state.showCommentLibrary,
  onLibraryDown: () => {
  state.setCommentLibrarySelectedIdx(
@@ -1034,6 +1040,7 @@ export default function InspectionEditPage() {
  handleRating,
  toggleSpeedMode,
  speedRate,
+ openSnippets,
  comments,
  commentLibraryItems,
  serverComments,
@@ -1179,6 +1186,7 @@ export default function InspectionEditPage() {
  onCloneLast={handleCloneLast}
  cloneDefaultScope={inspectionPrefs.cloneDefault}
  tagChipRow={tagChipRow}
+ onOpenSnippets={openSnippets}
  />
  ) : (
  <div className="flex items-center justify-center h-full text-ih-fg-4">

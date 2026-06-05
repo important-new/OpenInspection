@@ -5,6 +5,7 @@ import { DefectFieldsRow, type DefectFieldsValue } from "./DefectFieldsRow";
 import { ItemAttributesPanel } from "./ItemAttributesPanel";
 import type { ItemAttribute } from "../../lib/types";
 import { renderTemplate } from "../../lib/mustache";
+import { shouldTriggerSlash } from "../../lib/slash-trigger";
 import {
  DEFECT_TRADE_LABELS,
  DEFECT_DEADLINE_LABELS,
@@ -114,6 +115,8 @@ interface ItemEditorProps {
  onCloneLast?: (scope: 'rating' | 'rating_notes' | 'all') => void;
  cloneDefaultScope?: 'rating' | 'rating_notes' | 'all';
  tagChipRow?: React.ReactNode;
+ /** B-19b — called when "/" is typed at a line/word start in the notes field. */
+ onOpenSnippets?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -142,6 +145,7 @@ export function ItemEditor({
  onCloneLast,
  cloneDefaultScope,
  tagChipRow,
+ onOpenSnippets,
 }: ItemEditorProps) {
  const [activeTab, setActiveTab] = useState<CannedTabId>("information");
  const [defectQuery, setDefectQuery] = useState("");
@@ -361,6 +365,16 @@ export function ItemEditor({
  value={(result.notes as string) || ""}
  onChange={(e) => onNotes(e.target.value)}
  onBlur={(e) => onNotesBlur(e.target.value)}
+ onKeyDown={(e) => {
+  if (
+   e.key === '/' &&
+   !e.nativeEvent.isComposing &&
+   shouldTriggerSlash(e.currentTarget.value, e.currentTarget.selectionStart ?? 0)
+  ) {
+   e.preventDefault();
+   onOpenSnippets?.();
+  }
+ }}
  placeholder="Add notes — type / for snippets"
  className="w-full h-28 px-3 py-2 rounded-lg border border-ih-border bg-ih-bg-card text-[13px] resize-none focus:shadow-ih-focus focus:border-ih-primary outline-none"
  />
