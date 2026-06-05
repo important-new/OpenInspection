@@ -3,6 +3,8 @@ import type { useFetcher } from "react-router";
 import type { ResultMap } from "./useInspection";
 import { fKey } from "./useInspection";
 import { attachPhotoToDefectState, attachPhotoToCustomDefect } from "~/lib/defect-photos";
+import { shouldQueue } from "~/lib/offline/should-queue";
+import type { OfflineQueue } from "~/lib/offline/offline-queue";
 
 const DEFAULT_UNIT = "_default";
 
@@ -81,11 +83,44 @@ export function useFindings(
      * Callers should pass a dedicated fetcher for notes commits.
      */
     notesFetcher?: ReturnType<typeof useFetcher>;
+    /**
+     * When provided, field writes are routed through the offline queue instead
+     * of the fetcher when `navigator.onLine === false`.  Task 3 offline branch.
+     */
+    offlineQueue?: OfflineQueue;
   },
 ) {
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const { sectionIdForItem, setDirty, setSaveStatus } = options;
   const notesFetcher = options.notesFetcher ?? fetcher;
+  const offlineQueue = options.offlineQueue;
+
+  /**
+   * Helper: if offline and an offlineQueue is provided, enqueue the write and
+   * return true (caller should skip the fetcher path).  Otherwise return false.
+   */
+  const tryEnqueueOffline = useCallback(
+    (
+      intent: string,
+      itemId: string | undefined,
+      field: string | undefined,
+      payload: Record<string, unknown>,
+    ): boolean => {
+      if (!offlineQueue) return false;
+      const nav = typeof navigator !== "undefined" ? navigator : undefined;
+      if (!shouldQueue(nav)) return false;
+      void offlineQueue.enqueueWrite({
+        inspectionId: options.inspectionId,
+        itemId,
+        field,
+        intent,
+        payload,
+        enqueuedAt: Date.now(),
+      });
+      return true;
+    },
+    [offlineQueue, options.inspectionId],
+  );
 
   /* ---------------------------------------------------------------- */
   /*  Read helpers                                                     */
@@ -148,14 +183,16 @@ export function useFindings(
           rating,
         },
       }));
-      // Fire fetcher for immediate persistence
-      fetcher.submit(
-        { intent: "rate", itemId, sectionId, rating: rating || "" },
-        { method: "POST" },
-      );
+      // Fire fetcher for immediate persistence (or queue when offline)
+      if (!tryEnqueueOffline("rate", itemId, "rating", { rating: rating || "", sectionId })) {
+        fetcher.submit(
+          { intent: "rate", itemId, sectionId, rating: rating || "" },
+          { method: "POST" },
+        );
+      }
       setDirty(true);
     },
-    [setResults, fetcher, setDirty],
+    [setResults, fetcher, setDirty, tryEnqueueOffline],
   );
 
   const setNotes = useCallback(
@@ -180,13 +217,15 @@ export function useFindings(
 
   const commitNotes = useCallback(
     (sectionId: string, itemId: string, notes: string) => {
-      notesFetcher.submit(
-        { intent: "notes", itemId, sectionId, notes },
-        { method: "POST" },
-      );
+      if (!tryEnqueueOffline("notes", itemId, "notes", { notes, sectionId })) {
+        notesFetcher.submit(
+          { intent: "notes", itemId, sectionId, notes },
+          { method: "POST" },
+        );
+      }
       setDirty(true);
     },
-    [notesFetcher, setDirty],
+    [notesFetcher, setDirty, tryEnqueueOffline],
   );
 
   const setItemValue = useCallback(
@@ -246,20 +285,29 @@ export function useFindings(
           [itemId]: updated,
         };
       });
-      fetcher.submit(
-        {
-          intent: "toggle-canned",
-          itemId,
-          sectionId,
+      if (
+        !tryEnqueueOffline("toggle-canned", itemId, `canned:${tabName}:${cannedId}`, {
           tabName,
           cannedId,
-          included: String(included),
-        },
-        { method: "POST" },
-      );
+          included,
+          sectionId,
+        })
+      ) {
+        fetcher.submit(
+          {
+            intent: "toggle-canned",
+            itemId,
+            sectionId,
+            tabName,
+            cannedId,
+            included: String(included),
+          },
+          { method: "POST" },
+        );
+      }
       setDirty(true);
     },
-    [setResults, fetcher, setDirty],
+    [setResults, fetcher, setDirty, tryEnqueueOffline],
   );
 
   /* ---------------------------------------------------------------- */
@@ -290,19 +338,27 @@ export function useFindings(
         const updated = { ...existing, tabs: { ...existingTabs, defects } };
         return { ...prev, [key]: updated, [itemId]: updated };
       });
-      fetcher.submit(
-        {
-          intent: "set-defect-fields",
-          itemId,
-          sectionId,
+      if (
+        !tryEnqueueOffline("set-defect-fields", itemId, `defect-fields:${cannedId}`, {
           cannedId,
-          patch: JSON.stringify(patch),
-        },
-        { method: "POST" },
-      );
+          sectionId,
+          ...patch,
+        })
+      ) {
+        fetcher.submit(
+          {
+            intent: "set-defect-fields",
+            itemId,
+            sectionId,
+            cannedId,
+            patch: JSON.stringify(patch),
+          },
+          { method: "POST" },
+        );
+      }
       setDirty(true);
     },
-    [setResults, fetcher, setDirty],
+    [setResults, fetcher, setDirty, tryEnqueueOffline],
   );
 
   /* ---------------------------------------------------------------- */
@@ -427,12 +483,14 @@ export function useFindings(
       setResults(() => next);
       setDirty(true);
       setSaveStatus("saving");
-      fetcher.submit(
-        { intent: "save-all", data: JSON.stringify(next) },
-        { method: "POST" },
-      );
+      if (!tryEnqueueOffline("save-all", undefined, "results", next as Record<string, unknown>)) {
+        fetcher.submit(
+          { intent: "save-all", data: JSON.stringify(next) },
+          { method: "POST" },
+        );
+      }
     },
-    [results, sectionIdForItem, setResults, fetcher, setDirty, setSaveStatus],
+    [results, sectionIdForItem, setResults, fetcher, setDirty, setSaveStatus, tryEnqueueOffline],
   );
 
   const getPhotoCount = useCallback(
@@ -473,12 +531,14 @@ export function useFindings(
       setResults(() => next);
       setDirty(true);
       setSaveStatus("saving");
-      fetcher.submit(
-        { intent: "save-all", data: JSON.stringify(next) },
-        { method: "POST" },
-      );
+      if (!tryEnqueueOffline("save-all", undefined, "results", next as Record<string, unknown>)) {
+        fetcher.submit(
+          { intent: "save-all", data: JSON.stringify(next) },
+          { method: "POST" },
+        );
+      }
     },
-    [results, sectionIdForItem, setResults, fetcher, setDirty, setSaveStatus],
+    [results, sectionIdForItem, setResults, fetcher, setDirty, setSaveStatus, tryEnqueueOffline],
   );
 
   /* ---------------------------------------------------------------- */
@@ -507,12 +567,14 @@ export function useFindings(
       setResults(() => next);
       setDirty(true);
       setSaveStatus("saving");
-      fetcher.submit(
-        { intent: "save-all", data: JSON.stringify(next) },
-        { method: "POST" },
-      );
+      if (!tryEnqueueOffline("save-all", undefined, "results", next as Record<string, unknown>)) {
+        fetcher.submit(
+          { intent: "save-all", data: JSON.stringify(next) },
+          { method: "POST" },
+        );
+      }
     },
-    [results, setResults, fetcher, setDirty, setSaveStatus],
+    [results, setResults, fetcher, setDirty, setSaveStatus, tryEnqueueOffline],
   );
 
   const toggleCustomDefect = useCallback(
@@ -536,12 +598,14 @@ export function useFindings(
       setResults(() => next);
       setDirty(true);
       setSaveStatus("saving");
-      fetcher.submit(
-        { intent: "save-all", data: JSON.stringify(next) },
-        { method: "POST" },
-      );
+      if (!tryEnqueueOffline("save-all", undefined, "results", next as Record<string, unknown>)) {
+        fetcher.submit(
+          { intent: "save-all", data: JSON.stringify(next) },
+          { method: "POST" },
+        );
+      }
     },
-    [results, setResults, fetcher, setDirty, setSaveStatus],
+    [results, setResults, fetcher, setDirty, setSaveStatus, tryEnqueueOffline],
   );
 
   return {

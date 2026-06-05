@@ -290,6 +290,114 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  return { ok, keys, itemId, targetType, customId, defectKind };
  }
 
+ // ── Offline replay intents ────────────────────────────────────────────────
+ //
+ // The offline ActionTransport cannot parse React Router's turbo-stream body,
+ // so it can't distinguish a plain 200 from an {ok:false} result buried in the
+ // stream.  These two dedicated intents return Response.json() with an explicit
+ // HTTP status code so the transport can read res.status directly.
+ //
+ // replay-write: forwards the original intent payload through the same API
+ // call as if it had been submitted online.  Returns:
+ //   200 → success
+ //   409 → field-version conflict (pass through to the conflict-resolver UI)
+ //   4xx/5xx → active error (OfflineQueue will retry up to MAX_ATTEMPTS)
+ //
+ // replay-photo: forwards a single file upload (blob) to the photo upload API.
+
+ if (intent === "replay-write") {
+  const replayIntent = String(formData.get("replayIntent") ?? "");
+  const itemId = String(formData.get("itemId") ?? "");
+  const sectionId = String(formData.get("sectionId") ?? "");
+  let payload: Record<string, unknown> = {};
+  try {
+   payload = JSON.parse(String(formData.get("payload") ?? "{}"));
+  } catch {
+   return Response.json({ ok: false, apiStatus: 400 }, { status: 400 });
+  }
+
+  // Collect status/ok from whichever API call fires — extracted immediately
+  // so we never hold a ClientResponse<...> in a wider-typed variable.
+  let apiStatus = 500;
+  let apiOk = false;
+
+  if (replayIntent === "rate") {
+   const rating = String(payload.rating ?? "");
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: { field: "rating", value: rating, sectionId, expectedVersion: 0, force: true },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "notes") {
+   const notes = String(payload.notes ?? "");
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: { field: "notes", value: notes, sectionId, expectedVersion: 0, force: true },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "toggle-canned") {
+   const tabName = String(payload.tabName ?? "");
+   const cannedId = String(payload.cannedId ?? "");
+   const included = Boolean(payload.included);
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: {
+     field: "cannedToggle",
+     value: { tabName, cannedId, included },
+     sectionId,
+     expectedVersion: 0,
+     force: true,
+    },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "set-defect-fields") {
+   const cannedId = String(payload.cannedId ?? "");
+   // payload was validated when originally dispatched; the enum fields were
+   // already type-safe at the call site. Use `as any` at the API boundary
+   // since the replay path cannot re-run the original runtime type narrowing.
+   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   const defectValue = { cannedId, ...(payload as any) } as any;
+   const r = await api.inspections[":id"].items[":itemId"].$patch({
+    param: { id: params.id, itemId },
+    json: { field: "defectFields", value: defectValue, sectionId, expectedVersion: 0, force: true },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else if (replayIntent === "save-all") {
+   const r = await api.inspections[":id"].results.$patch({
+    param: { id: params.id },
+    json: { data: payload },
+   });
+   apiStatus = r.status; apiOk = r.ok;
+  } else {
+   // Unknown replayIntent — reject so the entry doesn't loop.
+   return Response.json({ ok: false, apiStatus: 400 }, { status: 400 });
+  }
+
+  return Response.json({ ok: apiOk, apiStatus }, { status: apiStatus });
+ }
+
+ if (intent === "replay-photo") {
+  const itemId = String(formData.get("itemId") ?? "");
+  const file = formData.get("file");
+  if (!file || !(file instanceof File) || !itemId) {
+   return Response.json({ ok: false, apiStatus: 400 }, { status: 400 });
+  }
+  const apiRes = await api.inspections[":id"].upload.$post({
+   param: { id: params.id },
+   form: { file, itemId },
+  });
+  const apiStatus = apiRes.status;
+  const apiOk = apiRes.ok;
+  let key: string | undefined;
+  if (apiOk) {
+   try {
+    const j = (await apiRes.json()) as { data?: { key?: string } };
+    key = j.data?.key;
+   } catch { /* ignore */ }
+  }
+  return Response.json({ ok: apiOk && Boolean(key), apiStatus, key }, { status: apiStatus });
+ }
+
  return { ok };
 }
 
