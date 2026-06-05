@@ -227,6 +227,11 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  param: { id: params.id },
  json: sanitizeSettingsPatch(payload),
  });
+ if (!res.ok) {
+ // Surface the API rejection in the worker log — a silent { ok:false }
+ // already cost two debugging rounds on this path.
+ console.error("[save-settings] PATCH failed", res.status, await res.text().catch(() => ""));
+ }
  return { ok: res.ok, intent: "save-settings" };
  }
 
