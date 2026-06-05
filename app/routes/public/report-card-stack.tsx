@@ -407,23 +407,21 @@ export default function ReportCardStackPage() {
  >
  <div className="flex items-center gap-1.5 flex-wrap">
  <span className="text-[13px] font-bold text-ih-fg-1">{d.title}</span>
- {/* ds-allow: category and custom-added badges use raw palette for semantic color coding */}
  {d.effectiveCategory && (
  <span
  className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
  d.effectiveCategory === "safety"
- ? "bg-rose-100 text-rose-700"
+ ? "bg-ih-bad-bg text-ih-bad-fg"
  : d.effectiveCategory === "recommendation"
- ? "bg-amber-100 text-amber-700"
- : "bg-slate-100 text-slate-600"
+ ? "bg-ih-watch-bg text-ih-watch-fg"
+ : "bg-ih-bg-muted text-ih-fg-2"
  }`}
  >
  {d.effectiveCategory}
  </span>
  )}
- {/* ds-allow: inspector-added badge uses indigo palette */}
  {d.isCustom && (
- <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+ <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-ih-primary-tint text-ih-primary">
  inspector-added
  </span>
  )}
