@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface SettingsForm {
   date: string;
@@ -28,11 +28,13 @@ interface InspectionSettingsSheetProps {
   onClose: () => void;
   inspectionId: string;
   referralSources?: string[];
+  /** Called after a successful save where the template selection changed. */
+  onTemplateApplied?: () => void;
 }
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-export function InspectionSettingsSheet({ open, onClose, inspectionId, referralSources = [] }: InspectionSettingsSheetProps) {
+export function InspectionSettingsSheet({ open, onClose, inspectionId, referralSources = [], onTemplateApplied }: InspectionSettingsSheetProps) {
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [inspectors, setInspectors] = useState<Inspector[]>([]);
@@ -48,6 +50,9 @@ export function InspectionSettingsSheet({ open, onClose, inspectionId, referralS
     paymentRequired: false,
     agreementRequired: false,
   });
+  // Tracks the templateId that was loaded when the sheet opened, so we can
+  // detect whether the user changed it before saving.
+  const templateIdAtOpen = useRef<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,13 +64,15 @@ export function InspectionSettingsSheet({ open, onClose, inspectionId, referralS
       ]);
       if (inspRes.ok) {
         const { data } = (await inspRes.json()) as { data: Record<string, unknown> };
+        const loadedTemplateId = (data.templateId as string) || "";
+        templateIdAtOpen.current = loadedTemplateId;
         setForm({
           date: (data.date as string) || "",
           closingDate: (data.closingDate as string) || "",
           inspectorId: (data.inspectorId as string) || "",
           orderId: (data.orderId as string) || "",
           referralSource: (data.referralSource as string) || "",
-          templateId: (data.templateId as string) || "",
+          templateId: loadedTemplateId,
           price: (data.price as number) || 0,
           paymentRequired: !!data.paymentRequired,
           agreementRequired: !!data.agreementRequired,
@@ -99,6 +106,7 @@ export function InspectionSettingsSheet({ open, onClose, inspectionId, referralS
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaveState("saving");
+    const templateChanged = form.templateId !== templateIdAtOpen.current;
     try {
       const res = await fetch(`/api/inspections/${inspectionId}`, {
         method: "PATCH",
@@ -109,6 +117,9 @@ export function InspectionSettingsSheet({ open, onClose, inspectionId, referralS
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
+      if (templateChanged) {
+        onTemplateApplied?.();
+      }
     } catch {
       setSaveState("error");
     }

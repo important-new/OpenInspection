@@ -1379,6 +1379,10 @@ export default function InspectionEditPage() {
  open={state.settingsOpen}
  onClose={() => state.setSettingsOpen(false)}
  inspectionId={String(state.inspection.id)}
+ // Template schema drives the whole editor state (frozen at mount in useInspection),
+ // so a template change requires a full route reload — this also fixes the same
+ // staleness for mid-inspection template switches, not just the empty case.
+ onTemplateApplied={() => window.location.reload()}
  />
 
  {/* Unsaved changes blocker dialog */}
