@@ -647,6 +647,9 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+            {/* P-4: dashboard rows only carry inspections.price (cache tier 3).
+                Invoices and service-snapshot tiers are not loaded here — out of scope.
+                Use getEffectivePriceCents() when a full authority-chain read is needed. */}
             {isColumnVisible("price") && insp.price != null && (
               <span className="text-[11px] font-medium text-ih-fg-3">
                 ${insp.price}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { buildWizardSteps, todayLocalISO, formatPriceCents, type WizardStepId } from "~/lib/wizard-steps";
+import { getEffectivePriceCents } from "~/lib/effective-price";
 
 const STEP_LABELS: Record<WizardStepId, string> = {
   property: "Property",
@@ -572,17 +573,24 @@ export function NewInspectionWizard({
                   );
                 })}
               </div>
-              {/* P-4: Live total across selected services (override ?? catalog) */}
+              {/* P-4: Live total across selected services — delegates to the authority-chain
+                  helper. At wizard time there is no invoice yet, so only tier 2 applies.
+                  Catalog svc.price maps to priceSnapshot; per-row priceOverrides maps to
+                  priceOverride. Empty set falls through to zero (no cache row here). */}
               {services.size > 0 && (
                 <div className="flex justify-end pt-1 border-t border-ih-border mt-2">
                   <span className="text-[12px] font-bold text-ih-fg-2">
                     Total:{" "}
                     {formatPriceCents(
-                      [...services].reduce((sum, id) => {
-                        const svc = serviceCatalog.find((s) => s.id === id);
-                        const cents = priceOverrides.get(id) ?? (typeof svc?.price === "number" ? svc.price : 0);
-                        return sum + cents;
-                      }, 0),
+                      getEffectivePriceCents({
+                        serviceLines: [...services].map((id) => {
+                          const svc = serviceCatalog.find((s) => s.id === id);
+                          return {
+                            priceSnapshot: typeof svc?.price === "number" ? svc.price : 0,
+                            priceOverride: priceOverrides.get(id) ?? null,
+                          };
+                        }),
+                      }),
                     )}
                   </span>
                 </div>

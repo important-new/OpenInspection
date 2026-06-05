@@ -69,6 +69,10 @@ export const inspections = sqliteTable('inspections', {
     status:              text('status', { enum: ['draft','scheduled','confirmed','in_progress','completed','delivered','published','cancelled'] }).notNull().default('draft'),
     paymentStatus:       text('payment_status', { enum: ['unpaid','partial','paid'] }).notNull().default('unpaid'),
     referredByAgentId:   text('referred_by_agent_id'),   // Buyer's Agent — unkeyed TEXT (backward compat)
+    // P-4 authority chain: denormalized cache only — never reconcile back from invoice
+    // or service-snapshot tiers. Use getEffectivePriceCents() (app/lib/effective-price.ts)
+    // to read the authoritative price. Written by the inspection-create path as a
+    // convenience snapshot; kept in sync when service lines change.
     price:               integer('price').notNull().default(0),
     createdAt:           integer('created_at', { mode: 'timestamp' }).notNull(),
     // Phase 0 parity additions
@@ -392,6 +396,9 @@ export const inspectionServices = sqliteTable('inspection_services', {
     tenantId: text('tenant_id').notNull().references(() => tenants.id),
     inspectionId: text('inspection_id').notNull().references(() => inspections.id, { onDelete: 'cascade' }),
     serviceId: text('service_id').notNull().references(() => services.id),
+    // P-4 authority chain (tier 2): effective line price = priceOverride ?? priceSnapshot.
+    // SUM across all lines for this inspection is authoritative over inspections.price
+    // but subordinate to any invoice.amountCents. See getEffectivePriceCents().
     priceOverride: integer('price_override'),
     nameSnapshot: text('name_snapshot').notNull(),
     priceSnapshot: integer('price_snapshot').notNull(),
