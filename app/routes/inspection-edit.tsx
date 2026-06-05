@@ -317,13 +317,17 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  if (intent === "replay-write") {
   const replayIntent = String(formData.get("replayIntent") ?? "");
   const itemId = String(formData.get("itemId") ?? "");
-  const sectionId = String(formData.get("sectionId") ?? "");
+  let sectionId = String(formData.get("sectionId") ?? "");
   let payload: Record<string, unknown> = {};
   try {
    payload = JSON.parse(String(formData.get("payload") ?? "{}"));
   } catch {
    return Response.json({ ok: false, apiStatus: 400 }, { status: 400 });
   }
+
+  // The transport carries sectionId inside the JSON payload (not as a top-level
+  // form field) — fall back to it so replays don't 400 with an empty sectionId.
+  if (!sectionId && typeof payload.sectionId === "string") sectionId = payload.sectionId;
 
   // Collect status/ok from whichever API call fires — extracted immediately
   // so we never hold a ClientResponse<...> in a wider-typed variable.
