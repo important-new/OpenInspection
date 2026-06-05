@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useFetcher } from "react-router";
 
 interface SettingsForm {
   date: string;
@@ -53,6 +54,14 @@ export function InspectionSettingsSheet({ open, onClose, inspectionId, referralS
   // Tracks the templateId that was loaded when the sheet opened, so we can
   // detect whether the user changed it before saving.
   const templateIdAtOpen = useRef<string>("");
+  // B-22 follow-up (C-12): saves go through the inspection-edit route action
+  // ("save-settings" intent) on a DEDICATED fetcher — the old raw client-side
+  // fetch('/api/inspections/:id', PATCH) could never pass requireCsrfToken, so
+  // every save silently 401/403'd. A dedicated fetcher (not shared) avoids the
+  // B-17 shared-fetcher abort hazard. templateChanged is captured at submit so
+  // the response effect knows whether to fire onTemplateApplied.
+  const saveFetcher = useFetcher<{ ok: boolean; intent?: string }>();
+  const templateChangedAtSubmit = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,32 +106,40 @@ export function InspectionSettingsSheet({ open, onClose, inspectionId, referralS
     if (open) load();
   }, [open, load]);
 
+  // Drive saveState from the dedicated fetcher's lifecycle. submitting → saving;
+  // response ok → saved (+ onTemplateApplied if the template changed); not ok →
+  // error. B-17 lesson: "idle" alone is not "saved" — gate on the action's ok.
+  useEffect(() => {
+    if (saveFetcher.state !== "idle") {
+      setSaveState("saving");
+      return;
+    }
+    const data = saveFetcher.data;
+    if (!data || data.intent !== "save-settings") return;
+    if (data.ok) {
+      setSaveState("saved");
+      if (templateChangedAtSubmit.current) onTemplateApplied?.();
+      templateChangedAtSubmit.current = false;
+      const timer = setTimeout(() => setSaveState("idle"), 2000);
+      return () => clearTimeout(timer);
+    }
+    setSaveState("error");
+  }, [saveFetcher.state, saveFetcher.data, onTemplateApplied]);
+
   if (!open) return null;
 
   function updateForm<K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleSave(e: React.FormEvent) {
+  function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaveState("saving");
-    const templateChanged = form.templateId !== templateIdAtOpen.current;
-    try {
-      const res = await fetch(`/api/inspections/${inspectionId}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSaveState("saved");
-      setTimeout(() => setSaveState("idle"), 2000);
-      if (templateChanged) {
-        onTemplateApplied?.();
-      }
-    } catch {
-      setSaveState("error");
-    }
+    templateChangedAtSubmit.current = form.templateId !== templateIdAtOpen.current;
+    saveFetcher.submit(
+      { intent: "save-settings", payload: JSON.stringify(form) },
+      { method: "post" },
+    );
   }
 
   const inputClass = "mt-1 w-full h-10 px-3 rounded-md border border-ih-border bg-ih-bg-card text-ih-fg-1 text-[14px] font-medium focus:border-ih-primary focus:shadow-ih-focus outline-none";

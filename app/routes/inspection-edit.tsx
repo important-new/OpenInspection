@@ -212,6 +212,20 @@ export async function action({ request, params, context }: Route.ActionArgs) {
  ok = res.ok;
  }
 
+ // B-22 follow-up (C-12 class): the settings sheet's "Save changes" used to
+ // do a raw client-side fetch('/api/inspections/:id', PATCH) which could never
+ // pass requireCsrfToken (the __Host-csrf cookie can't be set by client JS and
+ // the pair is attached server-side only) — every save 401/403'd silently.
+ // Route it through the BFF relay like every other mutation.
+ if (intent === "save-settings") {
+ const payload = JSON.parse(String(formData.get("payload") ?? "{}"));
+ const res = await api.inspections[":id"].$patch({
+ param: { id: params.id },
+ json: payload,
+ });
+ return { ok: res.ok, intent: "save-settings" };
+ }
+
  if (intent === "toggle-auto-sign") {
  const autoSignOnPublish = formData.get("autoSignOnPublish") === "true";
  const res = await api.inspections[":id"].$patch({
