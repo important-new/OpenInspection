@@ -99,6 +99,13 @@
       "when": 1780645044378,
       "tag": "0013_pink_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1780655053415,
+      "tag": "0014_brown_golden_guardian",
+      "breakpoints": true
     }
   ]
 }
