@@ -1,3 +1,16 @@
+// ──────────────────────────────────────────────────────────────────────────
+// SCHEMA CONVENTION — timestamp columns (DB-10)
+//
+// New timestamp columns MUST use `integer(name, { mode: 'timestamp_ms' })`
+// (epoch milliseconds). Some legacy columns still use `{ mode: 'timestamp' }`
+// (epoch SECONDS); these are per-table isolated and safe, but do NOT mix modes
+// within a comparison. Convergence is OPPORTUNISTIC — when a table is otherwise
+// rewritten, migrate its `timestamp` columns to `timestamp_ms`; no big-bang
+// migration is planned (D1 cannot rebuild FK-referenced tables cheaply).
+// Always pass a `Date` to Drizzle comparisons (`lt(col, new Date(...))`) so the
+// column's mode mapper encodes the cutoff correctly — never hand-build an
+// epoch number, or you reintroduce the ms-vs-seconds class of bug.
+// ──────────────────────────────────────────────────────────────────────────
 export * from './tenant';
 export {
     ratingSystems,

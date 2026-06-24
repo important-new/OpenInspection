@@ -127,6 +127,27 @@ describe('AgreementService', () => {
         expect(after[0].status).toBe('expired');
     });
 
+    it('expireOlderThan leaves recent (within-window) envelopes untouched', async () => {
+        // Regression guard for the sent_at unit bug: sent_at is stored in SECONDS
+        // (integer timestamp mode); the old raw-sql sweep compared it against a
+        // MILLISECOND cutoff, which is always true, so it expired EVERY envelope
+        // regardless of age. A 5-day-old envelope must survive expireOlderThan(14).
+        const { requestId } = await svc.findOrCreate(TENANT_A, INSP_ID);
+        const before = await testDb.select().from(schema.agreementRequests)
+            .where(eq(schema.agreementRequests.id, requestId)).all();
+        const originalStatus = before[0].status;
+        const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+        await testDb.update(schema.agreementRequests)
+            .set({ sentAt: fiveDaysAgo })
+            .where(eq(schema.agreementRequests.id, requestId));
+        const count = await svc.expireOlderThan(14);
+        expect(count).toBe(0);
+        const after = await testDb.select().from(schema.agreementRequests)
+            .where(eq(schema.agreementRequests.id, requestId)).all();
+        expect(after[0].status).toBe(originalStatus);
+        expect(after[0].status).not.toBe('expired');
+    });
+
     describe('getSignerLinkByEmail (portal Hub — email-matched signer token)', () => {
         // A two-signer envelope so we can prove the email match never returns the
         // WRONG signer's token (the cross-signer security property).
