@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { automations, messageTemplates } from '../lib/db/schema';
 
@@ -59,7 +59,7 @@ export async function backfillAutomationTemplates(db: D1Database, tenantId: stri
         }
 
         if (Object.keys(patch).length > 0) {
-            await d.update(automations).set(patch).where(eq(automations.id, a.id));
+            await d.update(automations).set(patch).where(and(eq(automations.id, a.id), eq(automations.tenantId, tenantId)));
         }
     }
     return { created };
