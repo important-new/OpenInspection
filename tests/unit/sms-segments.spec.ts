@@ -19,7 +19,9 @@ describe('smsSegmentInfo', () => {
   });
 
   it('a Unicode char forces unicode encoding and 70-char single-segment limit', () => {
-    const r = smsSegmentInfo('Café ' + 'a'.repeat(70));
+    // ë (U+00EB) is deliberately NOT in the GSM-7 charset (unlike é/U+00E9, which
+    // IS GSM-7), so it forces UCS-2. 'Cafë ' = 5 chars + 70 = 75.
+    const r = smsSegmentInfo('Cafë ' + 'a'.repeat(70));
     expect(r.encoding).toBe('unicode');
     expect(r.segments).toBe(2); // 75 chars > 70 → ceil(75/67)
   });
