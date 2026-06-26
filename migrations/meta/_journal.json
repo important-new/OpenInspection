@@ -50,6 +50,13 @@
       "when": 1782441526958,
       "tag": "0006_friendly_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1782493904133,
+      "tag": "0007_open_young_avengers",
+      "breakpoints": true
     }
   ]
 }
