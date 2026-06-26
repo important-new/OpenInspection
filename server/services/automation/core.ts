@@ -24,36 +24,41 @@ export function AutomationCore<TBase extends Constructor<AutomationBase>>(Base: 
 
             const existing = await db.select().from(automations)
                 .where(and(eq(automations.tenantId, tenantId), eq(automations.isDefault, true)));
-            if (existing.length >= AUTOMATION_SEEDS.length) return;
-
-            const toInsert = AUTOMATION_SEEDS.filter(
-                seed => !existing.some(e => e.name === seed.name && e.trigger === seed.trigger)
-            );
-            if (toInsert.length === 0) return;
-
-            // D1 caps prepared-statement bind parameters at 100. Each row now binds
-            // 13 columns (Track L added channels + sms_body), so chunk to 7 rows /
-            // 91 binds per insert (under the 100 cap).
-            const CHUNK_SIZE = 7;
-            const rows = toInsert.map(seed => ({
-                id:              nanoid(),
-                tenantId,
-                name:            seed.name,
-                trigger:         seed.trigger,
-                recipient:       seed.recipient,
-                delayMinutes:    seed.delayMinutes,
-                subjectTemplate: seed.subjectTemplate,
-                bodyTemplate:    seed.bodyTemplate,
-                channels:        JSON.stringify((seed as { channels?: string[] }).channels ?? ['email']),
-                smsBody:         (seed as { smsBody?: string }).smsBody ?? null,
-                active:          (seed as { defaultActive?: boolean }).defaultActive ?? true,
-                isDefault:       true,
-                createdAt:       new Date(),
-            }));
-            for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-                await db.insert(automations).values(rows.slice(i, i + CHUNK_SIZE));
+            if (existing.length < AUTOMATION_SEEDS.length) {
+                const toInsert = AUTOMATION_SEEDS.filter(
+                    seed => !existing.some(e => e.name === seed.name && e.trigger === seed.trigger)
+                );
+                if (toInsert.length > 0) {
+                    // D1 caps prepared-statement bind parameters at 100. Each row now binds
+                    // 13 columns (Track L added channels + sms_body), so chunk to 7 rows /
+                    // 91 binds per insert (under the 100 cap).
+                    const CHUNK_SIZE = 7;
+                    const rows = toInsert.map(seed => ({
+                        id:              nanoid(),
+                        tenantId,
+                        name:            seed.name,
+                        trigger:         seed.trigger,
+                        recipient:       seed.recipient,
+                        delayMinutes:    seed.delayMinutes,
+                        subjectTemplate: seed.subjectTemplate,
+                        bodyTemplate:    seed.bodyTemplate,
+                        channels:        JSON.stringify((seed as { channels?: string[] }).channels ?? ['email']),
+                        smsBody:         (seed as { smsBody?: string }).smsBody ?? null,
+                        active:          (seed as { defaultActive?: boolean }).defaultActive ?? true,
+                        isDefault:       true,
+                        createdAt:       new Date(),
+                    }));
+                    for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+                        await db.insert(automations).values(rows.slice(i, i + CHUNK_SIZE));
+                    }
+                    logger.info('AutomationService: seeded default rules', { tenantId, count: toInsert.length });
+                }
             }
-            logger.info('AutomationService: seeded default rules', { tenantId, count: toInsert.length });
+
+            // SP2 — give every rule a referenced template (idempotent; runs for existing
+            // tenants too, not just freshly-seeded ones).
+            const { backfillAutomationTemplates } = await import('../message-template-backfill');
+            await backfillAutomationTemplates(this.db, tenantId);
         }
 
         // Track L (D7) — seed the default TCPA disclosure (version 1) once. Guarded by
