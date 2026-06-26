@@ -12,8 +12,13 @@ import type { AutomationBase } from './shared';
  * Conditions mixin: OI adapter over the core condition evaluator. Pre-resolves
  * the DB-derived facts (agreement-signed, booked service ids, reminder
  * staleness) into a ConditionContext, then delegates the decision to
- * automation-core. The DB reads stay LAZY (only run when the matching gate is
- * requested) so query behavior is byte-identical to the former monolith.
+ * automation-core. The DB reads stay LAZY (a read runs only when its gate is
+ * actually requested), so the verdict and skip-reason are byte-identical to the
+ * former monolith. One subtlety vs the old sequential body: facts are resolved
+ * BEFORE the core decides, so a rule that sets multiple gates and skips on an
+ * earlier one (e.g. requirePaid) may run a later gate's read-only scoped SELECT
+ * that the old short-circuit would have skipped — a query-count delta on the
+ * cron path only, never an outcome change.
  */
 export function AutomationConditions<TBase extends Constructor<AutomationBase>>(Base: TBase) {
     return class extends Base {
