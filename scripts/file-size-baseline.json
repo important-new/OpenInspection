@@ -6,7 +6,7 @@
   "server/durable-objects/inspection-doc.ts": 896,
   "app/routes/inspections.tsx": 841,
   "server/services/booking.service.ts": 833,
-  "server/index.ts": 821,
+  "server/index.ts": 823,
   "server/services/inspection.service.ts": 728,
   "app/components/media-studio/PhotoAnnotator.tsx": 692,
   "app/components/editor/PhotoStudio.tsx": 688,
