@@ -116,6 +116,7 @@ export default [
       route("settings/workspace", "routes/settings-workspace.tsx"),
       route("settings/services", "routes/settings-services.tsx"),
       route("settings/communication", "routes/settings-communication.tsx"),
+      route("settings/communication/templates", "routes/settings-communication-templates.tsx"),
       route("settings/communication/templates/:trigger", "routes/settings-communication-template.tsx"),
       route("settings/automations", "routes/settings-automations.tsx"),
       route("settings/data", "routes/settings-data.tsx"),

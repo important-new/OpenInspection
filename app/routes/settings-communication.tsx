@@ -517,7 +517,12 @@ export default function SettingsCommunication() {
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
           <h3 className="text-[13px] font-bold uppercase tracking-[0.15em] text-ih-fg-3">Email templates</h3>
-          <span className="text-[11px] text-ih-fg-4">{emailTemplates.length} templates · click to customize</span>
+          <div className="flex items-center gap-3">
+            <Link to="/settings/communication/templates" className="text-[12px] text-ih-primary font-semibold hover:underline">
+              Manage templates &rarr;
+            </Link>
+            <span className="text-[11px] text-ih-fg-4">{emailTemplates.length} templates · click to customize</span>
+          </div>
         </div>
         {emailTemplates.length === 0 ? (
           <div className="bg-ih-bg-card border border-ih-border rounded-lg py-8 text-center text-[13px] text-ih-fg-3">No email templates available.</div>
