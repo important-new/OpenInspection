@@ -17,6 +17,7 @@ export {
     discountCodes,
     automations,
     automationLogs,
+    messageTemplates,
     eventTypes,
     inspectionTypes,
     inspectionEvents,
