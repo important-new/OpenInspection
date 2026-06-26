@@ -183,8 +183,9 @@ export function AutomationDelivery<TBase extends Constructor<AutomationBase & Ha
 
                     // Build the OI adapters for this log and delegate the
                     // email send + log write to the shared automation core.
-                    // The rule IS its own template (subject/body live on the row),
-                    // so the TemplateStore returns them directly. requiredVars
+                    // SP2: the subject/body come from the referenced message_template
+                    // (resolved above into subjectSource/bodySource), so the inline
+                    // TemplateStore returns those resolved strings. requiredVars
                     // carries the fail-closed review_url value resolved above
                     // (undefined → core skips with "review_url not configured",
                     //  byte-identical to the former hardcoded guard).

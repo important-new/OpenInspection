@@ -25,9 +25,9 @@ export type SmsRuntime = {
  * client logs are gated on a recorded 'granted' consent event before any text is
  * sent (agents/inspector are implied; D5). The consent gate, opt-in ledger lookup,
  * and the fail-closed review_url guard are kept INTACT and byte-identical — do not
- * alter the consent logic. Renders the rule's plain-text smsBody, calls
- * provider.sendMessage(), maps ok→sent / !ok→failed, and meters a successful send.
- * Never throws.
+ * alter the consent logic. Renders the rule's referenced SMS message_template
+ * (SP2; was the embedded smsBody), calls provider.sendMessage(), maps
+ * ok→sent / !ok→failed, and meters a successful send. Never throws.
  */
 export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: TBase) {
     return class extends Base {
@@ -35,8 +35,9 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
          * Track L — deliver one SMS automation log via the resolved provider. Client
          * logs are gated on a recorded 'granted' consent event (agents/inspector are
          * implied; D5); the provider resolves through the injected sms.resolveProvider
-         * (per-tenant Twilio or Telnyx). Renders the rule's plain-text smsBody with
-         * the var map, fail-closed on an unconfigured review_url. Maps ok→sent /
+         * (per-tenant Twilio or Telnyx). Renders the rule's referenced SMS
+         * message_template with the var map, fail-closed on an unconfigured
+         * review_url and on a missing/unresolved template. Maps ok→sent /
          * !ok→failed; every guard skips the log with a reason. Never throws (caller's
          * try/catch marks failed otherwise).
          *

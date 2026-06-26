@@ -155,7 +155,7 @@ export const messageTemplateRoutes = createApiRouter()
             const res = await resolved.provider.sendMessage(sendArgs);
             return res.ok ? c.json({ success: true }, 200) : c.json({ success: false, error: res.error }, 200);
         }
-        // ⚠️ CORRECTION 1: use buildTenantEmailService (real async factory) instead of EmailService.forTenant
+        // Per-tenant email transport (resolves the tenant's own provider/keys).
         const emailSvc = await buildTenantEmailService(c.env, tenantId);
         const { delivered } = await emailSvc.sendEmail([to], interpolate(subject ?? '', vars), interpolate(body, vars));
         return delivered ? c.json({ success: true }, 200) : c.json({ success: false, error: 'Email is not configured.' }, 200);
