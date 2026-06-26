@@ -96,13 +96,14 @@ export function AutomationCore<TBase extends Constructor<AutomationBase>>(Base: 
 
         async create(tenantId: string, data: {
             name: string; trigger: string; recipient: string;
-            delayMinutes: number; subjectTemplate: string; bodyTemplate: string;
+            delayMinutes: number;
             conditions?: { requirePaid?: boolean; requireSigned?: boolean; serviceIds?: string[] } | null;
-            channels?: ('email' | 'sms')[]; smsBody?: string | null;
+            channels?: ('email' | 'sms')[];
+            emailTemplateId?: string | null; smsTemplateId?: string | null;
         }) {
             const db = this.getDrizzle();
             const id = nanoid();
-            const { conditions, channels, smsBody, ...rest } = data;
+            const { conditions, channels, emailTemplateId, smsTemplateId, ...rest } = data;
             await db.insert(automations).values({
                 id, tenantId, ...rest,
                 // Casts narrow the public string param to the schema's enum literal
@@ -115,7 +116,10 @@ export function AutomationCore<TBase extends Constructor<AutomationBase>>(Base: 
                 // Track L — channels is the live field; the dead `channel` column is left
                 // to its DB default ('email') so its NOT NULL constraint stays satisfied.
                 channels: JSON.stringify(channels?.length ? channels : ['email']),
-                smsBody:  smsBody ?? null,
+                // SP2 — template ids; dead NOT NULL body columns get empty-string tombstones.
+                emailTemplateId: emailTemplateId ?? null,
+                smsTemplateId:   smsTemplateId ?? null,
+                subjectTemplate: '', bodyTemplate: '', smsBody: null,
                 active: true, isDefault: false, createdAt: new Date(),
             });
             // Track L (A) — parse channels on output to match the typed API shape.
@@ -124,24 +128,24 @@ export function AutomationCore<TBase extends Constructor<AutomationBase>>(Base: 
 
         async update(tenantId: string, id: string, data: Partial<{
             name: string; trigger: string; recipient: string;
-            delayMinutes: number; subjectTemplate: string; bodyTemplate: string; active: boolean;
+            delayMinutes: number; active: boolean;
             conditions: { requirePaid?: boolean; requireSigned?: boolean; serviceIds?: string[] } | null;
-            channels: ('email' | 'sms')[]; smsBody: string | null;
+            channels: ('email' | 'sms')[];
+            emailTemplateId: string | null; smsTemplateId: string | null;
         }>) {
             const db = this.getDrizzle();
             const existing = await db.select().from(automations)
                 .where(and(eq(automations.id, id), eq(automations.tenantId, tenantId))).limit(1);
             if (!existing[0]) throw Errors.NotFound('Automation not found');
-            const { conditions, channels, smsBody, ...rest } = data;
+            const { conditions, channels, ...rest } = data;
             const patch: Record<string, unknown> = { ...rest };
             // Key-presence (not truthiness) so an explicit `conditions: null` clears
             // the row while an omitted key leaves it untouched. The zod layer strips
             // absent keys, so `undefined` should not reach here; the guard is belt-
             // and-braces for direct (non-API) callers.
             if ('conditions' in data) patch.conditions = conditions ? JSON.stringify(conditions) : null;
-            // Track L — channels/sms_body persist on the same key-presence contract.
+            // Track L — channels persists on the same key-presence contract.
             if ('channels' in data) patch.channels = JSON.stringify(channels?.length ? channels : ['email']);
-            if ('smsBody' in data) patch.smsBody = smsBody ?? null;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial patch → table's typed columns; matches the file's create() cast pattern
             await db.update(automations).set(patch as any)
                 .where(and(eq(automations.id, id), eq(automations.tenantId, tenantId)));
