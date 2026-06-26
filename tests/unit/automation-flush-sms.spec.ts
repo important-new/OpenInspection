@@ -40,7 +40,7 @@ beforeEach(async () => {
     fakeSendMessage.mockResolvedValue({ ok: true });
 });
 
-async function seedSmsLog(over: { contactId?: string | null } = {}) {
+async function seedSmsLog(over: { contactId?: string | null; smsBody?: string } = {}) {
     const inspId = crypto.randomUUID();
     await db.insert(schema.inspections).values({
         id: inspId, tenantId: TENANT, propertyAddress: '1 Main', clientName: 'Jane',
@@ -49,9 +49,10 @@ async function seedSmsLog(over: { contactId?: string | null } = {}) {
         reportStatus: 'published', paymentStatus: 'paid', price: 0, agreementRequired: false, paymentRequired: false, createdAt: new Date(),
     } as never);
     const ruleId = crypto.randomUUID();
+    const smsBody = over.smsBody ?? 'Hi {{client_name}} — {{company_name}}';
     await db.insert(schema.automations).values({
         id: ruleId, tenantId: TENANT, name: 'R', trigger: 'report.published', recipient: 'client',
-        delayMinutes: 0, subjectTemplate: 'S', bodyTemplate: 'B', smsBody: 'Hi {{client_name}} — {{company_name}}',
+        delayMinutes: 0, subjectTemplate: 'S', bodyTemplate: 'B', smsBody,
         channels: '["sms"]', channel: 'sms', active: true, isDefault: false, createdAt: new Date(),
     } as never);
     const logId = crypto.randomUUID();
@@ -60,6 +61,10 @@ async function seedSmsLog(over: { contactId?: string | null } = {}) {
         recipient: '+15551234567', channel: 'sms',
         sendAt: new Date(Date.now() - 1000).toISOString(), status: 'pending',
     } as never);
+    // SP2 — give the seeded sms rule a referenced template (body == embedded smsBody),
+    // so the decoupled SMS delivery renders byte-identical output.
+    const { backfillAutomationTemplates } = await import('../../server/services/message-template-backfill');
+    await backfillAutomationTemplates({} as D1Database, TENANT);
     return { logId, inspId };
 }
 
@@ -103,6 +108,34 @@ describe('flush() — SMS branch (Track L)', () => {
         await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
         expect((await statusOf(logId))?.status).toBe('skipped');
         expect((await statusOf(logId))?.error).toMatch(/not configured/);
+        expect(fakeSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('SP2: deliverSms resolves the referenced sms template body', async () => {
+        // Arrange: seedSmsLog backfills → smsTemplateId is set; smsBody='Hi {{client_name}} — {{company_name}}'.
+        // Grant consent so delivery proceeds past the consent gate.
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        // Status must be 'sent' — resolved template body was rendered and delivered.
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+        const call = fakeSendMessage.mock.calls[0][0] as { to: string; body: string; from?: string };
+        // The resolved template body is 'Hi {{client_name}} — {{company_name}}';
+        // after interpolation it must contain the client name and the tenant/company name.
+        expect(call.body).toContain('Jane');   // client_name
+        expect(call.body).toContain('Acme');   // company_name (tenant name)
+    });
+
+    it('SP2: deliverSms preserves the review_url fail-closed skip on the resolved body', async () => {
+        // Arrange: seed an sms rule whose body includes {{review_url}}.
+        // The backfill in seedSmsLog creates an sms template with that body.
+        // tenant_configs.review_url is NOT set, so delivery must skip fail-closed.
+        const { logId } = await seedSmsLog({ contactId: 'c1', smsBody: 'Visit {{review_url}}' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        expect((await statusOf(logId))?.status).toBe('skipped');
+        expect((await statusOf(logId))?.error).toBe('review_url not configured');
         expect(fakeSendMessage).not.toHaveBeenCalled();
     });
 });

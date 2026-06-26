@@ -57,8 +57,15 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
             const skip = (reason: string) =>
                 db.update(automationLogs).set({ status: 'skipped', error: reason }).where(and(eq(automationLogs.id, log.id), eq(automationLogs.tenantId, inspection.tenantId)));
 
-            if (!automation.smsBody?.trim()) return void (await skip('no sms body'));
             if (!sms) return void (await skip('sms not configured'));
+
+            // SP2 — resolve the referenced SMS template (was the embedded smsBody,
+            // now frozen DEAD). Fail-closed when the rule has no resolvable sms template.
+            const { createOiTemplateStore } = await import('./template-store');
+            const tpl = automation.smsTemplateId
+                ? await createOiTemplateStore(this.db).resolve(inspection.tenantId, automation.smsTemplateId)
+                : null;
+            if (!tpl || tpl.channel !== 'sms' || !tpl.body.trim()) return void (await skip('no sms template'));
 
             // Consent gate — client only (agents/inspector implied; D5).
             if (automation.recipient === 'client') {
@@ -84,11 +91,11 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
                 company_phone:    cfg?.companyPhone ?? '',
             };
             // review_url fail-closed (same rule as the email path).
-            if (automation.smsBody.includes('{{review_url}}')) {
+            if (tpl.body.includes('{{review_url}}')) {
                 if (!cfg?.reviewUrl) return void (await skip('review_url not configured'));
                 vars.review_url = cfg.reviewUrl;
             }
-            const body = interpolate(automation.smsBody, vars);
+            const body = interpolate(tpl.body, vars);
 
             const sendArgs: { from?: string; to: string; body: string } = { to: log.recipient, body };
             if (from) sendArgs.from = from;
