@@ -66,6 +66,11 @@ async function seedRuleAndLog(opts: {
     active: true, isDefault: false, createdAt: new Date(),
     conditions: opts.conditions ? JSON.stringify(opts.conditions) : null,
   } as never);
+  // SP2 — give the seeded rule a referenced email template (content == the embedded
+  // subject/body), so the decoupled delivery renders byte-identical output.
+  const { backfillAutomationTemplates } = await import('../../server/services/message-template-backfill');
+  await backfillAutomationTemplates({} as D1Database, TENANT);
+
   const logId = crypto.randomUUID();
   await db.insert(schema.automationLogs).values({
     id: logId, tenantId: TENANT, automationId: ruleId, inspectionId: opts.inspectionId,

@@ -5,6 +5,7 @@ import type { EmailService } from '../email.service';
 import { type Constructor, oiClock } from './shared';
 import { deliverAction } from '../../lib/automation-core';
 import { buildBaseTemplateVars } from './template-vars';
+import { createOiTemplateStore } from './template-store';
 import type { AutomationBase, HasEvaluateConditions, HasDeliverSms } from './shared';
 import type { SmsRuntime } from './sms';
 
@@ -103,6 +104,21 @@ export function AutomationDelivery<TBase extends Constructor<AutomationBase & Ha
                         continue;
                     }
 
+                    // SP2 — resolve the referenced email template (replaces the
+                    // embedded subject_template / body_template, now frozen DEAD).
+                    // Skip fail-closed when the rule has no resolvable email template.
+                    const store = createOiTemplateStore(this.db);
+                    const tpl = automation.emailTemplateId
+                        ? await store.resolve(inspection.tenantId, automation.emailTemplateId)
+                        : null;
+                    if (!tpl || tpl.channel !== 'email') {
+                        await db.update(automationLogs).set({ status: 'skipped', error: 'no email template' })
+                            .where(eq(automationLogs.id, log.id));
+                        continue;
+                    }
+                    const subjectSource = tpl.subject ?? '';
+                    const bodySource = tpl.body;
+
                     const vars: Record<string, string> = {
                         ...buildBaseTemplateVars(inspection, tenant, appName, appHost),
                         inspector_name:   '',
@@ -133,8 +149,8 @@ export function AutomationDelivery<TBase extends Constructor<AutomationBase & Ha
                     }
 
                     // Lazy: only create agreement_request when this rule actually needs it
-                    const needsAgreementUrl = automation.bodyTemplate.includes('{{agreement_sign_url}}') ||
-                                              automation.subjectTemplate.includes('{{agreement_sign_url}}');
+                    const needsAgreementUrl = bodySource.includes('{{agreement_sign_url}}') ||
+                                              subjectSource.includes('{{agreement_sign_url}}');
                     if (needsAgreementUrl) {
                         if (!this.agreementService) {
                             await db.update(automationLogs).set({ status: 'failed', error: 'AgreementService not configured' })
@@ -152,8 +168,8 @@ export function AutomationDelivery<TBase extends Constructor<AutomationBase & Ha
                         }
                     }
 
-                    const needsReviewUrl = automation.bodyTemplate.includes('{{review_url}}') ||
-                                           automation.subjectTemplate.includes('{{review_url}}');
+                    const needsReviewUrl = bodySource.includes('{{review_url}}') ||
+                                           subjectSource.includes('{{review_url}}');
                     if (needsReviewUrl) {
                         const cfg = await db.select({ reviewUrl: tenantConfigs.reviewUrl }).from(tenantConfigs)
                             .where(eq(tenantConfigs.tenantId, inspection.tenantId)).get();
@@ -177,9 +193,9 @@ export function AutomationDelivery<TBase extends Constructor<AutomationBase & Ha
                     const templateStore = {
                         resolve: async () => ({
                             channel: 'email' as const,
-                            subject: automation.subjectTemplate,
-                            body: automation.bodyTemplate,
-                            variables: [] as string[],
+                            subject: subjectSource,
+                            body: bodySource,
+                            variables: tpl.variables,
                         }),
                     };
                     const transport = {
