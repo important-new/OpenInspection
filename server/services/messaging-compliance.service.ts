@@ -437,7 +437,11 @@ export class MessagingComplianceService {
 
         const updates: Partial<typeof messagingCompliance.$inferInsert> = {};
 
-        // TFV path — poll toll-free verifications.
+        // A managed row is single-channel: tollfree (tfv, terminal) OR sp10dlc
+        // (brand→campaign). These paths are mutually exclusive (`else if`) so a
+        // just-set TFV verdict can never be clobbered by the brand block reading
+        // the pre-update row snapshot.
+        // TFV path — poll toll-free verifications (tollfree channel, terminal).
         if (row.tfvSid || row.tfvStatus) {
             const tfvs = await client.tollfree.list().catch(() => []);
             const tfv = row.tfvSid ? tfvs.find((t) => t.sid === row.tfvSid) : tfvs[0];
@@ -455,8 +459,9 @@ export class MessagingComplianceService {
             }
         }
 
-        // Brand path — poll brand registrations (sp10dlc).
-        if (row.brandSid || row.brandStatus) {
+        // Brand path — poll brand registrations (sp10dlc channel; campaign is the
+        // terminal entity, so brand approval only advances to brand_pending).
+        else if (row.brandSid || row.brandStatus) {
             const brands = await client.brands.list().catch(() => []);
             const brand = row.brandSid ? brands.find((b) => b.sid === row.brandSid) : brands[0];
             if (brand) {

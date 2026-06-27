@@ -120,8 +120,7 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
         // Prefer the dedicated compliance webhook token; fall back to the platform
         // auth token. Missing secret → fail-closed (no secret means no way to
         // verify the signature → reject rather than accept without verification).
-        const secret = (c.env as { TWILIO_COMPLIANCE_WEBHOOK_TOKEN?: string }).TWILIO_COMPLIANCE_WEBHOOK_TOKEN
-            ?? c.env.TWILIO_AUTH_TOKEN;
+        const secret = c.env.TWILIO_COMPLIANCE_WEBHOOK_TOKEN ?? c.env.TWILIO_AUTH_TOKEN;
         if (!secret) {
             logger.warn('[compliance-webhook] no signing secret configured — rejecting', { tenantId: tenant.id });
             return c.text('', 403);
