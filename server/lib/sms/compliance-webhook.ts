@@ -163,10 +163,11 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
         });
 
         // Emit a core→portal sync event when the compliance status actually changed.
-        // Fail-soft: a queue/outbox failure must never break the 200 response Twilio expects.
-        // The outbox is obtained from the DI context (UserSyncOutbox interface) — no direct
-        // portal import here. It is undefined in standalone (SYNC_QUEUE absent → di.ts returns
-        // undefined) so standalone never accumulates dead outbox rows.
+        // The outbox is the DI-provided UserSyncOutbox interface (di.ts builds it via
+        // buildOutbox(), gated on SYNC_QUEUE → undefined in standalone). diMiddleware runs
+        // app.use('*'), so c.var.services is populated even on this public route. No portal
+        // import here keeps the SaaS-Portal isolation invariant. Fail-soft: an emit failure
+        // must never break the 200 response Twilio expects.
         if (result?.changed) {
             const outbox = c.var.services?.outbox;
             if (outbox) {
