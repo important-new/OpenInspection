@@ -1100,6 +1100,32 @@ describe('Compliance-status webhook (Task 7)', () => {
         const stored = await svc.getStatus(TENANT);
         expect(stored?.complianceStatus).toBe('campaign_pending');
     });
+
+    it('telnyx provider (not yet implemented) → 503 fail-closed, no DB write', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
+        const body = new URLSearchParams(params).toString();
+
+        const res = await app.request(
+            '/api/public/telnyx/compliance-status/acme',
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body,
+            },
+            env,
+            makeExecCtx(),
+        );
+
+        // Telnyx is a known provider id but its webhook receiver is Plan 2, so a
+        // stray Telnyx callback must fail closed (503), never silently accept.
+        expect(res.status).toBe(503);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('campaign_pending');
+    });
 });
 
 // ─── MessagingComplianceService.syncManagedStatus (cron poll, Task 7) ────────
