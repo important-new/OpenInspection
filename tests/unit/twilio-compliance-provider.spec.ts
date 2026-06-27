@@ -33,6 +33,8 @@ interface FakeOpts {
     onBuy?: () => void;
     onAttach?: () => void;
     capturedProfile?: { data?: Record<string, string> };
+    capturedCampaign?: { data?: Record<string, string> };
+    capturedTollfree?: { data?: Record<string, string> };
 }
 
 function fakeTwilio(calls: string[], opts: FakeOpts = {}): TwilioComplianceClient {
@@ -45,11 +47,13 @@ function fakeTwilio(calls: string[], opts: FakeOpts = {}): TwilioComplianceClien
             }
             if (uri.includes('/Compliance/Usa2p')) {
                 calls.push('camp');
+                if (opts.capturedCampaign) opts.capturedCampaign.data = data;
                 if (opts.campThrows) throw new Error('TCR error');
                 return { statusCode: 201, body: { sid: 'CMx', status: 'PENDING' } };
             }
             if (uri.includes('/Tollfree/Verifications')) {
                 calls.push('tfv');
+                if (opts.capturedTollfree) opts.capturedTollfree.data = data;
                 if (opts.tfvThrows) throw new Error('crash');
                 return { statusCode: 201, body: { sid: 'HVx', status: 'PENDING_REVIEW' } };
             }
@@ -118,7 +122,8 @@ describe('TwilioComplianceProvider.provision (sp10dlc)', () => {
     it('full run persists all SIDs and ends campaign_pending', async () => {
         const fx = await freshDb();
         const calls: string[] = [];
-        const provider = new TwilioComplianceProvider(fakeTwilio(calls));
+        const capturedCampaign: { data?: Record<string, string> } = {};
+        const provider = new TwilioComplianceProvider(fakeTwilio(calls, { capturedCampaign }));
         const store = new D1ComplianceStateStore({} as D1Database);
         const snap = await provider.provision(
             { tenantId: 'p1', channel: 'sp10dlc', businessInfo: INFO }, store,
@@ -134,6 +139,15 @@ describe('TwilioComplianceProvider.provision (sp10dlc)', () => {
         expect(row?.senderAttached).toBe(true);
         expect(row?.complianceStatus).toBe('campaign_pending');
         expect(calls).toEqual(expect.arrayContaining(['cp', 'brand', 'ms', 'camp', 'buy', 'attach']));
+        // Lock the Usa2p generic-post wire params (no type-check guards the
+        // generic request body, so a param-name/casing regression would silently
+        // drop a field at the carrier). The indexed MessageSamples[] keys are the
+        // serialization-sensitive ones; BrandRegistrationSid carries the brand SID.
+        const camp = capturedCampaign.data ?? {};
+        expect(camp.BrandRegistrationSid).toBe('BNx');
+        expect(camp.UsAppToPersonUsecase).toBe('MIXED');
+        expect(camp['MessageSamples[0]']).toBeTruthy();
+        expect(camp['MessageSamples[1]']).toBeTruthy();
         fx.sqlite.close();
     });
 
@@ -222,7 +236,8 @@ describe('TwilioComplianceProvider.provision (tollfree)', () => {
     it('full run persists tfvSid + messagingServiceSid and ends tfv_pending', async () => {
         const fx = await freshDb();
         const calls: string[] = [];
-        const provider = new TwilioComplianceProvider(fakeTwilio(calls));
+        const capturedTollfree: { data?: Record<string, string> } = {};
+        const provider = new TwilioComplianceProvider(fakeTwilio(calls, { capturedTollfree }));
         const store = new D1ComplianceStateStore({} as D1Database);
         const snap = await provider.provision(
             { tenantId: 'p3', channel: 'tollfree', businessInfo: { ...INFO, email: 'a@b.test' } }, store,
@@ -237,6 +252,13 @@ describe('TwilioComplianceProvider.provision (tollfree)', () => {
         expect(calls).not.toContain('brand');
         expect(calls).not.toContain('camp');
         expect(calls).toEqual(expect.arrayContaining(['cp', 'ms', 'search-tf', 'buy', 'attach', 'tfv']));
+        // Lock the Tollfree Verifications generic-post wire params (ISV shape:
+        // UseCaseDescription + MessagingServiceSid; no type-check guards the body).
+        const tfv = capturedTollfree.data ?? {};
+        expect(tfv.TollfreePhoneNumberSid).toBe('PNx');
+        expect(tfv.MessagingServiceSid).toBe('MGx');
+        expect(tfv.UseCaseDescription).toBeTruthy();
+        expect(tfv.OptInType).toBe('VERBAL');
         fx.sqlite.close();
     });
 
