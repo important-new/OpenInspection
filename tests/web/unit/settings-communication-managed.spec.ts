@@ -369,3 +369,55 @@ describe('settings-communication action — intent=sms-compliance-resubmit (Task
         expect(res).toMatchObject({ intent: 'sms-compliance-resubmit', ok: false });
     });
 });
+
+// ── Task 5: managed provider selector ────────────────────────────────────────
+
+describe('settings-communication loader — managedProvider field (Task 5)', () => {
+    it('defaults managedProvider to "twilio" when tenantCfg does not include it', async () => {
+        // Default mock returns { smsMode, companyPhone } — no managedProvider key.
+        const data = await loader(loaderArgs());
+        expect((data as Record<string, unknown>).managedProvider).toBe('twilio');
+    });
+
+    it('surfaces managedProvider: "telnyx" when tenantCfg stores telnyx', async () => {
+        getTenantConfig.mockResolvedValue(
+            jsonRes({ data: { smsMode: 'managed_dedicated', companyPhone: '', managedProvider: 'telnyx' } }),
+        );
+        const data = await loader(loaderArgs());
+        expect((data as Record<string, unknown>).managedProvider).toBe('telnyx');
+    });
+
+    it('falls back to "twilio" when tenantCfg returns a null managedProvider', async () => {
+        getTenantConfig.mockResolvedValue(
+            jsonRes({ data: { smsMode: 'managed_dedicated', companyPhone: '', managedProvider: null } }),
+        );
+        const data = await loader(loaderArgs());
+        expect((data as Record<string, unknown>).managedProvider).toBe('twilio');
+    });
+});
+
+describe('settings-communication action — intent=save-managed-provider (Task 5)', () => {
+    it('PATCHes managedProvider: "telnyx" when telnyx is selected', async () => {
+        const res = await action(actionArgs({ intent: 'save-managed-provider', managedProvider: 'telnyx' }));
+        expect(patchTenantConfig).toHaveBeenCalledWith({ json: { managedProvider: 'telnyx' } });
+        expect(res).toMatchObject({ intent: 'save-managed-provider', ok: true });
+    });
+
+    it('PATCHes managedProvider: "twilio" when twilio is selected', async () => {
+        const res = await action(actionArgs({ intent: 'save-managed-provider', managedProvider: 'twilio' }));
+        expect(patchTenantConfig).toHaveBeenCalledWith({ json: { managedProvider: 'twilio' } });
+        expect(res).toMatchObject({ intent: 'save-managed-provider', ok: true });
+    });
+
+    it('defaults to "twilio" when no managedProvider value is submitted', async () => {
+        const res = await action(actionArgs({ intent: 'save-managed-provider' }));
+        expect(patchTenantConfig).toHaveBeenCalledWith({ json: { managedProvider: 'twilio' } });
+        expect(res).toMatchObject({ intent: 'save-managed-provider', ok: true });
+    });
+
+    it('returns ok=false when the tenant-config PATCH fails', async () => {
+        patchTenantConfig.mockResolvedValue(jsonRes({ error: 'server_error' }, false));
+        const res = await action(actionArgs({ intent: 'save-managed-provider', managedProvider: 'telnyx' }));
+        expect(res).toMatchObject({ intent: 'save-managed-provider', ok: false });
+    });
+});
