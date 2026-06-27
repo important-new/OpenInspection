@@ -17,7 +17,12 @@ import type { AutomationBase } from './shared';
  * TwilioClient.messages.create() path as the old sendTwilioSms helper.
  */
 export type SmsRuntime = {
-    resolveProvider: (tenantId: string) => Promise<{ provider: import('../../lib/messaging/provider').MessagingProvider; from: string | null } | null>;
+    resolveProvider: (tenantId: string) => Promise<{
+        provider: import('../../lib/messaging/provider').MessagingProvider;
+        from: string | null;
+        /** Twilio Messaging Service SID for managed sends. When set, passes through to sendMessage. */
+        messagingServiceSid?: string | null;
+    } | null>;
 } | null | undefined;
 
 /**
@@ -79,7 +84,7 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
 
             const resolved = await sms.resolveProvider(inspection.tenantId);
             if (!resolved) return void (await skip('sms not configured'));
-            const { provider, from } = resolved;
+            const { provider, from, messagingServiceSid } = resolved;
 
             // Load the tenant config row once for the SMS vars: company_phone is used
             // unconditionally by the seeded copy ("questions? call {{company_phone}}"),
@@ -98,8 +103,9 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
             }
             const body = interpolate(tpl.body, vars);
 
-            const sendArgs: { from?: string; to: string; body: string } = { to: log.recipient, body };
+            const sendArgs: { from?: string; to: string; body: string; messagingServiceSid?: string } = { to: log.recipient, body };
             if (from) sendArgs.from = from;
+            if (messagingServiceSid) sendArgs.messagingServiceSid = messagingServiceSid;
             const res = await provider.sendMessage(sendArgs);
             if (res.ok) {
                 await db.update(automationLogs).set({ status: 'sent', deliveredAt: new Date().toISOString() })

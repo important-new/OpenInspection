@@ -176,6 +176,12 @@ export interface ResolvedProvider {
     provider: MessagingProvider;
     /** The from-number to pass to sendMessage. Null for Telnyx (provider uses its own creds internally). */
     from: string | null;
+    /**
+     * Twilio Messaging Service SID for managed sends (managed_shared / managed_dedicated).
+     * When set, the provider uses it instead of `from` — the Messaging Service selects the
+     * sending number from its pool. Absent (undefined) for own/platform/Telnyx sends.
+     */
+    messagingServiceSid?: string | null;
 }
 
 /**
@@ -234,5 +240,9 @@ export async function loadProviderForTenant(env: TwilioLoaderEnv, tenantId: stri
     );
     if (!creds) return null;
     const { resolveProvider } = await import('../messaging/resolve-provider');
-    return { provider: resolveProvider('twilio', creds), from: creds.from };
+    return {
+        provider: resolveProvider('twilio', creds),
+        from: creds.from || null,
+        messagingServiceSid: creds.messagingServiceSid ?? null,
+    };
 }

@@ -138,6 +138,45 @@ describe('flush() — SMS branch (Track L)', () => {
         expect((await statusOf(logId))?.error).toBe('review_url not configured');
         expect(fakeSendMessage).not.toHaveBeenCalled();
     });
+
+    it('managed mode: sendMessage receives messagingServiceSid (not from)', async () => {
+        // Arrange: resolve returns a managed bag — messagingServiceSid set, from absent.
+        // The managed send path must pass messagingServiceSid through to sendMessage
+        // and must NOT require a from number (managed Messaging Services supply that).
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        smsRuntime.resolveProvider.mockResolvedValueOnce({
+            provider: fakeProvider,
+            from: null,
+            messagingServiceSid: 'MG_test_service_sid',
+        });
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+        const call = fakeSendMessage.mock.calls[0][0] as {
+            to: string; body: string; from?: string; messagingServiceSid?: string;
+        };
+        // messagingServiceSid must be forwarded to the provider.
+        expect(call.messagingServiceSid).toBe('MG_test_service_sid');
+        // from must NOT be set when managed (null from → no from arg).
+        expect(call.from).toBeUndefined();
+        expect(call.to).toBe('+15551234567');
+    });
+
+    it('own/platform mode: sendMessage does NOT receive messagingServiceSid', async () => {
+        // The existing own/platform path (from set, no messagingServiceSid) must be unchanged.
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        // Default smsRuntime already returns { provider, from: '+1999' } — no messagingServiceSid.
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+        const call = fakeSendMessage.mock.calls[0][0] as {
+            to: string; body: string; from?: string; messagingServiceSid?: string;
+        };
+        expect(call.from).toBe('+1999');
+        expect(call.messagingServiceSid).toBeUndefined();
+    });
 });
 
 // Step 3b — reminder due-time is DERIVED live from inspection.date, NOT the

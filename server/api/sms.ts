@@ -404,11 +404,12 @@ export const smsAdminRoutes = createApiRouter()
         const resolved = await loadProviderForTenant(c.env, tenantId);
         if (!resolved) return c.json({ success: false, error: 'SMS is not configured. Set your credentials first.' }, 200);
 
-        const sendArgs: { from?: string; to: string; body: string } = {
+        const sendArgs: { from?: string; to: string; body: string; messagingServiceSid?: string } = {
             to: normalized,
             body: 'This is a test message from your inspection company. SMS is configured correctly.',
         };
         if (resolved.from) sendArgs.from = resolved.from;
+        if (resolved.messagingServiceSid) sendArgs.messagingServiceSid = resolved.messagingServiceSid;
         const res = await resolved.provider.sendMessage(sendArgs);
         if (res.ok) {
             // WH-2 — seed a 'sent' delivery-status row for the returned message id
