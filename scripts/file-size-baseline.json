@@ -18,9 +18,9 @@
   "server/services/inspection/inspection-report.service.ts": 590,
   "server/services/marketplace.service.ts": 587,
   "app/hooks/useInspection.ts": 584,
+  "app/routes/settings-communication.tsx": 559,
   "server/api/admin/admin-settings.ts": 551,
   "server/api/inspections/publish.ts": 551,
-  "app/routes/settings-communication.tsx": 547,
   "app/lib/collab/results-binding.ts": 540,
   "app/components/editor/ItemEditor.tsx": 538,
   "server/api/inspections/media-studio.ts": 534,
@@ -30,8 +30,8 @@
   "server/api/public-report.ts": 516,
   "server/services/inspection/inspection-publish.service.ts": 510,
   "server/services/concierge.service.ts": 507,
+  "server/api/sms.ts": 500,
   "server/api/repair-builder.ts": 496,
-  "server/api/sms.ts": 494,
   "app/routes/template-edit.tsx": 489,
   "server/api/portal.ts": 486,
   "app/routes/form-renderer.tsx": 485,
@@ -46,5 +46,6 @@
   "app/lib/collab/results-doc-connection.ts": 435,
   "app/components/media-studio/VideoCapture.tsx": 432,
   "app/routes/templates.tsx": 414,
-  "server/lib/email-templates/registry.ts": 413
+  "server/lib/email-templates/registry.ts": 413,
+  "server/api/secrets.ts": 401
 }

@@ -44,6 +44,7 @@ import {
     SmsComplianceResponseSchema,
 } from '../lib/validations/sms.schema';
 import { registerSmsStatusRoute, recordSentStatus, verifyInboundSignature } from '../lib/sms/delivery-status';
+import { registerEmailEventsRoute } from '../lib/email/email-events';
 import type { Context } from 'hono';
 import type { HonoConfig } from '../types/hono';
 
@@ -191,6 +192,11 @@ smsPublicRoutes.post('/sms/inbound/:tenant', async (c) => {
 // parse → last-writer-wins upsert. Implementation lives in lib/sms/delivery-status
 // (keeps this router file under the file-size cap; recordSentStatus is re-exported).
 registerSmsStatusRoute(smsPublicRoutes);
+
+// Email deliverability webhook (WH-3) — POST /email/:provider/:tenant. Verify →
+// dedup → parse → append-only suppression insert for hard bounce / complaint.
+// Implementation lives in lib/email/email-events (provider is a path segment).
+registerEmailEventsRoute(smsPublicRoutes);
 
 /**
  * Shared inbound handler. Verifies the provider's inbound signature, extracts
