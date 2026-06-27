@@ -107,6 +107,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       TWILIO_FROM_NUMBER: secrets.TWILIO_FROM_NUMBER || "",
       TELNYX_API_KEY: secrets.TELNYX_API_KEY || "",
       TELNYX_FROM_NUMBER: secrets.TELNYX_FROM_NUMBER || "",
+      TELNYX_PUBLIC_KEY: secrets.TELNYX_PUBLIC_KEY || "",
     },
     smsConfig,
     companyPhone,
@@ -282,7 +283,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         if (v && typeof v === "string" && v.trim()) body[key] = v.trim();
       }
     } else {
-      for (const key of ["TELNYX_API_KEY", "TELNYX_FROM_NUMBER"]) {
+      for (const key of ["TELNYX_API_KEY", "TELNYX_FROM_NUMBER", "TELNYX_PUBLIC_KEY"]) {
         const v = form.get(key);
         if (v && typeof v === "string" && v.trim()) body[key] = v.trim();
       }
@@ -335,7 +336,7 @@ export default function SettingsCommunication() {
   const icsUrl = denied ? null : loaderResult.icsUrl;
   const googleCalendarConnected = denied ? false : loaderResult.googleCalendarConnected;
   const secrets = denied
-    ? { RESEND_API_KEY: "", SENDGRID_API_KEY: "", POSTMARK_SERVER_TOKEN: "", MAILGUN_API_KEY: "", MAILGUN_DOMAIN: "", GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "", TWILIO_ACCOUNT_SID: "", TWILIO_AUTH_TOKEN: "", TWILIO_FROM_NUMBER: "", TELNYX_API_KEY: "", TELNYX_FROM_NUMBER: "" }
+    ? { RESEND_API_KEY: "", SENDGRID_API_KEY: "", POSTMARK_SERVER_TOKEN: "", MAILGUN_API_KEY: "", MAILGUN_DOMAIN: "", GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "", TWILIO_ACCOUNT_SID: "", TWILIO_AUTH_TOKEN: "", TWILIO_FROM_NUMBER: "", TELNYX_API_KEY: "", TELNYX_FROM_NUMBER: "", TELNYX_PUBLIC_KEY: "" }
     : loaderResult.secrets;
   const smsConfig = denied ? { mode: "platform" as const, effectiveSource: "none" as const } : loaderResult.smsConfig as { mode: "platform" | "own" | "managed_shared" | "managed_dedicated"; effectiveSource: "platform" | "own" | "none" };
   const companyPhone = denied ? "" : loaderResult.companyPhone;

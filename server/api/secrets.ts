@@ -48,6 +48,10 @@ export const INTEGRATION_SECRET_KEYS = [
     // Task 8 (#196) — Telnyx BYO provider credentials.
     'TELNYX_API_KEY',
     'TELNYX_FROM_NUMBER',
+    // #wh1 — Telnyx base64 Ed25519 PUBLIC key for inbound webhook verification.
+    // No format gate (Ed25519 base64 keys have no stable public prefix, like
+    // TELNYX_API_KEY). Encrypted at rest exactly like every other key here.
+    'TELNYX_PUBLIC_KEY',
     // #195 — email BYO provider credentials (SendGrid / Postmark / Mailgun).
     // RESEND_API_KEY above covers the Resend path.
     'SENDGRID_API_KEY',

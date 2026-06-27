@@ -76,6 +76,7 @@ export function SmsDeliveryPanel({
     TWILIO_FROM_NUMBER: string;
     TELNYX_API_KEY: string;
     TELNYX_FROM_NUMBER: string;
+    TELNYX_PUBLIC_KEY: string;
   };
   secretFieldError: (name: string) => string | undefined;
   secretFormError: (intent: string) => string | null;
