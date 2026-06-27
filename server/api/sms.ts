@@ -36,8 +36,6 @@ import { TwilioClient } from '../lib/messaging/twilio';
 import { ensureClientContact } from '../lib/sms/ensure-client-contact';
 import { resolveOptinToken } from '../lib/sms/optin-token';
 import { normalizeE164 } from '../lib/sms/phone';
-import { validateTwilioSignature } from '../lib/sms/send-sms';
-import { verifyTelnyxSignature } from '../lib/messaging/telnyx';
 import { loadProviderForTenant, resolveTwilioSource } from '../lib/sms/resolve-twilio';
 import { loadTenantSecrets } from '../lib/secrets-cache';
 import { maybeMetering } from '../services/metering.service';
@@ -45,9 +43,12 @@ import {
     SmsOptinResolveSchema, SmsOptinConfirmSchema, SmsAttestSchema, SmsTestSendSchema, SmsConsentQuerySchema,
     SmsComplianceResponseSchema,
 } from '../lib/validations/sms.schema';
-import { getBaseUrl } from '../lib/url';
+import { registerSmsStatusRoute, recordSentStatus, verifyInboundSignature } from '../lib/sms/delivery-status';
 import type { Context } from 'hono';
 import type { HonoConfig } from '../types/hono';
+
+// Re-export for the existing send-site import path (server/api/sms#recordSentStatus).
+export { recordSentStatus };
 
 // STOP-set → revoke; START-set → grant; HELP-set → informational auto-reply
 // (TCPA/CTIA + Twilio toll-free verification require HELP to respond); anything
@@ -186,6 +187,11 @@ smsPublicRoutes.post('/sms/inbound/:tenant', async (c) => {
     return handleInbound(c, { provider: 'twilio', secret: authToken, scopeTenantId: tenant.id });
 });
 
+// Delivery-status webhook (WH-2) — POST /sms/status/:tenant. Verify → dedup →
+// parse → last-writer-wins upsert. Implementation lives in lib/sms/delivery-status
+// (keeps this router file under the file-size cap; recordSentStatus is re-exported).
+registerSmsStatusRoute(smsPublicRoutes);
+
 /**
  * Shared inbound handler. Verifies the provider's inbound signature, extracts
  * From/Body (Twilio form params, or Telnyx JSON payload), then applies
@@ -200,35 +206,15 @@ async function handleInbound(
     c: Context<HonoConfig>,
     opts: { provider: 'twilio' | 'telnyx'; secret: string; scopeTenantId: string | null },
 ): Promise<Response> {
-    if (!opts.secret) return c.text('', 403);
-
-    // Read the body ONCE as raw text — the stream is single-consume, and Telnyx
-    // signs the exact raw bytes.
-    let rawBody: string;
-    try { rawBody = await c.req.text(); } catch { return c.text('', 400); }
-
-    // Lower-cased headers for the provider-agnostic signature context.
-    const headers: Record<string, string> = {};
-    c.req.raw.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
-    const url = `${getBaseUrl(c)}${c.req.path}`;
-    // Optional test seam: pin the anti-replay clock for Telnyx verification.
-    const nowMs = (c.env as { TELNYX_VERIFY_NOW_MS?: number }).TELNYX_VERIFY_NOW_MS;
+    const verified = await verifyInboundSignature(c, opts);
+    if (!verified.ok) return c.text('', verified.status);
+    const { rawBody, params } = verified;
 
     let from: string | null;
     let cmd: string;
     let isHelp: boolean;
 
     if (opts.provider === 'telnyx') {
-        // Telnyx Ed25519 webhook — verify over the raw body, then parse JSON.
-        const ok = await verifyTelnyxSignature(
-            opts.secret,
-            headers['telnyx-timestamp'] ?? '',
-            rawBody,
-            headers['telnyx-signature-ed25519'] ?? '',
-            nowMs,
-        );
-        if (!ok) return c.text('', 403);
-
         // Parse defensively — a malformed/missing field is acknowledged (200) and
         // never throws. Telnyx does not consume TwiML; a plain 200 is correct.
         let parsed: unknown;
@@ -246,15 +232,6 @@ async function handleInbound(
         // copy is a Twilio/TwiML-specific affordance.)
         if (isHelp) return c.text('', 200);
     } else {
-        // Twilio form-encoded webhook — verify the HMAC over url + sorted params.
-        // Parse params from the raw body (equivalent to the prior formData() read
-        // for application/x-www-form-urlencoded; byte-identical signature input).
-        const params: Record<string, string> = {};
-        for (const [k, v] of new URLSearchParams(rawBody)) params[k] = v;
-        const presented = headers['x-twilio-signature'] ?? '';
-        const ok = await validateTwilioSignature(opts.secret, url, params, presented);
-        if (!ok) return c.text('', 403);
-
         from = normalizeE164(params.From ?? '');
         cmd = (params.Body ?? '').trim().toUpperCase();
         isHelp = HELP_WORDS.has(cmd);
@@ -428,6 +405,9 @@ export const smsAdminRoutes = createApiRouter()
         if (resolved.from) sendArgs.from = resolved.from;
         const res = await resolved.provider.sendMessage(sendArgs);
         if (res.ok) {
+            // WH-2 — seed a 'sent' delivery-status row for the returned message id
+            // (non-fatal; absent id is skipped). The status callback advances it.
+            await recordSentStatus(drizzle(c.env.DB), tenantId, res.id, Date.now());
             const metering = maybeMetering(c.env);
             if (metering) {
                 const { currentPeriodKey } = await import('../lib/usage/period');

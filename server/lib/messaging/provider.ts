@@ -35,14 +35,17 @@ export interface MessagingProvider {
     /**
      * Send an outbound SMS message.
      * Supply either `from` (a Twilio phone number) or `messagingServiceSid` — not both.
-     * Returns `{ ok: true }` on success; `{ ok: false; error: string }` on provider failure.
+     * Returns `{ ok: true; id? }` on success (`id` = the provider message id —
+     * Twilio message SID / Telnyx message id — used to correlate later delivery-
+     * status callbacks; omitted when the provider response lacks it). Returns
+     * `{ ok: false; error: string }` on provider failure.
      */
     sendMessage(args: {
         from?: string;
         to: string;
         body: string;
         messagingServiceSid?: string;
-    }): Promise<{ ok: true } | { ok: false; error: string }>;
+    }): Promise<{ ok: true; id?: string } | { ok: false; error: string }>;
 
     /**
      * Validate an inbound webhook signature from the provider.

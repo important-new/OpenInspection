@@ -57,6 +57,13 @@
       "when": 1782493904133,
       "tag": "0007_open_young_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1782532196644,
+      "tag": "0008_flaky_komodo",
+      "breakpoints": true
     }
   ]
 }

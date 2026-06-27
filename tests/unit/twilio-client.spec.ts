@@ -11,7 +11,8 @@ describe('TwilioClient.messages.create', () => {
 
         const res = await client.messages.create({ from: '+15550000000', to: '+15551112222', body: 'hi' });
 
-        expect(res).toEqual({ ok: true });
+        // The provider message id (Twilio `sid`) is surfaced for delivery-status correlation (#wh2).
+        expect(res).toEqual({ ok: true, id: 'SM1' });
         const [url, init] = fetchMock.mock.calls[0];
         expect(url).toBe('https://api.twilio.com/2010-04-01/Accounts/AC123/Messages.json');
         expect((init.headers as Record<string, string>).Authorization).toBe(`Basic ${btoa('AC123:tok')}`);
