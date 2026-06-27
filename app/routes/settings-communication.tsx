@@ -15,6 +15,7 @@ import { EmailDeliveryPanel } from "~/components/settings/EmailDeliveryPanel";
 import { EmailSecretsPanel } from "~/components/settings/EmailSecretsPanel";
 import { SmsDeliveryPanel, type SmsModeValue } from "~/components/settings/SmsDeliveryPanel";
 import { GoogleCalendarPanel } from "~/components/settings/GoogleCalendarPanel";
+import { ManagedComplianceWizard, type ManagedComplianceData } from "~/components/settings/ManagedComplianceWizard";
 
 export function meta() {
   return [{ title: "Communication - Settings - OpenInspection" }];
@@ -70,15 +71,32 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       ? (tenantCfgBody!.data!.emailByoProvider as "resend" | "sendgrid" | "postmark" | "mailgun")
       : "resend";
 
-  // SMS compliance status (BYO Twilio toll-free verification). Fails gracefully
-  // to not_started so the UI always has a defined value to render.
+  // SMS compliance status (BYO Twilio toll-free verification + managed sub-statuses).
+  // Fails gracefully to not_started so the UI always has a defined value to render.
   type ComplianceStatus = "not_started" | "profile_pending" | "brand_pending" | "campaign_pending" | "tfv_pending" | "approved" | "rejected";
   const smsComplianceBody = smsComplianceRes?.ok
-    ? ((await smsComplianceRes.json()) as { data?: { complianceStatus?: ComplianceStatus | null; rejectionReason?: string | null } })
+    ? ((await smsComplianceRes.json()) as {
+        data?: {
+          complianceStatus?: ComplianceStatus | null;
+          rejectionReason?: string | null;
+          customerProfileStatus?: string | null;
+          brandStatus?: string | null;
+          campaignStatus?: string | null;
+          tfvStatus?: string | null;
+          messagingServiceSid?: string | null;
+          provisionedNumber?: string | null;
+        };
+      })
     : null;
-  const compliance = {
+  const compliance: ManagedComplianceData = {
     complianceStatus: (smsComplianceBody?.data?.complianceStatus ?? "not_started") as ComplianceStatus,
     rejectionReason: smsComplianceBody?.data?.rejectionReason ?? null,
+    customerProfileStatus: smsComplianceBody?.data?.customerProfileStatus ?? null,
+    brandStatus: smsComplianceBody?.data?.brandStatus ?? null,
+    campaignStatus: smsComplianceBody?.data?.campaignStatus ?? null,
+    tfvStatus: smsComplianceBody?.data?.tfvStatus ?? null,
+    messagingServiceSid: smsComplianceBody?.data?.messagingServiceSid ?? null,
+    provisionedNumber: smsComplianceBody?.data?.provisionedNumber ?? null,
   };
 
   return {
@@ -318,6 +336,63 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { intent, ok: true, error: null, field: null, test: { sent: true } };
   }
 
+  // ─── Managed SMS compliance provisioning (SaaS-only, Task 9) ───────────────
+  if (intent === "sms-compliance-provision" || intent === "sms-compliance-resubmit") {
+    // Gate: SaaS only. The server also enforces this but we guard early in the
+    // action to return a clean error before making any API call.
+    const isSaasAction = (() => {
+      // The action does not have access to session context; SaaS is enforced by
+      // the API endpoint itself (returns 403 in standalone mode). We proceed
+      // and surface any 403 as a user-facing error.
+      return true; // let the API enforce — returns 403 if standalone
+    })();
+    if (!isSaasAction) {
+      return { intent, ok: false as const, error: "Managed SMS is only available on the SaaS platform.", field: null, test: null };
+    }
+
+    // Validate required business-info fields.
+    const legalName = String(form.get("legalName") ?? "").trim();
+    const address = String(form.get("address") ?? "").trim();
+    const repName = String(form.get("repName") ?? "").trim();
+    const email = String(form.get("email") ?? "").trim();
+    const areaCode = String(form.get("areaCode") ?? "").trim();
+    const rawChannel = form.get("channel");
+    const channel: "sp10dlc" | "tollfree" = rawChannel === "tollfree" ? "tollfree" : "sp10dlc";
+
+    if (!legalName) return { intent, ok: false as const, error: "Legal name is required.", field: "legalName", test: null };
+    if (!address) return { intent, ok: false as const, error: "Business address is required.", field: "address", test: null };
+    if (!repName) return { intent, ok: false as const, error: "Representative name is required.", field: "repName", test: null };
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { intent, ok: false as const, error: "Enter a valid email address.", field: "email", test: null };
+    }
+
+    const businessInfo = {
+      legalName,
+      address,
+      repName,
+      ...(email ? { email } : {}),
+      ...(areaCode ? { areaCode } : {}),
+    };
+
+    const endpoint = intent === "sms-compliance-provision"
+      ? api.smsAdmin.sms.compliance.provision.$post({ json: { businessInfo, channel } })
+      : api.smsAdmin.sms.compliance.resubmit.$post({ json: { businessInfo, channel } });
+
+    const res = await endpoint;
+    if (!res.ok) {
+      const errBody = (await res.json().catch(() => null)) as { error?: string } | null;
+      const msg = errBody?.error === "managed_provision_unavailable"
+        ? "Managed SMS provisioning is not available in standalone mode."
+        : errBody?.error === "managed_not_configured"
+          ? "Managed Twilio credentials are not configured on this deployment."
+          : errBody?.error ?? (intent === "sms-compliance-provision"
+            ? "Failed to start provisioning."
+            : "Failed to resubmit.");
+      return { intent, ok: false as const, error: msg, field: null, test: null };
+    }
+    return { intent, ok: true as const, error: null, field: null, test: null };
+  }
+
   if (intent === "toggle-template") {
     const trigger = String(form.get("trigger") || "");
     const enabled = form.get("enabled") === "true";
@@ -352,7 +427,18 @@ export default function SettingsCommunication() {
   const companyPhone = denied ? "" : loaderResult.companyPhone;
   const byoProvider = denied ? ("twilio" as const) : loaderResult.byoProvider;
   const emailByoProvider = denied ? ("resend" as const) : loaderResult.emailByoProvider;
-  const compliance = denied ? { complianceStatus: "not_started" as const, rejectionReason: null } : loaderResult.compliance;
+  const compliance: ManagedComplianceData = denied
+    ? {
+        complianceStatus: "not_started" as const,
+        rejectionReason: null,
+        customerProfileStatus: null,
+        brandStatus: null,
+        campaignStatus: null,
+        tfvStatus: null,
+        messagingServiceSid: null,
+        provisionedNumber: null,
+      }
+    : loaderResult.compliance;
   const actionData = useActionData<typeof action>();
   const nav = useNavigation();
   const resendTestFetcher = useFetcher<typeof action>();
@@ -404,6 +490,10 @@ export default function SettingsCommunication() {
     nav.state !== "idle" && nav.formData?.get("intent") === "save-sms-secrets";
   const savingSmsConfig =
     nav.state !== "idle" && nav.formData?.get("intent") === "save-sms-config";
+  const savingCompliance =
+    nav.state !== "idle" &&
+    (nav.formData?.get("intent") === "sms-compliance-provision" ||
+      nav.formData?.get("intent") === "sms-compliance-resubmit");
 
   // Inbound webhook URL: BYO tenants (own mode) and standalone deployments own STOP/START.
   // Managed-number tenants don't set up their own inbound webhook.
@@ -525,6 +615,43 @@ export default function SettingsCommunication() {
         compliance={compliance}
         byoProvider={byoProvider}
       />
+
+      {/* Managed dedicated — onboarding wizard + status timeline (SaaS only) */}
+      {isSaas && smsMode === "managed_dedicated" && (
+        <section className="bg-ih-bg-card border border-ih-border rounded-lg p-5 space-y-4">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.15em] text-ih-fg-3">Dedicated number setup</h3>
+          <p className="text-[13px] text-ih-fg-3">
+            Provision your own dedicated local or toll-free number managed by the platform.
+            Submit your business information below to begin TCR / TFV registration.
+          </p>
+          <ManagedComplianceWizard
+            compliance={compliance}
+            actionError={
+              actionData &&
+              "intent" in actionData &&
+              (actionData.intent === "sms-compliance-provision" || actionData.intent === "sms-compliance-resubmit") &&
+              "ok" in actionData &&
+              !actionData.ok
+                ? actionData.error ?? null
+                : null
+            }
+            saving={savingCompliance}
+          />
+        </section>
+      )}
+
+      {/* Managed shared — minimal status note (SaaS only, no per-tenant form) */}
+      {isSaas && smsMode === "managed_shared" && (
+        <section className="bg-ih-bg-card border border-ih-border rounded-lg p-5">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.15em] text-ih-fg-3 mb-2">Shared pool status</h3>
+          <p className="text-[13px] text-ih-fg-3">
+            Your messages are sent from a platform-managed shared number. No additional setup is required.
+          </p>
+          {compliance.complianceStatus === "approved" && (
+            <p className="text-[12px] text-ih-ok-fg font-medium mt-2">Platform pool: Active</p>
+          )}
+        </section>
+      )}
 
       {/* Email templates */}
       <section className="space-y-4">

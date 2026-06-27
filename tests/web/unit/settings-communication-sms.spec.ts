@@ -104,13 +104,14 @@ describe('settings-communication loader — SMS compliance status (Task 5)', () 
     it('surfaces complianceStatus + rejectionReason from the compliance endpoint', async () => {
         const data = await loader(loaderArgs());
         expect(getSmsCompliance).toHaveBeenCalled();
-        expect(data.compliance).toEqual({ complianceStatus: 'approved', rejectionReason: null });
+        // toMatchObject: Task 9 extended compliance with sub-status fields; check core fields only here.
+        expect(data.compliance).toMatchObject({ complianceStatus: 'approved', rejectionReason: null });
     });
 
     it('degrades compliance to not_started when the compliance call fails', async () => {
         getSmsCompliance.mockResolvedValue(jsonRes(null, false));
         const data = await loader(loaderArgs());
-        expect(data.compliance).toEqual({ complianceStatus: 'not_started', rejectionReason: null });
+        expect(data.compliance).toMatchObject({ complianceStatus: 'not_started', rejectionReason: null });
     });
 
     it('passes rejectionReason through when status is rejected', async () => {
@@ -118,7 +119,7 @@ describe('settings-communication loader — SMS compliance status (Task 5)', () 
             data: { mode: 'own', complianceStatus: 'rejected', rejectionReason: 'Website URL does not match business.', tollfree: [] },
         }));
         const data = await loader(loaderArgs());
-        expect(data.compliance).toEqual({ complianceStatus: 'rejected', rejectionReason: 'Website URL does not match business.' });
+        expect(data.compliance).toMatchObject({ complianceStatus: 'rejected', rejectionReason: 'Website URL does not match business.' });
     });
 });
 
