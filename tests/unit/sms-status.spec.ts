@@ -99,13 +99,13 @@ describe('WH-2 Twilio delivery-status receiver (POST /sms/status/:tenant)', () =
         expect(row?.status).toBe('delivered');
     });
 
-    it('a later failed event overwrites delivered (last-writer-wins)', async () => {
-        const sid = 'SM_lww';
+    it('status advances forward (sent → delivered) but a terminal status is never downgraded', async () => {
+        const sid = 'SM_rank';
         const url = `${APP_BASE_URL}/api/public/sms/status/acme`;
         const app = buildApp(db);
 
         // Distinct event ids come from the differing MessageStatus (SID:status), so
-        // neither call is deduped. Advance the clock so the second event is newer.
+        // none is deduped. Clock advances so each is the newest arrival.
         const send = async (status: string, nowMs: number) => {
             const params = { MessageSid: sid, MessageStatus: status };
             const sig = await signParams(PLATFORM_TOKEN, url, params);
@@ -116,11 +116,16 @@ describe('WH-2 Twilio delivery-status receiver (POST /sms/status/:tenant)', () =
                 body: twilioForm(params),
             }, env, makeExecCtx());
         };
-        await send('delivered', 1_000);
-        const r2 = await send('failed', 2_000);
-        expect(r2.status).toBe(200);
-        const row = await statusRow(sid);
-        expect(row?.status).toBe('failed');
+        // Forward progression: sent → delivered advances.
+        await send('sent', 1_000);
+        await send('delivered', 2_000);
+        expect((await statusRow(sid))?.status).toBe('delivered');
+
+        // Out-of-order: a later `failed` callback must NOT downgrade a terminal
+        // `delivered` (status-rank guard — delivered is final).
+        const r3 = await send('failed', 3_000);
+        expect(r3.status).toBe(200);
+        expect((await statusRow(sid))?.status).toBe('delivered');
     });
 
     it('an OLDER event does not overwrite a newer status', async () => {

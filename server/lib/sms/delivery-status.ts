@@ -74,12 +74,27 @@ export async function verifyInboundSignature(
     return ok ? { ok: true, rawBody, params } : { ok: false, status: 403 };
 }
 
+type DeliveryStatus = 'queued' | 'sent' | 'delivered' | 'undelivered' | 'failed';
+
 type ParsedStatus = {
     eventId: string;
     providerMessageId: string;
-    status: 'queued' | 'sent' | 'delivered' | 'undelivered' | 'failed';
+    status: DeliveryStatus;
     errorCode: string | null;
 };
+
+/**
+ * Status progression rank for the last-writer-wins guard. `delivered`,
+ * `undelivered`, and `failed` are TERMINAL (a delivery either completed or
+ * permanently failed) and share the top rank; once recorded they are never
+ * overwritten. Lower ranks (`queued` < `sent`) only ever advance forward, so an
+ * out-of-order callback (e.g. a delayed `sent` arriving after `delivered`)
+ * cannot downgrade the status.
+ */
+const STATUS_RANK: Record<DeliveryStatus, number> = {
+    queued: 0, sent: 1, delivered: 2, undelivered: 2, failed: 2,
+};
+const TERMINAL_STATUSES: ReadonlySet<DeliveryStatus> = new Set(['delivered', 'undelivered', 'failed']);
 
 /**
  * Twilio status callback (form): MessageSid → providerMessageId; MessageStatus is
@@ -120,9 +135,15 @@ function parseTelnyxStatus(rawBody: string): ParsedStatus | null {
     let status: ParsedStatus['status'];
     switch (rawStatus) {
         case 'delivered': status = 'delivered'; break;
-        case 'delivery_failed': status = 'failed'; break;
         case 'sent': status = 'sent'; break;
-        default: status = 'sent'; break; // unrecognized → keep 'sent' (don't crash)
+        case 'queued': status = 'queued'; break;
+        default:
+            // Telnyx negative outcomes (delivery_failed, sending_failed, expired,
+            // rejected, webhook_failed, …) normalize to `failed` so a non-delivery
+            // is never silently recorded as `sent`. Any other unknown finalize
+            // status keeps `sent` (don't crash).
+            status = /fail|reject|expir|undeliv/i.test(rawStatus) ? 'failed' : 'sent';
+            break;
     }
     const errorCode = status === 'failed' && rawStatus ? rawStatus : null;
     const evId = typeof data.id === 'string' && data.id ? data.id : `${messageId}:${status}`;
@@ -139,7 +160,7 @@ function parseTelnyxStatus(rawBody: string): ParsedStatus | null {
 async function upsertDeliveryStatus(
     db: DrizzleD1Database, tenantId: string, parsed: ParsedStatus, nowMs: number,
 ): Promise<void> {
-    const existing = await db.select({ updatedAt: smsDeliveryStatus.updatedAt })
+    const existing = await db.select({ status: smsDeliveryStatus.status, updatedAt: smsDeliveryStatus.updatedAt })
         .from(smsDeliveryStatus)
         .where(and(eq(smsDeliveryStatus.tenantId, tenantId), eq(smsDeliveryStatus.providerMessageId, parsed.providerMessageId)))
         .get();
@@ -150,8 +171,14 @@ async function upsertDeliveryStatus(
         }).run();
         return;
     }
+    // Status-rank guard (out-of-order safety): a terminal status is final, and the
+    // status never moves backward in rank. Equal rank falls back to arrival time so
+    // a genuine retry of the same stage still refreshes errorCode/updatedAt.
+    const existingStatus = existing.status as DeliveryStatus;
+    if (TERMINAL_STATUSES.has(existingStatus)) return;
+    if (STATUS_RANK[parsed.status] < STATUS_RANK[existingStatus]) return;
     const storedMs = existing.updatedAt instanceof Date ? existing.updatedAt.getTime() : Number(existing.updatedAt);
-    if (nowMs < storedMs) return; // older event — do not overwrite a newer status
+    if (STATUS_RANK[parsed.status] === STATUS_RANK[existingStatus] && nowMs < storedMs) return;
     await db.update(smsDeliveryStatus)
         .set({ status: parsed.status, errorCode: parsed.errorCode, updatedAt: new Date(nowMs) })
         .where(and(eq(smsDeliveryStatus.tenantId, tenantId), eq(smsDeliveryStatus.providerMessageId, parsed.providerMessageId)))
