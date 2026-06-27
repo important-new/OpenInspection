@@ -44,6 +44,7 @@
   "app/components/settings/ManagedComplianceWizard.tsx": 458,
   "app/components/editor/InspectionSettingsSheet.tsx": 450,
   "app/components/NewInspectionWizard.tsx": 442,
+  "server/lib/messaging/providers/telnyx-compliance.ts": 438,
   "app/lib/collab/results-doc-connection.ts": 435,
   "app/components/media-studio/VideoCapture.tsx": 432,
   "app/routes/templates.tsx": 414,

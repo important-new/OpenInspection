@@ -58,6 +58,11 @@ interface TelnyxNumberOrderResult {
     data?: { id?: string; phone_numbers?: Array<{ id?: string; phone_number?: string }> };
 }
 interface TelnyxPhoneNumberCampaignResult { phoneNumber?: string; assignmentStatus?: string }
+// VerificationRequestEgress is flat (no .data wrapper). Both `id` and
+// `verificationRequestId` are required on the real type; we read
+// `verificationRequestId` as the stable semantic identifier for the TFV request
+// (persisted as `tfvSid`). `id` is the internal DB record id.
+interface TelnyxTfvResult { id?: string; verificationRequestId?: string; verificationStatus?: string }
 
 export interface TelnyxComplianceClient {
     messaging10dlc: {
@@ -85,6 +90,13 @@ export interface TelnyxComplianceClient {
             phone_numbers: Array<{ phone_number: string }>;
             messaging_profile_id?: string;
         }): Promise<TelnyxNumberOrderResult>;
+    };
+    messagingTollfree: {
+        verification: {
+            requests: {
+                create(body: Record<string, unknown>): Promise<TelnyxTfvResult>;
+            };
+        };
     };
 }
 
@@ -134,8 +146,7 @@ export class TelnyxComplianceProvider implements ComplianceProvider {
         const { tenantId, channel, businessInfo, statusCallbackUrl } = input;
 
         if (channel === 'tollfree') {
-            // Telnyx toll-free verification path — Task 2.
-            throw new Error('tollfree not implemented');
+            return this.provisionTollfree(input, store);
         }
 
         let row = (await store.load(tenantId)) ?? (await store.init(tenantId, this.id));
@@ -278,6 +289,128 @@ export class TelnyxComplianceProvider implements ComplianceProvider {
         // A success with no phoneNumber echoed back is not a valid assignment —
         // surface it rather than mark senderAttached on a non-assignment.
         if (!assigned.phoneNumber) throw new Error('Telnyx phoneNumberCampaigns.create returned no phoneNumber');
+    }
+
+    /**
+     * Idempotent toll-free verification orchestrator. Step ordering:
+     *
+     *   messaging profile → toll-free number (buy) → TFV submission
+     *
+     * Each step is guarded by its persisted id (resume-safe). The sp10dlc steps
+     * (brand/vetting/campaign/assign) do NOT run on this path. Final
+     * complianceStatus after a full run = 'tfv_pending'. 'approved' is set
+     * asynchronously by webhook / sync poll (Task 3), never here.
+     *
+     * NOTE: businessInfo is intentionally sparse for LIVE registration (no EIN /
+     * full structured address / contact phone). Literal defaults are used where
+     * businessInfo cannot supply the required fields — this is a tracked
+     * LIVE-prerequisite gap, not a concern for orchestration correctness.
+     */
+    private async provisionTollfree(input: ProvisionInput, store: ComplianceStateStore): Promise<ComplianceSnapshot> {
+        const { tenantId, businessInfo, statusCallbackUrl } = input;
+        let row = (await store.load(tenantId)) ?? (await store.init(tenantId, this.id));
+
+        // Step 1: messaging profile — the sending container the bought toll-free
+        // number is ordered into. Same API call as sp10dlc Step 4.
+        if (!row.messagingResourceSid) {
+            const mp = await this.client.messagingProfiles.create({
+                name: businessInfo.legalName,
+                whitelisted_destinations: [BRAND_COUNTRY],
+            });
+            const mpId = mp.data?.id;
+            if (!mpId) throw new Error('Telnyx messagingProfiles.create returned no id');
+            row = await store.persist(tenantId, { messagingResourceSid: mpId });
+        }
+
+        // Step 2: buy a toll-free number (guarded on provisionedNumberSid). Persists
+        // BEFORE returning so a crash after buy resumes by advancing to TFV, not
+        // re-buying — same invariant as sp10dlc buy/assign split.
+        if (!row.provisionedNumberSid) {
+            row = await this.buyTollfreeNumber(tenantId, row.messagingResourceSid!, store);
+        }
+
+        // Step 3: submit toll-free verification. Guarded on tfvSid so a resume does
+        // not re-submit. `verificationRequestId` is the stable semantic identifier
+        // on the flat VerificationRequestEgress response (not the internal .id field).
+        if (!row.tfvSid) {
+            const repParts = (businessInfo.repName ?? '').trim().split(/\s+/);
+            const firstName = repParts[0] ?? '';
+            const lastName = repParts.length > 1 ? repParts.slice(1).join(' ') : firstName;
+
+            const tfv = await this.client.messagingTollfree.verification.requests.create({
+                businessName: businessInfo.legalName,
+                businessAddr1: businessInfo.address,
+                // Structured city/state/zip not available from businessInfo — literal
+                // defaults used here; LIVE registration requires enrichment before submit.
+                businessCity: 'Austin',
+                businessState: 'Texas',
+                businessZip: '78701',
+                businessContactEmail: businessInfo.email ?? '',
+                businessContactFirstName: firstName,
+                businessContactLastName: lastName,
+                // Use the bought toll-free line as the business contact number — the
+                // only E.164 we have at this stage. LIVE prerequisite: supply a direct
+                // contact phone via businessInfo enrichment.
+                businessContactPhone: row.provisionedNumber!,
+                corporateWebsite: 'https://inspectorhub.io',
+                messageVolume: '10,000',
+                useCase: 'Real Estate Services',
+                useCaseSummary: 'Inspection scheduling, report delivery, and follow-up notifications for residential and commercial property inspections.',
+                optInWorkflow: 'Clients opt in via the inspection booking form when scheduling a property inspection.',
+                optInWorkflowImageURLs: [],
+                productionMessageContent: 'Your inspection report for [address] is now available. View it at: [link]',
+                additionalInformation: '',
+                phoneNumbers: [{ phoneNumber: row.provisionedNumber! }],
+                ...(statusCallbackUrl ? { webhookUrl: statusCallbackUrl } : {}),
+            });
+
+            const tfvSid = tfv.verificationRequestId;
+            if (!tfvSid) throw new Error('Telnyx TFV create returned no verificationRequestId');
+            row = await store.persist(tenantId, {
+                tfvSid,
+                complianceStatus: 'tfv_pending',
+            });
+        }
+
+        return { complianceStatus: row.complianceStatus, rejectionReason: row.rejectionReason ?? null };
+    }
+
+    /**
+     * Search a US toll-free SMS-capable number and order it into the messaging
+     * profile, then persist (provisionedNumber, provisionedNumberSid) BEFORE
+     * returning — so a crash after the order resumes by submitting TFV, not
+     * re-buying. Mirrors buyNumber but filters phone_number_type: toll_free and
+     * omits national_destination_code (toll-free numbers have no area code).
+     */
+    private async buyTollfreeNumber(
+        tenantId: string,
+        messagingProfileId: string,
+        store: ComplianceStateStore,
+    ): Promise<ComplianceRow> {
+        const available = await this.client.availablePhoneNumbers.list({
+            filter: {
+                country_code: BRAND_COUNTRY,
+                phone_number_type: 'toll_free',
+                features: ['SMS'],
+                limit: 1,
+            },
+        });
+        const phone = available.data?.[0]?.phone_number;
+        if (!phone) throw new Error('No available Telnyx toll-free numbers');
+
+        const order = await this.client.numberOrders.create({
+            phone_numbers: [{ phone_number: phone }],
+            messaging_profile_id: messagingProfileId,
+        });
+        const ordered = order.data?.phone_numbers?.[0];
+        const numberSid = ordered?.id ?? order.data?.id;
+        const e164 = ordered?.phone_number ?? phone;
+        if (!numberSid) throw new Error('Telnyx numberOrders.create returned no phone-number id for toll-free');
+
+        return store.persist(tenantId, {
+            provisionedNumber: e164,
+            provisionedNumberSid: numberSid,
+        });
     }
 
     // --- interface methods stubbed until later tasks ------------------------

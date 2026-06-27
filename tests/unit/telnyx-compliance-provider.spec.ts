@@ -31,6 +31,7 @@ interface FakeOpts {
     capturedBrand?: { body?: Record<string, unknown> };
     capturedCampaign?: { body?: Record<string, unknown> };
     capturedAssign?: { body?: Record<string, unknown> };
+    capturedTfv?: { body?: Record<string, unknown> };
 }
 
 function fakeTelnyx(calls: string[], opts: FakeOpts = {}): TelnyxComplianceClient {
@@ -78,6 +79,24 @@ function fakeTelnyx(calls: string[], opts: FakeOpts = {}): TelnyxComplianceClien
                 calls.push('buy');
                 opts.onBuy?.();
                 return { data: { id: 'ORD1', phone_numbers: [{ id: 'PNUM1', phone_number: '+15551110000' }] } };
+            },
+        },
+        messagingTollfree: {
+            verification: {
+                requests: {
+                    create: async (body: Record<string, unknown>) => {
+                        calls.push('tfvCreate');
+                        if (opts.capturedTfv) opts.capturedTfv.body = body;
+                        // Mirror the REAL VerificationRequestEgress shape (flat, not wrapped in .data).
+                        // Both id and verificationRequestId are required on the real response; the
+                        // provider reads verificationRequestId as the tfvSid (the semantic request ID).
+                        return {
+                            id: 'TFV_DB_ID',
+                            verificationRequestId: 'TFV_REQ1',
+                            verificationStatus: 'In Progress',
+                        };
+                    },
+                },
             },
         },
     };
@@ -219,13 +238,80 @@ describe('TelnyxComplianceProvider.provision (sp10dlc)', () => {
 });
 
 describe('TelnyxComplianceProvider.provision (tollfree)', () => {
-    it('throws "tollfree not implemented" (Task 2)', async () => {
+    it('full tollfree run persists messagingResourceSid + provisionedNumber + tfvSid and ends tfv_pending', async () => {
         const fx = await freshDb();
-        const provider = new TelnyxComplianceProvider(fakeTelnyx([]));
+        const calls: string[] = [];
+        const provider = new TelnyxComplianceProvider(fakeTelnyx(calls));
         const store = new D1ComplianceStateStore({} as D1Database);
-        await expect(
-            provider.provision({ tenantId: 'tf1', channel: 'tollfree', businessInfo: INFO }, store),
-        ).rejects.toThrow('tollfree not implemented');
+        const snap = await provider.provision(
+            { tenantId: 'tf1', channel: 'tollfree', businessInfo: INFO }, store,
+        );
+        expect(snap.complianceStatus).toBe('tfv_pending');
+        const row = await readRow(fx, 'tf1');
+        expect(row?.messagingResourceSid).toBe('MP1');
+        expect(row?.provisionedNumber).toBe('+15551110000');
+        expect(row?.provisionedNumberSid).toBe('PNUM1');
+        // verificationRequestId (not .id) is the semantic TFV request identifier.
+        expect(row?.tfvSid).toBe('TFV_REQ1');
+        expect(row?.complianceStatus).toBe('tfv_pending');
+        // 10DLC-only steps must NOT run on the tollfree path.
+        expect(calls).not.toContain('brand');
+        expect(calls).not.toContain('vetting');
+        expect(calls).not.toContain('campaign');
+        expect(calls).not.toContain('assign');
+        // Tollfree path steps MUST run.
+        expect(calls).toContain('msgProfile');
+        expect(calls).toContain('search');
+        expect(calls).toContain('buy');
+        expect(calls).toContain('tfvCreate');
+        fx.sqlite.close();
+    });
+
+    it('resume: second tollfree call recreates nothing (all steps guarded by persisted ids)', async () => {
+        const fx = await freshDb();
+        const calls: string[] = [];
+        const provider = new TelnyxComplianceProvider(fakeTelnyx(calls));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await provider.provision({ tenantId: 'tf2', channel: 'tollfree', businessInfo: INFO }, store);
+        calls.length = 0;
+        await provider.provision({ tenantId: 'tf2', channel: 'tollfree', businessInfo: INFO }, store);
+        expect(calls).toEqual([]);
+        fx.sqlite.close();
+    });
+
+    it('threads statusCallbackUrl as webhookUrl on TFV submission', async () => {
+        const fx = await freshDb();
+        const capturedTfv: { body?: Record<string, unknown> } = {};
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([], { capturedTfv }));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        const url = 'https://app.example.test/api/public/telnyx/compliance-status/acme';
+        await provider.provision(
+            { tenantId: 'tf3', channel: 'tollfree', businessInfo: INFO, statusCallbackUrl: url }, store,
+        );
+        expect(capturedTfv.body?.webhookUrl).toBe(url);
+        fx.sqlite.close();
+    });
+
+    it('omits webhookUrl from TFV body when statusCallbackUrl not provided', async () => {
+        const fx = await freshDb();
+        const capturedTfv: { body?: Record<string, unknown> } = {};
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([], { capturedTfv }));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await provider.provision({ tenantId: 'tf4', channel: 'tollfree', businessInfo: INFO }, store);
+        expect('webhookUrl' in (capturedTfv.body ?? {})).toBe(false);
+        fx.sqlite.close();
+    });
+
+    it('TFV body wires businessName, phoneNumbers, and useCase correctly', async () => {
+        const fx = await freshDb();
+        const capturedTfv: { body?: Record<string, unknown> } = {};
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([], { capturedTfv }));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await provider.provision({ tenantId: 'tf5', channel: 'tollfree', businessInfo: INFO }, store);
+        expect(capturedTfv.body?.businessName).toBe('Acme Inspections');
+        expect(capturedTfv.body?.useCase).toBe('Real Estate Services');
+        // phoneNumbers carries the bought toll-free E.164
+        expect(capturedTfv.body?.phoneNumbers).toEqual([{ phoneNumber: '+15551110000' }]);
         fx.sqlite.close();
     });
 });
