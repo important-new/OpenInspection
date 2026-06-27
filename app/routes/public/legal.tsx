@@ -64,21 +64,9 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   // the brand endpoint returns a non-ok response for unknown slugs.
   const brand = await resolveTenantBrand(context, tenant);
 
-  // `resolveTenantBrand` returns EMPTY_BRAND (companyName: null) on failure.
-  // We need to distinguish "tenant not found" from "tenant found, no name set".
-  // The brand endpoint returns !ok for unknown slugs, so we check by doing a
-  // direct brand call and inspecting the raw response — but resolveTenantBrand
-  // already handles the fallback. Instead we rely on the tenant param being
-  // present; if the API returned an error (unknown slug) the companyName will
-  // be null AND we won't have a valid tenant, so we 404.
-  // We do a secondary check: if the tenant param is missing entirely → 404.
-  if (!tenant) {
-    throw new Response(null, { status: 404 });
-  }
-
-  // If we couldn't resolve a company name for this slug, treat as 404.
-  // (The brand endpoint returns ok:false for unknown slugs, which causes
-  // resolveTenantBrand to return companyName: null / EMPTY_BRAND.)
+  // `resolveTenantBrand` returns EMPTY_BRAND (companyName: null) for an unknown
+  // slug (the brand endpoint returns ok:false), so a null company name is our
+  // single "tenant not found" signal → 404.
   if (brand.companyName === null) {
     throw new Response(null, { status: 404 });
   }
