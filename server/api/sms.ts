@@ -37,6 +37,7 @@ import { ensureClientContact } from '../lib/sms/ensure-client-contact';
 import { resolveOptinToken } from '../lib/sms/optin-token';
 import { normalizeE164 } from '../lib/sms/phone';
 import { loadProviderForTenant, resolveTwilioSource } from '../lib/sms/resolve-twilio';
+import { managedSendAllowed } from '../lib/sms/managed-send-gate';
 import { loadTenantSecrets } from '../lib/secrets-cache';
 import { maybeMetering } from '../services/metering.service';
 import {
@@ -463,6 +464,21 @@ export const smsAdminRoutes = createApiRouter()
         const { to } = c.req.valid('json');
         const normalized = normalizeE164(to);
         if (!normalized) return c.json({ success: false, error: 'That phone number could not be parsed. Use an E.164 or US 10-digit format.' }, 200);
+
+        // Managed-send compliance gate — fail-closed for managed tenants until approved.
+        // Must run BEFORE the provider call so a blocked managed send makes NO Twilio call.
+        // own/platform tenants are always allowed (gate returns immediately).
+        const db = drizzle(c.env.DB);
+        let cfgRow: { smsMode: string } | null | undefined;
+        try {
+            cfgRow = await db.select({ smsMode: tenantConfigs.smsMode })
+                .from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get();
+        } catch { cfgRow = null; }
+        const gate = await managedSendAllowed(db, c.env, tenantId, cfgRow?.smsMode ?? 'platform');
+        if (!gate.allowed) {
+            logger.info('sms.test_send: blocked by managed compliance gate', { tenantId, reason: gate.reason });
+            return c.json({ success: false, error: gate.reason ?? 'managed_not_approved' }, 200);
+        }
 
         // Use the provider-aware loader so BYO Telnyx tenants route to TelnyxProvider.
         // Twilio tenants: same logic as before (loadProviderForTenant → resolveTwilio).

@@ -8,6 +8,7 @@ import { buildBaseTemplateVars } from './template-vars';
 import { createOiTemplateStore } from './template-store';
 import type { AutomationBase, HasEvaluateConditions, HasDeliverSms } from './shared';
 import type { SmsRuntime } from './sms';
+import type { ManagedSendGateEnv } from '../../lib/sms/managed-send-gate';
 
 /**
  * Delivery mixin: the cron-driven flush() that drains due automation_log rows.
@@ -22,6 +23,7 @@ export function AutomationDelivery<TBase extends Constructor<AutomationBase & Ha
             appName: string, appBaseUrl: string,
             sms?: SmsRuntime,
             batchSize = 50,
+            env?: ManagedSendGateEnv,
         ): Promise<void> {
             const db = this.getDrizzle();
             const now = new Date().toISOString();
@@ -100,7 +102,7 @@ export function AutomationDelivery<TBase extends Constructor<AutomationBase & Ha
                     // creds + consent in deliverSms; the email path delegates to the
                     // per-tenant EmailService (metering + per-tenant key resolution by construction).
                     if (log.channel === 'sms') {
-                        await this.deliverSms(db, { log, automation, inspection, tenant }, sms, appName, appHost);
+                        await this.deliverSms(db, { log, automation, inspection, tenant }, sms, appName, appHost, env);
                         continue;
                     }
 

@@ -179,6 +179,158 @@ describe('flush() — SMS branch (Track L)', () => {
     });
 });
 
+describe('flush() — managed-send compliance gate (Task 8)', () => {
+    beforeEach(() => {
+        fakeSendMessage.mockClear();
+        smsRuntime.resolveProvider.mockClear();
+        smsRuntime.resolveProvider.mockResolvedValue({
+            provider: fakeProvider, from: null, messagingServiceSid: 'MG_managed',
+        });
+        fakeSendMessage.mockResolvedValue({ ok: true });
+    });
+
+    // Seed a managed_dedicated or managed_shared tenant config row.
+    async function setSmsMode(mode: 'managed_dedicated' | 'managed_shared' | 'own' | 'platform') {
+        // upsert tenant_configs.smsMode for TENANT
+        const existing = await db.select().from(schema.tenantConfigs)
+            .where(eq(schema.tenantConfigs.tenantId, TENANT)).get();
+        if (existing) {
+            await db.update(schema.tenantConfigs).set({ smsMode: mode })
+                .where(eq(schema.tenantConfigs.tenantId, TENANT));
+        } else {
+            await db.insert(schema.tenantConfigs).values({
+                tenantId: TENANT, smsMode: mode, updatedAt: new Date(),
+            } as never);
+        }
+    }
+
+    async function seedCompliance(complianceStatus: string) {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT,
+            mode: 'managed_dedicated',
+            complianceStatus,
+            createdAt: now,
+            updatedAt: now,
+        } as never);
+    }
+
+    it('managed_dedicated with non-approved compliance → skipped (managed_not_approved), no send', async () => {
+        await setSmsMode('managed_dedicated');
+        await seedCompliance('campaign_pending');
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        // Grant consent so the consent gate does not interfere.
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        const r = await statusOf(logId);
+        expect(r?.status).toBe('skipped');
+        expect(r?.error).toBe('managed_not_approved');
+        expect(fakeSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('managed_dedicated with no compliance row → skipped (fail-closed), no send', async () => {
+        await setSmsMode('managed_dedicated');
+        // No messaging_compliance row seeded — fail-closed.
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        const r = await statusOf(logId);
+        expect(r?.status).toBe('skipped');
+        expect(r?.error).toBe('managed_not_approved');
+        expect(fakeSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('managed_dedicated with complianceStatus=approved → sends (gate passes)', async () => {
+        await setSmsMode('managed_dedicated');
+        await seedCompliance('approved');
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('managed_dedicated approved + client without consent → skipped (consent gate still applies)', async () => {
+        await setSmsMode('managed_dedicated');
+        await seedCompliance('approved');
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        // No consent granted — consent gate must block.
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        const r = await statusOf(logId);
+        expect(r?.status).toBe('skipped');
+        expect(r?.error).toMatch(/consent/);
+        expect(fakeSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('managed_shared with TWILIO_SHARED_MESSAGING_SERVICE_SID set → sends', async () => {
+        await setSmsMode('managed_shared');
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        // Pass the shared-SID env to deliverSms via flush's env arg.
+        const envWithSid = { TWILIO_SHARED_MESSAGING_SERVICE_SID: 'MG_shared_sid' };
+        // flush() → deliverSms() currently receives env as an additional arg.
+        // The cron would pass env; in tests we call flush with a patched svc.
+        // Directly call deliverSms through the service with env.
+        const db2 = svc['getDrizzle']() as import('drizzle-orm/better-sqlite3').BetterSQLite3Database<typeof schema>;
+        // Re-use the logs already created. Instead of going through flush, call deliverSms directly.
+        const logs = await db2.select().from(schema.automationLogs).all();
+        const automationRow = await db2.select().from(schema.automations).get();
+        const inspRow = await db2.select().from(schema.inspections).get();
+        const tenantRow = await db2.select().from(schema.tenants).get();
+        if (!logs[0] || !automationRow || !inspRow || !tenantRow) throw new Error('Seed missing');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (svc as any).deliverSms(
+            db2, { log: logs[0], automation: automationRow, inspection: inspRow, tenant: tenantRow },
+            smsRuntime, 'Acme', 'acme.example.com', envWithSid,
+        );
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('managed_shared with TWILIO_SHARED_MESSAGING_SERVICE_SID absent → skipped (managed_not_approved)', async () => {
+        await setSmsMode('managed_shared');
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        // No shared SID env → gate blocks.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db2 = svc['getDrizzle']() as import('drizzle-orm/better-sqlite3').BetterSQLite3Database<typeof schema>;
+        const logs = await db2.select().from(schema.automationLogs).all();
+        const automationRow = await db2.select().from(schema.automations).get();
+        const inspRow = await db2.select().from(schema.inspections).get();
+        const tenantRow = await db2.select().from(schema.tenants).get();
+        if (!logs[0] || !automationRow || !inspRow || !tenantRow) throw new Error('Seed missing');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (svc as any).deliverSms(
+            db2, { log: logs[0], automation: automationRow, inspection: inspRow, tenant: tenantRow },
+            smsRuntime, 'Acme', 'acme.example.com', {}, // empty env — no shared SID
+        );
+        const r = await statusOf(logId);
+        expect(r?.status).toBe('skipped');
+        expect(r?.error).toBe('managed_not_approved');
+        expect(fakeSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('own-mode tenant → gate allows, send proceeds normally', async () => {
+        await setSmsMode('own');
+        smsRuntime.resolveProvider.mockResolvedValue({ provider: fakeProvider, from: '+1999' });
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('platform-mode tenant → gate allows, send proceeds normally', async () => {
+        // No tenant_configs row (default platform mode).
+        smsRuntime.resolveProvider.mockResolvedValue({ provider: fakeProvider, from: '+1999' });
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        await svc.flush(stubEmailFor, 'Acme', 'https://acme.example.com', smsRuntime);
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+    });
+});
+
 // Step 3b — reminder due-time is DERIVED live from inspection.date, NOT the
 // stored send_at. These prove flush ignores send_at for inspection.reminder logs.
 describe('flush() — derived reminder due-time (Track L Step 3b)', () => {

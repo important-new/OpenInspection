@@ -6,6 +6,7 @@ import { currentPeriodKey } from '../../lib/usage/period';
 import { interpolate, type Constructor } from './shared';
 import { buildBaseTemplateVars } from './template-vars';
 import type { AutomationBase } from './shared';
+import { managedSendAllowed, type ManagedSendGateEnv } from '../../lib/sms/managed-send-gate';
 
 /**
  * The SMS seam injected into deliverSms/flush: resolves a MessagingProvider and
@@ -58,6 +59,7 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
                    inspection: typeof inspections.$inferSelect; tenant: typeof tenants.$inferSelect },
             sms: SmsRuntime,
             appName: string, appHost: string,
+            env?: ManagedSendGateEnv,
         ): Promise<void> {
             const { log, automation, inspection, tenant } = ctx;
             const skip = (reason: string) =>
@@ -88,9 +90,20 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
 
             // Load the tenant config row once for the SMS vars: company_phone is used
             // unconditionally by the seeded copy ("questions? call {{company_phone}}"),
-            // and review_url is the fail-closed consumer below.
-            const cfg = await db.select({ companyPhone: tenantConfigs.companyPhone, reviewUrl: tenantConfigs.reviewUrl })
-                .from(tenantConfigs).where(eq(tenantConfigs.tenantId, inspection.tenantId)).get();
+            // review_url is the fail-closed consumer below, and smsMode drives the
+            // managed-send compliance gate.
+            const cfg = await db.select({
+                companyPhone: tenantConfigs.companyPhone,
+                reviewUrl:    tenantConfigs.reviewUrl,
+                smsMode:      tenantConfigs.smsMode,
+            }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, inspection.tenantId)).get();
+
+            // Managed-send compliance gate — fail-closed for managed_dedicated and
+            // managed_shared tenants whose compliance is not yet approved. own/platform
+            // tenants are always allowed. Must run BEFORE the provider sends.
+            const gateEnv: ManagedSendGateEnv = env ?? {};
+            const gate = await managedSendAllowed(db, gateEnv, inspection.tenantId, cfg?.smsMode ?? 'platform');
+            if (!gate.allowed) return void (await skip(gate.reason ?? 'managed_not_approved'));
 
             const vars: Record<string, string> = {
                 ...buildBaseTemplateVars(inspection, tenant, appName, appHost),

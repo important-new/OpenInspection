@@ -1097,3 +1097,206 @@ describe('MessagingComplianceService.syncManagedStatus (cron poll)', () => {
         await expect(svc.syncManagedStatus(TENANT, fakeClient)).resolves.toBeUndefined();
     });
 });
+
+// ─── managedSendAllowed unit tests (Task 8) ──────────────────────────────────
+
+import { managedSendAllowed } from '../../server/lib/sms/managed-send-gate';
+
+describe('managedSendAllowed — compliance gate unit tests (Task 8)', () => {
+    it('managed_dedicated: no compliance row → blocked (fail-closed)', async () => {
+        // No row seeded for TENANT.
+        const result = await managedSendAllowed(db, {}, TENANT, 'managed_dedicated');
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toBe('managed_not_approved');
+    });
+
+    it('managed_dedicated: complianceStatus=not_started → blocked', async () => {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'not_started', createdAt: now, updatedAt: now,
+        } as never);
+        const result = await managedSendAllowed(db, {}, TENANT, 'managed_dedicated');
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toBe('managed_not_approved');
+    });
+
+    it('managed_dedicated: complianceStatus=campaign_pending → blocked', async () => {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'campaign_pending', createdAt: now, updatedAt: now,
+        } as never);
+        const result = await managedSendAllowed(db, {}, TENANT, 'managed_dedicated');
+        expect(result.allowed).toBe(false);
+    });
+
+    it('managed_dedicated: complianceStatus=approved → allowed', async () => {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'approved', createdAt: now, updatedAt: now,
+        } as never);
+        const result = await managedSendAllowed(db, {}, TENANT, 'managed_dedicated');
+        expect(result.allowed).toBe(true);
+        expect(result.reason).toBeUndefined();
+    });
+
+    it('managed_dedicated: complianceStatus=rejected → blocked', async () => {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'rejected', createdAt: now, updatedAt: now,
+        } as never);
+        const result = await managedSendAllowed(db, {}, TENANT, 'managed_dedicated');
+        expect(result.allowed).toBe(false);
+    });
+
+    it('managed_shared: TWILIO_SHARED_MESSAGING_SERVICE_SID set → allowed', async () => {
+        const env = { TWILIO_SHARED_MESSAGING_SERVICE_SID: 'MG_shared_test' };
+        const result = await managedSendAllowed(db, env, TENANT, 'managed_shared');
+        expect(result.allowed).toBe(true);
+    });
+
+    it('managed_shared: TWILIO_SHARED_MESSAGING_SERVICE_SID absent → blocked', async () => {
+        const result = await managedSendAllowed(db, {}, TENANT, 'managed_shared');
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toBe('managed_not_approved');
+    });
+
+    it('own → always allowed (no DB read needed)', async () => {
+        const result = await managedSendAllowed(db, {}, TENANT, 'own');
+        expect(result.allowed).toBe(true);
+    });
+
+    it('platform → always allowed', async () => {
+        const result = await managedSendAllowed(db, {}, TENANT, 'platform');
+        expect(result.allowed).toBe(true);
+    });
+});
+
+// ─── POST /sms/test managed-send gate (Task 8) ───────────────────────────────
+
+describe('POST /sms/test — managed-send compliance gate (Task 8)', () => {
+    /** Seed a loadProviderForTenant-compatible mock by injecting tenantConfigs+secrets. */
+    async function seedManagedConfig(mode: 'managed_dedicated' | 'managed_shared') {
+        const existing = await db.select().from(schema.tenantConfigs)
+            .where(eq(schema.tenantConfigs.tenantId, TENANT)).get();
+        if (existing) {
+            await db.update(schema.tenantConfigs).set({ smsMode: mode })
+                .where(eq(schema.tenantConfigs.tenantId, TENANT));
+        } else {
+            await db.insert(schema.tenantConfigs).values({
+                tenantId: TENANT, smsMode: mode, updatedAt: new Date(),
+            } as never);
+        }
+    }
+
+    async function seedComplianceRow(complianceStatus: string) {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus, createdAt: now, updatedAt: now,
+        } as never);
+    }
+
+    /** Env with managed Twilio keys + optional shared SID. */
+    function managedEnvWithKeys(extra: Record<string, string> = {}): HonoConfig['Bindings'] {
+        return {
+            ...FAKE_ENV,
+            TWILIO_ACCOUNT_SID: 'ACmanaged000000000000000000000001',
+            TWILIO_API_KEY_SID: 'SKmanaged0000000000000000000000001',
+            TWILIO_API_KEY_SECRET: 'managed-api-key-secret',
+            ...extra,
+        } as unknown as HonoConfig['Bindings'];
+    }
+
+    it('managed_dedicated not-approved → returns success=false managed_not_approved, no Twilio call', async () => {
+        await seedManagedConfig('managed_dedicated');
+        await seedComplianceRow('campaign_pending');
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ to: '+15559991234' }),
+        }, managedEnvWithKeys(), makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        const body = await res.json() as { success: boolean; error?: string };
+        expect(body.success).toBe(false);
+        expect(body.error).toBe('managed_not_approved');
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('managed_dedicated approved → gate passes (does not return managed_not_approved)', async () => {
+        await seedManagedConfig('managed_dedicated');
+        await seedComplianceRow('approved');
+
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ to: '+15559991234' }),
+        }, managedEnvWithKeys(), makeExecCtx());
+
+        const body = await res.json() as { success: boolean; error?: string };
+        // Gate passed — response must NOT be managed_not_approved.
+        // (The send may fail for other reasons like unconfigured provider in test env.)
+        expect(body.error).not.toBe('managed_not_approved');
+    });
+
+    it('managed_shared without TWILIO_SHARED_MESSAGING_SERVICE_SID → blocked, no send', async () => {
+        await seedManagedConfig('managed_shared');
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        // managedEnvWithKeys has no TWILIO_SHARED_MESSAGING_SERVICE_SID.
+        const res = await app.request('/api/admin/sms/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ to: '+15559991234' }),
+        }, managedEnvWithKeys(), makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        const body = await res.json() as { success: boolean; error?: string };
+        expect(body.success).toBe(false);
+        expect(body.error).toBe('managed_not_approved');
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('managed_shared with TWILIO_SHARED_MESSAGING_SERVICE_SID set → gate passes (does not return managed_not_approved)', async () => {
+        await seedManagedConfig('managed_shared');
+
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ to: '+15559991234' }),
+        }, managedEnvWithKeys({ TWILIO_SHARED_MESSAGING_SERVICE_SID: 'MG_shared_test' }), makeExecCtx());
+
+        const body = await res.json() as { success: boolean; error?: string };
+        // Gate passed — response must NOT be managed_not_approved.
+        // (The send may fail for other reasons like unconfigured provider in test env.)
+        expect(body.error).not.toBe('managed_not_approved');
+    });
+
+    it('own-mode tenant → gate does not block (success=false only for missing creds, never managed_not_approved)', async () => {
+        // No managed config — default 'platform' mode. Gate must not block.
+        const app = buildApp(db);
+        const envNoCreds = { ...FAKE_ENV } as unknown as HonoConfig['Bindings'];
+
+        const res = await app.request('/api/admin/sms/test', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ to: '+15559991234' }),
+        }, envNoCreds, makeExecCtx());
+
+        const body = await res.json() as { success: boolean; error?: string };
+        // Gate must not return managed_not_approved for platform/own mode.
+        expect(body.error).not.toBe('managed_not_approved');
+    });
+});

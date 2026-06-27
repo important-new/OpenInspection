@@ -76,6 +76,7 @@ export interface HasDeliverSms {
                inspection: typeof inspections.$inferSelect; tenant: typeof import('../../lib/db/schema').tenants.$inferSelect },
         sms: import('./sms').SmsRuntime,
         appName: string, appHost: string,
+        env?: import('../../lib/sms/managed-send-gate').ManagedSendGateEnv,
     ): Promise<void>;
 }
 
