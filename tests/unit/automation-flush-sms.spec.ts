@@ -393,19 +393,132 @@ import { MeteringService } from '../../server/services/metering.service';
 import { currentPeriodKey } from '../../server/lib/usage/period';
 
 describe('managedSendAllowed — SMS quota gate (Task 10)', () => {
-    // For quota tests we need a real D1Database-shaped object. We use
-    // the better-sqlite3 db via the mock (same as the metering tests in sms-api).
-    // db1 is not passed → quota check is skipped (unit test safety mode).
+    // For quota tests we use the better-sqlite3 db via the mock (same as the metering
+    // tests above). The gate now always runs the quota check via the drizzle db arg.
 
-    it('managed_dedicated approved, no db1 → allowed (quota check skipped without raw DB)', async () => {
-        // Seed compliance=approved in the drizzle wrapper
+    beforeEach(() => {
+        fakeSendMessage.mockClear();
+        smsRuntime.resolveProvider.mockClear();
+        smsRuntime.resolveProvider.mockResolvedValue({ provider: fakeProvider, from: '+1999' });
+        fakeSendMessage.mockResolvedValue({ ok: true });
+    });
+
+    it('managed_dedicated approved, count=0 → allowed (under allowance)', async () => {
+        // Seed compliance=approved; no usage_counters row → count defaults to 0.
         const now = new Date();
         await db.insert(schema.messagingCompliance).values({
             tenantId: TENANT, mode: 'managed_dedicated',
             complianceStatus: 'approved', createdAt: now, updatedAt: now,
         } as never);
-        const result = await managedSendAllowed(db, {}, TENANT, 'managed_dedicated');
-        // No db1 passed → quota check skipped → allowed
+        const result = await managedSendAllowed(db, { MANAGED_SMS_MONTHLY_ALLOWANCE: '2' }, TENANT, 'managed_dedicated');
+        expect(result.allowed).toBe(true);
+    });
+
+    it('managed_dedicated approved, count at allowance → quota_exceeded', async () => {
+        // Seed compliance=approved + a usage_counters row AT the cap (allowance=2, count=2).
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'approved', createdAt: now, updatedAt: now,
+        } as never);
+        const period = currentPeriodKey(new Date());
+        await db.insert(schema.usageCounters).values({
+            tenantId: TENANT, metric: 'sms', periodKey: period, value: 2, updatedAt: now,
+        } as never);
+        const result = await managedSendAllowed(db, { MANAGED_SMS_MONTHLY_ALLOWANCE: '2' }, TENANT, 'managed_dedicated');
+        expect(result.allowed).toBe(false);
+        expect(result.reason).toBe('managed_quota_exceeded');
+    });
+
+    it('managed_dedicated approved, count over allowance → quota_exceeded (end-to-end through deliverSms)', async () => {
+        // Full end-to-end: flush() → deliverSms() → managed gate → quota blocks → skipped.
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'approved', createdAt: now, updatedAt: now,
+        } as never);
+        // Set smsMode=managed_dedicated for TENANT.
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, smsMode: 'managed_dedicated', updatedAt: now,
+        } as never);
+        // Seed count OVER the allowance: allowance=2, value=3.
+        const period = currentPeriodKey(new Date());
+        await db.insert(schema.usageCounters).values({
+            tenantId: TENANT, metric: 'sms', periodKey: period, value: 3, updatedAt: now,
+        } as never);
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        smsRuntime.resolveProvider.mockResolvedValueOnce({ provider: fakeProvider, from: null, messagingServiceSid: 'MG_dedic' });
+
+        const db2 = svc['getDrizzle']() as typeof db;
+        const logs = await db2.select().from(schema.automationLogs).all();
+        const automationRow = await db2.select().from(schema.automations).get();
+        const inspRow = await db2.select().from(schema.inspections).get();
+        const tenantRow = await db2.select().from(schema.tenants).get();
+        if (!logs[0] || !automationRow || !inspRow || !tenantRow) throw new Error('Seed missing');
+        // Pass MANAGED_SMS_MONTHLY_ALLOWANCE=2 in the env so the gate uses cap=2.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (svc as any).deliverSms(
+            db2, { log: logs[0], automation: automationRow, inspection: inspRow, tenant: tenantRow },
+            smsRuntime, 'Acme', 'acme.example.com',
+            { MANAGED_SMS_MONTHLY_ALLOWANCE: '2' },
+        );
+        const r = await statusOf(logId);
+        expect(r?.status).toBe('skipped');
+        expect(r?.error).toBe('managed_quota_exceeded');
+        expect(fakeSendMessage).not.toHaveBeenCalled();
+    });
+
+    it('managed_dedicated approved, count under allowance → sends (deliverSms end-to-end)', async () => {
+        // Full end-to-end: count=1 under allowance=2 → gate passes → sent.
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'approved', createdAt: now, updatedAt: now,
+        } as never);
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, smsMode: 'managed_dedicated', updatedAt: now,
+        } as never);
+        const period = currentPeriodKey(new Date());
+        await db.insert(schema.usageCounters).values({
+            tenantId: TENANT, metric: 'sms', periodKey: period, value: 1, updatedAt: now,
+        } as never);
+        const { logId } = await seedSmsLog({ contactId: 'c1' });
+        await new SmsConsentService({} as D1Database).record(TENANT, 'c1', 'granted', 'admin', {});
+        smsRuntime.resolveProvider.mockResolvedValueOnce({ provider: fakeProvider, from: null, messagingServiceSid: 'MG_dedic' });
+
+        const db2 = svc['getDrizzle']() as typeof db;
+        const logs = await db2.select().from(schema.automationLogs).all();
+        const automationRow = await db2.select().from(schema.automations).get();
+        const inspRow = await db2.select().from(schema.inspections).get();
+        const tenantRow = await db2.select().from(schema.tenants).get();
+        if (!logs[0] || !automationRow || !inspRow || !tenantRow) throw new Error('Seed missing');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (svc as any).deliverSms(
+            db2, { log: logs[0], automation: automationRow, inspection: inspRow, tenant: tenantRow },
+            smsRuntime, 'Acme', 'acme.example.com',
+            { MANAGED_SMS_MONTHLY_ALLOWANCE: '2' },
+        );
+        expect((await statusOf(logId))?.status).toBe('sent');
+        expect(fakeSendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('own mode + count over any allowance → always allowed (quota not checked)', async () => {
+        // Seed an enormous counter; own mode never checks quota.
+        const period = currentPeriodKey(new Date());
+        await db.insert(schema.usageCounters).values({
+            tenantId: TENANT, metric: 'sms', periodKey: period, value: 99999, updatedAt: new Date(),
+        } as never);
+        const result = await managedSendAllowed(db, { MANAGED_SMS_MONTHLY_ALLOWANCE: '2' }, TENANT, 'own');
+        expect(result.allowed).toBe(true);
+    });
+
+    it('platform mode + count over any allowance → always allowed (quota not checked)', async () => {
+        const period = currentPeriodKey(new Date());
+        await db.insert(schema.usageCounters).values({
+            tenantId: TENANT, metric: 'sms', periodKey: period, value: 99999, updatedAt: new Date(),
+        } as never);
+        const result = await managedSendAllowed(db, { MANAGED_SMS_MONTHLY_ALLOWANCE: '2' }, TENANT, 'platform');
         expect(result.allowed).toBe(true);
     });
 

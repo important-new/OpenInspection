@@ -672,18 +672,18 @@ export const smsAdminRoutes = createApiRouter()
         // Paid-tier gate: tenant must be on a Managed-eligible paid plan.
         // Fail-closed: missing row or false → 403 (not eligible).
         const tenantId = c.get('tenantId') as string;
-        const dbResubmit = drizzle(c.env.DB);
-        let cfgEligibilityResubmit: { managedEligible: boolean | null } | null | undefined;
+        const db = drizzle(c.env.DB);
+        let cfgEligibility: { managedEligible: boolean | null } | null | undefined;
         try {
-            cfgEligibilityResubmit = await dbResubmit
+            cfgEligibility = await db
                 .select({ managedEligible: tenantConfigs.managedEligible })
                 .from(tenantConfigs)
                 .where(eq(tenantConfigs.tenantId, tenantId))
                 .get();
         } catch {
-            cfgEligibilityResubmit = null;
+            cfgEligibility = null;
         }
-        if (!cfgEligibilityResubmit?.managedEligible) {
+        if (!cfgEligibility?.managedEligible) {
             return c.json({ success: false as const, error: 'managed_requires_paid_plan' }, 403);
         }
 
@@ -702,9 +702,9 @@ export const smsAdminRoutes = createApiRouter()
         // Resubmit resumes from the first missing SID — provision() is idempotent.
         // We require a valid stored row (provision must have been called at least once).
         const stored = await complianceSvc.getStatus(tenantId);
-        const row = await getManagedSubRow(dbResubmit, tenantId);
+        const row = await getManagedSubRow(db, tenantId);
         let cfgRow2: { smsMode: string | null } | undefined;
-        try { cfgRow2 = await dbResubmit.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
+        try { cfgRow2 = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
         catch { cfgRow2 = undefined; }
         const mode = (cfgRow2?.smsMode as 'platform' | 'own' | 'managed_shared' | 'managed_dedicated') ?? 'managed_dedicated';
 

@@ -1,7 +1,6 @@
 import type { DrizzleD1Database } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
-import { messagingCompliance } from '../db/schema';
-import { MeteringService } from '../../services/metering.service';
+import { eq, and } from 'drizzle-orm';
+import { messagingCompliance, usageCounters } from '../db/schema';
 import { currentPeriodKey } from '../usage/period';
 
 /**
@@ -55,18 +54,17 @@ export interface ManagedSendGateResult {
  * This gate is INDEPENDENT of the per-recipient consent gate and must
  * run before any provider call so a blocked send makes NO Twilio call.
  *
- * @param db        - Tenant-bound Drizzle instance (caller's existing instance).
+ * @param db        - Tenant-bound Drizzle instance (caller's existing instance). Used for
+ *                    both the compliance-status lookup and the quota counter read.
  * @param env       - Worker env (TWILIO_SHARED_MESSAGING_SERVICE_SID + MANAGED_SMS_MONTHLY_ALLOWANCE read).
  * @param tenantId  - The tenant whose compliance status to check.
  * @param smsMode   - The tenant's configured SMS mode.
- * @param db1       - Raw D1Database for metering reads (optional; when absent, quota check is skipped).
  */
 export async function managedSendAllowed(
     db: DrizzleD1Database,
     env: ManagedSendGateEnv,
     tenantId: string,
     smsMode: string,
-    db1?: D1Database,
 ): Promise<ManagedSendGateResult> {
     if (smsMode === 'managed_dedicated') {
         // Fail-closed: missing row → not approved → block.
@@ -82,7 +80,7 @@ export async function managedSendAllowed(
             return { allowed: false, reason: 'managed_not_approved' };
         }
         // Compliance approved — check monthly quota.
-        return checkManagedQuota(env, tenantId, db1);
+        return checkManagedQuota(db, env, tenantId);
     }
 
     if (smsMode === 'managed_shared') {
@@ -92,7 +90,7 @@ export async function managedSendAllowed(
             return { allowed: false, reason: 'managed_not_approved' };
         }
         // Approved — check monthly quota.
-        return checkManagedQuota(env, tenantId, db1);
+        return checkManagedQuota(db, env, tenantId);
     }
 
     // own / platform — always allowed.
@@ -100,27 +98,34 @@ export async function managedSendAllowed(
 }
 
 /**
- * Check the current-period SMS counter against the configured allowance.
- * Returns { allowed: false, reason: 'managed_quota_exceeded' } when the
- * tenant has reached or exceeded their monthly allowance.
- *
- * When db1 is absent (unit tests without a real D1Database), the quota check
- * is skipped (safe — metering only runs in real deployments).
+ * Read the current-period SMS counter via the drizzle db and compare against
+ * the configured allowance. Returns { allowed: false, reason: 'managed_quota_exceeded' }
+ * when the tenant has reached or exceeded their monthly allowance. Read-only — never
+ * increments the counter (that is the caller's responsibility after a successful send).
  */
 async function checkManagedQuota(
+    db: DrizzleD1Database,
     env: ManagedSendGateEnv,
     tenantId: string,
-    db1?: D1Database,
 ): Promise<ManagedSendGateResult> {
-    if (!db1) return { allowed: true };
-
     const allowanceRaw = parseInt(env.MANAGED_SMS_MONTHLY_ALLOWANCE ?? '', 10);
     const allowance = Number.isFinite(allowanceRaw) && allowanceRaw > 0
         ? allowanceRaw
         : DEFAULT_MANAGED_SMS_ALLOWANCE;
 
-    const metering = new MeteringService(db1);
-    const count = await metering.getCount(tenantId, 'sms', currentPeriodKey(new Date())).catch(() => 0);
+    const period = currentPeriodKey(new Date());
+    let row: { value: number } | undefined;
+    try {
+        row = await db.select({ value: usageCounters.value })
+            .from(usageCounters)
+            .where(and(
+                eq(usageCounters.tenantId, tenantId),
+                eq(usageCounters.metric, 'sms'),
+                eq(usageCounters.periodKey, period),
+            ))
+            .get() ?? undefined;
+    } catch { row = undefined; }
+    const count = row?.value ?? 0;
     if (count >= allowance) {
         return { allowed: false, reason: 'managed_quota_exceeded' };
     }

@@ -723,6 +723,25 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         ]));
     });
 
+    it('POST /sms/compliance/resubmit on SaaS with no tenant_configs row → 403 managed_requires_paid_plan', async () => {
+        // No tenant_configs row seeded → managedEligible is null (fail-closed → 403).
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/resubmit', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+        expect(res.status).toBe(403);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_requires_paid_plan');
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
+    });
+
     it('POST /sms/compliance/resubmit on standalone → 403 and fetch never called', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
         const app = buildSmsApp(db, STANDALONE_PROFILE);
