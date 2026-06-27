@@ -472,6 +472,37 @@ describe('applyComplianceCallback — change detection', () => {
         });
         expect(result.changed).toBe(false);
     });
+
+    it('no-regress: a non-terminal campaign callback never downgrades an approved row', async () => {
+        // Callbacks are re-delivered and unordered; a non-terminal campaign status
+        // arriving after approval must NOT roll the row back to campaign_pending
+        // (that would disable an approved tenant's SMS at the send gate). This also
+        // guards the Telnyx path, whose raw statuses are non-terminal under the
+        // current callback vocabulary.
+        await seedRow('t-nr-1', 'approved');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('t-nr-1', {
+            entity: 'campaign',
+            rawStatus: 'IN_PROGRESS',
+            rejectionReason: null,
+            entitySid: 'CR789',
+        });
+        expect(result.complianceStatus).toBe('approved');
+        expect(result.changed).toBe(false);
+    });
+
+    it('no-regress: a non-terminal TFV callback never downgrades an approved row', async () => {
+        await seedRow('t-nr-2', 'approved');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('t-nr-2', {
+            entity: 'tfv',
+            rawStatus: 'In Progress',
+            rejectionReason: null,
+            entitySid: 'HV789',
+        });
+        expect(result.complianceStatus).toBe('approved');
+        expect(result.changed).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------

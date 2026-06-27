@@ -210,7 +210,11 @@ export class MessagingComplianceService {
             } else if (isRejected) {
                 updates.complianceStatus = 'rejected';
                 updates.rejectionReason = event.rejectionReason ?? event.rawStatus;
-            } else {
+            } else if (row.complianceStatus !== 'approved') {
+                // No-regress: a non-terminal campaign callback must never downgrade
+                // an already-approved row to pending (callbacks are re-delivered and
+                // unordered; a downgrade would silently disable an approved tenant's
+                // SMS at the send gate until the next reconciling sweep).
                 updates.complianceStatus = 'campaign_pending';
             }
         } else {
@@ -223,7 +227,9 @@ export class MessagingComplianceService {
             } else if (isRejected) {
                 updates.complianceStatus = 'rejected';
                 updates.rejectionReason = event.rejectionReason ?? event.rawStatus;
-            } else {
+            } else if (row.complianceStatus !== 'approved') {
+                // No-regress: a non-terminal TFV callback must never downgrade an
+                // already-approved row to pending (see the campaign branch above).
                 updates.complianceStatus = 'tfv_pending';
             }
         }
