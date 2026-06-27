@@ -338,14 +338,10 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   // ─── Managed SMS compliance provisioning (SaaS-only, Task 9) ───────────────
   if (intent === "sms-compliance-provision" || intent === "sms-compliance-resubmit") {
-    // Gate: SaaS only. The server also enforces this but we guard early in the
-    // action to return a clean error before making any API call.
-    const isSaasAction = (() => {
-      // The action does not have access to session context; SaaS is enforced by
-      // the API endpoint itself (returns 403 in standalone mode). We proceed
-      // and surface any 403 as a user-facing error.
-      return true; // let the API enforce — returns 403 if standalone
-    })();
+    // Gate: SaaS only. The API endpoint also enforces this (403 in standalone),
+    // but we short-circuit a direct POST here so standalone never reaches the API.
+    const isSaasAction =
+      (context as { cloudflare?: { env?: { APP_MODE?: string } } }).cloudflare?.env?.APP_MODE === "saas";
     if (!isSaasAction) {
       return { intent, ok: false as const, error: "Managed SMS is only available on the SaaS platform.", field: null, test: null };
     }

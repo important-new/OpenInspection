@@ -81,12 +81,13 @@ function loaderArgs(): LoaderArgs {
     } as unknown as LoaderArgs;
 }
 
-function actionArgs(form: Record<string, string>): ActionArgs {
+function actionArgs(form: Record<string, string>, appMode: 'saas' | 'standalone' = 'saas'): ActionArgs {
     const fd = new FormData();
     for (const [k, v] of Object.entries(form)) fd.set(k, v);
     return {
         request: new Request('http://app.example.com/settings/communication', { method: 'POST', body: fd }),
-        context: {} as never,
+        // The managed-compliance action gates on SaaS via context.cloudflare.env.APP_MODE.
+        context: { cloudflare: { env: { APP_MODE: appMode } } } as never,
         params: {},
     } as unknown as ActionArgs;
 }
@@ -235,6 +236,18 @@ describe('settings-communication action — intent=sms-compliance-provision (Tas
         }));
         expect(postProvision).not.toHaveBeenCalled();
         expect(res).toMatchObject({ intent: 'sms-compliance-provision', ok: false, field: 'legalName' });
+    });
+
+    it('blocks the provision intent in standalone mode (no API call)', async () => {
+        const res = await action(actionArgs({
+            intent: 'sms-compliance-provision',
+            legalName: 'Acme Inspection LLC',
+            address: '123 Main St, Springfield, IL 62701',
+            repName: 'Jane Smith',
+            channel: 'sp10dlc',
+        }, 'standalone'));
+        expect(postProvision).not.toHaveBeenCalled();
+        expect(res).toMatchObject({ intent: 'sms-compliance-provision', ok: false });
     });
 
     it('returns ok=false without calling the API when address is missing', async () => {
