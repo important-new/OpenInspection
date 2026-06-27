@@ -85,6 +85,13 @@
       "when": 1782551189905,
       "tag": "0011_brave_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1782556847529,
+      "tag": "0012_steep_silverclaw",
+      "breakpoints": true
     }
   ]
 }

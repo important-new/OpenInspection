@@ -631,3 +631,203 @@ describe('compliance-status webhook → outbox emit (Task 11)', () => {
         expect(res.status).toBe(200);
     });
 });
+
+// ---------------------------------------------------------------------------
+// applyComplianceCallback — brand callback must NEVER regress a more-advanced
+// status. Twilio re-delivers callbacks and does not guarantee brand-before-
+// campaign ordering; a late brand-approved must not roll campaign_pending /
+// approved back to brand_pending (which would silently disable an approved
+// tenant's SMS at the send gate).
+// ---------------------------------------------------------------------------
+
+describe('applyComplianceCallback — brand approval never regresses status', () => {
+    let db: BetterSQLite3Database<typeof schema>;
+    let sqlite: { close: () => void };
+
+    beforeEach(async () => {
+        const fx = createTestDb();
+        db = fx.db as BetterSQLite3Database<typeof schema>;
+        sqlite = fx.sqlite;
+        await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+    });
+
+    afterEach(() => sqlite.close());
+
+    async function seedRow(tenantId: string, complianceStatus: string) {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId, mode: 'managed_dedicated', complianceStatus,
+            createdAt: now, updatedAt: now,
+        } as never);
+    }
+
+    it('does NOT regress campaign_pending → brand_pending on a late brand TWILIO_APPROVED', async () => {
+        await seedRow('t-reg-1', 'campaign_pending');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('t-reg-1', {
+            entity: 'brand', rawStatus: 'TWILIO_APPROVED', rejectionReason: null, entitySid: 'BN_LATE',
+        });
+        expect(result.changed).toBe(false);
+        expect(result.complianceStatus).toBe('campaign_pending');
+        // brandStatus sub-field still records the approval.
+        const row = await db.select().from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 't-reg-1')).get();
+        expect(row?.brandStatus).toBe('TWILIO_APPROVED');
+    });
+
+    it('does NOT regress approved → brand_pending on a redelivered brand TWILIO_APPROVED', async () => {
+        await seedRow('t-reg-2', 'approved');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('t-reg-2', {
+            entity: 'brand', rawStatus: 'TWILIO_APPROVED', rejectionReason: null, entitySid: 'BN_DUP',
+        });
+        expect(result.changed).toBe(false);
+        expect(result.complianceStatus).toBe('approved');
+    });
+
+    it('still advances brand_pending on first brand approval (no false guard)', async () => {
+        await seedRow('t-reg-3', 'profile_pending');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('t-reg-3', {
+            entity: 'brand', rawStatus: 'TWILIO_APPROVED', rejectionReason: null, entitySid: 'BN_FIRST',
+        });
+        expect(result.changed).toBe(true);
+        expect(result.complianceStatus).toBe('brand_pending');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// syncManagedStatus (cron twin) — brand poll must hold the same no-regress
+// invariant as the webhook: a brand-approved poll must not roll campaign_pending
+// backward to brand_pending.
+// ---------------------------------------------------------------------------
+
+describe('syncManagedStatus — brand poll never regresses campaign_pending', () => {
+    let db: BetterSQLite3Database<typeof schema>;
+    let sqlite: { close: () => void };
+
+    beforeEach(async () => {
+        const fx = createTestDb();
+        db = fx.db as BetterSQLite3Database<typeof schema>;
+        sqlite = fx.sqlite;
+        await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+    });
+
+    afterEach(() => sqlite.close());
+
+    it('keeps campaign_pending when the brand poll reports approved', async () => {
+        const now = new Date();
+        // sp10dlc row: brandSid set (brand poll path), already advanced to campaign_pending.
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: 't-cron-reg', mode: 'managed_dedicated', complianceStatus: 'campaign_pending',
+            brandSid: 'BN_X', brandStatus: 'PENDING', createdAt: now, updatedAt: now,
+        } as never);
+        const approvedBrandClient = {
+            tollfree: { list: async () => [] as Array<{ sid: string; status: string; phoneNumber: string }> },
+            brands: { list: async () => [{ sid: 'BN_X', status: 'TWILIO_APPROVED' }] },
+        };
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.syncManagedStatus('t-cron-reg', approvedBrandClient);
+        expect(result.changed).toBe(false);
+        expect(result.complianceStatus).toBe('campaign_pending');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// provision — attachSender resume: a crash AFTER buy but DURING attachSender
+// must not orphan the purchased number. The resume run re-attaches (without
+// re-buying) and the senderAttached marker gates the attach independently.
+// ---------------------------------------------------------------------------
+
+describe('MessagingComplianceService.provision — attachSender resume (I1)', () => {
+    it('re-attaches the bought number on resume without buying a second number', async () => {
+        const fx = createTestDb(); await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
+        let buyCount = 0;
+        let attachCount = 0;
+        let attachShouldThrow = true;
+        const info = { legalName: 'Attach Co', address: '7 Main, TX', repName: 'Eve' };
+        const client: WriteClient = {
+            ...makeSp10dlcClient([]),
+            messagingServices: {
+                create: async () => ({ sid: 'MGx' }),
+                attachCompliance: async () => ({}),
+                attachSender: async () => {
+                    attachCount++;
+                    if (attachShouldThrow) throw new Error('attach failed');
+                    return { sid: 'ASx' };
+                },
+            },
+            numbers: {
+                search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+15557770000' }],
+                buy: async () => { buyCount++; return { sid: 'PNattach', phoneNumber: '+15557770000' }; },
+            },
+        } as never;
+
+        // First run: throws inside attachSender (after the number is bought + persisted).
+        await expect(
+            new MessagingComplianceService({} as D1Database).provision('p-attach', info, 'sp10dlc', client),
+        ).rejects.toThrow('attach failed');
+
+        const mid = await fx.db.select().from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'p-attach')).get();
+        expect(mid?.provisionedNumberSid).toBe('PNattach'); // number persisted despite attach crash
+        expect(mid?.senderAttached).toBe(false);            // attach not yet confirmed
+
+        // Resume: attachSender now succeeds. Buy must NOT run again; attach completes.
+        attachShouldThrow = false;
+        const result = await new MessagingComplianceService({} as D1Database)
+            .provision('p-attach', info, 'sp10dlc', client);
+
+        expect(buyCount).toBe(1);      // bought exactly once across both runs
+        expect(attachCount).toBe(2);   // attach retried on resume (1 failed + 1 success)
+        expect(result.complianceStatus).toBe('campaign_pending');
+        const final = await fx.db.select().from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'p-attach')).get();
+        expect(final?.senderAttached).toBe(true);
+        fx.sqlite.close();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// sweepManagedStatuses — must scope to managed modes only. An 'own'-mode tenant
+// (BYO Twilio) must NEVER be polled against the managed ISV account, or its
+// compliance state would be overwritten with an unrelated account's data (C1).
+// ---------------------------------------------------------------------------
+
+describe('sweepManagedStatuses — excludes own-mode tenants (C1)', () => {
+    it('does not touch an own-mode row while sweeping managed rows', async () => {
+        const fx = createTestDb(); await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
+        const now = new Date();
+        // own-mode tenant: BYO Twilio, non-terminal, tfvStatus set (TFV poll path).
+        await fx.db.insert(schema.messagingCompliance).values({
+            tenantId: 'own-1', mode: 'own', complianceStatus: 'tfv_pending',
+            tfvStatus: 'PENDING_REVIEW', createdAt: now, updatedAt: now,
+        } as never);
+        // managed_dedicated tenant: should be swept and advanced.
+        await fx.db.insert(schema.messagingCompliance).values({
+            tenantId: 'mgd-1', mode: 'managed_dedicated', complianceStatus: 'tfv_pending',
+            tfvStatus: 'PENDING_REVIEW', createdAt: now, updatedAt: now,
+        } as never);
+
+        // Fake ISV client: every TFV poll returns approved. If the own row were
+        // (incorrectly) included, it would flip to approved too.
+        const isvClient = {
+            tollfree: { list: async () => [{ sid: 'HV_ISV', status: 'TWILIO_APPROVED', phoneNumber: '+18005550000' }] },
+            brands: { list: async () => [] as Array<{ sid: string; status: string }> },
+        };
+        const svc = new MessagingComplianceService({} as D1Database);
+        await svc.sweepManagedStatuses('AC_ISV', 'secret', 'SK_ISV', undefined, isvClient);
+
+        const own = await fx.db.select().from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'own-1')).get();
+        const mgd = await fx.db.select().from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'mgd-1')).get();
+        expect(own?.complianceStatus).toBe('tfv_pending'); // untouched — excluded by mode filter
+        expect(mgd?.complianceStatus).toBe('approved');     // swept and advanced
+        fx.sqlite.close();
+    });
+});

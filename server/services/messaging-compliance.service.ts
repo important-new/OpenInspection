@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, notInArray } from 'drizzle-orm';
 import { messagingCompliance } from '../lib/db/schema';
 import { TwilioClient } from '../lib/messaging/twilio';
 import { logger } from '../lib/logger';
@@ -260,18 +260,22 @@ export class MessagingComplianceService {
                 });
             }
 
-            // Step 5 (sp10dlc): buy number, persist PN SID, then attach to messaging service.
-            // Persist provisionedNumber + provisionedNumberSid BEFORE attachSender so a
-            // crash-resume run can reuse the bought number (via provisionedNumberSid) instead
-            // of purchasing a second number.
-            if (!row.provisionedNumber) {
+            // Step 5 (sp10dlc): buy number (guarded on provisionedNumberSid), then
+            // attach to messaging service (guarded separately on senderAttached).
+            // The two side effects have independent markers so a crash between buy
+            // and attach resumes by attaching the already-bought number — never by
+            // buying a second one, and never by skipping the attach (orphaned number).
+            if (!row.provisionedNumberSid) {
                 const available = await client.numbers.search('local', businessInfo.areaCode);
                 const bought = await client.numbers.buy(available[0].phoneNumber);
                 row = await this.persist(tenantId, {
                     provisionedNumber: bought.phoneNumber,
                     provisionedNumberSid: bought.sid,
                 });
+            }
+            if (!row.senderAttached) {
                 await client.messagingServices.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
+                row = await this.persist(tenantId, { senderAttached: true });
             }
         } else {
             // tollfree channel
@@ -284,18 +288,21 @@ export class MessagingComplianceService {
                 row = await this.persist(tenantId, { messagingServiceSid: ms.sid });
             }
 
-            // Step 3 (tollfree): buy number, persist PN SID, then attach to messaging service.
-            // Persist provisionedNumber + provisionedNumberSid BEFORE attachSender so a
-            // crash-resume run can reuse the bought number (via provisionedNumberSid) instead
-            // of purchasing a second number.
-            if (!row.provisionedNumber) {
+            // Step 3 (tollfree): buy number (guarded on provisionedNumberSid), then
+            // attach to messaging service (guarded separately on senderAttached).
+            // Independent markers so a crash between buy and attach resumes by
+            // attaching the already-bought number — never re-buying, never orphaning.
+            if (!row.provisionedNumberSid) {
                 const available = await client.numbers.search('tollfree', businessInfo.areaCode);
                 const bought = await client.numbers.buy(available[0].phoneNumber);
                 row = await this.persist(tenantId, {
                     provisionedNumber: bought.phoneNumber,
                     provisionedNumberSid: bought.sid,
                 });
+            }
+            if (!row.senderAttached) {
                 await client.messagingServices.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
+                row = await this.persist(tenantId, { senderAttached: true });
             }
 
             // Step 4 (tollfree): toll-free verification — needs provisionedNumberSid + messagingServiceSid.
@@ -368,8 +375,15 @@ export class MessagingComplianceService {
         if (event.entity === 'brand') {
             updates.brandStatus = event.rawStatus;
             if (isApproved) {
-                // Brand approval alone does not set overall approved (campaign is terminal for sp10dlc).
-                updates.complianceStatus = 'brand_pending';
+                // Brand approval alone does not set overall approved (campaign is
+                // terminal for sp10dlc) — it only advances to brand_pending. Twilio
+                // re-delivers callbacks and does not guarantee brand-before-campaign
+                // ordering, so NEVER move a more-advanced status backward: a late
+                // brand-approved must not regress campaign_pending/approved (which
+                // would silently disable an approved tenant's SMS at the send gate).
+                if (row.complianceStatus !== 'approved' && row.complianceStatus !== 'campaign_pending') {
+                    updates.complianceStatus = 'brand_pending';
+                }
             } else if (isRejected) {
                 updates.complianceStatus = 'rejected';
                 updates.rejectionReason = event.rejectionReason ?? event.rawStatus;
@@ -486,9 +500,10 @@ export class MessagingComplianceService {
                 updates.brandStatus = brand.status;
                 const isApproved = brand.status === 'TWILIO_APPROVED' || brand.status === 'APPROVED';
                 const isRejected = brand.status === 'TWILIO_REJECTED' || brand.status === 'REJECTED' || brand.status === 'FAILED';
-                if (isApproved && row.complianceStatus !== 'approved') {
+                if (isApproved && row.complianceStatus !== 'approved' && row.complianceStatus !== 'campaign_pending') {
                     // Brand approval advances to brand_pending (not overall approved —
-                    // campaign is terminal for sp10dlc).
+                    // campaign is terminal for sp10dlc). Never regress a more-advanced
+                    // status (campaign_pending/approved) — same invariant the webhook holds.
                     updates.complianceStatus = 'brand_pending';
                 } else if (isRejected && row.complianceStatus !== 'rejected') {
                     updates.complianceStatus = 'rejected';
@@ -530,21 +545,27 @@ export class MessagingComplianceService {
         apiKeySecret: string,
         apiKeySid: string,
         outbox?: UserSyncOutbox,
+        // Injectable read client (tests pass a fake to avoid network). Production
+        // callers omit it; the managed ISV client is built from the creds below.
+        client: ReadClient = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid }),
     ): Promise<void> {
         const db = this.d();
         const terminalStatuses = ['approved', 'rejected'] as const;
 
         // Fetch all managed rows that are not yet in a terminal status.
         // managed_shared and managed_dedicated are the only modes that use
-        // the managed ISV Twilio account; 'own' tenants poll their own creds separately.
+        // the managed ISV Twilio account; 'own' tenants poll their own creds
+        // separately (syncOwnStatus). The mode filter is load-bearing: without it
+        // an 'own' row (tfvSid NULL) would be polled against the ISV master account
+        // and have its compliance state overwritten with an unrelated account's data.
         const managedRows = await db
             .select({ tenantId: messagingCompliance.tenantId })
             .from(messagingCompliance)
-            .where(notInArray(messagingCompliance.complianceStatus, [...terminalStatuses]))
+            .where(and(
+                inArray(messagingCompliance.mode, ['managed_shared', 'managed_dedicated']),
+                notInArray(messagingCompliance.complianceStatus, [...terminalStatuses]),
+            ))
             .all();
-
-        // Build a single client for the managed ISV account.
-        const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
 
         for (const { tenantId } of managedRows) {
             try {

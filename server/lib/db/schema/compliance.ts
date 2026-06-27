@@ -93,6 +93,11 @@ export const messagingCompliance = sqliteTable('messaging_compliance', {
     // attachSender and tollfree.create; persisted before those calls so a crash-
     // resumed run can reuse the already-purchased number instead of buying again.
     provisionedNumberSid: text('provisioned_number_sid'),
+    // True once the provisioned number is attached to the messaging service. The
+    // buy step persists provisionedNumberSid BEFORE attachSender, so this separate
+    // marker lets a crash-resumed run re-run only the attach (without re-buying) —
+    // attachSender is not assumed idempotent, so it is guarded on its own flag.
+    senderAttached: integer('sender_attached', { mode: 'boolean' }).notNull().default(false),
     complianceStatus: text('compliance_status', {
         enum: ['not_started', 'profile_pending', 'brand_pending', 'campaign_pending', 'tfv_pending', 'approved', 'rejected'],
     }).notNull().default('not_started'),
