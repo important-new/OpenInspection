@@ -82,11 +82,77 @@ export class TwilioClient implements MessagingProvider {
         },
     };
 
+    // -------------------------------------------------------------------------
+    // Managed-ISV provisioning write surfaces.
+    // NOTE: The form-field names below (e.g. TollfreePhoneNumberSid, BrandType)
+    // are the drift surface — Twilio API field names evolve; keep all of them
+    // isolated in this one file so a single audit catches all changes.
+    // -------------------------------------------------------------------------
+
+    /** Helper: throw with Twilio's error message when a request is not ok. */
+    private async throwIfError(r: { ok: boolean; status: number; json: unknown }): Promise<void> {
+        if (!r.ok) {
+            const msg =
+                (r.json as { message?: string } | null)?.message ?? `Twilio ${r.status}`;
+            throw new Error(msg);
+        }
+    }
+
     tollfree = {
         list: async (): Promise<Array<{ sid: string; status: string; phoneNumber: string }>> => {
             const r = await this.request('GET', 'messaging', '/v1/Tollfree/Verifications');
             const v = (r.json as { verifications?: Array<{ sid: string; status: string; tollfree_phone_number_sid?: string }> } | null)?.verifications ?? [];
             return v.map((x) => ({ sid: x.sid, status: x.status, phoneNumber: x.tollfree_phone_number_sid ?? '' }));
+        },
+
+        create: async (args: {
+            tollfreePhoneNumberSid: string;
+            useCaseDescription: string;
+            messagingServiceSid: string;
+            notificationEmail: string;
+            useCaseSummary: string;
+            productionMessageSample: string;
+            optInType: string;
+            optInImageUrls?: string[];
+        }): Promise<{ sid: string; status: string }> => {
+            const form: Record<string, string> = {
+                TollfreePhoneNumberSid: args.tollfreePhoneNumberSid,
+                UseCaseDescription: args.useCaseDescription,
+                MessagingServiceSid: args.messagingServiceSid,
+                NotificationEmail: args.notificationEmail,
+                UseCaseSummary: args.useCaseSummary,
+                ProductionMessageSample: args.productionMessageSample,
+                OptInType: args.optInType,
+            };
+            if (args.optInImageUrls) {
+                args.optInImageUrls.forEach((u, i) => { form[`OptInImageUrls[${i}]`] = u; });
+            }
+            const r = await this.request('POST', 'messaging', '/v1/Tollfree/Verifications', form);
+            await this.throwIfError(r);
+            const j = r.json as { sid: string; status: string };
+            return { sid: j.sid, status: j.status };
+        },
+    };
+
+    trusthub = {
+        createSecondaryProfile: async (args: {
+            friendlyName: string;
+            email: string;
+            isvRegisteringForSelfOrSubaccounts: string;
+            statusCallbackUrl?: string;
+        }): Promise<{ sid: string; status?: string }> => {
+            const form: Record<string, string> = {
+                FriendlyName: args.friendlyName,
+                Email: args.email,
+                IsvRegisteringForSelfOrSubaccounts: args.isvRegisteringForSelfOrSubaccounts,
+            };
+            if (args.statusCallbackUrl) form.StatusCallbackUrl = args.statusCallbackUrl;
+            const r = await this.request('POST', 'trusthub', '/v1/CustomerProfiles', form);
+            await this.throwIfError(r);
+            const j = r.json as { sid: string; status?: string };
+            const result: { sid: string; status?: string } = { sid: j.sid };
+            if (j.status !== undefined) result.status = j.status;
+            return result;
         },
     };
 
@@ -95,6 +161,124 @@ export class TwilioClient implements MessagingProvider {
             const r = await this.request('GET', 'messaging', '/v1/a2p/BrandRegistrations');
             const b = (r.json as { data?: Array<{ sid: string; status: string }> } | null)?.data ?? [];
             return b.map((x) => ({ sid: x.sid, status: x.status }));
+        },
+
+        createSoleProprietor: async (args: {
+            customerProfileBundleSid: string;
+            a2pProfileBundleSid: string;
+            brandType: string;
+        }): Promise<{ sid: string; status: string }> => {
+            const form: Record<string, string> = {
+                CustomerProfileBundleSid: args.customerProfileBundleSid,
+                A2PProfileBundleSid: args.a2pProfileBundleSid,
+                BrandType: args.brandType,
+            };
+            const r = await this.request('POST', 'messaging', '/v1/a2p/BrandRegistrations', form);
+            await this.throwIfError(r);
+            const j = r.json as { sid: string; status: string };
+            return { sid: j.sid, status: j.status };
+        },
+    };
+
+    campaigns = {
+        create: async (args: {
+            messagingServiceSid: string;
+            brandRegistrationSid: string;
+            description: string;
+            messageFlow: string;
+            messageSamples: string[];
+            usAppToPersonUsecase: string;
+            hasEmbeddedLinks: boolean;
+            hasEmbeddedPhone: boolean;
+        }): Promise<{ sid: string; status: string }> => {
+            const form: Record<string, string> = {
+                BrandRegistrationSid: args.brandRegistrationSid,
+                Description: args.description,
+                MessageFlow: args.messageFlow,
+                UsAppToPersonUsecase: args.usAppToPersonUsecase,
+                HasEmbeddedLinks: String(args.hasEmbeddedLinks),
+                HasEmbeddedPhone: String(args.hasEmbeddedPhone),
+            };
+            args.messageSamples.forEach((s, i) => { form[`MessageSamples[${i}]`] = s; });
+            const r = await this.request(
+                'POST',
+                'messaging',
+                `/v1/Services/${args.messagingServiceSid}/Compliance/Usa2p`,
+                form,
+            );
+            await this.throwIfError(r);
+            const j = r.json as { sid: string; status: string };
+            return { sid: j.sid, status: j.status };
+        },
+    };
+
+    messagingServices = {
+        create: async (args: { friendlyName: string }): Promise<{ sid: string }> => {
+            const r = await this.request('POST', 'messaging', '/v1/Services', {
+                FriendlyName: args.friendlyName,
+            });
+            await this.throwIfError(r);
+            const j = r.json as { sid: string };
+            return { sid: j.sid };
+        },
+
+        attachSender: async (messagingServiceSid: string, phoneNumberSid: string): Promise<{ sid: string }> => {
+            const r = await this.request(
+                'POST',
+                'messaging',
+                `/v1/Services/${messagingServiceSid}/PhoneNumbers`,
+                { PhoneNumberSid: phoneNumberSid },
+            );
+            await this.throwIfError(r);
+            const j = r.json as { sid?: string };
+            return { sid: j.sid ?? '' };
+        },
+
+        /**
+         * Associates compliance with a messaging service.
+         * - TFV path (tfvSid): POSTs to the tollfree verification to link the messaging service.
+         * - 10DLC path (campaignSid): no-op — the campaign is already created under the
+         *   messaging service via campaigns.create; no additional API call is needed.
+         */
+        attachCompliance: async (
+            messagingServiceSid: string,
+            opts: { campaignSid?: string; tfvSid?: string },
+        ): Promise<Record<string, never>> => {
+            if (opts.tfvSid) {
+                const r = await this.request(
+                    'POST',
+                    'messaging',
+                    `/v1/Tollfree/Verifications/${opts.tfvSid}`,
+                    { MessagingServiceSid: messagingServiceSid },
+                );
+                await this.throwIfError(r);
+            }
+            return {};
+        },
+    };
+
+    numbers = {
+        search: async (areaCode?: string): Promise<Array<{ phoneNumber: string }>> => {
+            const path = areaCode
+                ? `/2010-04-01/Accounts/${this.creds.sid}/AvailablePhoneNumbers/US/TollFree.json?AreaCode=${encodeURIComponent(areaCode)}`
+                : `/2010-04-01/Accounts/${this.creds.sid}/AvailablePhoneNumbers/US/TollFree.json`;
+            const r = await this.request('GET', 'api', path);
+            const items =
+                (r.json as { available_phone_numbers?: Array<{ phone_number: string }> } | null)
+                    ?.available_phone_numbers ?? [];
+            return items.map((x) => ({ phoneNumber: x.phone_number }));
+        },
+
+        buy: async (phoneNumber: string): Promise<{ sid: string; phoneNumber: string }> => {
+            const r = await this.request(
+                'POST',
+                'api',
+                `/2010-04-01/Accounts/${this.creds.sid}/IncomingPhoneNumbers.json`,
+                { PhoneNumber: phoneNumber },
+            );
+            await this.throwIfError(r);
+            const j = r.json as { sid: string; phone_number: string };
+            return { sid: j.sid, phoneNumber: j.phone_number };
         },
     };
 
