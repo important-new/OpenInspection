@@ -231,7 +231,10 @@ export class TwilioClient implements MessagingProvider {
             );
             await this.throwIfError(r);
             const j = r.json as { sid?: string };
-            return { sid: j.sid ?? '' };
+            // A 2xx with no sid is not a valid attach result — surface it rather
+            // than propagate an empty string into the persisted provisioning row.
+            if (!j.sid) throw new Error('Twilio attachSender returned no sid');
+            return { sid: j.sid };
         },
 
         /**

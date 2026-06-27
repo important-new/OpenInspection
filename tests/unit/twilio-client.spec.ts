@@ -271,7 +271,7 @@ describe('TwilioClient.messagingServices', () => {
         ).rejects.toThrow('Phone number not found');
     });
 
-    it('messagingServices.attachCompliance with tfvSid PATCHes the tollfree verification', async () => {
+    it('messagingServices.attachCompliance with tfvSid POSTs to the tollfree verification', async () => {
         const fetchMock = vi.fn(async () =>
             new Response(JSON.stringify({ sid: 'HV1' }), { status: 200 }),
         );
@@ -283,6 +283,17 @@ describe('TwilioClient.messagingServices', () => {
         expect(url).toContain('messaging.twilio.com/v1/Tollfree/Verifications/HV1');
         expect(init.method).toBe('POST');
         expect(init.body).toContain('MessagingServiceSid=MG3');
+    });
+
+    it('messagingServices.attachCompliance with tfvSid throws on a non-ok response', async () => {
+        const fetchMock = vi.fn(async () =>
+            new Response(JSON.stringify({ message: 'bad tfv' }), { status: 400 }),
+        );
+        vi.stubGlobal('fetch', fetchMock);
+        await expect(
+            new TwilioClient({ sid: 'AC1', token: 't' })
+                .messagingServices.attachCompliance('MG3', { tfvSid: 'HV1' }),
+        ).rejects.toThrow('bad tfv');
     });
 
     it('messagingServices.attachCompliance with campaignSid is a no-op (campaign already linked)', async () => {
