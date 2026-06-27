@@ -68,8 +68,9 @@ export { inspectionAccessTokens } from './portal-access';
 // messaging_compliance: per-tenant TCR/provider registration state (#181 provider plan).
 export { erasureLog, smsDisclosureVersions, smsConsentLog, messagingCompliance } from './compliance';
 // WH-2 — tenant SMS delivery-status ledger + shared webhook idempotency ledger.
-export { smsDeliveryStatus, processedWebhookEvents } from './messaging';
-export type { SmsDeliveryStatus, ProcessedWebhookEvent } from './messaging';
+// WH-3 — tenant email suppression list (append-only; hard bounce / complaint).
+export { smsDeliveryStatus, processedWebhookEvents, emailSuppressions } from './messaging';
+export type { SmsDeliveryStatus, ProcessedWebhookEvent, EmailSuppression, NewEmailSuppression } from './messaging';
 // Usage metering (Phase 1, SaaS-only).
 export { usageCounters } from './usage';
 // Repair Request Builder — buyer/agent/inspector negotiation lists per inspection.

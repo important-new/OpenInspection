@@ -44,3 +44,33 @@ export const processedWebhookEvents = sqliteTable('processed_webhook_events', {
 });
 
 export type ProcessedWebhookEvent = typeof processedWebhookEvents.$inferSelect;
+
+/**
+ * WH-3 — tenant email suppression list. APPEND-ONLY: a row is written the first
+ * time an address hard-bounces or files a spam complaint for this tenant, and is
+ * NEVER updated or deleted (a complaint is terminal — no auto-resubscribe). The
+ * send path consults this table by normalized (lower-cased, trimmed) email and
+ * skips a suppressed recipient, mirroring the SMS opt-out gate.
+ *
+ * `reason` distinguishes a permanent (hard) bounce from a spam complaint; soft /
+ * transient bounces never produce a row. `sourceProvider` records which BYO
+ * adapter (resend|sendgrid|postmark|mailgun) reported the event; `providerEventId`
+ * is the provider's id for the originating event (nullable — some payloads omit
+ * one). Dedup of repeated webhook deliveries is handled separately by
+ * `processed_webhook_events`; this table may legitimately hold more than one row
+ * per (tenant, email) when both a bounce and a later complaint arrive.
+ */
+export const emailSuppressions = sqliteTable('email_suppressions', {
+    id:              text('id').primaryKey(),
+    tenantId:        text('tenant_id').notNull(),
+    email:           text('email').notNull(), // normalized lower-cased + trimmed
+    reason:          text('reason', { enum: ['hard_bounce', 'complaint'] }).notNull(),
+    sourceProvider:  text('source_provider').notNull(), // resend|sendgrid|postmark|mailgun
+    providerEventId: text('provider_event_id'),
+    createdAt:       integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (t) => [
+    index('idx_email_suppressions_email').on(t.tenantId, t.email),
+]);
+
+export type EmailSuppression = typeof emailSuppressions.$inferSelect;
+export type NewEmailSuppression = typeof emailSuppressions.$inferInsert;
