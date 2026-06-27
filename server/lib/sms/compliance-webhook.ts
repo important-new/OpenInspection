@@ -30,6 +30,7 @@ import { logger } from '../logger';
 import type { HonoConfig } from '../../types/hono';
 import type { ComplianceProvider, ComplianceProviderId } from '../messaging/compliance-provider';
 import { TwilioComplianceProvider } from '../messaging/providers/twilio-compliance';
+import { TelnyxComplianceProvider } from '../messaging/providers/telnyx-compliance';
 
 // Re-export ComplianceEvent so messaging-compliance.service.ts can keep its
 // existing import path without change.
@@ -72,8 +73,27 @@ function buildWebhookProvider(providerId: ComplianceProviderId): ComplianceProvi
         // parseCallback, so the empty stand-in is safe for webhook-only use.
         return new TwilioComplianceProvider({} as never);
     }
-    // 'telnyx' → Plan 2 (Telnyx managed compliance webhook receiver).
+    if (providerId === 'telnyx') {
+        // Telnyx verifyWebhookSignature (Ed25519) + parseCallback do not touch the
+        // REST client either — same client-less pattern as Twilio above.
+        return new TelnyxComplianceProvider({} as never);
+    }
     return null;
+}
+
+/**
+ * Resolve the verify secret for a provider from env, provider-keyed:
+ *   - twilio: the dedicated compliance webhook token, else the platform auth token.
+ *   - telnyx: the base64 Ed25519 PUBLIC key (TELNYX_PUBLIC_KEY).
+ * Returns undefined when no secret is configured for the resolved provider →
+ * caller fails closed (403).
+ */
+function resolveWebhookSecret(
+    providerId: ComplianceProviderId,
+    env: { TWILIO_COMPLIANCE_WEBHOOK_TOKEN?: string; TWILIO_AUTH_TOKEN?: string; TELNYX_PUBLIC_KEY?: string },
+): string | undefined {
+    if (providerId === 'telnyx') return env.TELNYX_PUBLIC_KEY;
+    return env.TWILIO_COMPLIANCE_WEBHOOK_TOKEN ?? env.TWILIO_AUTH_TOKEN;
 }
 
 /**
@@ -105,11 +125,11 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
             .where(eq(tenants.slug, slug)).get();
         if (!tenant) return c.text('', 404);
 
-        // Step 4: Prefer the dedicated compliance webhook token; fall back to
-        // the platform auth token. Missing secret → fail-closed (no secret means
-        // no way to verify the signature → reject rather than accept without
+        // Step 4: Resolve the provider-keyed verify secret (twilio: auth token;
+        // telnyx: Ed25519 public key). Missing secret → fail-closed (no secret
+        // means no way to verify the signature → reject rather than accept without
         // verification).
-        const secret = c.env.TWILIO_COMPLIANCE_WEBHOOK_TOKEN ?? c.env.TWILIO_AUTH_TOKEN;
+        const secret = resolveWebhookSecret(providerId, c.env);
         if (!secret) {
             logger.warn('[compliance-webhook] no signing secret configured — rejecting', { tenantId: tenant.id });
             return c.text('', 403);

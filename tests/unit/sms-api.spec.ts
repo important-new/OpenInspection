@@ -723,6 +723,69 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         ]));
     });
 
+    it('POST /sms/compliance/provision with managedProvider=telnyx but no TELNYX_API_KEY → 409 (keyed off managedProvider, Plan 2)', async () => {
+        // managedEligible=true AND managedProvider='telnyx'. The env carries the
+        // Twilio ISV triple but NO TELNYX_API_KEY — so if the route still keyed off
+        // 'twilio' it would proceed (200). A 409 proves it resolved by managedProvider.
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, managedEligible: true, managedProvider: 'telnyx', updatedAt: new Date(),
+        } as never);
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+        expect(res.status).toBe(409);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_not_configured');
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
+    });
+
+    it('POST /sms/compliance/provision with managedProvider=telnyx dispatches to the Telnyx provider', async () => {
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, managedEligible: true, managedProvider: 'telnyx', updatedAt: new Date(),
+        } as never);
+
+        // Capture the background provision promise so we can await it deterministically.
+        const pending: Promise<unknown>[] = [];
+        const execCtx = {
+            waitUntil: (p: Promise<unknown>) => { pending.push(Promise.resolve(p)); },
+            passThroughOnException: () => {},
+        } as unknown as ExecutionContext;
+
+        // The Telnyx SDK routes through global fetch to api.telnyx.com. Stub it so
+        // provision dispatches there (the run errors out later — that's fine; the
+        // dispatch host is what proves the Telnyx provider was selected).
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(JSON.stringify({ data: { id: 'mp_1' } }), { status: 200 }),
+        );
+
+        const env = { ...FAKE_ENV, APP_MODE: 'saas', TELNYX_API_KEY: 'KEY_telnyx_test' } as unknown as HonoConfig['Bindings'];
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St, City, ST 12345', repName: 'Jane Doe', email: 'jane@acme.com' },
+                channel: 'tollfree',
+            }),
+        }, env, execCtx);
+
+        expect(res.status).toBe(200);
+        await Promise.allSettled(pending);
+        // Dispatched to Telnyx — at least one outbound call hit the Telnyx API host.
+        const hitTelnyx = fetchSpy.mock.calls.some(([url]) => String(url).includes('api.telnyx.com'));
+        expect(hitTelnyx).toBe(true);
+        fetchSpy.mockRestore();
+    });
+
     it('POST /sms/compliance/resubmit on SaaS with no tenant_configs row → 403 managed_requires_paid_plan', async () => {
         // No tenant_configs row seeded → managedEligible is null (fail-closed → 403).
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
@@ -1101,27 +1164,77 @@ describe('Compliance-status webhook (Task 7)', () => {
         expect(stored?.complianceStatus).toBe('campaign_pending');
     });
 
-    it('telnyx provider (not yet implemented) → 503 fail-closed, no DB write', async () => {
-        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+    it('telnyx callback with a valid Ed25519 signature verifies + advances the row (Plan 2)', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending', mode: 'managed_dedicated' });
 
-        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
-        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
-        const body = new URLSearchParams(params).toString();
+        const { publicKeyB64, sign } = await makeTelnyxSigner();
+        // Build the app with TELNYX_PUBLIC_KEY as the provider-keyed verify secret.
+        const { app, env: baseEnv } = buildComplianceApp(db);
+        const env = { ...baseEnv, TELNYX_PUBLIC_KEY: publicKeyB64 } as unknown as HonoConfig['Bindings'];
+
+        // Telnyx wraps events as { data: { event_type, payload } }. A campaign
+        // APPROVED event is terminal for sp10dlc → flips complianceStatus to approved.
+        const rawBody = JSON.stringify({
+            data: { event_type: 'campaign.status.updated', payload: { campaignId: 'CMP1', campaignStatus: 'APPROVED' } },
+        });
+        // Timestamp inside the verifier's ±300s window (handler uses real Date.now()).
+        const ts = String(Math.floor(Date.now() / 1000));
+        const sig = await sign(ts, rawBody);
 
         const res = await app.request(
             '/api/public/telnyx/compliance-status/acme',
             {
                 method: 'POST',
-                headers: { 'content-type': 'application/x-www-form-urlencoded' },
-                body,
+                headers: {
+                    'content-type': 'application/json',
+                    'telnyx-signature-ed25519': sig,
+                    'telnyx-timestamp': ts,
+                },
+                body: rawBody,
             },
             env,
             makeExecCtx(),
         );
 
-        // Telnyx is a known provider id but its webhook receiver is Plan 2, so a
-        // stray Telnyx callback must fail closed (503), never silently accept.
-        expect(res.status).toBe(503);
+        expect(res.status).toBe(200);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('approved');
+    });
+
+    it('telnyx callback with an invalid Ed25519 signature → 403, no DB write (Plan 2)', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending', mode: 'managed_dedicated' });
+
+        const { publicKeyB64, sign } = await makeTelnyxSigner();
+        const { app, env: baseEnv } = buildComplianceApp(db);
+        const env = { ...baseEnv, TELNYX_PUBLIC_KEY: publicKeyB64 } as unknown as HonoConfig['Bindings'];
+
+        const signedBody = JSON.stringify({
+            data: { event_type: 'campaign.status.updated', payload: { campaignId: 'CMP1', campaignStatus: 'APPROVED' } },
+        });
+        const ts = String(Math.floor(Date.now() / 1000));
+        const sig = await sign(ts, signedBody);
+        // Tamper the body so the signature no longer matches.
+        const tamperedBody = JSON.stringify({
+            data: { event_type: 'campaign.status.updated', payload: { campaignId: 'CMP1', campaignStatus: 'REJECTED' } },
+        });
+
+        const res = await app.request(
+            '/api/public/telnyx/compliance-status/acme',
+            {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    'telnyx-signature-ed25519': sig,
+                    'telnyx-timestamp': ts,
+                },
+                body: tamperedBody,
+            },
+            env,
+            makeExecCtx(),
+        );
+
+        expect(res.status).toBe(403);
         const svc = new MessagingComplianceService({} as D1Database);
         const stored = await svc.getStatus(TENANT);
         expect(stored?.complianceStatus).toBe('campaign_pending');

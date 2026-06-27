@@ -105,6 +105,12 @@ export interface AppEnv {
      * TWILIO_AUTH_TOKEN when absent. If neither is set, the webhook rejects 403.
      */
     TWILIO_COMPLIANCE_WEBHOOK_TOKEN?: string;
+    /** Managed-ISV Telnyx API key — drives the Telnyx managed-compliance provision
+     *  path + cron sweep (Plan 2). Absent → Telnyx managed resolution fails closed. */
+    TELNYX_API_KEY?: string;
+    /** Base64 Ed25519 PUBLIC key for verifying Telnyx compliance-status webhooks
+     *  (POST /api/public/telnyx/compliance-status/:tenant). Missing → webhook 403. */
+    TELNYX_PUBLIC_KEY?: string;
     /** Platform-wide monthly SMS allowance for managed (dedicated/shared) tenants.
      *  Parsed as an integer; defaults to DEFAULT_MANAGED_SMS_ALLOWANCE (1000) when
      *  absent or non-numeric. Send quota check reads the current period counter from

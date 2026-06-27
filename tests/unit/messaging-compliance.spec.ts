@@ -10,6 +10,8 @@ import {
     type TwilioComplianceClient,
 } from '../../server/lib/messaging/providers/twilio-compliance';
 import { resolveComplianceProvider } from '../../server/lib/sms/resolve-compliance-provider';
+import type { ComplianceProvider, ComplianceProviderId } from '../../server/lib/messaging/compliance-provider';
+import type { ComplianceStateStore } from '../../server/lib/messaging/compliance-state-store';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 
 // ---------------------------------------------------------------------------
@@ -110,9 +112,13 @@ describe('resolveComplianceProvider', () => {
         )).toThrow('managed_not_configured');
     });
 
-    it('throws managed_not_configured for telnyx (Plan 2)', () => {
-        const env = { TWILIO_ACCOUNT_SID: 'AC1', TWILIO_API_KEY_SID: 'SK1', TWILIO_API_KEY_SECRET: 's' } as never;
-        expect(() => resolveComplianceProvider(env, 'telnyx')).toThrow('managed_not_configured');
+    it('resolves telnyx provider with TELNYX_API_KEY; throws managed_not_configured without (Plan 2)', () => {
+        // Twilio creds present but TELNYX_API_KEY absent → telnyx still fails closed.
+        const twilioOnly = { TWILIO_ACCOUNT_SID: 'AC1', TWILIO_API_KEY_SID: 'SK1', TWILIO_API_KEY_SECRET: 's' } as never;
+        expect(() => resolveComplianceProvider(twilioOnly, 'telnyx')).toThrow('managed_not_configured');
+        // With TELNYX_API_KEY the resolver builds a TelnyxComplianceProvider (id 'telnyx').
+        const telnyxEnv = { TELNYX_API_KEY: 'KEY_telnyx_test' } as never;
+        expect(resolveComplianceProvider(telnyxEnv, 'telnyx').id).toBe('telnyx');
     });
 });
 
@@ -864,6 +870,24 @@ describe('MessagingComplianceService.provision — attachSender resume (I1)', ()
 // compliance state would be overwritten with an unrelated account's data (C1).
 // ---------------------------------------------------------------------------
 
+// A minimal recording ComplianceProvider that advances any swept row to
+// 'approved' and records every (provider id, tenant) it was asked to sync — so
+// the per-row provider routing can be asserted without any network/SDK.
+function recordingProvider(id: ComplianceProviderId, seen: string[]): ComplianceProvider {
+    return {
+        id,
+        provision: async () => ({ complianceStatus: 'approved', rejectionReason: null }),
+        verifyWebhookSignature: async () => true,
+        parseCallback: () => null,
+        webhookUrl: () => '',
+        async syncStatus({ tenantId }: { tenantId: string }, store: ComplianceStateStore) {
+            seen.push(`${id}:${tenantId}`);
+            await store.persist(tenantId, { complianceStatus: 'approved' });
+            return { complianceStatus: 'approved', rejectionReason: null };
+        },
+    };
+}
+
 describe('sweepManagedStatuses — excludes own-mode tenants (C1)', () => {
     it('does not touch an own-mode row while sweeping managed rows', async () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
@@ -871,20 +895,25 @@ describe('sweepManagedStatuses — excludes own-mode tenants (C1)', () => {
         const now = new Date();
         // own-mode tenant: BYO Twilio, non-terminal, tfvStatus set (TFV poll path).
         await fx.db.insert(schema.messagingCompliance).values({
-            tenantId: 'own-1', mode: 'own', complianceStatus: 'tfv_pending',
+            tenantId: 'own-1', mode: 'own', provider: 'twilio', complianceStatus: 'tfv_pending',
             tfvStatus: 'PENDING_REVIEW', createdAt: now, updatedAt: now,
         } as never);
         // managed_dedicated tenant: should be swept and advanced.
         await fx.db.insert(schema.messagingCompliance).values({
-            tenantId: 'mgd-1', mode: 'managed_dedicated', complianceStatus: 'tfv_pending',
+            tenantId: 'mgd-1', mode: 'managed_dedicated', provider: 'twilio', complianceStatus: 'tfv_pending',
             tfvStatus: 'PENDING_REVIEW', createdAt: now, updatedAt: now,
         } as never);
 
-        // Fake ISV provider: every TFV poll returns approved. If the own row were
-        // (incorrectly) included, it would flip to approved too.
+        // Fake ISV provider via the injectable providerFactory: every TFV poll
+        // returns approved. If the own row were (incorrectly) included, it would
+        // flip to approved too.
         const isvProvider = fakeProvider([], { tfvs: [{ sid: 'HV_ISV', status: 'TWILIO_APPROVED' }] });
         const svc = new MessagingComplianceService({} as D1Database);
-        await svc.sweepManagedStatuses('AC_ISV', 'secret', 'SK_ISV', undefined, isvProvider);
+        await svc.sweepManagedStatuses(
+            { TWILIO_ACCOUNT_SID: 'AC_ISV', TWILIO_API_KEY_SID: 'SK_ISV', TWILIO_API_KEY_SECRET: 'secret' },
+            undefined,
+            () => isvProvider,
+        );
 
         const own = await fx.db.select().from(schema.messagingCompliance)
             .where(eq(schema.messagingCompliance.tenantId, 'own-1')).get();
@@ -892,6 +921,43 @@ describe('sweepManagedStatuses — excludes own-mode tenants (C1)', () => {
             .where(eq(schema.messagingCompliance.tenantId, 'mgd-1')).get();
         expect(own?.complianceStatus).toBe('tfv_pending'); // untouched — excluded by mode filter
         expect(mgd?.complianceStatus).toBe('approved');     // swept and advanced
+        fx.sqlite.close();
+    });
+
+    it('builds the provider PER ROW by row.provider (mixed twilio + telnyx fleet)', async () => {
+        const fx = createTestDb(); await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
+        const now = new Date();
+        // One managed row per carrier — both non-terminal.
+        await fx.db.insert(schema.messagingCompliance).values({
+            tenantId: 'tw-1', mode: 'managed_dedicated', provider: 'twilio',
+            complianceStatus: 'campaign_pending', createdAt: now, updatedAt: now,
+        } as never);
+        await fx.db.insert(schema.messagingCompliance).values({
+            tenantId: 'tx-1', mode: 'managed_dedicated', provider: 'telnyx',
+            complianceStatus: 'campaign_pending', createdAt: now, updatedAt: now,
+        } as never);
+
+        const seen: string[] = [];
+        const builtFor: ComplianceProviderId[] = [];
+        const svc = new MessagingComplianceService({} as D1Database);
+        await svc.sweepManagedStatuses(
+            { TWILIO_ACCOUNT_SID: 'AC', TWILIO_API_KEY_SID: 'SK', TWILIO_API_KEY_SECRET: 's', TELNYX_API_KEY: 'KEY' },
+            undefined,
+            (id) => { builtFor.push(id); return recordingProvider(id, seen); },
+        );
+
+        // Each row was synced with a provider matching its own carrier.
+        expect(seen.sort()).toEqual(['telnyx:tx-1', 'twilio:tw-1']);
+        // The factory was invoked once per distinct provider id (memoized).
+        expect(builtFor.sort()).toEqual(['telnyx', 'twilio']);
+
+        const tw = await fx.db.select().from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'tw-1')).get();
+        const tx = await fx.db.select().from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'tx-1')).get();
+        expect(tw?.complianceStatus).toBe('approved');
+        expect(tx?.complianceStatus).toBe('approved');
         fx.sqlite.close();
     });
 });

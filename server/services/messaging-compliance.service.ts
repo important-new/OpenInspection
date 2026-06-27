@@ -6,8 +6,8 @@ import { logger } from '../lib/logger';
 import type { ComplianceEvent } from '../lib/sms/compliance-webhook';
 import type { UserSyncOutbox } from '../lib/integration/user-sync';
 import { D1ComplianceStateStore } from '../lib/messaging/compliance-state-store';
-import type { ComplianceProvider } from '../lib/messaging/compliance-provider';
-import { resolveComplianceProvider } from '../lib/sms/resolve-compliance-provider';
+import type { ComplianceProvider, ComplianceProviderId } from '../lib/messaging/compliance-provider';
+import { resolveComplianceProvider, type ComplianceResolverEnv } from '../lib/sms/resolve-compliance-provider';
 
 type ReadClient = Pick<TwilioClient, 'tollfree' | 'brands'>;
 
@@ -292,42 +292,43 @@ export class MessagingComplianceService {
     }
 
     /**
-     * Sweep all managed, non-terminal rows and re-read status from Twilio.
+     * Sweep all managed, non-terminal rows and re-read status from the carrier.
      * Called from the scheduled cron. Fail-soft: a single tenant's error
      * does not abort the sweep for other tenants.
      *
-     * NOTE: Campaign status polling is NOT available via the Twilio REST API.
-     * The webhook (registerComplianceStatusRoute) is the primary path for
-     * campaign approval. This cron covers brands and TFV verifications only.
+     * Per-row provider: each managed row carries its own `provider` column
+     * ('twilio' | 'telnyx'). The matching ComplianceProvider is built ONCE per
+     * distinct provider id (memoized in a Map) from the combined ISV env, so a
+     * mixed Twilio + Telnyx fleet is swept correctly in one pass. A row whose
+     * provider has no configured ISV creds (resolver throws) is skipped fail-soft.
      *
-     * @param acctSid     - Twilio master account SID (managed ISV account).
-     * @param apiKeySecret - Twilio API key secret (managed ISV account).
-     * @param apiKeySid   - Twilio API key SID (managed ISV account).
+     * NOTE: Campaign status polling is NOT available via the Twilio REST API
+     * (the webhook is the primary campaign-approval path there); Telnyx DOES
+     * expose campaign status. Each provider's syncStatus handles its own surface.
+     *
+     * @param env             - Combined ISV credential env (TWILIO_* triple + TELNYX_API_KEY).
+     *                          The provider for a given row is resolved by row.provider.
+     * @param outbox          - Optional sync outbox (SaaS) for status-change propagation.
+     * @param providerFactory - Injectable provider builder (tests pass a fake to avoid
+     *                          network). Defaults to resolveComplianceProvider(env, id).
      */
     async sweepManagedStatuses(
-        acctSid: string,
-        apiKeySecret: string,
-        apiKeySid: string,
+        env: ComplianceResolverEnv,
         outbox?: UserSyncOutbox,
-        // Injectable provider (tests pass a fake to avoid network). Production callers
-        // omit it; the managed ISV provider is built once from the creds below.
-        // Plan 2: read tenant.managedProvider instead of hard-coding 'twilio'.
-        provider: ComplianceProvider = resolveComplianceProvider(
-            { TWILIO_ACCOUNT_SID: acctSid, TWILIO_API_KEY_SID: apiKeySid, TWILIO_API_KEY_SECRET: apiKeySecret },
-            'twilio',
-        ),
+        providerFactory: (id: ComplianceProviderId) => ComplianceProvider =
+            (id) => resolveComplianceProvider(env, id),
     ): Promise<void> {
         const db = this.d();
         const terminalStatuses = ['approved', 'rejected'] as const;
 
         // Fetch all managed rows that are not yet in a terminal status.
         // managed_shared and managed_dedicated are the only modes that use
-        // the managed ISV Twilio account; 'own' tenants poll their own creds
+        // the managed ISV account; 'own' tenants poll their own creds
         // separately (syncOwnStatus). The mode filter is load-bearing: without it
         // an 'own' row (tfvSid NULL) would be polled against the ISV master account
         // and have its compliance state overwritten with an unrelated account's data.
         const managedRows = await db
-            .select({ tenantId: messagingCompliance.tenantId })
+            .select({ tenantId: messagingCompliance.tenantId, provider: messagingCompliance.provider })
             .from(messagingCompliance)
             .where(and(
                 inArray(messagingCompliance.mode, ['managed_shared', 'managed_dedicated']),
@@ -335,8 +336,31 @@ export class MessagingComplianceService {
             ))
             .all();
 
-        for (const { tenantId } of managedRows) {
+        // Memoize one provider per distinct row.provider so the ISV client is built
+        // at most once per carrier across the whole sweep.
+        const providerCache = new Map<ComplianceProviderId, ComplianceProvider>();
+        const getProvider = (id: ComplianceProviderId): ComplianceProvider | null => {
+            const cached = providerCache.get(id);
+            if (cached) return cached;
             try {
+                const built = providerFactory(id);
+                providerCache.set(id, built);
+                return built;
+            } catch {
+                // Provider not configured (creds absent) — skip its rows fail-soft.
+                return null;
+            }
+        };
+
+        for (const { tenantId, provider: rowProvider } of managedRows) {
+            try {
+                // Rows pre-dating multi-provider support have provider NULL → default twilio.
+                const provider = getProvider(rowProvider ?? 'twilio');
+                if (!provider) {
+                    logger.warn('[compliance-svc] sweepManagedStatuses: provider not configured — skipping',
+                        { tenantId, provider: rowProvider ?? 'twilio' });
+                    continue;
+                }
                 const result = await this.syncManagedStatus(tenantId, provider);
                 if (result.changed && outbox) {
                     // Fail-soft outbox emit: a queue failure must not abort the sweep.
