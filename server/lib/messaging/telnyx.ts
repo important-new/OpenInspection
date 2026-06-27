@@ -24,7 +24,7 @@ export class TelnyxProvider implements MessagingProvider {
         to: string;
         body: string;
         messagingServiceSid?: string;
-    }): Promise<{ ok: true } | { ok: false; error: string }> {
+    }): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
         const from = args.from ?? this.creds.from;
         const payload = { from, to: args.to, text: args.body };
         let res: Response;
@@ -44,7 +44,16 @@ export class TelnyxProvider implements MessagingProvider {
             logger.error('TelnyxProvider: fetch error', {}, err instanceof Error ? err : undefined);
             return { ok: false, error: `Telnyx network error: ${message}` };
         }
-        if (res.ok) return { ok: true };
+        if (res.ok) {
+            // Telnyx returns the created message under `data.id` — the correlation
+            // id for later delivery-receipt (message.finalized) webhooks.
+            let id: string | undefined;
+            try {
+                const json = await res.json() as { data?: { id?: string } } | null;
+                id = json?.data?.id;
+            } catch { /* empty/unparseable body — succeed without an id */ }
+            return id ? { ok: true, id } : { ok: true };
+        }
         let errorText = `Telnyx ${res.status}`;
         try {
             const json = await res.json() as { errors?: Array<{ detail?: string }> } | null;

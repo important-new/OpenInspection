@@ -42,12 +42,17 @@ export class TwilioClient implements MessagingProvider {
             to: string;
             body: string;
             messagingServiceSid?: string;
-        }): Promise<{ ok: true } | { ok: false; error: string }> => {
+        }): Promise<{ ok: true; id?: string } | { ok: false; error: string }> => {
             const form: Record<string, string> = { To: args.to, Body: args.body };
             if (args.messagingServiceSid) form.MessagingServiceSid = args.messagingServiceSid;
             else form.From = args.from;
             const r = await this.request('POST', 'api', `/2010-04-01/Accounts/${this.creds.sid}/Messages.json`, form);
-            if (r.ok) return { ok: true };
+            if (r.ok) {
+                // Twilio returns the message resource with `sid` — the correlation
+                // id for later StatusCallback delivery events.
+                const sid = (r.json as { sid?: string } | null)?.sid;
+                return sid ? { ok: true, id: sid } : { ok: true };
+            }
             const msg = (r.json as { message?: string } | null)?.message ?? `Twilio ${r.status}`;
             return { ok: false, error: msg };
         },
@@ -75,7 +80,7 @@ export class TwilioClient implements MessagingProvider {
         to: string;
         body: string;
         messagingServiceSid?: string;
-    }): Promise<{ ok: true } | { ok: false; error: string }> {
+    }): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
         const createArgs: { from: string; to: string; body: string; messagingServiceSid?: string } = {
             from: args.from ?? '',
             to: args.to,
