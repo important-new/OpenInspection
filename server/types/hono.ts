@@ -93,6 +93,11 @@ export interface AppEnv {
     TWILIO_ACCOUNT_SID?: string;
     TWILIO_AUTH_TOKEN?: string;
     TWILIO_FROM_NUMBER?: string;
+    // Managed-pool send path: API Key SID + API Key Secret (ISV account, not per-tenant).
+    TWILIO_API_KEY_SID?: string;
+    TWILIO_API_KEY_SECRET?: string;
+    /** Shared Messaging Service SID used by all managed_shared tenants. */
+    TWILIO_SHARED_MESSAGING_SERVICE_SID?: string;
 
     // Rate Limiting
     RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };

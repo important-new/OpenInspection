@@ -189,8 +189,8 @@ export class MessagingComplianceService {
             legalName: string;
             address: string;
             repName: string;
-            areaCode?: string;
-            email?: string;
+            areaCode?: string | undefined;
+            email?: string | undefined;
         },
         channel: 'sp10dlc' | 'tollfree',
         client: WriteClient,

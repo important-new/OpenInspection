@@ -554,3 +554,199 @@ describe('PATCH /api/admin/tenant-config — smsMode tenant selector (Task 6)', 
         expect(updateBranding).toHaveBeenCalledWith(TENANT, expect.objectContaining({ smsMode: 'managed_dedicated' }));
     });
 });
+
+// ─── Managed compliance admin endpoints (Task 6) ─────────────────────────────
+
+const MANAGED_ENV = {
+    ...FAKE_ENV,
+    APP_MODE: 'saas',
+    TWILIO_ACCOUNT_SID: 'ACtest000000000000000000000000000001',
+    TWILIO_API_KEY_SID: 'SKtest00000000000000000000000000001',
+    TWILIO_API_KEY_SECRET: 'managed-api-key-secret',
+} as unknown as HonoConfig['Bindings'];
+
+/**
+ * Build the SMS admin router with a specific deployment profile injected.
+ * The profile is injected via the '*' middleware (same pattern as buildTenantConfigApp).
+ */
+function buildSmsApp(
+    database: BetterSQLite3Database<typeof schema>,
+    profile: typeof SAAS_PROFILE | typeof STANDALONE_PROFILE,
+) {
+    const app = new OpenAPIHono<HonoConfig>();
+    app.onError((err, c) => {
+        if (err instanceof AppError) {
+            return c.json({ success: false, error: { code: err.code, message: err.message } }, err.status);
+        }
+        return c.json({ success: false, error: { code: 'internal_error', message: String(err) } }, 500);
+    });
+    app.use('*', async (c, next) => {
+        c.set('tenantId', TENANT);
+        c.set('userRole', 'owner');
+        c.set('user', { sub: 'user-1', role: 'owner', tenantId: TENANT } as never);
+        c.set('profile', profile);
+        await next();
+    });
+    app.route('/api/admin', smsAdminRoutes);
+    (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(database);
+    return app;
+}
+
+describe('Managed compliance admin endpoints (Task 6)', () => {
+    it('GET /sms/compliance returns managed sub-status fields (null when no row)', async () => {
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance', {}, MANAGED_ENV, makeExecCtx());
+        expect(res.status).toBe(200);
+        const body = await res.json() as {
+            data: {
+                complianceStatus: string | null;
+                customerProfileStatus: string | null;
+                brandStatus: string | null;
+                campaignStatus: string | null;
+                tfvStatus: string | null;
+                messagingServiceSid: string | null;
+                provisionedNumber: string | null;
+            };
+        };
+        // No row seeded → all sub-statuses null.
+        expect(body.data.complianceStatus).toBeNull();
+        expect(body.data.customerProfileStatus).toBeNull();
+        expect(body.data.brandStatus).toBeNull();
+        expect(body.data.campaignStatus).toBeNull();
+        expect(body.data.tfvStatus).toBeNull();
+        expect(body.data.messagingServiceSid).toBeNull();
+        expect(body.data.provisionedNumber).toBeNull();
+    });
+
+    it('GET /sms/compliance returns stored managed sub-statuses when row exists', async () => {
+        // Seed a partial provisioning row.
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT,
+            mode: 'managed_dedicated',
+            complianceStatus: 'brand_pending',
+            customerProfileStatus: 'PENDING_REVIEW',
+            brandStatus: 'PENDING',
+            messagingServiceSid: 'MG123',
+            createdAt: now,
+            updatedAt: now,
+        } as never);
+
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance', {}, MANAGED_ENV, makeExecCtx());
+        expect(res.status).toBe(200);
+        const body = await res.json() as { data: Record<string, string | null> };
+        expect(body.data.complianceStatus).toBe('brand_pending');
+        expect(body.data.customerProfileStatus).toBe('PENDING_REVIEW');
+        expect(body.data.brandStatus).toBe('PENDING');
+        expect(body.data.messagingServiceSid).toBe('MG123');
+        expect(body.data.campaignStatus).toBeNull();
+        expect(body.data.provisionedNumber).toBeNull();
+    });
+
+    it('POST /sms/compliance/provision on standalone → 403', async () => {
+        const app = buildSmsApp(db, STANDALONE_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+        expect(res.status).toBe(403);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_provision_unavailable');
+    });
+
+    it('POST /sms/compliance/provision on SaaS with missing managed keys → 409', async () => {
+        const envNoKeys = { ...FAKE_ENV, APP_MODE: 'saas' } as unknown as HonoConfig['Bindings'];
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, envNoKeys, makeExecCtx());
+        expect(res.status).toBe(409);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_not_configured');
+    });
+
+    it('POST /sms/compliance/provision on SaaS with managed keys → 200 returning current status', async () => {
+        // Stub fetch so provision Twilio calls return 201.
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(JSON.stringify({ sid: 'CP123', status: 'PENDING_REVIEW' }), { status: 201 }),
+        );
+
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St, City, ST 12345', repName: 'Jane Doe', email: 'jane@acme.com' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        // Route returns 200 immediately with the current stored status.
+        // Provision runs via waitUntil (background), so the response reflects
+        // the pre-provision state (null = no row yet).
+        expect(res.status).toBe(200);
+        const body = await res.json() as { success: boolean; data: Record<string, unknown> };
+        expect(body.success).toBe(true);
+        // All managed sub-status fields must be present in the response (may be null).
+        expect(Object.keys(body.data)).toEqual(expect.arrayContaining([
+            'mode', 'complianceStatus', 'rejectionReason', 'tollfree',
+            'customerProfileStatus', 'brandStatus', 'campaignStatus',
+            'tfvStatus', 'messagingServiceSid', 'provisionedNumber',
+        ]));
+    });
+
+    it('POST /sms/compliance/resubmit on standalone → 403', async () => {
+        const app = buildSmsApp(db, STANDALONE_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/resubmit', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({}),
+        }, MANAGED_ENV, makeExecCtx());
+        expect(res.status).toBe(403);
+    });
+
+    it('POST /sms/compliance/resubmit on SaaS with managed keys → 200', async () => {
+        // Seed a partial row (customerProfileSid already set → provision resumes from step 2).
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT,
+            mode: 'managed_dedicated',
+            complianceStatus: 'profile_pending',
+            customerProfileSid: 'CP123',
+            customerProfileStatus: 'PENDING_REVIEW',
+            createdAt: now,
+            updatedAt: now,
+        } as never);
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(JSON.stringify({ sid: 'MS456', status: 'PENDING' }), { status: 201 }),
+        );
+
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/resubmit', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ channel: 'tollfree' }),
+        }, MANAGED_ENV, makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        expect(res.status).toBe(200);
+        const body = await res.json() as { success: boolean; data: Record<string, unknown> };
+        expect(body.success).toBe(true);
+        // Status was at least 'profile_pending' when resubmit started (returned pre-await).
+        expect(body.data.complianceStatus).toBeTruthy();
+    });
+});
