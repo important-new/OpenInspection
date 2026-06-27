@@ -37,6 +37,7 @@ import { ensureClientContact } from '../lib/sms/ensure-client-contact';
 import { resolveOptinToken } from '../lib/sms/optin-token';
 import { normalizeE164 } from '../lib/sms/phone';
 import { validateTwilioSignature } from '../lib/sms/send-sms';
+import { verifyTelnyxSignature } from '../lib/messaging/telnyx';
 import { loadProviderForTenant, resolveTwilioSource } from '../lib/sms/resolve-twilio';
 import { loadTenantSecrets } from '../lib/secrets-cache';
 import { maybeMetering } from '../services/metering.service';
@@ -146,62 +147,130 @@ export const smsPublicRoutes = createApiRouter()
         return c.json({ success: true as const }, 200);
     });
 
-// Inbound webhook — plain Hono routes (form-encoded, signature-validated). Not
-// in the typed client; Twilio posts here directly.
+// Inbound webhook — plain Hono routes (signature-validated). Not in the typed
+// client; the provider (Twilio form-encoded, or Telnyx Ed25519 JSON) posts here
+// directly. The platform shape is always Twilio (the shared platform number).
 smsPublicRoutes.post('/sms/inbound', (c) =>
-    handleInbound(c, { authToken: c.env.TWILIO_AUTH_TOKEN ?? '', scopeTenantId: null }));
+    handleInbound(c, { provider: 'twilio', secret: c.env.TWILIO_AUTH_TOKEN ?? '', scopeTenantId: null }));
 
 smsPublicRoutes.post('/sms/inbound/:tenant', async (c) => {
     const slug = c.req.param('tenant');
     const db = drizzle(c.env.DB);
     const tenant = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, slug)).get();
     if (!tenant) return c.text('', 404);
-    // The tenant's OWN Twilio auth token (when they self-configured); fall back to
-    // the platform token for a standalone single-tenant deploy that uses env creds.
-    let authToken = c.env.TWILIO_AUTH_TOKEN ?? '';
+
+    // Decrypt the tenant's own secrets once; the BYO provider chosen in tenant
+    // config decides which secret verifies the inbound signature.
+    let dec: Record<string, string | undefined> | null = null;
     try {
-        const dec = await loadTenantSecrets(
+        dec = await loadTenantSecrets(
             c.env.DB, c.env.TENANT_CACHE, tenant.id, c.env.JWT_SECRET, c.env.JWT_SECRET_PREVIOUS,
         );
-        const own = (dec as Record<string, string | undefined> | null)?.['TWILIO_AUTH_TOKEN'];
-        if (own) authToken = own;
-    } catch { /* fall back to platform token */ }
-    return handleInbound(c, { authToken, scopeTenantId: tenant.id });
+    } catch { /* no/undecryptable secrets — fall back below */ }
+
+    const cfg = await db.select({ smsByoProvider: tenantConfigs.smsByoProvider })
+        .from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenant.id)).get();
+
+    if (cfg?.smsByoProvider === 'telnyx') {
+        // BYO Telnyx — verify the inbound webhook with the tenant's base64 Ed25519
+        // PUBLIC key. Empty/missing key → handler verify fails closed (403).
+        const telnyxPublicKey = dec?.['TELNYX_PUBLIC_KEY'] ?? '';
+        return handleInbound(c, { provider: 'telnyx', secret: telnyxPublicKey, scopeTenantId: tenant.id });
+    }
+
+    // Twilio (default/null) — the tenant's OWN auth token (when self-configured);
+    // fall back to the platform token for a standalone deploy that uses env creds.
+    let authToken = c.env.TWILIO_AUTH_TOKEN ?? '';
+    const own = dec?.['TWILIO_AUTH_TOKEN'];
+    if (own) authToken = own;
+    return handleInbound(c, { provider: 'twilio', secret: authToken, scopeTenantId: tenant.id });
 });
 
 /**
- * Shared inbound handler. Validates the Twilio request signature against
- * `APP_BASE_URL + path`, then applies STOP/START to the matching contact(s).
+ * Shared inbound handler. Verifies the provider's inbound signature, extracts
+ * From/Body (Twilio form params, or Telnyx JSON payload), then applies
+ * STOP/START to the matching contact(s) via one shared consent tail.
  * scopeTenantId=null → platform shape (all platform-mode tenants matching From);
  * scopeTenantId set → tenant-scoped shape (that tenant only).
+ *
+ * Fail-closed: missing/invalid signature, missing key, out-of-tolerance
+ * timestamp, or malformed body → 403/200-no-op BEFORE any side effect.
  */
 async function handleInbound(
-    c: Context<HonoConfig>, opts: { authToken: string; scopeTenantId: string | null },
+    c: Context<HonoConfig>,
+    opts: { provider: 'twilio' | 'telnyx'; secret: string; scopeTenantId: string | null },
 ): Promise<Response> {
-    if (!opts.authToken) return c.text('', 403);
+    if (!opts.secret) return c.text('', 403);
 
-    let form: FormData;
-    try { form = await c.req.formData(); } catch { return c.text('', 400); }
-    const params: Record<string, string> = {};
-    for (const [k, v] of form.entries()) params[k] = typeof v === 'string' ? v : '';
+    // Read the body ONCE as raw text — the stream is single-consume, and Telnyx
+    // signs the exact raw bytes.
+    let rawBody: string;
+    try { rawBody = await c.req.text(); } catch { return c.text('', 400); }
 
+    // Lower-cased headers for the provider-agnostic signature context.
+    const headers: Record<string, string> = {};
+    c.req.raw.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
     const url = `${getBaseUrl(c)}${c.req.path}`;
-    const presented = c.req.header('X-Twilio-Signature') ?? '';
-    const ok = await validateTwilioSignature(opts.authToken, url, params, presented);
-    if (!ok) return c.text('', 403);
+    // Optional test seam: pin the anti-replay clock for Telnyx verification.
+    const nowMs = (c.env as { TELNYX_VERIFY_NOW_MS?: number }).TELNYX_VERIFY_NOW_MS;
 
-    const from = normalizeE164(params.From ?? '');
-    const cmd = (params.Body ?? '').trim().toUpperCase();
+    let from: string | null;
+    let cmd: string;
+    let isHelp: boolean;
+
+    if (opts.provider === 'telnyx') {
+        // Telnyx Ed25519 webhook — verify over the raw body, then parse JSON.
+        const ok = await verifyTelnyxSignature(
+            opts.secret,
+            headers['telnyx-timestamp'] ?? '',
+            rawBody,
+            headers['telnyx-signature-ed25519'] ?? '',
+            nowMs,
+        );
+        if (!ok) return c.text('', 403);
+
+        // Parse defensively — a malformed/missing field is acknowledged (200) and
+        // never throws. Telnyx does not consume TwiML; a plain 200 is correct.
+        let parsed: unknown;
+        try { parsed = JSON.parse(rawBody); } catch { return c.text('', 200); }
+        const data = (parsed as { data?: { event_type?: unknown; payload?: unknown } } | null)?.data;
+        // Only an inbound user reply carries a STOP/START/HELP command.
+        if (data?.event_type !== 'message.received') return c.text('', 200);
+        const payload = (data as { payload?: { from?: { phone_number?: unknown }; text?: unknown } }).payload;
+        const fromRaw = payload?.from?.phone_number;
+        const textRaw = payload?.text;
+        from = normalizeE164(typeof fromRaw === 'string' ? fromRaw : '');
+        cmd = (typeof textRaw === 'string' ? textRaw : '').trim().toUpperCase();
+        isHelp = HELP_WORDS.has(cmd);
+        // Telnyx HELP: no TwiML — acknowledge with an empty 200. (HELP auto-reply
+        // copy is a Twilio/TwiML-specific affordance.)
+        if (isHelp) return c.text('', 200);
+    } else {
+        // Twilio form-encoded webhook — verify the HMAC over url + sorted params.
+        // Parse params from the raw body (equivalent to the prior formData() read
+        // for application/x-www-form-urlencoded; byte-identical signature input).
+        const params: Record<string, string> = {};
+        for (const [k, v] of new URLSearchParams(rawBody)) params[k] = v;
+        const presented = headers['x-twilio-signature'] ?? '';
+        const ok = await validateTwilioSignature(opts.secret, url, params, presented);
+        if (!ok) return c.text('', 403);
+
+        from = normalizeE164(params.From ?? '');
+        cmd = (params.Body ?? '').trim().toUpperCase();
+        isHelp = HELP_WORDS.has(cmd);
+
+        // HELP — respond with an informational TwiML message identifying the
+        // program. Does not depend on matching a contact (Twilio expects HELP
+        // answered regardless).
+        if (isHelp) {
+            const brand = await helpReplyBrand(c, opts.scopeTenantId);
+            const msg = `${brand}: appointment & report text alerts. Message frequency varies by your inspection activity. Msg & data rates may apply. Reply STOP to unsubscribe.`;
+            return c.text(`<Response><Message>${escapeXml(msg)}</Message></Response>`, 200, { 'Content-Type': 'text/xml' });
+        }
+    }
+
     const isRevoke = STOP_WORDS.has(cmd);
     const isGrant = START_WORDS.has(cmd);
-
-    // HELP — respond with an informational message identifying the program. Does
-    // not depend on matching a contact (Twilio expects HELP answered regardless).
-    if (HELP_WORDS.has(cmd)) {
-        const brand = await helpReplyBrand(c, opts.scopeTenantId);
-        const msg = `${brand}: appointment & report text alerts. Message frequency varies by your inspection activity. Msg & data rates may apply. Reply STOP to unsubscribe.`;
-        return c.text(`<Response><Message>${escapeXml(msg)}</Message></Response>`, 200, { 'Content-Type': 'text/xml' });
-    }
 
     if (!from) return c.text('<Response/>', 200, { 'Content-Type': 'text/xml' });
 

@@ -23,6 +23,7 @@ import { drizzle as mockDrizzle } from 'drizzle-orm/d1';
 import { smsPublicRoutes, smsAdminRoutes } from '../../server/api/sms';
 import { SmsConsentService } from '../../server/services/sms-consent.service';
 import { signParams } from '../../server/lib/sms/send-sms';
+import { sealSecrets } from '../../server/lib/config-crypto';
 import adminRoutes from '../../server/api/admin';
 
 const TENANT = '00000000-0000-0000-0000-000000000001';
@@ -281,6 +282,147 @@ describe('SMS consent API (Track L Task 8)', () => {
         expect(xml).toContain('Inspector Hub'); // APP_NAME unset → platform brand fallback
         expect(xml).toContain('STOP');
         // HELP is informational only — consent state is untouched.
+        expect(await new SmsConsentService({} as D1Database).getLatest(TENANT, contactId)).toBe('granted');
+    });
+});
+
+// ─── BYO Telnyx tenant inbound (Ed25519-signed JSON webhook) ────────────────
+
+const TELNYX_TS = '1782000000'; // unix seconds, paired with FAKE_TELNYX_NOW below
+
+/**
+ * Build a Telnyx-shaped inbound JSON body (message.received) for the given
+ * From/Body, matching the paths the handler extracts:
+ *   From = data.payload.from.phone_number ; Body = data.payload.text.
+ */
+function telnyxBody(from: string, text: string, eventType = 'message.received'): string {
+    return JSON.stringify({
+        data: {
+            event_type: eventType,
+            payload: { from: { phone_number: from }, text },
+        },
+    });
+}
+
+/** Generate an Ed25519 keypair and return the base64 raw public key + a signer. */
+async function makeTelnyxSigner(): Promise<{
+    publicKeyB64: string;
+    sign: (timestamp: string, rawBody: string) => Promise<string>;
+}> {
+    const kp = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']) as CryptoKeyPair;
+    const rawPub = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+    const publicKeyB64 = btoa(String.fromCharCode(...rawPub));
+    const sign = async (timestamp: string, rawBody: string): Promise<string> => {
+        const data = new TextEncoder().encode(`${timestamp}|${rawBody}`);
+        const sig = new Uint8Array(await crypto.subtle.sign({ name: 'Ed25519' }, kp.privateKey, data));
+        return btoa(String.fromCharCode(...sig));
+    };
+    return { publicKeyB64, sign };
+}
+
+/**
+ * Seal a tenant's TELNYX_PUBLIC_KEY into tenant_configs.secrets_enc and flip the
+ * tenant into own-mode BYO Telnyx, so the inbound route resolves the Telnyx
+ * branch (loadTenantSecrets reads the same mocked drizzle/sqlite db).
+ */
+async function seedTelnyxTenant(
+    database: BetterSQLite3Database<typeof schema>, tenantId: string, publicKeyB64: string,
+): Promise<void> {
+    const sealed = await sealSecrets({ TELNYX_PUBLIC_KEY: publicKeyB64 }, tenantId, 'test-secret');
+    await database.insert(schema.tenantConfigs).values({
+        tenantId, smsMode: 'own', smsByoProvider: 'telnyx',
+        secretsEnc: sealed.blob, dekEnc: sealed.dekEnc, updatedAt: new Date(),
+    } as never);
+}
+
+describe('BYO Telnyx tenant inbound (Ed25519 JSON webhook)', () => {
+    it('valid Ed25519 signature + STOP → revoked for that tenant', async () => {
+        const { publicKeyB64, sign } = await makeTelnyxSigner();
+        await seedTelnyxTenant(db, TENANT, publicKeyB64);
+
+        const contactId = crypto.randomUUID();
+        await db.insert(schema.contacts).values({
+            id: contactId, tenantId: TENANT, type: 'client', name: 'Jane', phone: '+15551234567', createdAt: new Date(),
+        } as never);
+        await new SmsConsentService({} as D1Database).record(TENANT, contactId, 'granted', 'admin', {});
+
+        const rawBody = telnyxBody('+15551234567', 'STOP');
+        const sig = await sign(TELNYX_TS, rawBody);
+        // Pin the handler clock inside the ±300s tolerance window of TELNYX_TS.
+        const env = { ...FAKE_ENV, TELNYX_VERIFY_NOW_MS: Number(TELNYX_TS) * 1000 } as unknown as HonoConfig['Bindings'];
+
+        const app = buildApp(db);
+        const res = await app.request('/api/public/sms/inbound/acme', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                'telnyx-signature-ed25519': sig,
+                'telnyx-timestamp': TELNYX_TS,
+            },
+            body: rawBody,
+        }, env, makeExecCtx());
+
+        expect(res.status).toBe(200);
+        expect(await new SmsConsentService({} as D1Database).getLatest(TENANT, contactId)).toBe('revoked');
+    });
+
+    it('bad signature (tampered body) → 403, no consent change', async () => {
+        const { publicKeyB64, sign } = await makeTelnyxSigner();
+        await seedTelnyxTenant(db, TENANT, publicKeyB64);
+
+        const contactId = crypto.randomUUID();
+        await db.insert(schema.contacts).values({
+            id: contactId, tenantId: TENANT, type: 'client', name: 'Jane', phone: '+15551234567', createdAt: new Date(),
+        } as never);
+        await new SmsConsentService({} as D1Database).record(TENANT, contactId, 'granted', 'admin', {});
+
+        const signedBody = telnyxBody('+15551234567', 'STOP');
+        const sig = await sign(TELNYX_TS, signedBody);
+        const tamperedBody = telnyxBody('+15551234567', 'CONTINUE'); // signature no longer matches
+        const env = { ...FAKE_ENV, TELNYX_VERIFY_NOW_MS: Number(TELNYX_TS) * 1000 } as unknown as HonoConfig['Bindings'];
+
+        const app = buildApp(db);
+        const res = await app.request('/api/public/sms/inbound/acme', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                'telnyx-signature-ed25519': sig,
+                'telnyx-timestamp': TELNYX_TS,
+            },
+            body: tamperedBody,
+        }, env, makeExecCtx());
+
+        expect(res.status).toBe(403);
+        expect(await new SmsConsentService({} as D1Database).getLatest(TENANT, contactId)).toBe('granted');
+    });
+
+    it('valid signature but non-message event_type → 200 no-op (no consent change)', async () => {
+        const { publicKeyB64, sign } = await makeTelnyxSigner();
+        await seedTelnyxTenant(db, TENANT, publicKeyB64);
+
+        const contactId = crypto.randomUUID();
+        await db.insert(schema.contacts).values({
+            id: contactId, tenantId: TENANT, type: 'client', name: 'Jane', phone: '+15551234567', createdAt: new Date(),
+        } as never);
+        await new SmsConsentService({} as D1Database).record(TENANT, contactId, 'granted', 'admin', {});
+
+        const rawBody = telnyxBody('+15551234567', 'STOP', 'message.sent');
+        const sig = await sign(TELNYX_TS, rawBody);
+        const env = { ...FAKE_ENV, TELNYX_VERIFY_NOW_MS: Number(TELNYX_TS) * 1000 } as unknown as HonoConfig['Bindings'];
+
+        const app = buildApp(db);
+        const res = await app.request('/api/public/sms/inbound/acme', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                'telnyx-signature-ed25519': sig,
+                'telnyx-timestamp': TELNYX_TS,
+            },
+            body: rawBody,
+        }, env, makeExecCtx());
+
+        expect(res.status).toBe(200);
+        // Delivery-receipt event types are not user replies — consent untouched.
         expect(await new SmsConsentService({} as D1Database).getLatest(TENANT, contactId)).toBe('granted');
     });
 });

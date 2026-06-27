@@ -1,4 +1,4 @@
-import type { MessagingProvider } from './provider';
+import type { InboundSignatureContext, MessagingProvider } from './provider';
 
 export interface TwilioCreds { sid: string; token: string; from: string; }
 
@@ -85,14 +85,14 @@ export class TwilioClient implements MessagingProvider {
         return this.messages.create(createArgs);
     }
 
-    /** Implements MessagingProvider.validateInboundSignature — thin wrapper over validateTwilioSignature. */
-    validateInboundSignature(
-        authToken: string,
-        url: string,
-        params: Record<string, string>,
-        presented: string,
-    ): Promise<boolean> {
-        return validateTwilioSignature(authToken, url, params, presented);
+    /**
+     * Implements MessagingProvider.validateInboundSignature — thin wrapper over
+     * validateTwilioSignature. Reads the auth token from `ctx.secret` and the
+     * presented HMAC from the lower-cased `x-twilio-signature` header; the
+     * underlying computation is byte-identical to the legacy 4-arg call.
+     */
+    validateInboundSignature(ctx: InboundSignatureContext): Promise<boolean> {
+        return validateTwilioSignature(ctx.secret, ctx.url, ctx.params, ctx.headers['x-twilio-signature'] ?? '');
     }
 }
 
