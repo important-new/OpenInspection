@@ -453,10 +453,9 @@ describe('syncManagedStatus — change detection', () => {
 
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { AppError } from '../../server/lib/errors';
-import type { HonoConfig } from '../../server/types/hono';
+import type { HonoConfig, AppServices } from '../../server/types/hono';
 import { smsPublicRoutes } from '../../server/api/sms';
 import { signParams } from '../../server/lib/messaging/twilio';
-import { OutboxService } from '../../server/portal/outbox.service';
 
 const APP_BASE_URL_WH = 'https://app.example.test';
 const COMPLIANCE_TOKEN_WH = 'compliance-webhook-token-11';
@@ -477,13 +476,21 @@ async function buildWebhookApp(
         }
         return c.json({ success: false, error: { code: 'internal_error', message: String(err) } }, 500);
     });
+
+    // Inject a minimal services stub into context so the compliance-webhook handler
+    // can read c.var.services.outbox (the UserSyncOutbox seam) without needing
+    // the full diMiddleware stack. The outbox is populated only when hasSyncQueue
+    // is true (mirrors the SaaS gate in di.ts).
+    app.use('*', async (c, next) => {
+        const outbox = (opts.hasSyncQueue && opts.appendSpy)
+            ? { append: opts.appendSpy }
+            : undefined;
+        c.set('services', { outbox } as unknown as AppServices);
+        await next();
+    });
+
     app.route('/api/public', smsPublicRoutes);
     (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(database);
-
-    // Mock OutboxService.append if a spy is supplied.
-    if (opts.appendSpy) {
-        vi.spyOn(OutboxService.prototype, 'append').mockImplementation(opts.appendSpy);
-    }
 
     const env: HonoConfig['Bindings'] = {
         DB: {},

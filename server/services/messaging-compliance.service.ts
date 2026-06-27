@@ -4,7 +4,7 @@ import { messagingCompliance } from '../lib/db/schema';
 import { TwilioClient } from '../lib/messaging/twilio';
 import { logger } from '../lib/logger';
 import type { ComplianceEvent } from '../lib/sms/compliance-webhook';
-import type { OutboxService } from '../portal/outbox.service';
+import type { UserSyncOutbox } from '../lib/integration/user-sync';
 
 type ReadClient = Pick<TwilioClient, 'tollfree' | 'brands'>;
 
@@ -529,7 +529,7 @@ export class MessagingComplianceService {
         acctSid: string,
         apiKeySecret: string,
         apiKeySid: string,
-        outbox?: OutboxService,
+        outbox?: UserSyncOutbox,
     ): Promise<void> {
         const db = this.d();
         const terminalStatuses = ['approved', 'rejected'] as const;

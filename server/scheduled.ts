@@ -214,11 +214,13 @@ export async function scheduled(
     if (env.TWILIO_ACCOUNT_SID && env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET) {
         try {
             const { MessagingComplianceService } = await import('./services/messaging-compliance.service');
-            const { OutboxService } = await import('./portal/outbox.service');
             const svc = new MessagingComplianceService(env.DB);
             // Pass an outbox when the sync queue is bound (SaaS) so status transitions
             // are propagated to portal. Absent in standalone — no-op (outbox = undefined).
-            const outbox = env.SYNC_QUEUE ? new OutboxService(env.DB) : undefined;
+            // Dynamic import keeps portal code out of the standalone bundle by construction.
+            const outbox = env.SYNC_QUEUE
+                ? await import('./portal/integration.module').then(({ buildUserSyncOutbox }) => buildUserSyncOutbox(env))
+                : undefined;
             await svc.sweepManagedStatuses(
                 env.TWILIO_ACCOUNT_SID,
                 env.TWILIO_API_KEY_SECRET,

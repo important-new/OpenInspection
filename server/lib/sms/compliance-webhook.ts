@@ -30,7 +30,6 @@ import { getBaseUrl } from '../url';
 import { MessagingComplianceService } from '../../services/messaging-compliance.service';
 import { logger } from '../logger';
 import type { HonoConfig } from '../../types/hono';
-import { OutboxService } from '../../portal/outbox.service';
 
 // ---------------------------------------------------------------------------
 // Compliance event type — parsed from the Twilio form params.
@@ -165,10 +164,13 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
 
         // Emit a core→portal sync event when the compliance status actually changed.
         // Fail-soft: a queue/outbox failure must never break the 200 response Twilio expects.
-        if (result?.changed && c.env.SYNC_QUEUE) {
-            try {
-                const outbox = new OutboxService(c.env.DB);
-                await outbox.append({
+        // The outbox is obtained from the DI context (UserSyncOutbox interface) — no direct
+        // portal import here. It is undefined in standalone (SYNC_QUEUE absent → di.ts returns
+        // undefined) so standalone never accumulates dead outbox rows.
+        if (result?.changed) {
+            const outbox = c.var.services?.outbox;
+            if (outbox) {
+                outbox.append({
                     type: 'io.inspectorhub.tenant.compliance_status_updated',
                     payload: {
                         tenantId: tenant.id,
@@ -176,10 +178,10 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
                         rejectionReason: result.rejectionReason,
                         updatedAt: Math.floor(Date.now() / 1000),
                     },
+                }).catch((err) => {
+                    logger.error('[compliance-webhook] outbox emit failed', { tenantId: tenant.id },
+                        err instanceof Error ? err : new Error(String(err)));
                 });
-            } catch (err) {
-                logger.error('[compliance-webhook] outbox emit failed', { tenantId: tenant.id },
-                    err instanceof Error ? err : new Error(String(err)));
             }
         }
 
