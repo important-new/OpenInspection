@@ -100,6 +100,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       POSTMARK_SERVER_TOKEN: secrets.POSTMARK_SERVER_TOKEN || "",
       MAILGUN_API_KEY: secrets.MAILGUN_API_KEY || "",
       MAILGUN_DOMAIN: secrets.MAILGUN_DOMAIN || "",
+      // WH-3 — per-provider inbound webhook verification secrets.
+      RESEND_WEBHOOK_SECRET: secrets.RESEND_WEBHOOK_SECRET || "",
+      SENDGRID_WEBHOOK_PUBLIC_KEY: secrets.SENDGRID_WEBHOOK_PUBLIC_KEY || "",
+      POSTMARK_WEBHOOK_TOKEN: secrets.POSTMARK_WEBHOOK_TOKEN || "",
+      MAILGUN_SIGNING_KEY: secrets.MAILGUN_SIGNING_KEY || "",
       GOOGLE_CLIENT_ID: secrets.GOOGLE_CLIENT_ID || "",
       GOOGLE_CLIENT_SECRET: secrets.GOOGLE_CLIENT_SECRET || "",
       TWILIO_ACCOUNT_SID: secrets.TWILIO_ACCOUNT_SID || "",
@@ -190,8 +195,13 @@ export async function action({ request, context }: Route.ActionArgs) {
       ? (rawProvider as EmailByoProvider)
       : "resend";
     const body: Record<string, string> = {};
-    // Collect only the non-empty secret fields relevant to the selected provider.
-    for (const key of ["RESEND_API_KEY", "SENDGRID_API_KEY", "POSTMARK_SERVER_TOKEN", "MAILGUN_API_KEY", "MAILGUN_DOMAIN"]) {
+    // Collect only the non-empty secret fields relevant to email providers — the
+    // sending credentials AND the per-provider inbound webhook verification
+    // secret (WH-3). Empty/masked values are skipped by the secrets endpoint.
+    for (const key of [
+      "RESEND_API_KEY", "SENDGRID_API_KEY", "POSTMARK_SERVER_TOKEN", "MAILGUN_API_KEY", "MAILGUN_DOMAIN",
+      "RESEND_WEBHOOK_SECRET", "SENDGRID_WEBHOOK_PUBLIC_KEY", "POSTMARK_WEBHOOK_TOKEN", "MAILGUN_SIGNING_KEY",
+    ]) {
       const v = form.get(key);
       if (v && typeof v === "string" && v.trim()) body[key] = v.trim();
     }
@@ -336,7 +346,7 @@ export default function SettingsCommunication() {
   const icsUrl = denied ? null : loaderResult.icsUrl;
   const googleCalendarConnected = denied ? false : loaderResult.googleCalendarConnected;
   const secrets = denied
-    ? { RESEND_API_KEY: "", SENDGRID_API_KEY: "", POSTMARK_SERVER_TOKEN: "", MAILGUN_API_KEY: "", MAILGUN_DOMAIN: "", GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "", TWILIO_ACCOUNT_SID: "", TWILIO_AUTH_TOKEN: "", TWILIO_FROM_NUMBER: "", TELNYX_API_KEY: "", TELNYX_FROM_NUMBER: "", TELNYX_PUBLIC_KEY: "" }
+    ? { RESEND_API_KEY: "", SENDGRID_API_KEY: "", POSTMARK_SERVER_TOKEN: "", MAILGUN_API_KEY: "", MAILGUN_DOMAIN: "", RESEND_WEBHOOK_SECRET: "", SENDGRID_WEBHOOK_PUBLIC_KEY: "", POSTMARK_WEBHOOK_TOKEN: "", MAILGUN_SIGNING_KEY: "", GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "", TWILIO_ACCOUNT_SID: "", TWILIO_AUTH_TOKEN: "", TWILIO_FROM_NUMBER: "", TELNYX_API_KEY: "", TELNYX_FROM_NUMBER: "", TELNYX_PUBLIC_KEY: "" }
     : loaderResult.secrets;
   const smsConfig = denied ? { mode: "platform" as const, effectiveSource: "none" as const } : loaderResult.smsConfig as { mode: "platform" | "own" | "managed_shared" | "managed_dedicated"; effectiveSource: "platform" | "own" | "none" };
   const companyPhone = denied ? "" : loaderResult.companyPhone;
@@ -493,6 +503,8 @@ export default function SettingsCommunication() {
         resendTest={resendTest}
         emailValidateFetcher={emailValidateFetcher}
         initialProvider={emailByoProvider}
+        webhookBaseUrl={typeof window !== "undefined" ? window.location.origin : ""}
+        tenantSlug={tenantSlug}
       />
 
       {/* SMS delivery (Track L) */}

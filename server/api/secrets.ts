@@ -58,6 +58,15 @@ export const INTEGRATION_SECRET_KEYS = [
     'POSTMARK_SERVER_TOKEN',
     'MAILGUN_API_KEY',
     'MAILGUN_DOMAIN',
+    // #wh3 — per-provider email webhook verification secrets (inbound bounce /
+    // complaint receiver POST /api/public/email/:provider/:tenant). No format
+    // gate — none of these has a stable public prefix (Svix whsec_ is the secret
+    // body for HMAC, the SendGrid value is a base64 P-256 SPKI key, the Postmark
+    // token and Mailgun signing key are opaque). Encrypted at rest by membership.
+    'RESEND_WEBHOOK_SECRET',
+    'SENDGRID_WEBHOOK_PUBLIC_KEY',
+    'POSTMARK_WEBHOOK_TOKEN',
+    'MAILGUN_SIGNING_KEY',
     'APP_BASE_URL',
 ] as const;
 
