@@ -52,7 +52,7 @@ import { complianceWebhookUrl } from '../../sms/compliance-webhook';
 interface TelnyxBrandResult { brandId?: string; identityStatus?: string }
 interface TelnyxVettingResult { vettingId?: string }
 interface TelnyxCampaignResult { campaignId?: string; campaignStatus?: string }
-interface TelnyxMessagingProfileResult { id?: string }
+interface TelnyxMessagingProfileResult { data?: { id?: string } }
 interface TelnyxAvailableNumbersResult { data?: Array<{ phone_number?: string }> }
 interface TelnyxNumberOrderResult {
     data?: { id?: string; phone_numbers?: Array<{ id?: string; phone_number?: string }> };
@@ -211,7 +211,7 @@ export class TelnyxComplianceProvider implements ComplianceProvider {
                 name: businessInfo.legalName,
                 whitelisted_destinations: [BRAND_COUNTRY],
             });
-            const mpId = mp.id;
+            const mpId = mp.data?.id;
             if (!mpId) throw new Error('Telnyx messagingProfiles.create returned no id');
             row = await store.persist(tenantId, { messagingResourceSid: mpId });
         }

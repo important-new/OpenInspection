@@ -68,7 +68,7 @@ function fakeTelnyx(calls: string[], opts: FakeOpts = {}): TelnyxComplianceClien
             },
         },
         messagingProfiles: {
-            create: async () => { calls.push('msgProfile'); return { id: 'MP1' }; },
+            create: async () => { calls.push('msgProfile'); return { data: { id: 'MP1' } }; },
         },
         availablePhoneNumbers: {
             list: async () => { calls.push('search'); return { data: [{ phone_number: '+15551110000' }] }; },
