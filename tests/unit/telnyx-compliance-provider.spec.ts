@@ -89,7 +89,7 @@ function fakeTelnyx(calls: string[], opts: FakeOpts = {}): TelnyxComplianceClien
                         if (opts.capturedTfv) opts.capturedTfv.body = body;
                         // Mirror the REAL VerificationRequestEgress shape (flat, not wrapped in .data).
                         // Both id and verificationRequestId are required on the real response; the
-                        // provider reads verificationRequestId as the tfvSid (the semantic request ID).
+                        // provider persists `id` as the tfvSid (the key requests.retrieve(id) uses).
                         return {
                             id: 'TFV_DB_ID',
                             verificationRequestId: 'TFV_REQ1',
@@ -251,8 +251,9 @@ describe('TelnyxComplianceProvider.provision (tollfree)', () => {
         expect(row?.messagingResourceSid).toBe('MP1');
         expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.provisionedNumberSid).toBe('PNUM1');
-        // verificationRequestId (not .id) is the semantic TFV request identifier.
-        expect(row?.tfvSid).toBe('TFV_REQ1');
+        // tfvSid stores the create response's `id` — the key requests.retrieve(id)
+        // consumes and the only id present on the VerificationRequestStatus shape.
+        expect(row?.tfvSid).toBe('TFV_DB_ID');
         expect(row?.complianceStatus).toBe('tfv_pending');
         // 10DLC-only steps must NOT run on the tollfree path.
         expect(calls).not.toContain('brand');

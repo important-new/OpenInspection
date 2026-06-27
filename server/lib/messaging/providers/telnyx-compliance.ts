@@ -59,9 +59,10 @@ interface TelnyxNumberOrderResult {
 }
 interface TelnyxPhoneNumberCampaignResult { phoneNumber?: string; assignmentStatus?: string }
 // VerificationRequestEgress is flat (no .data wrapper). Both `id` and
-// `verificationRequestId` are required on the real type; we read
-// `verificationRequestId` as the stable semantic identifier for the TFV request
-// (persisted as `tfvSid`). `id` is the internal DB record id.
+// `verificationRequestId` are required on the real type; we persist `id` as
+// `tfvSid` because `requests.retrieve(id)` keys on it and the retrieve/status
+// response (`VerificationRequestStatus`) carries only `id`, not
+// `verificationRequestId`.
 interface TelnyxTfvResult { id?: string; verificationRequestId?: string; verificationStatus?: string }
 
 export interface TelnyxComplianceClient {
@@ -330,8 +331,11 @@ export class TelnyxComplianceProvider implements ComplianceProvider {
         }
 
         // Step 3: submit toll-free verification. Guarded on tfvSid so a resume does
-        // not re-submit. `verificationRequestId` is the stable semantic identifier
-        // on the flat VerificationRequestEgress response (not the internal .id field).
+        // not re-submit. `tfvSid` stores the create response's `id` — that is the
+        // path key `requests.retrieve(id)` consumes for sync polling, and the only
+        // id present on the `VerificationRequestStatus` shape (the flat
+        // `VerificationRequestEgress.verificationRequestId` is absent from the
+        // status/retrieve response, so it cannot be the match key).
         if (!row.tfvSid) {
             const repParts = (businessInfo.repName ?? '').trim().split(/\s+/);
             const firstName = repParts[0] ?? '';
@@ -364,8 +368,8 @@ export class TelnyxComplianceProvider implements ComplianceProvider {
                 ...(statusCallbackUrl ? { webhookUrl: statusCallbackUrl } : {}),
             });
 
-            const tfvSid = tfv.verificationRequestId;
-            if (!tfvSid) throw new Error('Telnyx TFV create returned no verificationRequestId');
+            const tfvSid = tfv.id;
+            if (!tfvSid) throw new Error('Telnyx TFV create returned no id');
             row = await store.persist(tenantId, {
                 tfvSid,
                 complianceStatus: 'tfv_pending',
