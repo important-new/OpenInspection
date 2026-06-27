@@ -397,7 +397,7 @@ const complianceResubmitRoute = createRoute(withMcpMetadata({
     tags: ['admin', 'sms'],
     summary: 'Resume managed SMS compliance provisioning from the first missing step',
     middleware: [requireRole('owner', 'manager')],
-    request: { body: { content: { 'application/json': { schema: SmsComplianceResubmitSchema } }, required: false } },
+    request: { body: { content: { 'application/json': { schema: SmsComplianceResubmitSchema } }, required: true } },
     responses: {
         200: { content: { 'application/json': { schema: SmsComplianceResponseSchema } }, description: 'Current compliance status after resuming provisioning in background' },
         403: { description: 'Not available in standalone mode' },
@@ -406,6 +406,32 @@ const complianceResubmitRoute = createRoute(withMcpMetadata({
     operationId: 'resubmitSmsCompliance',
     description: 'Idempotent re-run of the managed provisioning chain (waitUntil background). Skips any step whose SID is already persisted, resuming from the first missing step. SaaS-only; requires TWILIO_ACCOUNT_SID / TWILIO_API_KEY_SID / TWILIO_API_KEY_SECRET env vars.',
 }, { scopes: ['admin'], tier: 'extended' }));
+
+// ─── Shared helper ───────────────────────────────────────────────────────────
+
+/**
+ * Fetch the managed sub-status columns for a tenant from messaging_compliance.
+ * Returns undefined if no row exists or the query fails.
+ */
+async function getManagedSubRow(db: ReturnType<typeof drizzle>, tenantId: string): Promise<{
+    customerProfileStatus: string | null;
+    brandStatus: string | null;
+    campaignStatus: string | null;
+    tfvStatus: string | null;
+    messagingServiceSid: string | null;
+    provisionedNumber: string | null;
+} | undefined> {
+    try {
+        return await db.select({
+            customerProfileStatus: messagingCompliance.customerProfileStatus,
+            brandStatus: messagingCompliance.brandStatus,
+            campaignStatus: messagingCompliance.campaignStatus,
+            tfvStatus: messagingCompliance.tfvStatus,
+            messagingServiceSid: messagingCompliance.messagingServiceSid,
+            provisionedNumber: messagingCompliance.provisionedNumber,
+        }).from(messagingCompliance).where(eq(messagingCompliance.tenantId, tenantId)).get();
+    } catch { return undefined; }
+}
 
 export const smsAdminRoutes = createApiRouter()
     .openapi(attestRoute, async (c) => {
@@ -521,24 +547,7 @@ export const smsAdminRoutes = createApiRouter()
         }
 
         const stored = await complianceSvc.getStatus(tenantId);
-        let managedRow: {
-            customerProfileStatus: string | null;
-            brandStatus: string | null;
-            campaignStatus: string | null;
-            tfvStatus: string | null;
-            messagingServiceSid: string | null;
-            provisionedNumber: string | null;
-        } | undefined;
-        try {
-            managedRow = await db.select({
-                customerProfileStatus: messagingCompliance.customerProfileStatus,
-                brandStatus: messagingCompliance.brandStatus,
-                campaignStatus: messagingCompliance.campaignStatus,
-                tfvStatus: messagingCompliance.tfvStatus,
-                messagingServiceSid: messagingCompliance.messagingServiceSid,
-                provisionedNumber: messagingCompliance.provisionedNumber,
-            }).from(messagingCompliance).where(eq(messagingCompliance.tenantId, tenantId)).get();
-        } catch { managedRow = undefined; }
+        const managedRow = await getManagedSubRow(db, tenantId);
         return c.json({
             success: true as const,
             data: {
@@ -594,18 +603,7 @@ export const smsAdminRoutes = createApiRouter()
         // Return the current stored status (provision is async).
         const stored = await complianceSvc.getStatus(tenantId);
         const db = drizzle(c.env.DB);
-        type ManagedSubRow = { customerProfileStatus: string | null; brandStatus: string | null; campaignStatus: string | null; tfvStatus: string | null; messagingServiceSid: string | null; provisionedNumber: string | null };
-        let managedRow: ManagedSubRow | undefined;
-        try {
-            managedRow = await db.select({
-                customerProfileStatus: messagingCompliance.customerProfileStatus,
-                brandStatus: messagingCompliance.brandStatus,
-                campaignStatus: messagingCompliance.campaignStatus,
-                tfvStatus: messagingCompliance.tfvStatus,
-                messagingServiceSid: messagingCompliance.messagingServiceSid,
-                provisionedNumber: messagingCompliance.provisionedNumber,
-            }).from(messagingCompliance).where(eq(messagingCompliance.tenantId, tenantId)).get();
-        } catch { managedRow = undefined; }
+        const managedRow = await getManagedSubRow(db, tenantId);
         let cfgRow: { smsMode: string | null } | undefined;
         try { cfgRow = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
         catch { cfgRow = undefined; }
@@ -650,35 +648,21 @@ export const smsAdminRoutes = createApiRouter()
         // We require a valid stored row (provision must have been called at least once).
         const stored = await complianceSvc.getStatus(tenantId);
         const db = drizzle(c.env.DB);
-        type ManagedSubRow2 = { customerProfileStatus: string | null; brandStatus: string | null; campaignStatus: string | null; tfvStatus: string | null; messagingServiceSid: string | null; provisionedNumber: string | null };
-        let row: ManagedSubRow2 | undefined;
-        try {
-            row = await db.select({
-                customerProfileStatus: messagingCompliance.customerProfileStatus,
-                brandStatus: messagingCompliance.brandStatus,
-                campaignStatus: messagingCompliance.campaignStatus,
-                tfvStatus: messagingCompliance.tfvStatus,
-                messagingServiceSid: messagingCompliance.messagingServiceSid,
-                provisionedNumber: messagingCompliance.provisionedNumber,
-            }).from(messagingCompliance).where(eq(messagingCompliance.tenantId, tenantId)).get();
-        } catch { row = undefined; }
+        const row = await getManagedSubRow(db, tenantId);
         let cfgRow2: { smsMode: string | null } | undefined;
         try { cfgRow2 = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
         catch { cfgRow2 = undefined; }
         const mode = (cfgRow2?.smsMode as 'platform' | 'own' | 'managed_shared' | 'managed_dedicated') ?? 'managed_dedicated';
 
-        // Parse optional channel override from body.
-        const parsed = c.req.valid('json') as { channel?: 'sp10dlc' | 'tollfree' } | undefined;
-        const channel = parsed?.channel ?? 'tollfree';
+        // Read businessInfo + channel from body (same schema as provision).
+        // Known limitation: a REJECTED entity retains its SID, so the idempotent guard in
+        // provision() skips it — re-creating a rejected brand/campaign is a follow-up and not in
+        // scope here. Resubmit currently resumes only MISSING steps (SID absent in the DB row).
+        const { businessInfo, channel } = c.req.valid('json');
 
         const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
 
-        // Resubmit uses a minimal businessInfo placeholder — provision() only uses businessInfo
-        // for steps that are not yet persisted (SIDs missing). Any already-persisted step is
-        // skipped. For a partial resubmit the caller must provide the same data; for a full
-        // resume we pass a sentinel so only persisted steps run (they never reach businessInfo use).
-        const businessInfoPlaceholder = { legalName: '', address: '', repName: '' };
-        const provisionPromise = complianceSvc.provision(tenantId, businessInfoPlaceholder, channel, client)
+        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client)
             .catch((err) => {
                 logger.error('managed compliance resubmit failed', { tenantId, channel }, err instanceof Error ? err : new Error(String(err)));
             });

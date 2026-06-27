@@ -644,7 +644,8 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         expect(body.data.provisionedNumber).toBeNull();
     });
 
-    it('POST /sms/compliance/provision on standalone → 403', async () => {
+    it('POST /sms/compliance/provision on standalone → 403 and fetch never called', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
         const app = buildSmsApp(db, STANDALONE_PROFILE);
         const res = await app.request('/api/admin/sms/compliance/provision', {
             method: 'POST',
@@ -657,9 +658,12 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         expect(res.status).toBe(403);
         const body = await res.json() as { error: string };
         expect(body.error).toBe('managed_provision_unavailable');
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
     });
 
-    it('POST /sms/compliance/provision on SaaS with missing managed keys → 409', async () => {
+    it('POST /sms/compliance/provision on SaaS with missing managed keys → 409 and fetch never called', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
         const envNoKeys = { ...FAKE_ENV, APP_MODE: 'saas' } as unknown as HonoConfig['Bindings'];
         const app = buildSmsApp(db, SAAS_PROFILE);
         const res = await app.request('/api/admin/sms/compliance/provision', {
@@ -673,6 +677,8 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         expect(res.status).toBe(409);
         const body = await res.json() as { error: string };
         expect(body.error).toBe('managed_not_configured');
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
     });
 
     it('POST /sms/compliance/provision on SaaS with managed keys → 200 returning current status', async () => {
@@ -707,14 +713,39 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         ]));
     });
 
-    it('POST /sms/compliance/resubmit on standalone → 403', async () => {
+    it('POST /sms/compliance/resubmit on standalone → 403 and fetch never called', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
         const app = buildSmsApp(db, STANDALONE_PROFILE);
         const res = await app.request('/api/admin/sms/compliance/resubmit', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({}),
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
         }, MANAGED_ENV, makeExecCtx());
         expect(res.status).toBe(403);
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
+    });
+
+    it('POST /sms/compliance/resubmit on SaaS with missing managed keys → 409 and fetch never called', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const envNoKeys = { ...FAKE_ENV, APP_MODE: 'saas' } as unknown as HonoConfig['Bindings'];
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/resubmit', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, envNoKeys, makeExecCtx());
+        expect(res.status).toBe(409);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_not_configured');
+        expect(fetchSpy).not.toHaveBeenCalled();
+        fetchSpy.mockRestore();
     });
 
     it('POST /sms/compliance/resubmit on SaaS with managed keys → 200', async () => {
@@ -738,7 +769,10 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         const res = await app.request('/api/admin/sms/compliance/resubmit', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ channel: 'tollfree' }),
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St, City, ST 12345', repName: 'Jane Doe', email: 'jane@acme.com' },
+                channel: 'tollfree',
+            }),
         }, MANAGED_ENV, makeExecCtx());
 
         fetchSpy.mockRestore();

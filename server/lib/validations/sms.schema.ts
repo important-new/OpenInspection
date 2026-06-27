@@ -60,7 +60,10 @@ export const SmsComplianceProvisionSchema = z.object({
     channel: z.enum(['sp10dlc', 'tollfree']).describe('Registration channel: sp10dlc or tollfree.'),
 }).openapi('SmsComplianceProvision');
 
-// POST /api/manager/sms/compliance/resubmit — request body schema (channel optional).
-export const SmsComplianceResubmitSchema = z.object({
-    channel: z.enum(['sp10dlc', 'tollfree']).optional().describe('Channel override (defaults to existing row channel if omitted).'),
-}).openapi('SmsComplianceResubmit');
+// POST /api/manager/sms/compliance/resubmit — same body as provision (businessInfo + channel).
+// Resubmit resumes from the first missing SID; any already-persisted step is skipped via the
+// idempotent guard in provision(). A REJECTED entity retains its SID, so provision() skips
+// it — re-creating a rejected brand/campaign is a follow-up and not in scope here.
+// Reusing SmsComplianceProvisionSchema ensures real businessInfo is supplied for any step
+// whose SID is missing, preventing empty-string data being submitted to Twilio.
+export const SmsComplianceResubmitSchema = SmsComplianceProvisionSchema.openapi('SmsComplianceResubmit');
