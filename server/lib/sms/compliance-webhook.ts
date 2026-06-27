@@ -1,139 +1,114 @@
 /**
- * WH-3 — Twilio compliance-status webhook receiver.
+ * WH-4 — Compliance-status webhook receiver (provider-parameterized).
  *
- * Mounts POST /twilio/compliance-status/:tenant on the public SMS router
- * (full path /api/public/twilio/compliance-status/:tenant).
+ * Mounts POST /:provider/compliance-status/:tenant on the public SMS router
+ * (full path /api/public/:provider/compliance-status/:tenant).
  *
- * Twilio posts brand/campaign/TFV status transitions here (configured as a
- * StatusCallback URL during managed provisioning). The handler:
- *   1. Resolves :tenant slug → tenantId (unknown slug → 404).
- *   2. Verifies the Twilio HMAC signature fail-closed (no secret or bad sig → 403,
- *      no DB write).
- *   3. Parses the event fields into a typed ComplianceEvent.
- *   4. Delegates the DB update to MessagingComplianceService.applyComplianceCallback.
+ * Twilio (and, in Plan 2, Telnyx) posts brand/campaign/TFV status transitions
+ * here (configured as a StatusCallback URL during managed provisioning). The
+ * handler:
+ *   1. Validates :provider is a known ComplianceProviderId (unknown → 404).
+ *   2. Builds the provider for webhook verification + parsing (Telnyx → 503).
+ *   3. Resolves :tenant slug → tenantId (unknown slug → 404).
+ *   4. Verifies the provider's webhook signature fail-closed (no secret or bad
+ *      sig → 403, no DB write).
+ *   5. Parses the event fields into a typed ComplianceEvent via the provider.
+ *   6. Delegates the DB update to MessagingComplianceService.applyComplianceCallback.
  *
- * DRIFT SURFACE — Twilio payload field names:
- *   Brand callback:    BrandSid, BrandStatus, ErrorCode? (optional rejection detail)
- *   Campaign callback: MessagingServiceSid, CampaignSid, CampaignStatus, ErrorCode?
- *   TFV callback:      TollfreePhoneNumberSid, VerificationStatus, ErrorCode?
- *
- * All field names are isolated here (do not scatter them across other files).
- * If Twilio renames a field, update ONLY this file.
+ * DRIFT SURFACE — provider-specific payload field names are isolated in each
+ * ComplianceProvider.parseCallback implementation. Update only that file when
+ * a provider renames a field.
  */
 
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import type { Hono } from 'hono';
 import { tenants } from '../db/schema';
-import { validateTwilioSignature } from '../messaging/twilio';
 import { getBaseUrl } from '../url';
 import { MessagingComplianceService } from '../../services/messaging-compliance.service';
 import { logger } from '../logger';
 import type { HonoConfig } from '../../types/hono';
+import type { ComplianceProvider, ComplianceProviderId } from '../messaging/compliance-provider';
+import { TwilioComplianceProvider } from '../messaging/providers/twilio-compliance';
 
-// ---------------------------------------------------------------------------
-// Compliance event type — parsed from the Twilio form params.
-// Entity type is inferred from which identifier fields are present:
-//   brand:    BrandSid present
-//   campaign: CampaignSid present
-//   tfv:      VerificationStatus present (toll-free verification)
-// ---------------------------------------------------------------------------
+// Re-export ComplianceEvent so messaging-compliance.service.ts can keep its
+// existing import path without change.
+export type { ComplianceEvent } from '../messaging/compliance-provider';
+
+// ComplianceEventEntity kept for backward compat — consumers may also import
+// from compliance-provider directly.
+export type ComplianceEventEntity = 'brand' | 'campaign' | 'tfv';
 
 /**
  * Build the public compliance-status webhook URL for a tenant slug.
  *
  * Single source of truth for the path, so the StatusCallback auto-registered on
- * the Trust Hub CustomerProfile during provisioning (provision → createSecondary-
- * Profile) byte-matches the URL this receiver reconstructs for Twilio signature
- * validation (`${getBaseUrl(c)}${c.req.path}`). A mismatch here would make every
- * callback fail the signature check (403). Mount prefix `/api/public` + the route
- * path `/twilio/compliance-status/:tenant`.
+ * the Trust Hub CustomerProfile during provisioning byte-matches the URL this
+ * receiver reconstructs for signature validation (`${getBaseUrl(c)}${c.req.path}`).
+ * A mismatch here would make every callback fail the signature check (403).
+ *
+ * Mount prefix `/api/public` + the route path `/:provider/compliance-status/:tenant`.
  */
-export function complianceWebhookUrl(baseUrl: string, tenantSlug: string): string {
-    return `${baseUrl}/api/public/twilio/compliance-status/${tenantSlug}`;
-}
-
-export type ComplianceEventEntity = 'brand' | 'campaign' | 'tfv';
-
-export interface ComplianceEvent {
-    entity: ComplianceEventEntity;
-    /** Raw Twilio status string (e.g. TWILIO_APPROVED, REJECTED, PENDING_REVIEW). */
-    rawStatus: string;
-    /** Optional rejection detail from Twilio ErrorCode / ErrorMessage fields. */
-    rejectionReason: string | null;
-    /** Entity-specific SID for correlating with our stored row. */
-    entitySid: string;
+export function complianceWebhookUrl(
+    baseUrl: string,
+    providerId: ComplianceProviderId,
+    tenantSlug: string,
+): string {
+    return `${baseUrl}/api/public/${providerId}/compliance-status/${tenantSlug}`;
 }
 
 /**
- * Parse the Twilio compliance-status form params into a typed ComplianceEvent.
+ * Build a ComplianceProvider instance for webhook signature verification and
+ * callback parsing. Does NOT require managed-ISV provisioning credentials —
+ * verifyWebhookSignature and parseCallback operate on the raw HTTP payload and
+ * headers only, not the provider's REST client.
  *
- * Returns null when the payload is unrecognized (no DB write; handler returns 200 no-op).
- *
- * Entity detection order (first match wins):
- *   1. TollfreePhoneNumberSid or VerificationStatus → tfv
- *   2. CampaignSid or UsAppToPersonUsecase → campaign
- *   3. BrandSid or BrandStatus → brand
- *
- * The ErrorCode / ErrorMessage fields are joined as the rejection reason when present.
+ * Returns null when the provider is registered but not yet implemented for
+ * webhook reception (caller should return 503 so stray callbacks fail closed).
  */
-function parseComplianceEvent(params: Record<string, string>): ComplianceEvent | null {
-    // Build rejection reason from Twilio error fields when present.
-    const parts: string[] = [];
-    if (params.ErrorCode) parts.push(`code=${params.ErrorCode}`);
-    if (params.ErrorMessage) parts.push(params.ErrorMessage);
-    const rejectionReason = parts.length ? parts.join(': ') : null;
-
-    // TFV branch — Twilio uses VerificationStatus for toll-free callbacks.
-    if (params.VerificationStatus || params.TollfreePhoneNumberSid) {
-        return {
-            entity: 'tfv',
-            rawStatus: params.VerificationStatus ?? '',
-            rejectionReason,
-            entitySid: params.VerificationSid ?? params.TollfreePhoneNumberSid ?? '',
-        };
+function buildWebhookProvider(providerId: ComplianceProviderId): ComplianceProvider | null {
+    if (providerId === 'twilio') {
+        // The twilio-node client is not used by verifyWebhookSignature or
+        // parseCallback, so the empty stand-in is safe for webhook-only use.
+        return new TwilioComplianceProvider({} as never);
     }
-
-    // Campaign branch — UsAppToPersonUsecase is present in 10DLC campaign callbacks.
-    if (params.CampaignSid || params.UsAppToPersonUsecase) {
-        return {
-            entity: 'campaign',
-            rawStatus: params.CampaignStatus ?? '',
-            rejectionReason,
-            entitySid: params.CampaignSid ?? '',
-        };
-    }
-
-    // Brand branch — BrandSid or BrandStatus present.
-    if (params.BrandSid || params.BrandStatus) {
-        return {
-            entity: 'brand',
-            rawStatus: params.BrandStatus ?? '',
-            rejectionReason,
-            entitySid: params.BrandSid ?? '',
-        };
-    }
-
-    return null; // unrecognized payload → 200 no-op
+    // 'telnyx' → Plan 2 (Telnyx managed compliance webhook receiver).
+    return null;
 }
 
 /**
- * Mount POST /twilio/compliance-status/:tenant on the public SMS router.
+ * Mount POST /:provider/compliance-status/:tenant on the public SMS router.
  *
- * The handler verifies the Twilio signature fail-closed and delegates the
- * DB update to MessagingComplianceService.applyComplianceCallback (thin route).
+ * The handler validates the provider, verifies the webhook signature fail-closed
+ * (verify BEFORE any DB write), and delegates the state-machine update to
+ * MessagingComplianceService.applyComplianceCallback (thin route).
  */
 export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
-    router.post('/twilio/compliance-status/:tenant', async (c) => {
+    router.post('/:provider/compliance-status/:tenant', async (c) => {
+        // Step 1: Validate the provider param. Only known ComplianceProviderId
+        // values ('twilio' | 'telnyx') are accepted; anything else → 404 so
+        // unknown paths do not reveal route structure.
+        const rawProvider = c.req.param('provider');
+        if (rawProvider !== 'twilio' && rawProvider !== 'telnyx') return c.text('', 404);
+        const providerId = rawProvider as ComplianceProviderId;
+
+        // Step 2: Build the provider for webhook purposes. Telnyx managed
+        // compliance is Plan 2 — return 503 so stray Telnyx callbacks fail
+        // closed rather than 500.
+        const complianceProvider = buildWebhookProvider(providerId);
+        if (!complianceProvider) return c.text('', 503);
+
+        // Step 3: Resolve tenant slug → tenantId. Unknown slug → 404.
         const slug = c.req.param('tenant');
         const db = drizzle(c.env.DB);
         const tenant = await db.select({ id: tenants.id }).from(tenants)
             .where(eq(tenants.slug, slug)).get();
         if (!tenant) return c.text('', 404);
 
-        // Prefer the dedicated compliance webhook token; fall back to the platform
-        // auth token. Missing secret → fail-closed (no secret means no way to
-        // verify the signature → reject rather than accept without verification).
+        // Step 4: Prefer the dedicated compliance webhook token; fall back to
+        // the platform auth token. Missing secret → fail-closed (no secret means
+        // no way to verify the signature → reject rather than accept without
+        // verification).
         const secret = c.env.TWILIO_COMPLIANCE_WEBHOOK_TOKEN ?? c.env.TWILIO_AUTH_TOKEN;
         if (!secret) {
             logger.warn('[compliance-webhook] no signing secret configured — rejecting', { tenantId: tenant.id });
@@ -153,22 +128,25 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
         c.req.raw.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
 
         const url = `${getBaseUrl(c)}${c.req.path}`;
-        const presented = headers['x-twilio-signature'] ?? '';
 
-        const ok = await validateTwilioSignature(secret, url, params, presented);
+        // Step 5: Verify the webhook signature fail-closed via the provider's
+        // protocol-specific implementation (verify BEFORE any write).
+        const ok = await complianceProvider.verifyWebhookSignature({ url, headers, rawBody, params, secret });
         if (!ok) {
             logger.warn('[compliance-webhook] signature verification failed', { tenantId: tenant.id });
             return c.text('', 403);
         }
 
-        // Parse the event. Unknown entity → 200 no-op (acknowledged, no DB write).
-        const event = parseComplianceEvent(params);
+        // Step 6: Parse the event. Unknown entity → 200 no-op (acknowledged, no
+        // DB write). Parsing is delegated to the provider so the field mapping is
+        // co-located with the provider implementation.
+        const event = complianceProvider.parseCallback(headers, rawBody);
         if (!event) {
             logger.info('[compliance-webhook] unrecognized payload — no-op', { tenantId: tenant.id });
             return c.text('', 200);
         }
 
-        // Delegate the state-machine update to the service layer.
+        // Step 7: Delegate the state-machine update to the service layer.
         const svc = new MessagingComplianceService(c.env.DB);
         const result = await svc.applyComplianceCallback(tenant.id, event).catch((err) => {
             logger.error('[compliance-webhook] DB update failed', { tenantId: tenant.id, entity: event.entity },
@@ -178,10 +156,10 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
 
         // Emit a core→portal sync event when the compliance status actually changed.
         // The outbox is the DI-provided UserSyncOutbox interface (di.ts builds it via
-        // buildOutbox(), gated on SYNC_QUEUE → undefined in standalone). diMiddleware runs
-        // app.use('*'), so c.var.services is populated even on this public route. No portal
-        // import here keeps the SaaS-Portal isolation invariant. Fail-soft: an emit failure
-        // must never break the 200 response Twilio expects.
+        // buildOutbox(), gated on SYNC_QUEUE → undefined in standalone). diMiddleware
+        // runs app.use('*'), so c.var.services is populated even on this public route.
+        // No portal import here keeps the SaaS-Portal isolation invariant. Fail-soft:
+        // an emit failure must never break the 200 response the provider expects.
         if (result?.changed) {
             const outbox = c.var.services?.outbox;
             if (outbox) {

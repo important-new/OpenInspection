@@ -12,7 +12,7 @@ type CredBag = Partial<Record<'TWILIO_ACCOUNT_SID' | 'TWILIO_AUTH_TOKEN' | 'TWIL
 /**
  * Complete managed-pool credential bag. Must be built by the async loader from
  * platform env (API key triple) + either the shared Messaging Service SID (env)
- * or the tenant's dedicated one (messagingCompliance.messagingServiceSid).
+ * or the tenant's dedicated one (messagingCompliance.messagingResourceSid).
  * All four fields must be truthy for the managed branch to fire; any missing field
  * falls through to own/platform creds (fail-closed: standalone with no API key env
  * never builds a managed bag and is therefore unaffected).
@@ -124,7 +124,7 @@ async function buildManagedBag(
         // managed_dedicated: read the tenant's provisioned Messaging Service SID.
         const db = drizzle(env.DB);
         const row = await db
-            .select({ messagingServiceSid: messagingCompliance.messagingServiceSid })
+            .select({ messagingServiceSid: messagingCompliance.messagingResourceSid })
             .from(messagingCompliance)
             .where(eq(messagingCompliance.tenantId, tenantId))
             .get()

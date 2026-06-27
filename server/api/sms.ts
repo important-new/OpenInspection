@@ -37,6 +37,7 @@ import { ensureClientContact } from '../lib/sms/ensure-client-contact';
 import { resolveOptinToken } from '../lib/sms/optin-token';
 import { normalizeE164 } from '../lib/sms/phone';
 import { loadProviderForTenant, resolveTwilioSource } from '../lib/sms/resolve-twilio';
+import { resolveComplianceProvider } from '../lib/sms/resolve-compliance-provider';
 import { managedSendAllowed } from '../lib/sms/managed-send-gate';
 import { complianceWebhookUrl } from '../lib/sms/compliance-webhook';
 import { getBaseUrl } from '../lib/url';
@@ -198,8 +199,8 @@ smsPublicRoutes.post('/sms/inbound/:tenant', async (c) => {
 // (keeps this router file under the file-size cap; recordSentStatus is re-exported).
 registerSmsStatusRoute(smsPublicRoutes);
 
-// Compliance-status webhook (WH-4) — POST /twilio/compliance-status/:tenant.
-// Receives Twilio brand/campaign/TFV status callbacks for managed provisioning.
+// Compliance-status webhook (WH-4) — POST /:provider/compliance-status/:tenant.
+// Receives provider brand/campaign/TFV status callbacks for managed provisioning.
 // Implementation lives in lib/sms/compliance-webhook (keeps this file under size cap).
 registerComplianceStatusRoute(smsPublicRoutes);
 
@@ -436,7 +437,7 @@ async function getManagedSubRow(db: ReturnType<typeof drizzle>, tenantId: string
             brandStatus: messagingCompliance.brandStatus,
             campaignStatus: messagingCompliance.campaignStatus,
             tfvStatus: messagingCompliance.tfvStatus,
-            messagingServiceSid: messagingCompliance.messagingServiceSid,
+            messagingServiceSid: messagingCompliance.messagingResourceSid,
             provisionedNumber: messagingCompliance.provisionedNumber,
         }).from(messagingCompliance).where(eq(messagingCompliance.tenantId, tenantId)).get();
     } catch { return undefined; }
@@ -625,7 +626,8 @@ export const smsAdminRoutes = createApiRouter()
         const { businessInfo, channel } = c.req.valid('json');
 
         const complianceSvc = new MessagingComplianceService(c.env.DB);
-        const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
+        // Plan 2: read tenant.managedProvider instead of hard-coding 'twilio'.
+        const provider = resolveComplianceProvider({ TWILIO_ACCOUNT_SID: acctSid, TWILIO_API_KEY_SID: apiKeySid, TWILIO_API_KEY_SECRET: apiKeySecret }, 'twilio');
 
         // Auto-register the per-tenant compliance webhook as the Trust Hub profile
         // StatusCallbackUrl so Twilio delivers brand/campaign status to our receiver
@@ -635,10 +637,11 @@ export const smsAdminRoutes = createApiRouter()
         let provSlug: { slug: string | null } | undefined;
         try { provSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
         catch { provSlug = undefined; }
-        const statusCallbackUrl = provSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), provSlug.slug) : undefined;
+        // Plan 2: use the tenant's managedProvider instead of hard-coding 'twilio'.
+        const statusCallbackUrl = provSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), 'twilio', provSlug.slug) : undefined;
 
         // Fire provision in the background so the request returns immediately.
-        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client, statusCallbackUrl)
+        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, provider, statusCallbackUrl)
             .catch((err) => {
                 logger.error('managed compliance provision failed', { tenantId, channel }, err instanceof Error ? err : new Error(String(err)));
             });
@@ -726,16 +729,18 @@ export const smsAdminRoutes = createApiRouter()
         // scope here. Resubmit currently resumes only MISSING steps (SID absent in the DB row).
         const { businessInfo, channel } = c.req.valid('json');
 
-        const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
+        // Plan 2: read tenant.managedProvider instead of hard-coding 'twilio'.
+        const provider = resolveComplianceProvider({ TWILIO_ACCOUNT_SID: acctSid, TWILIO_API_KEY_SID: apiKeySid, TWILIO_API_KEY_SECRET: apiKeySecret }, 'twilio');
 
         // Same auto-registration as provision (only takes effect if step 1 re-runs —
         // i.e. customerProfileSid is still absent on this resumed row).
         let resubSlug: { slug: string | null } | undefined;
         try { resubSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
         catch { resubSlug = undefined; }
-        const statusCallbackUrl = resubSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), resubSlug.slug) : undefined;
+        // Plan 2: use the tenant's managedProvider instead of hard-coding 'twilio'.
+        const statusCallbackUrl = resubSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), 'twilio', resubSlug.slug) : undefined;
 
-        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client, statusCallbackUrl)
+        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, provider, statusCallbackUrl)
             .catch((err) => {
                 logger.error('managed compliance resubmit failed', { tenantId, channel }, err instanceof Error ? err : new Error(String(err)));
             });

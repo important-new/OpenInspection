@@ -5,8 +5,116 @@ import { eq } from 'drizzle-orm';
 import { createTestDb, setupSchema } from './db';
 import * as schema from '../../server/lib/db/schema';
 import { MessagingComplianceService } from '../../server/services/messaging-compliance.service';
-import type { WriteClient } from '../../server/services/messaging-compliance.service';
+import {
+    TwilioComplianceProvider,
+    type TwilioComplianceClient,
+} from '../../server/lib/messaging/providers/twilio-compliance';
+import { resolveComplianceProvider } from '../../server/lib/sms/resolve-compliance-provider';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+
+// ---------------------------------------------------------------------------
+// Fake twilio-node-shaped client (mirrors twilio-compliance-provider.spec.ts).
+// The coordinator now delegates provisioning/sync to an injected
+// ComplianceProvider; these tests inject a real TwilioComplianceProvider wrapping
+// this structural fake so every behaviour assertion still flows end-to-end through
+// the coordinator → provider → D1 state store.
+// ---------------------------------------------------------------------------
+
+interface FakeOpts {
+    brands?: Array<{ sid: string; status: string }>;
+    tfvs?: Array<{ sid: string; status: string }>;
+    campThrows?: boolean;
+    tfvThrows?: boolean;
+    attachThrows?: boolean;
+    onBuy?: () => void;
+    onAttach?: () => void;
+    capturedProfile?: { data?: Record<string, string> };
+}
+
+function fakeTwilio(calls: string[], opts: FakeOpts = {}): TwilioComplianceClient {
+    const client = {
+        request: async ({ uri, data }: { method: string; uri: string; data?: Record<string, string> }) => {
+            if (uri.includes('/CustomerProfiles')) {
+                calls.push('cp');
+                if (opts.capturedProfile) opts.capturedProfile.data = data;
+                return { statusCode: 201, body: { sid: 'BUx', status: 'PENDING' } };
+            }
+            if (uri.includes('/Compliance/Usa2p')) {
+                calls.push('camp');
+                if (opts.campThrows) throw new Error('TCR error');
+                return { statusCode: 201, body: { sid: 'CMx', status: 'PENDING' } };
+            }
+            if (uri.includes('/Tollfree/Verifications')) {
+                calls.push('tfv');
+                if (opts.tfvThrows) throw new Error('crash');
+                return { statusCode: 201, body: { sid: 'HVx', status: 'PENDING_REVIEW' } };
+            }
+            throw new Error(`unexpected generic uri: ${uri}`);
+        },
+        messaging: {
+            v1: {
+                brandRegistrations: {
+                    create: async () => { calls.push('brand'); return { sid: 'BNx', status: 'PENDING' }; },
+                    list: async () => opts.brands ?? [],
+                },
+                services: Object.assign(
+                    (_sid: string) => ({
+                        phoneNumbers: {
+                            create: async () => {
+                                calls.push('attach');
+                                opts.onAttach?.();
+                                if (opts.attachThrows) throw new Error('attach failed');
+                                return { sid: 'ASx' };
+                            },
+                        },
+                    }),
+                    { create: async () => { calls.push('ms'); return { sid: 'MGx' }; } },
+                ),
+                tollfreeVerifications: { list: async () => opts.tfvs ?? [] },
+            },
+        },
+        availablePhoneNumbers: (_country: string) => ({
+            local: { list: async () => { calls.push('search-local'); return [{ phoneNumber: '+15551110000' }]; } },
+            tollFree: { list: async () => { calls.push('search-tf'); return [{ phoneNumber: '+15551110000' }]; } },
+        }),
+        incomingPhoneNumbers: {
+            create: async (p: { phoneNumber: string }) => {
+                calls.push('buy');
+                opts.onBuy?.();
+                return { sid: 'PNx', phoneNumber: p.phoneNumber };
+            },
+        },
+    };
+    return client as unknown as TwilioComplianceClient;
+}
+
+/** Build a real TwilioComplianceProvider over the structural fake. */
+function fakeProvider(calls: string[] = [], opts: FakeOpts = {}): TwilioComplianceProvider {
+    return new TwilioComplianceProvider(fakeTwilio(calls, opts));
+}
+
+// ---------------------------------------------------------------------------
+// resolveComplianceProvider — managed-ISV provider construction seam.
+// ---------------------------------------------------------------------------
+
+describe('resolveComplianceProvider', () => {
+    it('resolves twilio provider with ISV env; throws managed_not_configured without', () => {
+        const env = { TWILIO_ACCOUNT_SID: 'AC1', TWILIO_API_KEY_SID: 'SK1', TWILIO_API_KEY_SECRET: 's' } as never;
+        expect(resolveComplianceProvider(env, 'twilio').id).toBe('twilio');
+        expect(() => resolveComplianceProvider({} as never, 'twilio')).toThrow('managed_not_configured');
+    });
+
+    it('throws managed_not_configured when any single key is missing', () => {
+        expect(() => resolveComplianceProvider(
+            { TWILIO_ACCOUNT_SID: 'AC1', TWILIO_API_KEY_SID: 'SK1' } as never, 'twilio',
+        )).toThrow('managed_not_configured');
+    });
+
+    it('throws managed_not_configured for telnyx (Plan 2)', () => {
+        const env = { TWILIO_ACCOUNT_SID: 'AC1', TWILIO_API_KEY_SID: 'SK1', TWILIO_API_KEY_SECRET: 's' } as never;
+        expect(() => resolveComplianceProvider(env, 'telnyx')).toThrow('managed_not_configured');
+    });
+});
 
 it('syncOwnStatus upserts the latest toll-free status', async () => {
     const fx = createTestDb(); await setupSchema(fx.sqlite);
@@ -88,50 +196,24 @@ describe('MessagingComplianceService', () => {
 });
 
 // ---------------------------------------------------------------------------
-// provision() — idempotent managed provisioning orchestrator
+// provision() — coordinator delegates to the injected ComplianceProvider.
+// The orchestration (guarded resumable chain) is the provider's; these tests
+// inject a real TwilioComplianceProvider over the structural fake and assert the
+// behaviour still flows end-to-end through svc.provision → provider → store → D1.
 // ---------------------------------------------------------------------------
-
-/** Build a fresh fake WriteClient that records which methods were called. */
-function makeSp10dlcClient(calls: string[]): WriteClient {
-    return {
-        trusthub: {
-            createSecondaryProfile: async () => { calls.push('cp'); return { sid: 'BUx' }; },
-        },
-        brands: {
-            list: async () => [],
-            createSoleProprietor: async () => { calls.push('brand'); return { sid: 'BNx', status: 'PENDING' }; },
-        },
-        campaigns: {
-            create: async () => { calls.push('camp'); return { sid: 'CMx', status: 'PENDING' }; },
-        },
-        messagingServices: {
-            create: async () => { calls.push('ms'); return { sid: 'MGx' }; },
-            attachCompliance: async () => ({}),
-            attachSender: async () => ({ sid: 'ASx' }),
-        },
-        numbers: {
-            search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+15551110000' }],
-            buy: async () => ({ sid: 'PNx', phoneNumber: '+15551110000' }),
-        },
-        tollfree: {
-            list: async () => [],
-            create: async () => { calls.push('tfv'); return { sid: 'HVx', status: 'PENDING_REVIEW' }; },
-        },
-    } as never;
-}
 
 describe('MessagingComplianceService.provision', () => {
     it('sp10dlc full run — persists all SIDs and sets campaign_pending', async () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
         const calls: string[] = [];
-        const client = makeSp10dlcClient(calls);
+        const provider = fakeProvider(calls);
         const svc = new MessagingComplianceService({} as D1Database);
         const result = await svc.provision(
             'p1',
             { legalName: 'Acme Inspections', address: '1 Main, TX', repName: 'Bob' },
             'sp10dlc',
-            client,
+            provider,
         );
         const row = await fx.db
             .select()
@@ -141,7 +223,7 @@ describe('MessagingComplianceService.provision', () => {
         expect(result.complianceStatus).toBe('campaign_pending');
         expect(row?.brandSid).toBe('BNx');
         expect(row?.campaignSid).toBe('CMx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.complianceStatus).toBe('campaign_pending');
         expect(calls).toContain('cp');
@@ -155,13 +237,13 @@ describe('MessagingComplianceService.provision', () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
         const calls: string[] = [];
-        const client = makeSp10dlcClient(calls);
+        const provider = fakeProvider(calls);
         const svc = new MessagingComplianceService({} as D1Database);
         const info = { legalName: 'Acme Inspections', address: '1 Main, TX', repName: 'Bob' };
-        await svc.provision('p2', info, 'sp10dlc', client);
+        await svc.provision('p2', info, 'sp10dlc', provider);
         // Reset call log; second invocation must skip already-created resources.
         calls.length = 0;
-        await svc.provision('p2', info, 'sp10dlc', client);
+        await svc.provision('p2', info, 'sp10dlc', provider);
         expect(calls.filter(c => c === 'brand').length).toBe(0);
         expect(calls.filter(c => c === 'camp').length).toBe(0);
         expect(calls.filter(c => c === 'cp').length).toBe(0);
@@ -173,13 +255,13 @@ describe('MessagingComplianceService.provision', () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
         const calls: string[] = [];
-        const client = makeSp10dlcClient(calls); // same fake; tollfree.create path exercised
+        const provider = fakeProvider(calls); // tollfree.create (generic) path exercised
         const svc = new MessagingComplianceService({} as D1Database);
         const result = await svc.provision(
             'p3',
             { legalName: 'Acme TF', address: '2 Main, TX', repName: 'Alice' },
             'tollfree',
-            client,
+            provider,
         );
         const row = await fx.db
             .select()
@@ -188,39 +270,25 @@ describe('MessagingComplianceService.provision', () => {
             .get();
         expect(result.complianceStatus).toBe('tfv_pending');
         expect(row?.tfvSid).toBe('HVx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.complianceStatus).toBe('tfv_pending');
         expect(calls.filter(c => c === 'tfv').length).toBe(1);
         fx.sqlite.close();
     });
 
-    it('tollfree crash-resume: numbers.buy called once even if process died after buy but before tfv.create', async () => {
-        // Simulate a crash AFTER numbers.buy (provisionedNumber + provisionedNumberSid persisted)
-        // but BEFORE tollfree.create. A second provision() call with a non-throwing client must
-        // reuse the already-persisted PN SID and NOT call numbers.buy a second time.
+    it('tollfree crash-resume: buy called once even if process died after buy but before tfv.create', async () => {
+        // Simulate a crash AFTER buy (provisionedNumber + provisionedNumberSid persisted)
+        // but BEFORE tfv.create. A second provision() call with a non-throwing provider must
+        // reuse the already-persisted PN SID and NOT buy a second number.
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
         let buyCount = 0;
-        // First client: throws on tollfree.create to simulate crash mid-chain.
-        const crashClient: WriteClient = {
-            ...makeSp10dlcClient([]),
-            numbers: {
-                search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+18005559999' }],
-                buy: async () => { buyCount++; return { sid: 'PNresume', phoneNumber: '+18005559999' }; },
-            },
-            tollfree: {
-                list: async () => [],
-                create: async () => { throw new Error('crash'); },
-            },
-        } as never;
+        const info = { legalName: 'Resume Co', address: '5 Main, TX', repName: 'Dave' };
+        // First provider: throws on tfv.create to simulate crash mid-chain.
+        const crashProvider = fakeProvider([], { tfvThrows: true, onBuy: () => { buyCount++; } });
         await expect(
-            new MessagingComplianceService({} as D1Database).provision(
-                'p5',
-                { legalName: 'Resume Co', address: '5 Main, TX', repName: 'Dave' },
-                'tollfree',
-                crashClient,
-            ),
+            new MessagingComplianceService({} as D1Database).provision('p5', info, 'tollfree', crashProvider),
         ).rejects.toThrow('crash');
 
         // Verify the number was persisted despite the crash on tfv.create.
@@ -229,26 +297,15 @@ describe('MessagingComplianceService.provision', () => {
             .from(schema.messagingCompliance)
             .where(eq(schema.messagingCompliance.tenantId, 'p5'))
             .get();
-        expect(rowAfterCrash?.provisionedNumber).toBe('+18005559999');
-        expect(rowAfterCrash?.provisionedNumberSid).toBe('PNresume');
+        expect(rowAfterCrash?.provisionedNumber).toBe('+15551110000');
+        expect(rowAfterCrash?.provisionedNumberSid).toBe('PNx');
 
-        // Second client: fully succeeds. numbers.buy must NOT be called again.
+        // Second provider: fully succeeds. buy must NOT be called again.
         const resumeCalls: string[] = [];
-        const resumeClient: WriteClient = {
-            ...makeSp10dlcClient(resumeCalls),
-            numbers: {
-                search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+18005559999' }],
-                buy: async () => { buyCount++; return { sid: 'PNresume2', phoneNumber: '+18005559999' }; },
-            },
-        } as never;
+        const resumeProvider = fakeProvider(resumeCalls, { onBuy: () => { buyCount++; } });
         const svc2 = new MessagingComplianceService({} as D1Database);
-        const result = await svc2.provision(
-            'p5',
-            { legalName: 'Resume Co', address: '5 Main, TX', repName: 'Dave' },
-            'tollfree',
-            resumeClient,
-        );
-        expect(buyCount).toBe(1); // numbers.buy ran exactly once across both calls
+        const result = await svc2.provision('p5', info, 'tollfree', resumeProvider);
+        expect(buyCount).toBe(1); // buy ran exactly once across both calls
         expect(result.complianceStatus).toBe('tfv_pending');
         const finalRow = await fx.db
             .select()
@@ -264,20 +321,15 @@ describe('MessagingComplianceService.provision', () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
         const calls: string[] = [];
-        // campaigns.create throws to simulate a mid-chain failure
-        const client: WriteClient = {
-            ...makeSp10dlcClient(calls),
-            campaigns: {
-                create: async () => { calls.push('camp_fail'); throw new Error('TCR error'); },
-            },
-        } as never;
+        // campaign create throws to simulate a mid-chain failure.
+        const provider = fakeProvider(calls, { campThrows: true });
         const svc = new MessagingComplianceService({} as D1Database);
         await expect(
             svc.provision(
                 'p4',
                 { legalName: 'Failing Co', address: '3 Main, TX', repName: 'Carol' },
                 'sp10dlc',
-                client,
+                provider,
             ),
         ).rejects.toThrow('TCR error');
         // Prior steps (profile, brand, messaging service) must be persisted despite the failure.
@@ -288,7 +340,7 @@ describe('MessagingComplianceService.provision', () => {
             .get();
         expect(row?.customerProfileSid).toBe('BUx');
         expect(row?.brandSid).toBe('BNx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         // Campaign was not persisted.
         expect(row?.campaignSid).toBeNull();
         expect(row?.complianceStatus).toBe('brand_pending');
@@ -297,46 +349,35 @@ describe('MessagingComplianceService.provision', () => {
 });
 
 describe('MessagingComplianceService.provision — StatusCallback auto-registration (a)', () => {
-    /** Capturing client that records the createSecondaryProfile args. */
-    function makeCapturingClient(captured: { profileArgs?: Record<string, unknown> }): WriteClient {
-        return {
-            ...makeSp10dlcClient([]),
-            trusthub: {
-                createSecondaryProfile: async (args: Record<string, unknown>) => {
-                    captured.profileArgs = args;
-                    return { sid: 'BUx' };
-                },
-            },
-        } as never;
-    }
-
-    it('passes statusCallbackUrl to createSecondaryProfile when provided', async () => {
+    it('threads statusCallbackUrl onto the customer-profile create when provided', async () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        const captured: { profileArgs?: Record<string, unknown> } = {};
+        const captured: { data?: Record<string, string> } = {};
+        const provider = fakeProvider([], { capturedProfile: captured });
         const url = 'https://app.example.test/api/public/twilio/compliance-status/acme';
         await new MessagingComplianceService({} as D1Database).provision(
             'cb-1',
             { legalName: 'Acme', address: '1 Main, TX', repName: 'Bob' },
             'sp10dlc',
-            makeCapturingClient(captured),
+            provider,
             url,
         );
-        expect(captured.profileArgs?.statusCallbackUrl).toBe(url);
+        expect(captured.data?.StatusCallbackUrl).toBe(url);
         fx.sqlite.close();
     });
 
     it('omits statusCallbackUrl when not provided (backward-compatible)', async () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        const captured: { profileArgs?: Record<string, unknown> } = {};
+        const captured: { data?: Record<string, string> } = {};
+        const provider = fakeProvider([], { capturedProfile: captured });
         await new MessagingComplianceService({} as D1Database).provision(
             'cb-2',
             { legalName: 'Acme', address: '1 Main, TX', repName: 'Bob' },
             'sp10dlc',
-            makeCapturingClient(captured),
+            provider,
         );
-        expect('statusCallbackUrl' in (captured.profileArgs ?? {})).toBe(false);
+        expect('StatusCallbackUrl' in (captured.data ?? {})).toBe(false);
         fx.sqlite.close();
     });
 });
@@ -457,20 +498,13 @@ describe('syncManagedStatus — change detection', () => {
         } as never);
     }
 
-    const approvedTfvClient = {
-        tollfree: { list: async () => [{ sid: 'HV1', status: 'TWILIO_APPROVED', phoneNumber: '+18005550001' }] },
-        brands: { list: async () => [] as Array<{ sid: string; status: string }> },
-    };
-
-    const noChangeTfvClient = {
-        tollfree: { list: async () => [] as Array<{ sid: string; status: string; phoneNumber: string }> },
-        brands: { list: async () => [] as Array<{ sid: string; status: string }> },
-    };
+    const approvedTfvProvider = () => fakeProvider([], { tfvs: [{ sid: 'HV1', status: 'TWILIO_APPROVED' }] });
+    const noChangeTfvProvider = () => fakeProvider([], { tfvs: [] });
 
     it('returns changed=true when TFV poll transitions status from tfv_pending to approved', async () => {
         await seedRow('t-sc-1', 'tfv_pending', 'PENDING_REVIEW');
         const svc = new MessagingComplianceService({} as D1Database);
-        const result = await svc.syncManagedStatus('t-sc-1', approvedTfvClient);
+        const result = await svc.syncManagedStatus('t-sc-1', approvedTfvProvider());
         expect(result.changed).toBe(true);
         expect(result.complianceStatus).toBe('approved');
     });
@@ -478,14 +512,14 @@ describe('syncManagedStatus — change detection', () => {
     it('returns changed=false when TFV poll finds no entries (no status change)', async () => {
         await seedRow('t-sc-2', 'tfv_pending', 'PENDING_REVIEW');
         const svc = new MessagingComplianceService({} as D1Database);
-        const result = await svc.syncManagedStatus('t-sc-2', noChangeTfvClient);
+        const result = await svc.syncManagedStatus('t-sc-2', noChangeTfvProvider());
         expect(result.changed).toBe(false);
         expect(result.complianceStatus).toBe('tfv_pending');
     });
 
     it('returns changed=false when no row exists for tenant', async () => {
         const svc = new MessagingComplianceService({} as D1Database);
-        const result = await svc.syncManagedStatus('no-row', approvedTfvClient);
+        const result = await svc.syncManagedStatus('no-row', approvedTfvProvider());
         expect(result.changed).toBe(false);
     });
 });
@@ -769,12 +803,9 @@ describe('syncManagedStatus — brand poll never regresses campaign_pending', ()
             tenantId: 't-cron-reg', mode: 'managed_dedicated', complianceStatus: 'campaign_pending',
             brandSid: 'BN_X', brandStatus: 'PENDING', createdAt: now, updatedAt: now,
         } as never);
-        const approvedBrandClient = {
-            tollfree: { list: async () => [] as Array<{ sid: string; status: string; phoneNumber: string }> },
-            brands: { list: async () => [{ sid: 'BN_X', status: 'TWILIO_APPROVED' }] },
-        };
+        const approvedBrandProvider = fakeProvider([], { brands: [{ sid: 'BN_X', status: 'TWILIO_APPROVED' }] });
         const svc = new MessagingComplianceService({} as D1Database);
-        const result = await svc.syncManagedStatus('t-cron-reg', approvedBrandClient);
+        const result = await svc.syncManagedStatus('t-cron-reg', approvedBrandProvider);
         expect(result.changed).toBe(false);
         expect(result.complianceStatus).toBe('campaign_pending');
     });
@@ -794,37 +825,28 @@ describe('MessagingComplianceService.provision — attachSender resume (I1)', ()
         let attachCount = 0;
         let attachShouldThrow = true;
         const info = { legalName: 'Attach Co', address: '7 Main, TX', repName: 'Eve' };
-        const client: WriteClient = {
-            ...makeSp10dlcClient([]),
-            messagingServices: {
-                create: async () => ({ sid: 'MGx' }),
-                attachCompliance: async () => ({}),
-                attachSender: async () => {
-                    attachCount++;
-                    if (attachShouldThrow) throw new Error('attach failed');
-                    return { sid: 'ASx' };
-                },
-            },
-            numbers: {
-                search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+15557770000' }],
-                buy: async () => { buyCount++; return { sid: 'PNattach', phoneNumber: '+15557770000' }; },
-            },
-        } as never;
+        // Shared opts (live getter on attachThrows) so both provider builds see the flag.
+        const opts: FakeOpts = {
+            get attachThrows() { return attachShouldThrow; },
+            onBuy: () => { buyCount++; },
+            onAttach: () => { attachCount++; },
+        };
 
         // First run: throws inside attachSender (after the number is bought + persisted).
         await expect(
-            new MessagingComplianceService({} as D1Database).provision('p-attach', info, 'sp10dlc', client),
+            new MessagingComplianceService({} as D1Database)
+                .provision('p-attach', info, 'sp10dlc', fakeProvider([], opts)),
         ).rejects.toThrow('attach failed');
 
         const mid = await fx.db.select().from(schema.messagingCompliance)
             .where(eq(schema.messagingCompliance.tenantId, 'p-attach')).get();
-        expect(mid?.provisionedNumberSid).toBe('PNattach'); // number persisted despite attach crash
-        expect(mid?.senderAttached).toBe(false);            // attach not yet confirmed
+        expect(mid?.provisionedNumberSid).toBe('PNx'); // number persisted despite attach crash
+        expect(mid?.senderAttached).toBe(false);       // attach not yet confirmed
 
         // Resume: attachSender now succeeds. Buy must NOT run again; attach completes.
         attachShouldThrow = false;
         const result = await new MessagingComplianceService({} as D1Database)
-            .provision('p-attach', info, 'sp10dlc', client);
+            .provision('p-attach', info, 'sp10dlc', fakeProvider([], opts));
 
         expect(buyCount).toBe(1);      // bought exactly once across both runs
         expect(attachCount).toBe(2);   // attach retried on resume (1 failed + 1 success)
@@ -858,14 +880,11 @@ describe('sweepManagedStatuses — excludes own-mode tenants (C1)', () => {
             tfvStatus: 'PENDING_REVIEW', createdAt: now, updatedAt: now,
         } as never);
 
-        // Fake ISV client: every TFV poll returns approved. If the own row were
+        // Fake ISV provider: every TFV poll returns approved. If the own row were
         // (incorrectly) included, it would flip to approved too.
-        const isvClient = {
-            tollfree: { list: async () => [{ sid: 'HV_ISV', status: 'TWILIO_APPROVED', phoneNumber: '+18005550000' }] },
-            brands: { list: async () => [] as Array<{ sid: string; status: string }> },
-        };
+        const isvProvider = fakeProvider([], { tfvs: [{ sid: 'HV_ISV', status: 'TWILIO_APPROVED' }] });
         const svc = new MessagingComplianceService({} as D1Database);
-        await svc.sweepManagedStatuses('AC_ISV', 'secret', 'SK_ISV', undefined, isvClient);
+        await svc.sweepManagedStatuses('AC_ISV', 'secret', 'SK_ISV', undefined, isvProvider);
 
         const own = await fx.db.select().from(schema.messagingCompliance)
             .where(eq(schema.messagingCompliance.tenantId, 'own-1')).get();
