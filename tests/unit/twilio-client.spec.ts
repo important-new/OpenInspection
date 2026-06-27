@@ -26,6 +26,29 @@ describe('TwilioClient.messages.create', () => {
         await new TwilioClient({ sid: 'AC1', token: 't' }).messages.create({ from: '+1', to: '+15551112222', body: 'x', messagingServiceSid: 'MG9' });
         expect((fetchMock.mock.calls[0][1].body as string)).toContain('MessagingServiceSid=MG9');
     });
+
+    it('uses API-key SID for Basic auth but accountSid in the path (managed-pool path)', async () => {
+        // When authSid is supplied the Basic-auth USERNAME is the API Key SID, not the
+        // Account SID. The REST path must still use the Account SID (ACmain).
+        const fetchMock = vi.fn(async () => new Response('{}', { status: 201 }));
+        vi.stubGlobal('fetch', fetchMock);
+        await new TwilioClient({ sid: 'ACmain', authSid: 'SKkey', token: 'sec' })
+            .messages.create({ from: '', to: '+15551112222', body: 'x', messagingServiceSid: 'MG1' });
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe('https://api.twilio.com/2010-04-01/Accounts/ACmain/Messages.json');
+        expect((init.headers as Record<string, string>).Authorization).toBe(`Basic ${btoa('SKkey:sec')}`);
+    });
+
+    it('without authSid, sid is the Basic-auth username (own/platform behavior unchanged)', async () => {
+        // Regression: existing own/platform callers that omit authSid must behave exactly
+        // as before — Account SID as username, auth token as password.
+        const fetchMock = vi.fn(async () => new Response('{}', { status: 201 }));
+        vi.stubGlobal('fetch', fetchMock);
+        await new TwilioClient({ sid: 'ACmain', token: 'tok' })
+            .messages.create({ from: '+1', to: '+15551112222', body: 'x' });
+        const [, init] = fetchMock.mock.calls[0];
+        expect((init.headers as Record<string, string>).Authorization).toBe(`Basic ${btoa('ACmain:tok')}`);
+    });
 });
 
 describe('TwilioClient.tollfree', () => {

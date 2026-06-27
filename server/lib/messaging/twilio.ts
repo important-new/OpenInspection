@@ -1,6 +1,21 @@
 import type { InboundSignatureContext, MessagingProvider } from './provider';
 
-export interface TwilioCreds { sid: string; token: string; from: string; }
+export interface TwilioCreds {
+    sid: string;
+    token: string;
+    from: string;
+    /**
+     * API Key SID for the managed-pool send path. When present, Basic-auth uses
+     * authSid as the USERNAME instead of the Account SID (sid). The REST path
+     * always uses sid (the Account SID). Omit for own/platform credential sets.
+     */
+    authSid?: string;
+    /**
+     * Messaging Service SID provisioned during TCR/TFV compliance registration.
+     * Used by the managed-pool send path instead of a From number.
+     */
+    messagingServiceSid?: string;
+}
 
 /**
  * TwilioClient — thin fetch-based adapter over the Twilio REST API.
@@ -10,12 +25,21 @@ export interface TwilioCreds { sid: string; token: string; from: string; }
  * The `request()` method is a general entry point for all Twilio REST surfaces
  * (messages, tollfree, trusthub, …) — later tasks will call it directly for
  * compliance registration endpoints without adding SDK dependencies.
+ *
+ * API-key auth (managed-pool path): when `authSid` is supplied the Basic-auth
+ * USERNAME is authSid (the API Key SID) and the password is `token` (the API
+ * Key Secret). The REST path still uses `sid` (the master Account SID). This is
+ * byte-compatible with the Twilio API-key authentication scheme described at
+ * https://www.twilio.com/docs/iam/keys/api-key. Existing callers that omit
+ * authSid behave exactly as before.
  */
 export class TwilioClient implements MessagingProvider {
-    constructor(private creds: { sid: string; token: string }) {}
+    constructor(private creds: { sid: string; token: string; authSid?: string }) {}
 
     private authHeader(): string {
-        return `Basic ${btoa(`${this.creds.sid}:${this.creds.token}`)}`;
+        // Managed path: authSid (API Key SID) is the Basic-auth username.
+        // Own/platform path: sid (Account SID) is the username, unchanged.
+        return `Basic ${btoa(`${this.creds.authSid ?? this.creds.sid}:${this.creds.token}`)}`;
     }
 
     /** One typed REST entry point for all Twilio surfaces (messages, tollfree, trusthub, …). */
