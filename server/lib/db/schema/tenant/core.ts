@@ -179,6 +179,12 @@ export const tenantConfigs = sqliteTable('tenant_configs', {
     // admin when the tenant is on a Managed-eligible paid plan. Default false =
     // not eligible; provision routes fail closed until this is explicitly set.
     managedEligible: integer('managed_eligible', { mode: 'boolean' }).notNull().default(false),
+    // Managed-compliance carrier choice — which ISV provider runs the tenant's
+    // managed (managed_shared / managed_dedicated) compliance provisioning + cron
+    // sweep + webhook reception. Distinct from `smsByoProvider` (the BYO SEND
+    // provider for 'own' mode). Default 'twilio' for D1 safety; inert in
+    // standalone / unconfigured SaaS (no ISV env → resolver fails closed).
+    managedProvider: text('managed_provider', { enum: ['twilio', 'telnyx'] }).notNull().default('twilio'),
 });
 
 /**

@@ -41,6 +41,11 @@ export interface ManagedComplianceData {
 
 interface Props {
   compliance: ManagedComplianceData;
+  /** Which carrier runs managed compliance provisioning (managed_dedicated mode).
+   * Separate from smsByoProvider (the BYO send provider in 'own' mode). */
+  managedProvider?: "twilio" | "telnyx";
+  /** True while the save-managed-provider form is submitting */
+  savingManagedProvider?: boolean;
   /** Server action error after a failed provision/resubmit attempt */
   actionError?: string | null;
   /** True while the form is being submitted */
@@ -235,10 +240,13 @@ function StatusTimeline({
  * The form id "managed-compliance-form" is referenced by the "Fix & resubmit"
  * button rendered inside StatusTimeline so it can submit the same form.
  */
-export function ManagedComplianceWizard({ compliance, actionError, saving = false }: Props) {
+export function ManagedComplianceWizard({ compliance, managedProvider, savingManagedProvider = false, actionError, saving = false }: Props) {
   const isNotStarted = compliance.complianceStatus === "not_started";
   const isRejected = compliance.complianceStatus === "rejected";
   const showForm = isNotStarted || isRejected;
+
+  // Carrier selector state — initialized from the loader-supplied stored value.
+  const [carrier, setCarrier] = useState<"twilio" | "telnyx">(managedProvider ?? "twilio");
 
   // Track whether the user has attempted submission (enables eager validation).
   const [attempted, setAttempted] = useState(false);
@@ -269,6 +277,54 @@ export function ManagedComplianceWizard({ compliance, actionError, saving = fals
 
   return (
     <div className="space-y-5">
+      {/* Managed carrier selector — Twilio or Telnyx for this tenant's dedicated number.
+          Separate from the BYO provider shown in 'own' mode (smsByoProvider). */}
+      <Form method="post" className="space-y-3 pb-4 border-b border-ih-border">
+        <input type="hidden" name="intent" value="save-managed-provider" />
+        <input type="hidden" name="managedProvider" value={carrier} />
+        <div className="space-y-1.5">
+          <p className={labelCls} id="managed-carrier-label">Managed carrier</p>
+          <div className="flex gap-2" role="group" aria-labelledby="managed-carrier-label">
+            <button
+              type="button"
+              aria-pressed={carrier === "twilio"}
+              onClick={() => setCarrier("twilio")}
+              className={`flex-1 h-9 rounded-md border text-[13px] font-bold transition-colors ${
+                carrier === "twilio"
+                  ? "border-ih-primary bg-ih-primary/5 text-ih-primary"
+                  : "border-ih-border bg-ih-bg-card text-ih-fg-2 hover:border-ih-primary/40"
+              }`}
+            >
+              Twilio
+            </button>
+            <button
+              type="button"
+              aria-pressed={carrier === "telnyx"}
+              onClick={() => setCarrier("telnyx")}
+              className={`flex-1 h-9 rounded-md border text-[13px] font-bold transition-colors ${
+                carrier === "telnyx"
+                  ? "border-ih-primary bg-ih-primary/5 text-ih-primary"
+                  : "border-ih-border bg-ih-bg-card text-ih-fg-2 hover:border-ih-primary/40"
+              }`}
+            >
+              Telnyx
+            </button>
+          </div>
+          <p className="text-[11px] text-ih-fg-4">
+            Which carrier provisions and manages this tenant&rsquo;s dedicated number.
+          </p>
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={savingManagedProvider}
+            className="h-8 px-4 rounded-md bg-ih-primary text-ih-fg-inverse font-bold text-[13px] hover:bg-ih-primary-600 transition-colors disabled:opacity-60"
+          >
+            {savingManagedProvider ? "Saving…" : "Save carrier"}
+          </button>
+        </div>
+      </Form>
+
       {/* Status timeline — shown once provisioning has started */}
       {compliance.complianceStatus !== "not_started" && (
         <StatusTimeline compliance={compliance} saving={saving} />

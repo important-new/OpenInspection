@@ -601,10 +601,10 @@ export const smsAdminRoutes = createApiRouter()
         // Fail-closed: missing row or false → 403 (not eligible).
         const tenantId = c.get('tenantId') as string;
         const db = drizzle(c.env.DB);
-        let cfgEligibility: { managedEligible: boolean | null } | null | undefined;
+        let cfgEligibility: { managedEligible: boolean | null; managedProvider: 'twilio' | 'telnyx' | null } | null | undefined;
         try {
             cfgEligibility = await db
-                .select({ managedEligible: tenantConfigs.managedEligible })
+                .select({ managedEligible: tenantConfigs.managedEligible, managedProvider: tenantConfigs.managedProvider })
                 .from(tenantConfigs)
                 .where(eq(tenantConfigs.tenantId, tenantId))
                 .get();
@@ -615,19 +615,27 @@ export const smsAdminRoutes = createApiRouter()
             return c.json({ success: false as const, error: 'managed_requires_paid_plan' }, 403);
         }
 
-        // Managed env keys gate: require ISV Twilio credentials in the platform env.
-        const env = c.env;
-        const acctSid = env.TWILIO_ACCOUNT_SID;
-        const apiKeySid = env.TWILIO_API_KEY_SID;
-        const apiKeySecret = env.TWILIO_API_KEY_SECRET;
-        if (!acctSid || !apiKeySid || !apiKeySecret) {
-            return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
-        }
+        // The tenant's managed-compliance carrier choice (default 'twilio').
+        const managedProvider = cfgEligibility.managedProvider ?? 'twilio';
+        // Combined ISV credential env — the resolver picks creds by providerId.
+        const resolverEnv = {
+            TWILIO_ACCOUNT_SID: c.env.TWILIO_ACCOUNT_SID,
+            TWILIO_API_KEY_SID: c.env.TWILIO_API_KEY_SID,
+            TWILIO_API_KEY_SECRET: c.env.TWILIO_API_KEY_SECRET,
+            TELNYX_API_KEY: c.env.TELNYX_API_KEY,
+        };
+
         const { businessInfo, channel } = c.req.valid('json');
 
         const complianceSvc = new MessagingComplianceService(c.env.DB);
-        // Plan 2: read tenant.managedProvider instead of hard-coding 'twilio'.
-        const provider = resolveComplianceProvider({ TWILIO_ACCOUNT_SID: acctSid, TWILIO_API_KEY_SID: apiKeySid, TWILIO_API_KEY_SECRET: apiKeySecret }, 'twilio');
+        // resolveComplianceProvider throws 'managed_not_configured' when the chosen
+        // provider's ISV creds are absent — surface as 409 (same as the legacy gate).
+        let provider;
+        try {
+            provider = resolveComplianceProvider(resolverEnv, managedProvider);
+        } catch {
+            return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
+        }
 
         // Auto-register the per-tenant compliance webhook as the Trust Hub profile
         // StatusCallbackUrl so Twilio delivers brand/campaign status to our receiver
@@ -637,8 +645,7 @@ export const smsAdminRoutes = createApiRouter()
         let provSlug: { slug: string | null } | undefined;
         try { provSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
         catch { provSlug = undefined; }
-        // Plan 2: use the tenant's managedProvider instead of hard-coding 'twilio'.
-        const statusCallbackUrl = provSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), 'twilio', provSlug.slug) : undefined;
+        const statusCallbackUrl = provSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), managedProvider, provSlug.slug) : undefined;
 
         // Fire provision in the background so the request returns immediately.
         const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, provider, statusCallbackUrl)
@@ -688,10 +695,10 @@ export const smsAdminRoutes = createApiRouter()
         // Fail-closed: missing row or false → 403 (not eligible).
         const tenantId = c.get('tenantId') as string;
         const db = drizzle(c.env.DB);
-        let cfgEligibility: { managedEligible: boolean | null } | null | undefined;
+        let cfgEligibility: { managedEligible: boolean | null; managedProvider: 'twilio' | 'telnyx' | null } | null | undefined;
         try {
             cfgEligibility = await db
-                .select({ managedEligible: tenantConfigs.managedEligible })
+                .select({ managedEligible: tenantConfigs.managedEligible, managedProvider: tenantConfigs.managedProvider })
                 .from(tenantConfigs)
                 .where(eq(tenantConfigs.tenantId, tenantId))
                 .get();
@@ -702,14 +709,15 @@ export const smsAdminRoutes = createApiRouter()
             return c.json({ success: false as const, error: 'managed_requires_paid_plan' }, 403);
         }
 
-        // Managed env keys gate: require ISV Twilio credentials in the platform env.
-        const env = c.env;
-        const acctSid = env.TWILIO_ACCOUNT_SID;
-        const apiKeySid = env.TWILIO_API_KEY_SID;
-        const apiKeySecret = env.TWILIO_API_KEY_SECRET;
-        if (!acctSid || !apiKeySid || !apiKeySecret) {
-            return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
-        }
+        // The tenant's managed-compliance carrier choice (default 'twilio').
+        const managedProvider = cfgEligibility.managedProvider ?? 'twilio';
+        // Combined ISV credential env — the resolver picks creds by providerId.
+        const resolverEnv = {
+            TWILIO_ACCOUNT_SID: c.env.TWILIO_ACCOUNT_SID,
+            TWILIO_API_KEY_SID: c.env.TWILIO_API_KEY_SID,
+            TWILIO_API_KEY_SECRET: c.env.TWILIO_API_KEY_SECRET,
+            TELNYX_API_KEY: c.env.TELNYX_API_KEY,
+        };
 
         const complianceSvc = new MessagingComplianceService(c.env.DB);
 
@@ -729,16 +737,21 @@ export const smsAdminRoutes = createApiRouter()
         // scope here. Resubmit currently resumes only MISSING steps (SID absent in the DB row).
         const { businessInfo, channel } = c.req.valid('json');
 
-        // Plan 2: read tenant.managedProvider instead of hard-coding 'twilio'.
-        const provider = resolveComplianceProvider({ TWILIO_ACCOUNT_SID: acctSid, TWILIO_API_KEY_SID: apiKeySid, TWILIO_API_KEY_SECRET: apiKeySecret }, 'twilio');
+        // resolveComplianceProvider throws 'managed_not_configured' when the chosen
+        // provider's ISV creds are absent — surface as 409 (same as the legacy gate).
+        let provider;
+        try {
+            provider = resolveComplianceProvider(resolverEnv, managedProvider);
+        } catch {
+            return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
+        }
 
         // Same auto-registration as provision (only takes effect if step 1 re-runs —
         // i.e. customerProfileSid is still absent on this resumed row).
         let resubSlug: { slug: string | null } | undefined;
         try { resubSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
         catch { resubSlug = undefined; }
-        // Plan 2: use the tenant's managedProvider instead of hard-coding 'twilio'.
-        const statusCallbackUrl = resubSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), 'twilio', resubSlug.slug) : undefined;
+        const statusCallbackUrl = resubSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), managedProvider, resubSlug.slug) : undefined;
 
         const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, provider, statusCallbackUrl)
             .catch((err) => {

@@ -13,18 +13,22 @@
 
 import type { ComplianceProvider, ComplianceProviderId } from '../messaging/compliance-provider';
 import { TwilioComplianceProvider, type TwilioComplianceClient } from '../messaging/providers/twilio-compliance';
+import { TelnyxComplianceProvider, type TelnyxComplianceClient } from '../messaging/providers/telnyx-compliance';
 import { createFetchHttpClient } from '../messaging/twilio-http-client';
 import twilio from 'twilio';
+import Telnyx from 'telnyx';
 
-/** Platform env slice carrying the managed-ISV credential triple. */
+/** Platform env slice carrying the managed-ISV credentials. Props accept explicit
+ *  `undefined` (callers spread straight from a Worker env where each is optional). */
 export interface ComplianceResolverEnv {
     /** Managed-ISV master Account SID. */
-    TWILIO_ACCOUNT_SID?: string;
+    TWILIO_ACCOUNT_SID?: string | undefined;
     /** Managed-ISV API Key SID (not the Account SID). */
-    TWILIO_API_KEY_SID?: string;
+    TWILIO_API_KEY_SID?: string | undefined;
     /** Managed-ISV API Key Secret. */
-    TWILIO_API_KEY_SECRET?: string;
-    // Telnyx managed credentials are added in Plan 2.
+    TWILIO_API_KEY_SECRET?: string | undefined;
+    /** Managed-ISV Telnyx API key (Plan 2). Drives the 10DLC / TFV provision path. */
+    TELNYX_API_KEY?: string | undefined;
 }
 
 /**
@@ -49,6 +53,14 @@ export function resolveComplianceProvider(
         });
         return new TwilioComplianceProvider(client as unknown as TwilioComplianceClient);
     }
-    // 'telnyx' → Plan 2 (Telnyx managed compliance). Not configured this plan.
+    if (providerId === 'telnyx') {
+        const apiKey = env.TELNYX_API_KEY;
+        if (!apiKey) throw new Error('managed_not_configured');
+        // The telnyx SDK is edge-native (Stainless): it routes through the global
+        // `fetch` with Bearer auth, so no custom httpClient is needed (unlike twilio-node).
+        const client = new Telnyx({ apiKey });
+        return new TelnyxComplianceProvider(client as unknown as TelnyxComplianceClient);
+    }
+    // Unknown provider id — fail closed.
     throw new Error('managed_not_configured');
 }

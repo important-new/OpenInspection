@@ -61,9 +61,12 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     mode: smsCfgBody?.data?.mode ?? "platform",
     effectiveSource: smsCfgBody?.data?.effectiveSource ?? "none",
   };
-  const tenantCfgBody = tenantCfgRes?.ok ? ((await tenantCfgRes.json()) as { data?: { smsMode?: "platform" | "own" | "managed_shared" | "managed_dedicated"; companyPhone?: string | null; smsByoProvider?: "twilio" | "telnyx" | null; emailByoProvider?: "resend" | "sendgrid" | "postmark" | "mailgun" | null } }) : null;
+  const tenantCfgBody = tenantCfgRes?.ok ? ((await tenantCfgRes.json()) as { data?: { smsMode?: "platform" | "own" | "managed_shared" | "managed_dedicated"; companyPhone?: string | null; smsByoProvider?: "twilio" | "telnyx" | null; managedProvider?: "twilio" | "telnyx" | null; emailByoProvider?: "resend" | "sendgrid" | "postmark" | "mailgun" | null } }) : null;
   const companyPhone = tenantCfgBody?.data?.companyPhone ?? "";
   const byoProvider: "twilio" | "telnyx" = tenantCfgBody?.data?.smsByoProvider === "telnyx" ? "telnyx" : "twilio";
+  // managedProvider: which carrier runs MANAGED compliance (managed_dedicated mode).
+  // Separate from smsByoProvider (the BYO send provider shown in 'own' mode).
+  const managedProvider: "twilio" | "telnyx" = tenantCfgBody?.data?.managedProvider === "telnyx" ? "telnyx" : "twilio";
   const emailByoProvider: "resend" | "sendgrid" | "postmark" | "mailgun" =
     (["resend", "sendgrid", "postmark", "mailgun"] as const).includes(
       tenantCfgBody?.data?.emailByoProvider as "resend" | "sendgrid" | "postmark" | "mailgun"
@@ -137,6 +140,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     byoProvider,
     emailByoProvider,
     compliance,
+    managedProvider,
   };
 }
 
@@ -389,6 +393,19 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { intent, ok: true as const, error: null, field: null, test: null };
   }
 
+  // ─── Managed compliance provider selector (Task 5) ───────────────────────
+  if (intent === "save-managed-provider") {
+    const rawProvider = form.get("managedProvider");
+    const managedProvider: "twilio" | "telnyx" = rawProvider === "telnyx" ? "telnyx" : "twilio";
+    const res = await api.admin["tenant-config"].$patch({
+      json: { managedProvider },
+    }).catch(() => null);
+    if (!res || !res.ok) {
+      return { intent, ok: false as const, error: "Failed to save managed provider.", field: null, test: null };
+    }
+    return { intent, ok: true as const, error: null, field: null, test: null };
+  }
+
   if (intent === "toggle-template") {
     const trigger = String(form.get("trigger") || "");
     const enabled = form.get("enabled") === "true";
@@ -423,6 +440,7 @@ export default function SettingsCommunication() {
   const companyPhone = denied ? "" : loaderResult.companyPhone;
   const byoProvider = denied ? ("twilio" as const) : loaderResult.byoProvider;
   const emailByoProvider = denied ? ("resend" as const) : loaderResult.emailByoProvider;
+  const managedProvider = denied ? ("twilio" as const) : loaderResult.managedProvider;
   const compliance: ManagedComplianceData = denied
     ? {
         complianceStatus: "not_started" as const,
@@ -490,6 +508,8 @@ export default function SettingsCommunication() {
     nav.state !== "idle" &&
     (nav.formData?.get("intent") === "sms-compliance-provision" ||
       nav.formData?.get("intent") === "sms-compliance-resubmit");
+  const savingManagedProvider =
+    nav.state !== "idle" && nav.formData?.get("intent") === "save-managed-provider";
 
   // Inbound webhook URL: BYO tenants (own mode) and standalone deployments own STOP/START.
   // Managed-number tenants don't set up their own inbound webhook.
@@ -622,6 +642,8 @@ export default function SettingsCommunication() {
           </p>
           <ManagedComplianceWizard
             compliance={compliance}
+            managedProvider={managedProvider}
+            savingManagedProvider={savingManagedProvider}
             actionError={
               actionData &&
               "intent" in actionData &&
