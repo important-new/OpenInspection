@@ -30,6 +30,10 @@ export interface ScheduledEnv {
     TWILIO_ACCOUNT_SID?: string;
     TWILIO_AUTH_TOKEN?: string;
     TWILIO_FROM_NUMBER?: string;
+    // Managed-pool ISV credentials (same as in AppEnv). Required for the managed
+    // compliance cron sweep (Task 7). Absent in standalone → sweep skips silently.
+    TWILIO_API_KEY_SID?: string;
+    TWILIO_API_KEY_SECRET?: string;
     TENANT_CACHE?: KVNamespace;
     // Core -> portal user-sync transport (A-13/A-14). Producer binding to the
     // sync queue; the outbox sweeper republishes pending rows through it.
@@ -188,6 +192,26 @@ export async function scheduled(
         }
     } catch (e) {
         logger.error('[cron] orphan GC failed', {}, e instanceof Error ? e : undefined);
+    }
+
+    // 5c. Managed compliance status poll (Task 7) — re-read brand/TFV status from
+    //     Twilio for non-terminal managed rows. Campaign status is NOT available as
+    //     a Twilio read endpoint — the webhook (WH-4) is the primary path for
+    //     campaign approval; this cron covers brands and TFV verifications only.
+    //     Skipped entirely when TWILIO_ACCOUNT_SID / TWILIO_API_KEY_SID /
+    //     TWILIO_API_KEY_SECRET are absent (standalone / unconfigured saas).
+    if (env.TWILIO_ACCOUNT_SID && env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET) {
+        try {
+            const { MessagingComplianceService } = await import('./services/messaging-compliance.service');
+            const svc = new MessagingComplianceService(env.DB);
+            await svc.sweepManagedStatuses(
+                env.TWILIO_ACCOUNT_SID,
+                env.TWILIO_API_KEY_SECRET,
+                env.TWILIO_API_KEY_SID,
+            );
+        } catch (e) {
+            logger.error('[cron] managed compliance sweep failed', {}, e instanceof Error ? e : undefined);
+        }
     }
 
     // 6. Track I-a GDPR retention sweep (spec §7) — final destruction of

@@ -1,7 +1,9 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq } from 'drizzle-orm';
+import { eq, notInArray } from 'drizzle-orm';
 import { messagingCompliance } from '../lib/db/schema';
 import { TwilioClient } from '../lib/messaging/twilio';
+import { logger } from '../lib/logger';
+import type { ComplianceEvent } from '../lib/sms/compliance-webhook';
 
 type ReadClient = Pick<TwilioClient, 'tollfree' | 'brands'>;
 
@@ -316,5 +318,215 @@ export class MessagingComplianceService {
         }
 
         return { complianceStatus: row.complianceStatus };
+    }
+
+    // -------------------------------------------------------------------------
+    // Compliance-status webhook receiver (Task 7)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Apply a compliance-status callback from Twilio and advance the tenant's
+     * complianceStatus state machine.
+     *
+     * Status mapping (raw Twilio → our enum):
+     *   TWILIO_APPROVED / APPROVED → 'approved'
+     *   TWILIO_REJECTED / REJECTED / FAILED → 'rejected'
+     *   anything else → the per-entity pending status
+     *     brand:    'brand_pending'
+     *     campaign: 'campaign_pending'
+     *     tfv:      'tfv_pending'
+     *
+     * The rolled-up `complianceStatus` moves to 'approved' ONLY when the
+     * terminal entity for the channel is approved:
+     *   sp10dlc channel: terminal entity = campaign
+     *   tollfree channel: terminal entity = tfv
+     * A brand approval alone does NOT set complianceStatus='approved'.
+     *
+     * A rejection in any entity sets complianceStatus='rejected' + stores the
+     * rejectionReason verbatim from the Twilio payload.
+     *
+     * @param tenantId - Tenant whose row to update (from the route path slug,
+     *                   already resolved and verified before this is called).
+     * @param event    - Parsed compliance event from parseComplianceEvent.
+     */
+    async applyComplianceCallback(tenantId: string, event: ComplianceEvent): Promise<void> {
+        const row = await this.getRow(tenantId);
+        if (!row) {
+            logger.warn('[compliance-svc] applyComplianceCallback: no row for tenant — ignoring', { tenantId });
+            return;
+        }
+
+        const isApproved = event.rawStatus === 'TWILIO_APPROVED' || event.rawStatus === 'APPROVED';
+        const isRejected = event.rawStatus === 'TWILIO_REJECTED' || event.rawStatus === 'REJECTED' || event.rawStatus === 'FAILED';
+
+        const updates: Partial<typeof messagingCompliance.$inferInsert> = {};
+
+        if (event.entity === 'brand') {
+            updates.brandStatus = event.rawStatus;
+            if (isApproved) {
+                // Brand approval alone does not set overall approved (campaign is terminal for sp10dlc).
+                updates.complianceStatus = 'brand_pending';
+            } else if (isRejected) {
+                updates.complianceStatus = 'rejected';
+                updates.rejectionReason = event.rejectionReason ?? event.rawStatus;
+            } else {
+                updates.brandStatus = event.rawStatus;
+            }
+        } else if (event.entity === 'campaign') {
+            updates.campaignStatus = event.rawStatus;
+            if (isApproved) {
+                // Campaign is the terminal entity for sp10dlc.
+                updates.complianceStatus = 'approved';
+                updates.rejectionReason = null;
+            } else if (isRejected) {
+                updates.complianceStatus = 'rejected';
+                updates.rejectionReason = event.rejectionReason ?? event.rawStatus;
+            } else {
+                updates.complianceStatus = 'campaign_pending';
+            }
+        } else {
+            // entity === 'tfv'
+            updates.tfvStatus = event.rawStatus;
+            if (isApproved) {
+                // TFV is the terminal entity for tollfree.
+                updates.complianceStatus = 'approved';
+                updates.rejectionReason = null;
+            } else if (isRejected) {
+                updates.complianceStatus = 'rejected';
+                updates.rejectionReason = event.rejectionReason ?? event.rawStatus;
+            } else {
+                updates.complianceStatus = 'tfv_pending';
+            }
+        }
+
+        await this.persist(tenantId, updates);
+        logger.info('[compliance-svc] applied compliance callback', {
+            tenantId,
+            entity: event.entity,
+            rawStatus: event.rawStatus,
+            newStatus: updates.complianceStatus ?? row.complianceStatus,
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Cron poll fallback (Task 7) — re-reads status from Twilio for managed
+    // tenants whose complianceStatus is not yet terminal.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Sync a managed tenant's compliance status from Twilio (cron fallback).
+     *
+     * Called by the scheduled sweeper for each non-terminal managed tenant row.
+     * Uses READ-ONLY Twilio API surfaces:
+     *   - TFV path (tollfree channel): client.tollfree.list() — available.
+     *   - Brand path (sp10dlc channel): client.brands.list() — available.
+     *
+     * NOTE: Campaign status is NOT available as a read method via the Twilio
+     * REST API — the campaign status is only delivered via webhook (see Twilio
+     * docs for /v1/Services/:sid/Compliance/Usa2p). The webhook is therefore the
+     * PRIMARY path for campaign approval; the cron poll covers brands + TFV only.
+     * Campaign rows in non-terminal state will remain campaign_pending until
+     * Twilio posts the callback.
+     *
+     * @param tenantId - Tenant to sync.
+     * @param client   - Injectable TwilioClient (caller builds from env; tests inject a fake).
+     */
+    async syncManagedStatus(tenantId: string, client: ReadClient): Promise<void> {
+        const row = await this.getRow(tenantId);
+        if (!row) return;
+
+        const updates: Partial<typeof messagingCompliance.$inferInsert> = {};
+
+        // TFV path — poll toll-free verifications.
+        if (row.tfvSid || row.tfvStatus) {
+            const tfvs = await client.tollfree.list().catch(() => []);
+            const tfv = row.tfvSid ? tfvs.find((t) => t.sid === row.tfvSid) : tfvs[0];
+            if (tfv) {
+                updates.tfvStatus = tfv.status;
+                const isApproved = tfv.status === 'TWILIO_APPROVED' || tfv.status === 'APPROVED';
+                const isRejected = tfv.status === 'TWILIO_REJECTED' || tfv.status === 'REJECTED' || tfv.status === 'FAILED';
+                if (isApproved) {
+                    updates.complianceStatus = 'approved';
+                    updates.rejectionReason = null;
+                } else if (isRejected) {
+                    updates.complianceStatus = 'rejected';
+                    updates.rejectionReason = tfv.status;
+                }
+            }
+        }
+
+        // Brand path — poll brand registrations (sp10dlc).
+        if (row.brandSid || row.brandStatus) {
+            const brands = await client.brands.list().catch(() => []);
+            const brand = row.brandSid ? brands.find((b) => b.sid === row.brandSid) : brands[0];
+            if (brand) {
+                updates.brandStatus = brand.status;
+                const isApproved = brand.status === 'TWILIO_APPROVED' || brand.status === 'APPROVED';
+                const isRejected = brand.status === 'TWILIO_REJECTED' || brand.status === 'REJECTED' || brand.status === 'FAILED';
+                if (isApproved && row.complianceStatus !== 'approved') {
+                    // Brand approval advances to brand_pending (not overall approved —
+                    // campaign is terminal for sp10dlc).
+                    updates.complianceStatus = 'brand_pending';
+                } else if (isRejected && row.complianceStatus !== 'rejected') {
+                    updates.complianceStatus = 'rejected';
+                    updates.rejectionReason = brand.status;
+                }
+            }
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await this.persist(tenantId, updates);
+            logger.info('[compliance-svc] syncManagedStatus: updated row', {
+                tenantId, updates: JSON.stringify(updates),
+            });
+        }
+    }
+
+    /**
+     * Sweep all managed, non-terminal rows and re-read status from Twilio.
+     * Called from the scheduled cron. Fail-soft: a single tenant's error
+     * does not abort the sweep for other tenants.
+     *
+     * NOTE: Campaign status polling is NOT available via the Twilio REST API.
+     * The webhook (registerComplianceStatusRoute) is the primary path for
+     * campaign approval. This cron covers brands and TFV verifications only.
+     *
+     * @param acctSid     - Twilio master account SID (managed ISV account).
+     * @param apiKeySecret - Twilio API key secret (managed ISV account).
+     * @param apiKeySid   - Twilio API key SID (managed ISV account).
+     */
+    async sweepManagedStatuses(
+        acctSid: string,
+        apiKeySecret: string,
+        apiKeySid: string,
+    ): Promise<void> {
+        const db = this.d();
+        const terminalStatuses = ['approved', 'rejected'] as const;
+
+        // Fetch all managed rows that are not yet in a terminal status.
+        // managed_shared and managed_dedicated are the only modes that use
+        // the managed ISV Twilio account; 'own' tenants poll their own creds separately.
+        const managedRows = await db
+            .select({ tenantId: messagingCompliance.tenantId })
+            .from(messagingCompliance)
+            .where(notInArray(messagingCompliance.complianceStatus, [...terminalStatuses]))
+            .all();
+
+        // Build a single client for the managed ISV account.
+        const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
+
+        for (const { tenantId } of managedRows) {
+            try {
+                await this.syncManagedStatus(tenantId, client);
+            } catch (err) {
+                // Fail-soft: log the error but continue sweeping remaining tenants.
+                logger.error('[compliance-svc] sweepManagedStatuses: tenant sync failed', { tenantId },
+                    err instanceof Error ? err : new Error(String(err)));
+            }
+        }
+
+        if (managedRows.length > 0) {
+            logger.info('[compliance-svc] sweepManagedStatuses: swept tenants', { count: managedRows.length });
+        }
     }
 }

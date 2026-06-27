@@ -784,3 +784,316 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
         expect(body.data.complianceStatus).toBeTruthy();
     });
 });
+
+// ─── Compliance-status webhook (Task 7) ──────────────────────────────────────
+
+import { signParams as _signParamsForCompliance } from '../../server/lib/messaging/twilio';
+import { MessagingComplianceService } from '../../server/services/messaging-compliance.service';
+import { smsPublicRoutes as _smsPublicRoutes } from '../../server/api/sms';
+
+const COMPLIANCE_TOKEN = 'compliance-webhook-token';
+
+/** Build a minimal app with smsPublicRoutes mounted for compliance webhook tests. */
+function buildComplianceApp(database: BetterSQLite3Database<typeof schema>, token?: string) {
+    const app = new OpenAPIHono<HonoConfig>();
+    app.onError((err, c) => {
+        if (err instanceof AppError) {
+            return c.json({ success: false, error: { code: err.code, message: err.message } }, err.status);
+        }
+        return c.json({ success: false, error: { code: 'internal_error', message: String(err) } }, 500);
+    });
+    // No JWT injection needed — this route is fully public (signature-verified).
+    app.route('/api/public', _smsPublicRoutes);
+    (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(database);
+
+    const env: HonoConfig['Bindings'] = {
+        ...FAKE_ENV,
+        ...(token !== undefined ? { TWILIO_COMPLIANCE_WEBHOOK_TOKEN: token } : {}),
+    } as unknown as HonoConfig['Bindings'];
+    return { app, env };
+}
+
+/** Seed a messaging_compliance row for a tenant (managed_dedicated, campaign_pending by default). */
+async function seedComplianceRow(
+    database: BetterSQLite3Database<typeof schema>,
+    tenantId: string,
+    overrides: Partial<{ complianceStatus: string; mode: string; campaignStatus: string; brandStatus: string; tfvStatus: string }> = {},
+) {
+    const now = new Date();
+    await database.insert(schema.messagingCompliance).values({
+        tenantId,
+        mode: overrides.mode ?? 'managed_dedicated',
+        complianceStatus: overrides.complianceStatus ?? 'campaign_pending',
+        campaignStatus: overrides.campaignStatus ?? null,
+        brandStatus: overrides.brandStatus ?? null,
+        tfvStatus: overrides.tfvStatus ?? null,
+        createdAt: now,
+        updatedAt: now,
+    } as never);
+}
+
+/**
+ * Sign a compliance callback POST and drive it through the app.
+ * Mirrors the delivery-status tests: build params, sign, post form-encoded.
+ */
+async function postComplianceCallback(
+    app: ReturnType<typeof buildComplianceApp>['app'],
+    env: HonoConfig['Bindings'],
+    tenantSlug: string,
+    params: Record<string, string>,
+    tokenOverride?: string,
+) {
+    const url = `${APP_BASE_URL}/api/public/twilio/compliance-status/${tenantSlug}`;
+    const signingToken = tokenOverride ?? COMPLIANCE_TOKEN;
+    const sig = await _signParamsForCompliance(signingToken, url, params);
+    const body = new URLSearchParams(params).toString();
+    return app.request(
+        `/api/public/twilio/compliance-status/${tenantSlug}`,
+        {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded',
+                'x-twilio-signature': sig,
+            },
+            body,
+        },
+        env,
+        makeExecCtx(),
+    );
+}
+
+describe('Compliance-status webhook (Task 7)', () => {
+    it('campaign TWILIO_APPROVED callback flips complianceStatus to approved', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
+        const res = await postComplianceCallback(app, env, 'acme', params);
+
+        expect(res.status).toBe(200);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('approved');
+    });
+
+    it('campaign APPROVED (short form) also flips complianceStatus to approved', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'APPROVED' };
+        const res = await postComplianceCallback(app, env, 'acme', params);
+
+        expect(res.status).toBe(200);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('approved');
+    });
+
+    it('campaign REJECTED callback stores rejectionReason + sets complianceStatus=rejected', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = {
+            CampaignSid: 'CR123',
+            CampaignStatus: 'REJECTED',
+            ErrorCode: '30034',
+            ErrorMessage: 'Use case not approved',
+        };
+        const res = await postComplianceCallback(app, env, 'acme', params);
+
+        expect(res.status).toBe(200);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('rejected');
+        expect(stored?.rejectionReason).toContain('30034');
+        expect(stored?.rejectionReason).toContain('Use case not approved');
+    });
+
+    it('TFV TWILIO_APPROVED callback flips complianceStatus to approved', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'tfv_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { VerificationStatus: 'TWILIO_APPROVED', VerificationSid: 'HV123' };
+        const res = await postComplianceCallback(app, env, 'acme', params);
+
+        expect(res.status).toBe(200);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('approved');
+    });
+
+    it('bad/missing signature → 403 and NO row change', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
+        const body = new URLSearchParams(params).toString();
+
+        const res = await app.request(
+            '/api/public/twilio/compliance-status/acme',
+            {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/x-www-form-urlencoded',
+                    'x-twilio-signature': 'invalid-signature',
+                },
+                body,
+            },
+            env,
+            makeExecCtx(),
+        );
+
+        expect(res.status).toBe(403);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        // Row must be untouched — still campaign_pending, not approved.
+        expect(stored?.complianceStatus).toBe('campaign_pending');
+    });
+
+    it('missing signature header → 403 and NO row change', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
+        const body = new URLSearchParams(params).toString();
+
+        const res = await app.request(
+            '/api/public/twilio/compliance-status/acme',
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body,
+            },
+            env,
+            makeExecCtx(),
+        );
+
+        expect(res.status).toBe(403);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('campaign_pending');
+    });
+
+    it('no secret configured → 403 before any DB write', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        // Build app with no token in env (both TWILIO_COMPLIANCE_WEBHOOK_TOKEN
+        // and TWILIO_AUTH_TOKEN absent).
+        const app = new OpenAPIHono<HonoConfig>();
+        app.route('/api/public', _smsPublicRoutes);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+
+        const envNoToken = {
+            DB: {},
+            APP_BASE_URL,
+            JWT_SECRET: 'test-secret',
+            // No TWILIO_AUTH_TOKEN, no TWILIO_COMPLIANCE_WEBHOOK_TOKEN
+            TENANT_CACHE: { get: async () => null, put: async () => {} },
+        } as unknown as HonoConfig['Bindings'];
+
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
+        // Sign with any token — doesn't matter, will be rejected before verification.
+        const sig = await _signParamsForCompliance('any-token', `${APP_BASE_URL}/api/public/twilio/compliance-status/acme`, params);
+        const body = new URLSearchParams(params).toString();
+
+        const res = await app.request(
+            '/api/public/twilio/compliance-status/acme',
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-twilio-signature': sig },
+                body,
+            },
+            envNoToken,
+            makeExecCtx(),
+        );
+
+        expect(res.status).toBe(403);
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('campaign_pending');
+    });
+
+    it('unknown tenant slug → 404', async () => {
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
+        const res = await postComplianceCallback(app, env, 'no-such-tenant', params);
+        expect(res.status).toBe(404);
+    });
+});
+
+// ─── MessagingComplianceService.syncManagedStatus (cron poll, Task 7) ────────
+
+describe('MessagingComplianceService.syncManagedStatus (cron poll)', () => {
+    it('TFV TWILIO_APPROVED read → updates stored status to approved', async () => {
+        await seedComplianceRow(db, TENANT, {
+            complianceStatus: 'tfv_pending',
+            tfvStatus: 'PENDING_REVIEW',
+        });
+
+        // Inject a fake read client — never calls real Twilio.
+        const fakeClient = {
+            tollfree: {
+                list: async () => [{ sid: 'HV123', status: 'TWILIO_APPROVED', phoneNumber: '+18005550001' }],
+            },
+            brands: {
+                list: async () => [] as Array<{ sid: string; status: string }>,
+            },
+        };
+
+        const svc = new MessagingComplianceService({} as D1Database);
+        await svc.syncManagedStatus(TENANT, fakeClient);
+
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('approved');
+    });
+
+    it('TFV TWILIO_REJECTED read → updates stored status to rejected', async () => {
+        await seedComplianceRow(db, TENANT, {
+            complianceStatus: 'tfv_pending',
+            tfvStatus: 'PENDING_REVIEW',
+        });
+
+        const fakeClient = {
+            tollfree: {
+                list: async () => [{ sid: 'HV123', status: 'TWILIO_REJECTED', phoneNumber: '+18005550001' }],
+            },
+            brands: {
+                list: async () => [] as Array<{ sid: string; status: string }>,
+            },
+        };
+
+        const svc = new MessagingComplianceService({} as D1Database);
+        await svc.syncManagedStatus(TENANT, fakeClient);
+
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('rejected');
+    });
+
+    it('empty tollfree list → no change to stored status', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'tfv_pending', tfvStatus: 'PENDING_REVIEW' });
+
+        const fakeClient = {
+            tollfree: { list: async () => [] as Array<{ sid: string; status: string; phoneNumber: string }> },
+            brands: { list: async () => [] as Array<{ sid: string; status: string }> },
+        };
+
+        const svc = new MessagingComplianceService({} as D1Database);
+        await svc.syncManagedStatus(TENANT, fakeClient);
+
+        const stored = await svc.getStatus(TENANT);
+        // No tollfree entry found → status unchanged.
+        expect(stored?.complianceStatus).toBe('tfv_pending');
+    });
+
+    it('no row for tenant → returns without error (no-op)', async () => {
+        // No compliance row seeded for TENANT.
+        const fakeClient = {
+            tollfree: { list: async () => [{ sid: 'HV123', status: 'TWILIO_APPROVED', phoneNumber: '+18005550001' }] },
+            brands: { list: async () => [] as Array<{ sid: string; status: string }> },
+        };
+
+        const svc = new MessagingComplianceService({} as D1Database);
+        // Must not throw.
+        await expect(svc.syncManagedStatus(TENANT, fakeClient)).resolves.toBeUndefined();
+    });
+});

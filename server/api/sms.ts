@@ -44,6 +44,7 @@ import {
     SmsComplianceResponseSchema, SmsComplianceProvisionSchema, SmsComplianceResubmitSchema,
 } from '../lib/validations/sms.schema';
 import { registerSmsStatusRoute, recordSentStatus, verifyInboundSignature } from '../lib/sms/delivery-status';
+import { registerComplianceStatusRoute } from '../lib/sms/compliance-webhook';
 import { registerEmailEventsRoute } from '../lib/email/email-events';
 import { logger } from '../lib/logger';
 import type { Context } from 'hono';
@@ -193,6 +194,11 @@ smsPublicRoutes.post('/sms/inbound/:tenant', async (c) => {
 // parse → last-writer-wins upsert. Implementation lives in lib/sms/delivery-status
 // (keeps this router file under the file-size cap; recordSentStatus is re-exported).
 registerSmsStatusRoute(smsPublicRoutes);
+
+// Compliance-status webhook (WH-4) — POST /twilio/compliance-status/:tenant.
+// Receives Twilio brand/campaign/TFV status callbacks for managed provisioning.
+// Implementation lives in lib/sms/compliance-webhook (keeps this file under size cap).
+registerComplianceStatusRoute(smsPublicRoutes);
 
 // Email deliverability webhook (WH-3) — POST /email/:provider/:tenant. Verify →
 // dedup → parse → append-only suppression insert for hard bounce / complaint.

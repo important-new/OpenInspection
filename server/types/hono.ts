@@ -98,6 +98,13 @@ export interface AppEnv {
     TWILIO_API_KEY_SECRET?: string;
     /** Shared Messaging Service SID used by all managed_shared tenants. */
     TWILIO_SHARED_MESSAGING_SERVICE_SID?: string;
+    /**
+     * Dedicated HMAC secret for Twilio compliance-status webhooks (brand/campaign/TFV
+     * callbacks). When set, this takes precedence over TWILIO_AUTH_TOKEN for verifying
+     * POST /api/public/twilio/compliance-status/:tenant. Optional — falls back to
+     * TWILIO_AUTH_TOKEN when absent. If neither is set, the webhook rejects 403.
+     */
+    TWILIO_COMPLIANCE_WEBHOOK_TOKEN?: string;
 
     // Rate Limiting
     RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
