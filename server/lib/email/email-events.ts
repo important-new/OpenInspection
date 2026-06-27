@@ -103,9 +103,14 @@ export function registerEmailEventsRoute(router: Hono<HonoConfig>): void {
         const recordedAt = nowMs ?? Date.now();
         const events = adapter.parseWebhookEvents(rawBody);
         for (const ev of events) {
-            // Idempotency: a stable per-event key. providerEventId can repeat across
-            // event types from some providers, so scope it by provider + type too.
-            const eventId = `${provider}:${ev.type}:${ev.providerEventId}`;
+            // Idempotency: a stable per-event key. processed_webhook_events is a
+            // platform-global ledger, but a BYO provider message id is only unique
+            // WITHIN that tenant's provider account — two tenants on the same
+            // provider could in principle reuse an id. Scope the key by tenant so a
+            // legitimate event for one tenant is never deduped as another's. Also
+            // scope by provider + type (providerEventId can repeat across event
+            // types from some providers).
+            const eventId = `${tenant.id}:${provider}:${ev.type}:${ev.providerEventId}`;
             try {
                 await db.insert(processedWebhookEvents)
                     .values({ eventId, receivedAt: new Date(recordedAt) }).run();
