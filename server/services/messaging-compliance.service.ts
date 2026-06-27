@@ -197,6 +197,14 @@ export class MessagingComplianceService {
         },
         channel: 'sp10dlc' | 'tollfree',
         client: WriteClient,
+        // Per-tenant compliance webhook URL. When provided, it is registered as the
+        // Trust Hub CustomerProfile StatusCallbackUrl at profile-creation time, so
+        // Twilio delivers brand/campaign status transitions to our webhook receiver
+        // automatically (no manual Console config). Omitted (undefined) → no callback
+        // registered; status still advances via the cron poll (brand/TFV) and any
+        // manually-configured Console callback. NOTE: only NEW provisions register it
+        // — a resume whose customerProfileSid already exists skips step 1.
+        statusCallbackUrl?: string,
     ): Promise<{ complianceStatus: string }> {
         // Load or create the initial row.
         let row = (await this.getRow(tenantId)) ?? (await this.initRow(tenantId, 'managed_dedicated'));
@@ -207,6 +215,7 @@ export class MessagingComplianceService {
                 friendlyName: businessInfo.legalName,
                 email: businessInfo.email ?? '',
                 isvRegisteringForSelfOrSubaccounts: 'false',
+                ...(statusCallbackUrl ? { statusCallbackUrl } : {}),
             });
             row = await this.persist(tenantId, {
                 customerProfileSid: cp.sid,

@@ -39,6 +39,20 @@ import type { HonoConfig } from '../../types/hono';
 //   tfv:      VerificationStatus present (toll-free verification)
 // ---------------------------------------------------------------------------
 
+/**
+ * Build the public compliance-status webhook URL for a tenant slug.
+ *
+ * Single source of truth for the path, so the StatusCallback auto-registered on
+ * the Trust Hub CustomerProfile during provisioning (provision → createSecondary-
+ * Profile) byte-matches the URL this receiver reconstructs for Twilio signature
+ * validation (`${getBaseUrl(c)}${c.req.path}`). A mismatch here would make every
+ * callback fail the signature check (403). Mount prefix `/api/public` + the route
+ * path `/twilio/compliance-status/:tenant`.
+ */
+export function complianceWebhookUrl(baseUrl: string, tenantSlug: string): string {
+    return `${baseUrl}/api/public/twilio/compliance-status/${tenantSlug}`;
+}
+
 export type ComplianceEventEntity = 'brand' | 'campaign' | 'tfv';
 
 export interface ComplianceEvent {

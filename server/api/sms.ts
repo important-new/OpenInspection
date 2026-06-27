@@ -38,6 +38,8 @@ import { resolveOptinToken } from '../lib/sms/optin-token';
 import { normalizeE164 } from '../lib/sms/phone';
 import { loadProviderForTenant, resolveTwilioSource } from '../lib/sms/resolve-twilio';
 import { managedSendAllowed } from '../lib/sms/managed-send-gate';
+import { complianceWebhookUrl } from '../lib/sms/compliance-webhook';
+import { getBaseUrl } from '../lib/url';
 import { loadTenantSecrets } from '../lib/secrets-cache';
 import { maybeMetering } from '../services/metering.service';
 import {
@@ -625,8 +627,18 @@ export const smsAdminRoutes = createApiRouter()
         const complianceSvc = new MessagingComplianceService(c.env.DB);
         const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
 
+        // Auto-register the per-tenant compliance webhook as the Trust Hub profile
+        // StatusCallbackUrl so Twilio delivers brand/campaign status to our receiver
+        // (no manual Console config). Built with getBaseUrl(c) so it byte-matches the
+        // URL the webhook validates the Twilio signature against. Best-effort: a missing
+        // slug just means no callback (cron poll + manual config still cover it).
+        let provSlug: { slug: string | null } | undefined;
+        try { provSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
+        catch { provSlug = undefined; }
+        const statusCallbackUrl = provSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), provSlug.slug) : undefined;
+
         // Fire provision in the background so the request returns immediately.
-        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client)
+        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client, statusCallbackUrl)
             .catch((err) => {
                 logger.error('managed compliance provision failed', { tenantId, channel }, err instanceof Error ? err : new Error(String(err)));
             });
@@ -716,7 +728,14 @@ export const smsAdminRoutes = createApiRouter()
 
         const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
 
-        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client)
+        // Same auto-registration as provision (only takes effect if step 1 re-runs —
+        // i.e. customerProfileSid is still absent on this resumed row).
+        let resubSlug: { slug: string | null } | undefined;
+        try { resubSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
+        catch { resubSlug = undefined; }
+        const statusCallbackUrl = resubSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), resubSlug.slug) : undefined;
+
+        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client, statusCallbackUrl)
             .catch((err) => {
                 logger.error('managed compliance resubmit failed', { tenantId, channel }, err instanceof Error ? err : new Error(String(err)));
             });

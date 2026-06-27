@@ -296,6 +296,51 @@ describe('MessagingComplianceService.provision', () => {
     });
 });
 
+describe('MessagingComplianceService.provision — StatusCallback auto-registration (a)', () => {
+    /** Capturing client that records the createSecondaryProfile args. */
+    function makeCapturingClient(captured: { profileArgs?: Record<string, unknown> }): WriteClient {
+        return {
+            ...makeSp10dlcClient([]),
+            trusthub: {
+                createSecondaryProfile: async (args: Record<string, unknown>) => {
+                    captured.profileArgs = args;
+                    return { sid: 'BUx' };
+                },
+            },
+        } as never;
+    }
+
+    it('passes statusCallbackUrl to createSecondaryProfile when provided', async () => {
+        const fx = createTestDb(); await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
+        const captured: { profileArgs?: Record<string, unknown> } = {};
+        const url = 'https://app.example.test/api/public/twilio/compliance-status/acme';
+        await new MessagingComplianceService({} as D1Database).provision(
+            'cb-1',
+            { legalName: 'Acme', address: '1 Main, TX', repName: 'Bob' },
+            'sp10dlc',
+            makeCapturingClient(captured),
+            url,
+        );
+        expect(captured.profileArgs?.statusCallbackUrl).toBe(url);
+        fx.sqlite.close();
+    });
+
+    it('omits statusCallbackUrl when not provided (backward-compatible)', async () => {
+        const fx = createTestDb(); await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
+        const captured: { profileArgs?: Record<string, unknown> } = {};
+        await new MessagingComplianceService({} as D1Database).provision(
+            'cb-2',
+            { legalName: 'Acme', address: '1 Main, TX', repName: 'Bob' },
+            'sp10dlc',
+            makeCapturingClient(captured),
+        );
+        expect('statusCallbackUrl' in (captured.profileArgs ?? {})).toBe(false);
+        fx.sqlite.close();
+    });
+});
+
 // ---------------------------------------------------------------------------
 // applyComplianceCallback — change-detection return value (Task 11)
 // ---------------------------------------------------------------------------
