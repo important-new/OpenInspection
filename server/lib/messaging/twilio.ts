@@ -261,10 +261,16 @@ export class TwilioClient implements MessagingProvider {
     };
 
     numbers = {
-        search: async (areaCode?: string): Promise<Array<{ phoneNumber: string }>> => {
-            const path = areaCode
-                ? `/2010-04-01/Accounts/${this.creds.sid}/AvailablePhoneNumbers/US/TollFree.json?AreaCode=${encodeURIComponent(areaCode)}`
-                : `/2010-04-01/Accounts/${this.creds.sid}/AvailablePhoneNumbers/US/TollFree.json`;
+        /**
+         * Search for available US phone numbers.
+         * - 'tollfree' → AvailablePhoneNumbers/US/TollFree.json (no AreaCode support from Twilio)
+         * - 'local'    → AvailablePhoneNumbers/US/Local.json (10DLC sole-prop needs a local DID)
+         * areaCode is passed as the AreaCode query param when provided (primarily useful for local).
+         */
+        search: async (kind: 'tollfree' | 'local', areaCode?: string): Promise<Array<{ phoneNumber: string }>> => {
+            const catalog = kind === 'local' ? 'Local' : 'TollFree';
+            const base = `/2010-04-01/Accounts/${this.creds.sid}/AvailablePhoneNumbers/US/${catalog}.json`;
+            const path = areaCode ? `${base}?AreaCode=${encodeURIComponent(areaCode)}` : base;
             const r = await this.request('GET', 'api', path);
             const items =
                 (r.json as { available_phone_numbers?: Array<{ phone_number: string }> } | null)

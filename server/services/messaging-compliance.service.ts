@@ -190,6 +190,7 @@ export class MessagingComplianceService {
             address: string;
             repName: string;
             areaCode?: string;
+            email?: string;
         },
         channel: 'sp10dlc' | 'tollfree',
         client: WriteClient,
@@ -201,7 +202,7 @@ export class MessagingComplianceService {
         if (!row.customerProfileSid) {
             const cp = await client.trusthub.createSecondaryProfile({
                 friendlyName: businessInfo.legalName,
-                email: '',                                  // caller can extend later
+                email: businessInfo.email ?? '',
                 isvRegisteringForSelfOrSubaccounts: 'false',
             });
             row = await this.persist(tenantId, {
@@ -256,12 +257,18 @@ export class MessagingComplianceService {
                 });
             }
 
-            // Step 5 (sp10dlc): buy number + attach to messaging service
+            // Step 5 (sp10dlc): buy number, persist PN SID, then attach to messaging service.
+            // Persist provisionedNumber + provisionedNumberSid BEFORE attachSender so a
+            // crash-resume run can reuse the bought number (via provisionedNumberSid) instead
+            // of purchasing a second number.
             if (!row.provisionedNumber) {
-                const available = await client.numbers.search(businessInfo.areaCode);
+                const available = await client.numbers.search('local', businessInfo.areaCode);
                 const bought = await client.numbers.buy(available[0].phoneNumber);
-                await client.messagingServices.attachSender(row.messagingServiceSid!, bought.sid);
-                row = await this.persist(tenantId, { provisionedNumber: bought.phoneNumber });
+                row = await this.persist(tenantId, {
+                    provisionedNumber: bought.phoneNumber,
+                    provisionedNumberSid: bought.sid,
+                });
+                await client.messagingServices.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
             }
         } else {
             // tollfree channel
@@ -274,23 +281,30 @@ export class MessagingComplianceService {
                 row = await this.persist(tenantId, { messagingServiceSid: ms.sid });
             }
 
-            // Step 3 (tollfree): buy number + attach to messaging service
+            // Step 3 (tollfree): buy number, persist PN SID, then attach to messaging service.
+            // Persist provisionedNumber + provisionedNumberSid BEFORE attachSender so a
+            // crash-resume run can reuse the bought number (via provisionedNumberSid) instead
+            // of purchasing a second number.
             if (!row.provisionedNumber) {
-                const available = await client.numbers.search(businessInfo.areaCode);
+                const available = await client.numbers.search('tollfree', businessInfo.areaCode);
                 const bought = await client.numbers.buy(available[0].phoneNumber);
-                await client.messagingServices.attachSender(row.messagingServiceSid!, bought.sid);
-                row = await this.persist(tenantId, { provisionedNumber: bought.phoneNumber });
+                row = await this.persist(tenantId, {
+                    provisionedNumber: bought.phoneNumber,
+                    provisionedNumberSid: bought.sid,
+                });
+                await client.messagingServices.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
             }
 
-            // Step 4 (tollfree): toll-free verification — needs provisionedNumber + messagingServiceSid
+            // Step 4 (tollfree): toll-free verification — needs provisionedNumberSid + messagingServiceSid.
+            // tollfreePhoneNumberSid must be the PN... SID, not the E.164 phone number string.
             if (!row.tfvSid) {
                 const tfv = await client.tollfree.create({
-                    tollfreePhoneNumberSid: row.provisionedNumber!,
+                    tollfreePhoneNumberSid: row.provisionedNumberSid!,
                     messagingServiceSid: row.messagingServiceSid!,
                     useCaseDescription: `Inspection notifications for ${businessInfo.legalName}`,
                     useCaseSummary: 'Send inspection reports, scheduling reminders, and repair request updates to clients.',
                     productionMessageSample: 'Your inspection report is ready. View it at {{link}}.',
-                    notificationEmail: '',
+                    notificationEmail: businessInfo.email ?? '',
                     optInType: 'VERBAL',
                 });
                 row = await this.persist(tenantId, {

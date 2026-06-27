@@ -109,7 +109,7 @@ function makeSp10dlcClient(calls: string[]): WriteClient {
             attachSender: async () => ({ sid: 'ASx' }),
         },
         numbers: {
-            search: async () => [{ phoneNumber: '+15551110000' }],
+            search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+15551110000' }],
             buy: async () => ({ sid: 'PNx', phoneNumber: '+15551110000' }),
         },
         tollfree: {
@@ -188,7 +188,74 @@ describe('MessagingComplianceService.provision', () => {
         expect(result.complianceStatus).toBe('tfv_pending');
         expect(row?.tfvSid).toBe('HVx');
         expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.complianceStatus).toBe('tfv_pending');
+        expect(calls.filter(c => c === 'tfv').length).toBe(1);
+        fx.sqlite.close();
+    });
+
+    it('tollfree crash-resume: numbers.buy called once even if process died after buy but before tfv.create', async () => {
+        // Simulate a crash AFTER numbers.buy (provisionedNumber + provisionedNumberSid persisted)
+        // but BEFORE tollfree.create. A second provision() call with a non-throwing client must
+        // reuse the already-persisted PN SID and NOT call numbers.buy a second time.
+        const fx = createTestDb(); await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
+        let buyCount = 0;
+        // First client: throws on tollfree.create to simulate crash mid-chain.
+        const crashClient: WriteClient = {
+            ...makeSp10dlcClient([]),
+            numbers: {
+                search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+18005559999' }],
+                buy: async () => { buyCount++; return { sid: 'PNresume', phoneNumber: '+18005559999' }; },
+            },
+            tollfree: {
+                list: async () => [],
+                create: async () => { throw new Error('crash'); },
+            },
+        } as never;
+        await expect(
+            new MessagingComplianceService({} as D1Database).provision(
+                'p5',
+                { legalName: 'Resume Co', address: '5 Main, TX', repName: 'Dave' },
+                'tollfree',
+                crashClient,
+            ),
+        ).rejects.toThrow('crash');
+
+        // Verify the number was persisted despite the crash on tfv.create.
+        const rowAfterCrash = await fx.db
+            .select()
+            .from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'p5'))
+            .get();
+        expect(rowAfterCrash?.provisionedNumber).toBe('+18005559999');
+        expect(rowAfterCrash?.provisionedNumberSid).toBe('PNresume');
+
+        // Second client: fully succeeds. numbers.buy must NOT be called again.
+        const resumeCalls: string[] = [];
+        const resumeClient: WriteClient = {
+            ...makeSp10dlcClient(resumeCalls),
+            numbers: {
+                search: async (_kind: 'tollfree' | 'local') => [{ phoneNumber: '+18005559999' }],
+                buy: async () => { buyCount++; return { sid: 'PNresume2', phoneNumber: '+18005559999' }; },
+            },
+        } as never;
+        const svc2 = new MessagingComplianceService({} as D1Database);
+        const result = await svc2.provision(
+            'p5',
+            { legalName: 'Resume Co', address: '5 Main, TX', repName: 'Dave' },
+            'tollfree',
+            resumeClient,
+        );
+        expect(buyCount).toBe(1); // numbers.buy ran exactly once across both calls
+        expect(result.complianceStatus).toBe('tfv_pending');
+        const finalRow = await fx.db
+            .select()
+            .from(schema.messagingCompliance)
+            .where(eq(schema.messagingCompliance.tenantId, 'p5'))
+            .get();
+        expect(finalRow?.tfvSid).toBe('HVx');
+        expect(resumeCalls.filter(c => c === 'tfv').length).toBe(1);
         fx.sqlite.close();
     });
 

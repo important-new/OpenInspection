@@ -311,7 +311,7 @@ describe('TwilioClient.messagingServices', () => {
 describe('TwilioClient.numbers', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it('numbers.search GETs TollFree available numbers and maps to phoneNumber array', async () => {
+    it("numbers.search('tollfree') GETs TollFree available numbers and maps to phoneNumber array", async () => {
         const body = JSON.stringify({
             available_phone_numbers: [
                 { phone_number: '+18005550001' },
@@ -320,19 +320,41 @@ describe('TwilioClient.numbers', () => {
         });
         const fetchMock = vi.fn(async () => new Response(body, { status: 200 }));
         vi.stubGlobal('fetch', fetchMock);
-        const r = await new TwilioClient({ sid: 'AC1', token: 't' }).numbers.search();
+        const r = await new TwilioClient({ sid: 'AC1', token: 't' }).numbers.search('tollfree');
         expect(r).toEqual([{ phoneNumber: '+18005550001' }, { phoneNumber: '+18005550002' }]);
         const [url] = fetchMock.mock.calls[0];
         expect(url).toContain('api.twilio.com/2010-04-01/Accounts/AC1/AvailablePhoneNumbers/US/TollFree.json');
+        expect(url).not.toContain('Local');
     });
 
-    it('numbers.search with areaCode passes AreaCode query param', async () => {
+    it("numbers.search('local') GETs Local available numbers", async () => {
+        const body = JSON.stringify({ available_phone_numbers: [{ phone_number: '+15125550001' }] });
+        const fetchMock = vi.fn(async () => new Response(body, { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const r = await new TwilioClient({ sid: 'AC1', token: 't' }).numbers.search('local');
+        expect(r).toEqual([{ phoneNumber: '+15125550001' }]);
+        const [url] = fetchMock.mock.calls[0];
+        expect(url).toContain('api.twilio.com/2010-04-01/Accounts/AC1/AvailablePhoneNumbers/US/Local.json');
+        expect(url).not.toContain('TollFree');
+    });
+
+    it("numbers.search with areaCode passes AreaCode query param", async () => {
         const body = JSON.stringify({ available_phone_numbers: [{ phone_number: '+18005550003' }] });
         const fetchMock = vi.fn(async () => new Response(body, { status: 200 }));
         vi.stubGlobal('fetch', fetchMock);
-        await new TwilioClient({ sid: 'AC1', token: 't' }).numbers.search('800');
+        await new TwilioClient({ sid: 'AC1', token: 't' }).numbers.search('tollfree', '800');
         const [url] = fetchMock.mock.calls[0];
         expect(url).toContain('AreaCode=800');
+    });
+
+    it("numbers.search('local') with areaCode passes AreaCode query param and uses Local catalog", async () => {
+        const body = JSON.stringify({ available_phone_numbers: [{ phone_number: '+15125550004' }] });
+        const fetchMock = vi.fn(async () => new Response(body, { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock);
+        await new TwilioClient({ sid: 'AC1', token: 't' }).numbers.search('local', '512');
+        const [url] = fetchMock.mock.calls[0];
+        expect(url).toContain('AvailablePhoneNumbers/US/Local.json');
+        expect(url).toContain('AreaCode=512');
     });
 
     it('numbers.buy POSTs PhoneNumber to IncomingPhoneNumbers and returns sid+phoneNumber', async () => {

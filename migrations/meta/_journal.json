@@ -71,6 +71,13 @@
       "when": 1782536414078,
       "tag": "0009_worried_nehzno",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1782542840422,
+      "tag": "0010_concerned_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }

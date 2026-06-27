@@ -89,6 +89,10 @@ export const messagingCompliance = sqliteTable('messaging_compliance', {
     tfvStatus: text('tfv_status'),
     messagingServiceSid: text('messaging_service_sid'),
     provisionedNumber: text('provisioned_number'),
+    // The Twilio phone-number SID (PN...) returned by numbers.buy. Required for
+    // attachSender and tollfree.create; persisted before those calls so a crash-
+    // resumed run can reuse the already-purchased number instead of buying again.
+    provisionedNumberSid: text('provisioned_number_sid'),
     complianceStatus: text('compliance_status', {
         enum: ['not_started', 'profile_pending', 'brand_pending', 'campaign_pending', 'tfv_pending', 'approved', 'rejected'],
     }).notNull().default('not_started'),
