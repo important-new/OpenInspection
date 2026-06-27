@@ -390,6 +390,6 @@ export class TwilioComplianceProvider implements ComplianceProvider {
 
     /** Public compliance-status webhook URL for a tenant slug (single source of truth). */
     webhookUrl(baseUrl: string, tenantSlug: string): string {
-        return complianceWebhookUrl(baseUrl, tenantSlug);
+        return complianceWebhookUrl(baseUrl, 'twilio', tenantSlug);
     }
 }

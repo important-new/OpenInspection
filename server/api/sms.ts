@@ -199,8 +199,8 @@ smsPublicRoutes.post('/sms/inbound/:tenant', async (c) => {
 // (keeps this router file under the file-size cap; recordSentStatus is re-exported).
 registerSmsStatusRoute(smsPublicRoutes);
 
-// Compliance-status webhook (WH-4) — POST /twilio/compliance-status/:tenant.
-// Receives Twilio brand/campaign/TFV status callbacks for managed provisioning.
+// Compliance-status webhook (WH-4) — POST /:provider/compliance-status/:tenant.
+// Receives provider brand/campaign/TFV status callbacks for managed provisioning.
 // Implementation lives in lib/sms/compliance-webhook (keeps this file under size cap).
 registerComplianceStatusRoute(smsPublicRoutes);
 
@@ -637,7 +637,8 @@ export const smsAdminRoutes = createApiRouter()
         let provSlug: { slug: string | null } | undefined;
         try { provSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
         catch { provSlug = undefined; }
-        const statusCallbackUrl = provSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), provSlug.slug) : undefined;
+        // Plan 2: use the tenant's managedProvider instead of hard-coding 'twilio'.
+        const statusCallbackUrl = provSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), 'twilio', provSlug.slug) : undefined;
 
         // Fire provision in the background so the request returns immediately.
         const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, provider, statusCallbackUrl)
@@ -736,7 +737,8 @@ export const smsAdminRoutes = createApiRouter()
         let resubSlug: { slug: string | null } | undefined;
         try { resubSlug = await db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, tenantId)).get(); }
         catch { resubSlug = undefined; }
-        const statusCallbackUrl = resubSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), resubSlug.slug) : undefined;
+        // Plan 2: use the tenant's managedProvider instead of hard-coding 'twilio'.
+        const statusCallbackUrl = resubSlug?.slug ? complianceWebhookUrl(getBaseUrl(c), 'twilio', resubSlug.slug) : undefined;
 
         const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, provider, statusCallbackUrl)
             .catch((err) => {

@@ -1075,6 +1075,31 @@ describe('Compliance-status webhook (Task 7)', () => {
         const res = await postComplianceCallback(app, env, 'no-such-tenant', params);
         expect(res.status).toBe(404);
     });
+
+    it('unknown provider slug → 404 (no DB write, no signature check)', async () => {
+        await seedComplianceRow(db, TENANT, { complianceStatus: 'campaign_pending' });
+
+        const { app, env } = buildComplianceApp(db, COMPLIANCE_TOKEN);
+        const params = { CampaignSid: 'CR123', CampaignStatus: 'TWILIO_APPROVED' };
+        const body = new URLSearchParams(params).toString();
+
+        const res = await app.request(
+            '/api/public/bogus/compliance-status/acme',
+            {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body,
+            },
+            env,
+            makeExecCtx(),
+        );
+
+        expect(res.status).toBe(404);
+        // Row must be untouched — status not changed.
+        const svc = new MessagingComplianceService({} as D1Database);
+        const stored = await svc.getStatus(TENANT);
+        expect(stored?.complianceStatus).toBe('campaign_pending');
+    });
 });
 
 // ─── MessagingComplianceService.syncManagedStatus (cron poll, Task 7) ────────
