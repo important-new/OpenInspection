@@ -1,0 +1,266 @@
+import { describe, it, expect, vi } from 'vitest';
+vi.mock('drizzle-orm/d1', () => ({ drizzle: vi.fn() }));
+import { drizzle as mockDrizzle } from 'drizzle-orm/d1';
+import { eq } from 'drizzle-orm';
+import { createTestDb, setupSchema } from './db';
+import * as schema from '../../server/lib/db/schema';
+import { D1ComplianceStateStore } from '../../server/lib/messaging/compliance-state-store';
+import {
+    TelnyxComplianceProvider,
+    type TelnyxComplianceClient,
+} from '../../server/lib/messaging/providers/telnyx-compliance';
+
+// ---------------------------------------------------------------------------
+// Fake telnyx-SDK-shaped client. Mirrors ONLY the resource methods the provider
+// actually calls (pinned against node_modules/telnyx/resources):
+//   - messaging10dlc.brand.create                  → POST /10dlc/brand        → TelnyxBrand
+//   - messaging10dlc.brand.externalVetting.order   → POST /10dlc/brand/{id}/externalVetting
+//   - messaging10dlc.campaignBuilder.submit        → POST /10dlc/campaignBuilder → TelnyxCampaignCsp
+//   - messagingProfiles.create                     → POST /messaging_profiles
+//   - availablePhoneNumbers.list                   → GET  /available_phone_numbers
+//   - numberOrders.create                          → POST /number_orders
+//   - messaging10dlc.phoneNumberCampaigns.create   → POST /10dlc/phoneNumberCampaigns
+// Each call records a tag into `calls` for assertions.
+// ---------------------------------------------------------------------------
+
+interface FakeOpts {
+    campThrows?: boolean;
+    assignThrows?: boolean;
+    onBuy?: () => void;
+    onAssign?: () => void;
+    capturedBrand?: { body?: Record<string, unknown> };
+    capturedCampaign?: { body?: Record<string, unknown> };
+    capturedAssign?: { body?: Record<string, unknown> };
+}
+
+function fakeTelnyx(calls: string[], opts: FakeOpts = {}): TelnyxComplianceClient {
+    const client = {
+        messaging10dlc: {
+            brand: {
+                create: async (body: Record<string, unknown>) => {
+                    calls.push('brand');
+                    if (opts.capturedBrand) opts.capturedBrand.body = body;
+                    return { brandId: 'BR1', identityStatus: 'UNVERIFIED' };
+                },
+                externalVetting: {
+                    order: async () => {
+                        calls.push('vetting');
+                        return { vettingId: 'VET1', evpId: 'AEGIS', vettingClass: 'STANDARD' };
+                    },
+                },
+            },
+            campaignBuilder: {
+                submit: async (body: Record<string, unknown>) => {
+                    calls.push('campaign');
+                    if (opts.capturedCampaign) opts.capturedCampaign.body = body;
+                    if (opts.campThrows) throw new Error('TCR campaign error');
+                    return { campaignId: 'CAMP1', campaignStatus: 'TCR_PENDING' };
+                },
+            },
+            phoneNumberCampaigns: {
+                create: async (body: { campaignId: string; phoneNumber: string }) => {
+                    calls.push('assign');
+                    if (opts.capturedAssign) opts.capturedAssign.body = body;
+                    opts.onAssign?.();
+                    if (opts.assignThrows) throw new Error('assign failed');
+                    return { phoneNumber: body.phoneNumber, assignmentStatus: 'PENDING_ASSIGNMENT' };
+                },
+            },
+        },
+        messagingProfiles: {
+            create: async () => { calls.push('msgProfile'); return { id: 'MP1' }; },
+        },
+        availablePhoneNumbers: {
+            list: async () => { calls.push('search'); return { data: [{ phone_number: '+15551110000' }] }; },
+        },
+        numberOrders: {
+            create: async () => {
+                calls.push('buy');
+                opts.onBuy?.();
+                return { data: { id: 'ORD1', phone_numbers: [{ id: 'PNUM1', phone_number: '+15551110000' }] } };
+            },
+        },
+    };
+    return client as unknown as TelnyxComplianceClient;
+}
+
+const INFO = { legalName: 'Acme Inspections', address: '1 Main, Austin, TX', repName: 'Bob', email: 'a@b.test' };
+
+async function freshDb() {
+    const fx = createTestDb();
+    await setupSchema(fx.sqlite);
+    (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
+    return fx;
+}
+
+function readRow(fx: Awaited<ReturnType<typeof freshDb>>, tenantId: string) {
+    return fx.db.select().from(schema.messagingCompliance)
+        .where(eq(schema.messagingCompliance.tenantId, tenantId)).get();
+}
+
+describe('TelnyxComplianceProvider.provision (sp10dlc)', () => {
+    it('full run persists all entity IDs and ends campaign_pending', async () => {
+        const fx = await freshDb();
+        const calls: string[] = [];
+        const provider = new TelnyxComplianceProvider(fakeTelnyx(calls));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        const snap = await provider.provision(
+            { tenantId: 'p1', channel: 'sp10dlc', businessInfo: INFO }, store,
+        );
+        expect(snap.complianceStatus).toBe('campaign_pending');
+        const row = await readRow(fx, 'p1');
+        expect(row?.brandSid).toBe('BR1');
+        expect(row?.campaignSid).toBe('CAMP1');
+        expect(row?.messagingResourceSid).toBe('MP1');
+        expect(row?.provisionedNumber).toBe('+15551110000');
+        expect(row?.provisionedNumberSid).toBe('PNUM1');
+        expect(row?.senderAttached).toBe(true);
+        expect(row?.complianceStatus).toBe('campaign_pending');
+        // Vetting id lands in providerMeta (no Twilio-shaped SID column for it).
+        expect(JSON.parse(row?.providerMeta ?? '{}').vettingId).toBe('VET1');
+        // No Trust Hub profile step — first persisted status is brand_pending.
+        expect(row?.customerProfileSid).toBeNull();
+        expect(calls).toEqual(
+            expect.arrayContaining(['brand', 'vetting', 'campaign', 'msgProfile', 'buy', 'assign']),
+        );
+        fx.sqlite.close();
+    });
+
+    it('resume: second call recreates nothing (no re-buy, no re-assign)', async () => {
+        const fx = await freshDb();
+        const calls: string[] = [];
+        const provider = new TelnyxComplianceProvider(fakeTelnyx(calls));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await provider.provision({ tenantId: 'p2', channel: 'sp10dlc', businessInfo: INFO }, store);
+        calls.length = 0;
+        await provider.provision({ tenantId: 'p2', channel: 'sp10dlc', businessInfo: INFO }, store);
+        expect(calls).toEqual([]); // every step guarded by its persisted id
+        fx.sqlite.close();
+    });
+
+    it('threads statusCallbackUrl onto the brand create as webhookURL', async () => {
+        const fx = await freshDb();
+        const capturedBrand: { body?: Record<string, unknown> } = {};
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([], { capturedBrand }));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        const url = 'https://app.example.test/api/public/telnyx/compliance-status/acme';
+        await provider.provision(
+            { tenantId: 'cb1', channel: 'sp10dlc', businessInfo: INFO, statusCallbackUrl: url }, store,
+        );
+        expect(capturedBrand.body?.webhookURL).toBe(url);
+        expect(capturedBrand.body?.country).toBe('US');
+        expect(capturedBrand.body?.entityType).toBe('PRIVATE_PROFIT');
+        fx.sqlite.close();
+    });
+
+    it('omits webhookURL on brand create when statusCallbackUrl not provided', async () => {
+        const fx = await freshDb();
+        const capturedBrand: { body?: Record<string, unknown> } = {};
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([], { capturedBrand }));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await provider.provision({ tenantId: 'cb2', channel: 'sp10dlc', businessInfo: INFO }, store);
+        expect('webhookURL' in (capturedBrand.body ?? {})).toBe(false);
+        fx.sqlite.close();
+    });
+
+    it('locks the campaign-submit usecase + brandId wire params', async () => {
+        const fx = await freshDb();
+        const capturedCampaign: { body?: Record<string, unknown> } = {};
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([], { capturedCampaign }));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await provider.provision({ tenantId: 'cw', channel: 'sp10dlc', businessInfo: INFO }, store);
+        expect(capturedCampaign.body?.usecase).toBe('AGENTS_FRANCHISES');
+        expect(capturedCampaign.body?.brandId).toBe('BR1');
+        fx.sqlite.close();
+    });
+
+    it('mid-chain throw leaves prior ids persisted and propagates', async () => {
+        const fx = await freshDb();
+        const calls: string[] = [];
+        const provider = new TelnyxComplianceProvider(fakeTelnyx(calls, { campThrows: true }));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await expect(
+            provider.provision({ tenantId: 'p4', channel: 'sp10dlc', businessInfo: INFO }, store),
+        ).rejects.toThrow('TCR campaign error');
+        const row = await readRow(fx, 'p4');
+        expect(row?.brandSid).toBe('BR1');
+        expect(JSON.parse(row?.providerMeta ?? '{}').vettingId).toBe('VET1');
+        expect(row?.campaignSid).toBeNull();
+        expect(row?.complianceStatus).toBe('brand_pending');
+        fx.sqlite.close();
+    });
+
+    it('assign resume: crash during assign re-assigns without re-buying', async () => {
+        const fx = await freshDb();
+        let buys = 0; let assigns = 0; let assignThrows = true;
+        const store = new D1ComplianceStateStore({} as D1Database);
+        const opts: FakeOpts = {
+            get assignThrows() { return assignThrows; },
+            onBuy: () => { buys++; },
+            onAssign: () => { assigns++; },
+        };
+        const provider1 = new TelnyxComplianceProvider(fakeTelnyx([], opts));
+        await expect(
+            provider1.provision({ tenantId: 'pa', channel: 'sp10dlc', businessInfo: INFO }, store),
+        ).rejects.toThrow('assign failed');
+        const mid = await readRow(fx, 'pa');
+        expect(mid?.provisionedNumberSid).toBe('PNUM1');
+        expect(mid?.senderAttached).toBe(false);
+
+        assignThrows = false;
+        const provider2 = new TelnyxComplianceProvider(fakeTelnyx([], opts));
+        const snap = await provider2.provision({ tenantId: 'pa', channel: 'sp10dlc', businessInfo: INFO }, store);
+        expect(buys).toBe(1);       // bought exactly once
+        expect(assigns).toBe(2);    // assign retried (1 fail + 1 success)
+        expect(snap.complianceStatus).toBe('campaign_pending');
+        expect((await readRow(fx, 'pa'))?.senderAttached).toBe(true);
+        fx.sqlite.close();
+    });
+});
+
+describe('TelnyxComplianceProvider.provision (tollfree)', () => {
+    it('throws "tollfree not implemented" (Task 2)', async () => {
+        const fx = await freshDb();
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([]));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await expect(
+            provider.provision({ tenantId: 'tf1', channel: 'tollfree', businessInfo: INFO }, store),
+        ).rejects.toThrow('tollfree not implemented');
+        fx.sqlite.close();
+    });
+});
+
+describe('TelnyxComplianceProvider — unimplemented interface methods (Task 3)', () => {
+    it('verifyWebhookSignature throws not implemented', async () => {
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([]));
+        await expect(
+            provider.verifyWebhookSignature({
+                url: 'u', headers: {}, rawBody: '', params: {}, secret: 's',
+            }),
+        ).rejects.toThrow('not implemented');
+    });
+
+    it('parseCallback throws not implemented', () => {
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([]));
+        expect(() => provider.parseCallback({}, 'x=y')).toThrow('not implemented');
+    });
+
+    it('syncStatus throws not implemented', async () => {
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([]));
+        const store = new D1ComplianceStateStore({} as D1Database);
+        await expect(provider.syncStatus({ tenantId: 't' }, store)).rejects.toThrow('not implemented');
+    });
+});
+
+describe('TelnyxComplianceProvider.webhookUrl / id', () => {
+    it('builds the telnyx-prefixed compliance-status URL', () => {
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([]));
+        expect(provider.webhookUrl('https://app.example.test', 'acme'))
+            .toBe('https://app.example.test/api/public/telnyx/compliance-status/acme');
+    });
+
+    it('exposes id = telnyx', () => {
+        const provider = new TelnyxComplianceProvider(fakeTelnyx([]));
+        expect(provider.id).toBe('telnyx');
+    });
+});
