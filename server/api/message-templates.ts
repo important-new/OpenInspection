@@ -153,6 +153,12 @@ export const messageTemplateRoutes = createApiRouter()
             const sendArgs: { from?: string; to: string; body: string } = { to: normalized, body: interpolate(body, vars) };
             if (resolved.from) sendArgs.from = resolved.from;
             const res = await resolved.provider.sendMessage(sendArgs);
+            if (res.ok) {
+                // WH-2 — seed a 'sent' delivery-status row for the returned id (non-fatal).
+                const { drizzle } = await import('drizzle-orm/d1');
+                const { recordSentStatus } = await import('./sms');
+                await recordSentStatus(drizzle(c.env.DB), tenantId, res.id, Date.now());
+            }
             return res.ok ? c.json({ success: true }, 200) : c.json({ success: false, error: res.error }, 200);
         }
         // Per-tenant email transport (resolves the tenant's own provider/keys).

@@ -104,6 +104,10 @@ export function AutomationSms<TBase extends Constructor<AutomationBase>>(Base: T
             if (res.ok) {
                 await db.update(automationLogs).set({ status: 'sent', deliveredAt: new Date().toISOString() })
                     .where(and(eq(automationLogs.id, log.id), eq(automationLogs.tenantId, inspection.tenantId)));
+                // WH-2 — seed a 'sent' delivery-status row for the returned message id
+                // (non-fatal; the provider status callback advances it later).
+                const { recordSentStatus } = await import('../../api/sms');
+                await recordSentStatus(db, inspection.tenantId, res.id, Date.now());
                 try {
                     await this.metering?.record(tenant.id, 'sms', currentPeriodKey(new Date()));
                 } catch { /* metering must never break delivery */ }
