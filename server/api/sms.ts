@@ -25,7 +25,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import { createApiRouter } from '../lib/openapi-router';
 import { drizzle } from 'drizzle-orm/d1';
 import { and, eq } from 'drizzle-orm';
-import { contacts, inspections, tenants, tenantConfigs } from '../lib/db/schema';
+import { contacts, inspections, tenants, tenantConfigs, messagingCompliance } from '../lib/db/schema';
 import { requireRole } from '../lib/middleware/rbac';
 import { auditFromContext } from '../lib/audit';
 import { withMcpMetadata } from '../lib/route-metadata-standards';
@@ -37,14 +37,17 @@ import { ensureClientContact } from '../lib/sms/ensure-client-contact';
 import { resolveOptinToken } from '../lib/sms/optin-token';
 import { normalizeE164 } from '../lib/sms/phone';
 import { loadProviderForTenant, resolveTwilioSource } from '../lib/sms/resolve-twilio';
+import { managedSendAllowed } from '../lib/sms/managed-send-gate';
 import { loadTenantSecrets } from '../lib/secrets-cache';
 import { maybeMetering } from '../services/metering.service';
 import {
     SmsOptinResolveSchema, SmsOptinConfirmSchema, SmsAttestSchema, SmsTestSendSchema, SmsConsentQuerySchema,
-    SmsComplianceResponseSchema,
+    SmsComplianceResponseSchema, SmsComplianceProvisionSchema, SmsComplianceResubmitSchema,
 } from '../lib/validations/sms.schema';
 import { registerSmsStatusRoute, recordSentStatus, verifyInboundSignature } from '../lib/sms/delivery-status';
+import { registerComplianceStatusRoute } from '../lib/sms/compliance-webhook';
 import { registerEmailEventsRoute } from '../lib/email/email-events';
+import { logger } from '../lib/logger';
 import type { Context } from 'hono';
 import type { HonoConfig } from '../types/hono';
 
@@ -192,6 +195,11 @@ smsPublicRoutes.post('/sms/inbound/:tenant', async (c) => {
 // parse → last-writer-wins upsert. Implementation lives in lib/sms/delivery-status
 // (keeps this router file under the file-size cap; recordSentStatus is re-exported).
 registerSmsStatusRoute(smsPublicRoutes);
+
+// Compliance-status webhook (WH-4) — POST /twilio/compliance-status/:tenant.
+// Receives Twilio brand/campaign/TFV status callbacks for managed provisioning.
+// Implementation lives in lib/sms/compliance-webhook (keeps this file under size cap).
+registerComplianceStatusRoute(smsPublicRoutes);
 
 // Email deliverability webhook (WH-3) — POST /email/:provider/:tenant. Verify →
 // dedup → parse → append-only suppression insert for hard bounce / complaint.
@@ -363,14 +371,74 @@ const complianceRoute = createRoute(withMcpMetadata({
     method: 'get',
     path: '/sms/compliance',
     tags: ['admin', 'sms'],
-    summary: 'BYO Twilio compliance status — toll-free verification + brand registration',
+    summary: 'SMS compliance status — BYO toll-free verification + managed sub-statuses',
     middleware: [requireRole('owner', 'manager')],
     responses: {
         200: { content: { 'application/json': { schema: SmsComplianceResponseSchema } }, description: 'Compliance status snapshot' },
     },
     operationId: 'getSmsCompliance',
-    description: 'Reads the tenant\'s own Twilio account for toll-free verification and brand registration status, upserts the snapshot, and returns the rolled-up compliance gate. Only applies when the tenant is in own SMS mode; degrades gracefully (returns stored status or not_started) when credentials are absent or Twilio is unreachable.',
+    description: 'Returns the rolled-up compliance gate plus managed sub-statuses (customerProfileStatus, brandStatus, campaignStatus, tfvStatus, messagingServiceSid, provisionedNumber). For own-mode tenants also reads the live Twilio account. Degrades gracefully (returns stored status or not_started) when credentials are absent or Twilio is unreachable.',
 }, { scopes: ['read'], tier: 'extended' }));
+
+// POST /api/manager/sms/compliance/provision — SaaS-only, owner/manager.
+const complianceProvisionRoute = createRoute(withMcpMetadata({
+    method: 'post',
+    path: '/sms/compliance/provision',
+    tags: ['admin', 'sms'],
+    summary: 'Kick off managed SMS compliance provisioning for this tenant',
+    middleware: [requireRole('owner', 'manager')],
+    request: { body: { content: { 'application/json': { schema: SmsComplianceProvisionSchema } }, required: true } },
+    responses: {
+        200: { content: { 'application/json': { schema: SmsComplianceResponseSchema } }, description: 'Current compliance status (provision runs in background)' },
+        403: { description: 'Not available in standalone mode' },
+        409: { description: 'Managed Twilio credentials not configured on this deployment' },
+    },
+    operationId: 'provisionSmsCompliance',
+    description: 'Kicks off the managed TCR/TFV provisioning chain (waitUntil background). Returns the CURRENT stored status immediately — provisioning completes asynchronously. SaaS-only; requires TWILIO_ACCOUNT_SID / TWILIO_API_KEY_SID / TWILIO_API_KEY_SECRET env vars.',
+}, { scopes: ['admin'], tier: 'extended' }));
+
+// POST /api/manager/sms/compliance/resubmit — SaaS-only, owner/manager.
+const complianceResubmitRoute = createRoute(withMcpMetadata({
+    method: 'post',
+    path: '/sms/compliance/resubmit',
+    tags: ['admin', 'sms'],
+    summary: 'Resume managed SMS compliance provisioning from the first missing step',
+    middleware: [requireRole('owner', 'manager')],
+    request: { body: { content: { 'application/json': { schema: SmsComplianceResubmitSchema } }, required: true } },
+    responses: {
+        200: { content: { 'application/json': { schema: SmsComplianceResponseSchema } }, description: 'Current compliance status after resuming provisioning in background' },
+        403: { description: 'Not available in standalone mode' },
+        409: { description: 'Managed Twilio credentials not configured on this deployment' },
+    },
+    operationId: 'resubmitSmsCompliance',
+    description: 'Idempotent re-run of the managed provisioning chain (waitUntil background). Skips any step whose SID is already persisted, resuming from the first missing step. SaaS-only; requires TWILIO_ACCOUNT_SID / TWILIO_API_KEY_SID / TWILIO_API_KEY_SECRET env vars.',
+}, { scopes: ['admin'], tier: 'extended' }));
+
+// ─── Shared helper ───────────────────────────────────────────────────────────
+
+/**
+ * Fetch the managed sub-status columns for a tenant from messaging_compliance.
+ * Returns undefined if no row exists or the query fails.
+ */
+async function getManagedSubRow(db: ReturnType<typeof drizzle>, tenantId: string): Promise<{
+    customerProfileStatus: string | null;
+    brandStatus: string | null;
+    campaignStatus: string | null;
+    tfvStatus: string | null;
+    messagingServiceSid: string | null;
+    provisionedNumber: string | null;
+} | undefined> {
+    try {
+        return await db.select({
+            customerProfileStatus: messagingCompliance.customerProfileStatus,
+            brandStatus: messagingCompliance.brandStatus,
+            campaignStatus: messagingCompliance.campaignStatus,
+            tfvStatus: messagingCompliance.tfvStatus,
+            messagingServiceSid: messagingCompliance.messagingServiceSid,
+            provisionedNumber: messagingCompliance.provisionedNumber,
+        }).from(messagingCompliance).where(eq(messagingCompliance.tenantId, tenantId)).get();
+    } catch { return undefined; }
+}
 
 export const smsAdminRoutes = createApiRouter()
     .openapi(attestRoute, async (c) => {
@@ -397,6 +465,21 @@ export const smsAdminRoutes = createApiRouter()
         const normalized = normalizeE164(to);
         if (!normalized) return c.json({ success: false, error: 'That phone number could not be parsed. Use an E.164 or US 10-digit format.' }, 200);
 
+        // Managed-send compliance gate — fail-closed for managed tenants until approved.
+        // Must run BEFORE the provider call so a blocked managed send makes NO Twilio call.
+        // own/platform tenants are always allowed (gate returns immediately).
+        const db = drizzle(c.env.DB);
+        let cfgRow: { smsMode: string } | null | undefined;
+        try {
+            cfgRow = await db.select({ smsMode: tenantConfigs.smsMode })
+                .from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get();
+        } catch { cfgRow = null; }
+        const gate = await managedSendAllowed(db, c.env, tenantId, cfgRow?.smsMode ?? 'platform');
+        if (!gate.allowed) {
+            logger.info('sms.test_send: blocked by managed compliance gate', { tenantId, reason: gate.reason });
+            return c.json({ success: false, error: gate.reason ?? 'managed_not_approved' }, 200);
+        }
+
         // Use the provider-aware loader so BYO Telnyx tenants route to TelnyxProvider.
         // Twilio tenants: same logic as before (loadProviderForTenant → resolveTwilio).
         // Returns { provider, from } — `from` is populated for Twilio, null for Telnyx
@@ -404,11 +487,12 @@ export const smsAdminRoutes = createApiRouter()
         const resolved = await loadProviderForTenant(c.env, tenantId);
         if (!resolved) return c.json({ success: false, error: 'SMS is not configured. Set your credentials first.' }, 200);
 
-        const sendArgs: { from?: string; to: string; body: string } = {
+        const sendArgs: { from?: string; to: string; body: string; messagingServiceSid?: string } = {
             to: normalized,
             body: 'This is a test message from your inspection company. SMS is configured correctly.',
         };
         if (resolved.from) sendArgs.from = resolved.from;
+        if (resolved.messagingServiceSid) sendArgs.messagingServiceSid = resolved.messagingServiceSid;
         const res = await resolved.provider.sendMessage(sendArgs);
         if (res.ok) {
             // WH-2 — seed a 'sent' delivery-status row for the returned message id
@@ -461,8 +545,9 @@ export const smsAdminRoutes = createApiRouter()
     .openapi(complianceRoute, async (c) => {
         const tenantId = c.get('tenantId') as string;
         const db = drizzle(c.env.DB);
-        const cfg = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs)
-            .where(eq(tenantConfigs.tenantId, tenantId)).get().catch(() => null);
+        let cfg: { smsMode: string | null } | undefined;
+        try { cfg = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
+        catch { cfg = undefined; }
         const mode = (cfg?.smsMode as 'platform' | 'own' | 'managed_shared' | 'managed_dedicated') ?? 'platform';
 
         const complianceSvc = new MessagingComplianceService(c.env.DB);
@@ -484,6 +569,7 @@ export const smsAdminRoutes = createApiRouter()
         }
 
         const stored = await complianceSvc.getStatus(tenantId);
+        const managedRow = await getManagedSubRow(db, tenantId);
         return c.json({
             success: true as const,
             data: {
@@ -491,6 +577,171 @@ export const smsAdminRoutes = createApiRouter()
                 complianceStatus: stored?.complianceStatus ?? null,
                 rejectionReason: stored?.rejectionReason ?? null,
                 tollfree,
+                customerProfileStatus: managedRow?.customerProfileStatus ?? null,
+                brandStatus: managedRow?.brandStatus ?? null,
+                campaignStatus: managedRow?.campaignStatus ?? null,
+                tfvStatus: managedRow?.tfvStatus ?? null,
+                messagingServiceSid: managedRow?.messagingServiceSid ?? null,
+                provisionedNumber: managedRow?.provisionedNumber ?? null,
+            },
+        }, 200);
+    })
+    .openapi(complianceProvisionRoute, async (c) => {
+        // SaaS gate: managed provisioning is only available in SaaS mode.
+        const profile = c.var.profile;
+        if (profile?.mode !== 'saas') {
+            return c.json({ success: false as const, error: 'managed_provision_unavailable' }, 403);
+        }
+
+        // Paid-tier gate: tenant must be on a Managed-eligible paid plan.
+        // managedEligible is set by portal billing sync or a platform admin.
+        // Fail-closed: missing row or false → 403 (not eligible).
+        const tenantId = c.get('tenantId') as string;
+        const db = drizzle(c.env.DB);
+        let cfgEligibility: { managedEligible: boolean | null } | null | undefined;
+        try {
+            cfgEligibility = await db
+                .select({ managedEligible: tenantConfigs.managedEligible })
+                .from(tenantConfigs)
+                .where(eq(tenantConfigs.tenantId, tenantId))
+                .get();
+        } catch {
+            cfgEligibility = null;
+        }
+        if (!cfgEligibility?.managedEligible) {
+            return c.json({ success: false as const, error: 'managed_requires_paid_plan' }, 403);
+        }
+
+        // Managed env keys gate: require ISV Twilio credentials in the platform env.
+        const env = c.env;
+        const acctSid = env.TWILIO_ACCOUNT_SID;
+        const apiKeySid = env.TWILIO_API_KEY_SID;
+        const apiKeySecret = env.TWILIO_API_KEY_SECRET;
+        if (!acctSid || !apiKeySid || !apiKeySecret) {
+            return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
+        }
+        const { businessInfo, channel } = c.req.valid('json');
+
+        const complianceSvc = new MessagingComplianceService(c.env.DB);
+        const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
+
+        // Fire provision in the background so the request returns immediately.
+        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client)
+            .catch((err) => {
+                logger.error('managed compliance provision failed', { tenantId, channel }, err instanceof Error ? err : new Error(String(err)));
+            });
+
+        // `c.executionCtx` getter throws when no execution context is present (unit tests).
+        let execCtx: Pick<ExecutionContext, 'waitUntil'> | undefined;
+        try { execCtx = c.executionCtx; } catch { execCtx = undefined; }
+        if (execCtx) execCtx.waitUntil(Promise.resolve(provisionPromise));
+        else await provisionPromise;
+
+        auditFromContext(c, 'sms.compliance.provision', 'tenant', { metadata: { channel } });
+
+        // Return the current stored status (provision is async).
+        const stored = await complianceSvc.getStatus(tenantId);
+        const managedRow = await getManagedSubRow(db, tenantId);
+        let cfgRow: { smsMode: string | null } | undefined;
+        try { cfgRow = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
+        catch { cfgRow = undefined; }
+        const mode = (cfgRow?.smsMode as 'platform' | 'own' | 'managed_shared' | 'managed_dedicated') ?? 'managed_dedicated';
+        return c.json({
+            success: true as const,
+            data: {
+                mode,
+                complianceStatus: stored?.complianceStatus ?? null,
+                rejectionReason: stored?.rejectionReason ?? null,
+                tollfree: [],
+                customerProfileStatus: managedRow?.customerProfileStatus ?? null,
+                brandStatus: managedRow?.brandStatus ?? null,
+                campaignStatus: managedRow?.campaignStatus ?? null,
+                tfvStatus: managedRow?.tfvStatus ?? null,
+                messagingServiceSid: managedRow?.messagingServiceSid ?? null,
+                provisionedNumber: managedRow?.provisionedNumber ?? null,
+            },
+        }, 200);
+    })
+    .openapi(complianceResubmitRoute, async (c) => {
+        // SaaS gate: managed provisioning is only available in SaaS mode.
+        const profile = c.var.profile;
+        if (profile?.mode !== 'saas') {
+            return c.json({ success: false as const, error: 'managed_provision_unavailable' }, 403);
+        }
+
+        // Paid-tier gate: tenant must be on a Managed-eligible paid plan.
+        // Fail-closed: missing row or false → 403 (not eligible).
+        const tenantId = c.get('tenantId') as string;
+        const db = drizzle(c.env.DB);
+        let cfgEligibility: { managedEligible: boolean | null } | null | undefined;
+        try {
+            cfgEligibility = await db
+                .select({ managedEligible: tenantConfigs.managedEligible })
+                .from(tenantConfigs)
+                .where(eq(tenantConfigs.tenantId, tenantId))
+                .get();
+        } catch {
+            cfgEligibility = null;
+        }
+        if (!cfgEligibility?.managedEligible) {
+            return c.json({ success: false as const, error: 'managed_requires_paid_plan' }, 403);
+        }
+
+        // Managed env keys gate: require ISV Twilio credentials in the platform env.
+        const env = c.env;
+        const acctSid = env.TWILIO_ACCOUNT_SID;
+        const apiKeySid = env.TWILIO_API_KEY_SID;
+        const apiKeySecret = env.TWILIO_API_KEY_SECRET;
+        if (!acctSid || !apiKeySid || !apiKeySecret) {
+            return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
+        }
+
+        const complianceSvc = new MessagingComplianceService(c.env.DB);
+
+        // Load the existing row to determine businessInfo for resubmission.
+        // Resubmit resumes from the first missing SID — provision() is idempotent.
+        // We require a valid stored row (provision must have been called at least once).
+        const stored = await complianceSvc.getStatus(tenantId);
+        const row = await getManagedSubRow(db, tenantId);
+        let cfgRow2: { smsMode: string | null } | undefined;
+        try { cfgRow2 = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
+        catch { cfgRow2 = undefined; }
+        const mode = (cfgRow2?.smsMode as 'platform' | 'own' | 'managed_shared' | 'managed_dedicated') ?? 'managed_dedicated';
+
+        // Read businessInfo + channel from body (same schema as provision).
+        // Known limitation: a REJECTED entity retains its SID, so the idempotent guard in
+        // provision() skips it — re-creating a rejected brand/campaign is a follow-up and not in
+        // scope here. Resubmit currently resumes only MISSING steps (SID absent in the DB row).
+        const { businessInfo, channel } = c.req.valid('json');
+
+        const client = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid });
+
+        const provisionPromise = complianceSvc.provision(tenantId, businessInfo, channel, client)
+            .catch((err) => {
+                logger.error('managed compliance resubmit failed', { tenantId, channel }, err instanceof Error ? err : new Error(String(err)));
+            });
+
+        // `c.executionCtx` getter throws when no execution context is present (unit tests).
+        let execCtx2: Pick<ExecutionContext, 'waitUntil'> | undefined;
+        try { execCtx2 = c.executionCtx; } catch { execCtx2 = undefined; }
+        if (execCtx2) execCtx2.waitUntil(Promise.resolve(provisionPromise));
+        else await provisionPromise;
+
+        auditFromContext(c, 'sms.compliance.resubmit', 'tenant', { metadata: { channel } });
+
+        return c.json({
+            success: true as const,
+            data: {
+                mode,
+                complianceStatus: stored?.complianceStatus ?? null,
+                rejectionReason: stored?.rejectionReason ?? null,
+                tollfree: [],
+                customerProfileStatus: row?.customerProfileStatus ?? null,
+                brandStatus: row?.brandStatus ?? null,
+                campaignStatus: row?.campaignStatus ?? null,
+                tfvStatus: row?.tfvStatus ?? null,
+                messagingServiceSid: row?.messagingServiceSid ?? null,
+                provisionedNumber: row?.provisionedNumber ?? null,
             },
         }, 200);
     });

@@ -30,6 +30,12 @@ export interface ScheduledEnv {
     TWILIO_ACCOUNT_SID?: string;
     TWILIO_AUTH_TOKEN?: string;
     TWILIO_FROM_NUMBER?: string;
+    // Managed-pool ISV credentials (same as in AppEnv). Required for the managed
+    // compliance cron sweep (Task 7). Absent in standalone → sweep skips silently.
+    TWILIO_API_KEY_SID?: string;
+    TWILIO_API_KEY_SECRET?: string;
+    /** Shared Messaging Service SID for managed_shared tenants (Task 8 send gate). */
+    TWILIO_SHARED_MESSAGING_SERVICE_SID?: string;
     TENANT_CACHE?: KVNamespace;
     // Core -> portal user-sync transport (A-13/A-14). Producer binding to the
     // sync queue; the outbox sweeper republishes pending rows through it.
@@ -151,11 +157,20 @@ export async function scheduled(
                         }, tenantId)),
               }
             : null;
+        // Pass the managed-send gate env so managed_shared and managed_dedicated
+        // automation sends are fail-closed until compliance is approved.
+        const gateEnv = {
+            ...(env.TWILIO_SHARED_MESSAGING_SERVICE_SID
+                ? { TWILIO_SHARED_MESSAGING_SERVICE_SID: env.TWILIO_SHARED_MESSAGING_SERVICE_SID }
+                : {}),
+        };
         await svc.flush(
             (tid) => buildTenantEmailService(env as EmailServiceEnv, tid),
             env.APP_NAME || 'OpenInspection',
             env.APP_BASE_URL || '',
             sms,
+            50,
+            gateEnv,
         );
     } catch (e) {
         logger.error('[cron] automation flush failed', {}, e instanceof Error ? e : undefined);
@@ -188,6 +203,33 @@ export async function scheduled(
         }
     } catch (e) {
         logger.error('[cron] orphan GC failed', {}, e instanceof Error ? e : undefined);
+    }
+
+    // 5c. Managed compliance status poll (Task 7) — re-read brand/TFV status from
+    //     Twilio for non-terminal managed rows. Campaign status is NOT available as
+    //     a Twilio read endpoint — the webhook (WH-4) is the primary path for
+    //     campaign approval; this cron covers brands and TFV verifications only.
+    //     Skipped entirely when TWILIO_ACCOUNT_SID / TWILIO_API_KEY_SID /
+    //     TWILIO_API_KEY_SECRET are absent (standalone / unconfigured saas).
+    if (env.TWILIO_ACCOUNT_SID && env.TWILIO_API_KEY_SID && env.TWILIO_API_KEY_SECRET) {
+        try {
+            const { MessagingComplianceService } = await import('./services/messaging-compliance.service');
+            const svc = new MessagingComplianceService(env.DB);
+            // Pass an outbox when the sync queue is bound (SaaS) so status transitions
+            // are propagated to portal. Absent in standalone — no-op (outbox = undefined).
+            // Dynamic import keeps portal code out of the standalone bundle by construction.
+            const outbox = env.SYNC_QUEUE
+                ? await import('./portal/integration.module').then(({ buildUserSyncOutbox }) => buildUserSyncOutbox(env))
+                : undefined;
+            await svc.sweepManagedStatuses(
+                env.TWILIO_ACCOUNT_SID,
+                env.TWILIO_API_KEY_SECRET,
+                env.TWILIO_API_KEY_SID,
+                outbox,
+            );
+        } catch (e) {
+            logger.error('[cron] managed compliance sweep failed', {}, e instanceof Error ? e : undefined);
+        }
     }
 
     // 6. Track I-a GDPR retention sweep (spec §7) — final destruction of
