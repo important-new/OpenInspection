@@ -105,6 +105,11 @@ export interface AppEnv {
      * TWILIO_AUTH_TOKEN when absent. If neither is set, the webhook rejects 403.
      */
     TWILIO_COMPLIANCE_WEBHOOK_TOKEN?: string;
+    /** Platform-wide monthly SMS allowance for managed (dedicated/shared) tenants.
+     *  Parsed as an integer; defaults to DEFAULT_MANAGED_SMS_ALLOWANCE (1000) when
+     *  absent or non-numeric. Send quota check reads the current period counter from
+     *  usage_counters and blocks when count >= allowance. */
+    MANAGED_SMS_MONTHLY_ALLOWANCE?: string;
 
     // Rate Limiting
     RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };

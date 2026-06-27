@@ -385,3 +385,66 @@ describe('flush() — derived reminder due-time (Track L Step 3b)', () => {
         expect((await statusOf(logId))?.status).toBe('pending');
     });
 });
+
+// ─── managedSendAllowed SMS quota gate (Task 10) ─────────────────────────────
+
+import { managedSendAllowed, DEFAULT_MANAGED_SMS_ALLOWANCE } from '../../server/lib/sms/managed-send-gate';
+import { MeteringService } from '../../server/services/metering.service';
+import { currentPeriodKey } from '../../server/lib/usage/period';
+
+describe('managedSendAllowed — SMS quota gate (Task 10)', () => {
+    // For quota tests we need a real D1Database-shaped object. We use
+    // the better-sqlite3 db via the mock (same as the metering tests in sms-api).
+    // db1 is not passed → quota check is skipped (unit test safety mode).
+
+    it('managed_dedicated approved, no db1 → allowed (quota check skipped without raw DB)', async () => {
+        // Seed compliance=approved in the drizzle wrapper
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated',
+            complianceStatus: 'approved', createdAt: now, updatedAt: now,
+        } as never);
+        const result = await managedSendAllowed(db, {}, TENANT, 'managed_dedicated');
+        // No db1 passed → quota check skipped → allowed
+        expect(result.allowed).toBe(true);
+    });
+
+    it('own mode → always allowed regardless of count', async () => {
+        const result = await managedSendAllowed(db, {}, TENANT, 'own');
+        expect(result.allowed).toBe(true);
+    });
+
+    it('platform mode → always allowed', async () => {
+        const result = await managedSendAllowed(db, {}, TENANT, 'platform');
+        expect(result.allowed).toBe(true);
+    });
+
+    it('DEFAULT_MANAGED_SMS_ALLOWANCE is 1000', () => {
+        expect(DEFAULT_MANAGED_SMS_ALLOWANCE).toBe(1000);
+    });
+});
+
+describe('MeteringService.getCount — quota reads for managed send (Task 10)', () => {
+    it('getCount returns 0 for unknown tenant/period (baseline for quota check)', async () => {
+        // drizzle mock points at the test db (same pattern as other metering tests in sms-api)
+        const svc = new MeteringService({} as D1Database);
+        const count = await svc.getCount(TENANT, 'sms', currentPeriodKey(new Date()));
+        expect(count).toBe(0);
+    });
+
+    it('getCount returns the accumulated send count after sends are recorded', async () => {
+        const svc = new MeteringService({} as D1Database);
+        const period = currentPeriodKey(new Date());
+        await svc.record(TENANT, 'sms', period, 1);
+        await svc.record(TENANT, 'sms', period, 1);
+        const count = await svc.getCount(TENANT, 'sms', period);
+        expect(count).toBe(2);
+    });
+
+    it('getCount does not cross-contaminate periods', async () => {
+        const svc = new MeteringService({} as D1Database);
+        await svc.record(TENANT, 'sms', '2026-05', 999);
+        const count = await svc.getCount(TENANT, 'sms', '2026-06');
+        expect(count).toBe(0);
+    });
+});

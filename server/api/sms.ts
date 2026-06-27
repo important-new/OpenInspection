@@ -593,6 +593,25 @@ export const smsAdminRoutes = createApiRouter()
             return c.json({ success: false as const, error: 'managed_provision_unavailable' }, 403);
         }
 
+        // Paid-tier gate: tenant must be on a Managed-eligible paid plan.
+        // managedEligible is set by portal billing sync or a platform admin.
+        // Fail-closed: missing row or false → 403 (not eligible).
+        const tenantId = c.get('tenantId') as string;
+        const db = drizzle(c.env.DB);
+        let cfgEligibility: { managedEligible: boolean | null } | null | undefined;
+        try {
+            cfgEligibility = await db
+                .select({ managedEligible: tenantConfigs.managedEligible })
+                .from(tenantConfigs)
+                .where(eq(tenantConfigs.tenantId, tenantId))
+                .get();
+        } catch {
+            cfgEligibility = null;
+        }
+        if (!cfgEligibility?.managedEligible) {
+            return c.json({ success: false as const, error: 'managed_requires_paid_plan' }, 403);
+        }
+
         // Managed env keys gate: require ISV Twilio credentials in the platform env.
         const env = c.env;
         const acctSid = env.TWILIO_ACCOUNT_SID;
@@ -601,8 +620,6 @@ export const smsAdminRoutes = createApiRouter()
         if (!acctSid || !apiKeySid || !apiKeySecret) {
             return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
         }
-
-        const tenantId = c.get('tenantId') as string;
         const { businessInfo, channel } = c.req.valid('json');
 
         const complianceSvc = new MessagingComplianceService(c.env.DB);
@@ -624,7 +641,6 @@ export const smsAdminRoutes = createApiRouter()
 
         // Return the current stored status (provision is async).
         const stored = await complianceSvc.getStatus(tenantId);
-        const db = drizzle(c.env.DB);
         const managedRow = await getManagedSubRow(db, tenantId);
         let cfgRow: { smsMode: string | null } | undefined;
         try { cfgRow = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
@@ -653,6 +669,24 @@ export const smsAdminRoutes = createApiRouter()
             return c.json({ success: false as const, error: 'managed_provision_unavailable' }, 403);
         }
 
+        // Paid-tier gate: tenant must be on a Managed-eligible paid plan.
+        // Fail-closed: missing row or false → 403 (not eligible).
+        const tenantId = c.get('tenantId') as string;
+        const dbResubmit = drizzle(c.env.DB);
+        let cfgEligibilityResubmit: { managedEligible: boolean | null } | null | undefined;
+        try {
+            cfgEligibilityResubmit = await dbResubmit
+                .select({ managedEligible: tenantConfigs.managedEligible })
+                .from(tenantConfigs)
+                .where(eq(tenantConfigs.tenantId, tenantId))
+                .get();
+        } catch {
+            cfgEligibilityResubmit = null;
+        }
+        if (!cfgEligibilityResubmit?.managedEligible) {
+            return c.json({ success: false as const, error: 'managed_requires_paid_plan' }, 403);
+        }
+
         // Managed env keys gate: require ISV Twilio credentials in the platform env.
         const env = c.env;
         const acctSid = env.TWILIO_ACCOUNT_SID;
@@ -662,17 +696,15 @@ export const smsAdminRoutes = createApiRouter()
             return c.json({ success: false as const, error: 'managed_not_configured' }, 409);
         }
 
-        const tenantId = c.get('tenantId') as string;
         const complianceSvc = new MessagingComplianceService(c.env.DB);
 
         // Load the existing row to determine businessInfo for resubmission.
         // Resubmit resumes from the first missing SID — provision() is idempotent.
         // We require a valid stored row (provision must have been called at least once).
         const stored = await complianceSvc.getStatus(tenantId);
-        const db = drizzle(c.env.DB);
-        const row = await getManagedSubRow(db, tenantId);
+        const row = await getManagedSubRow(dbResubmit, tenantId);
         let cfgRow2: { smsMode: string | null } | undefined;
-        try { cfgRow2 = await db.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
+        try { cfgRow2 = await dbResubmit.select({ smsMode: tenantConfigs.smsMode }).from(tenantConfigs).where(eq(tenantConfigs.tenantId, tenantId)).get(); }
         catch { cfgRow2 = undefined; }
         const mode = (cfgRow2?.smsMode as 'platform' | 'own' | 'managed_shared' | 'managed_dedicated') ?? 'managed_dedicated';
 

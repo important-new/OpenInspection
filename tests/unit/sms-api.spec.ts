@@ -663,6 +663,11 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
     });
 
     it('POST /sms/compliance/provision on SaaS with missing managed keys → 409 and fetch never called', async () => {
+        // Seed managedEligible=true so the paid-tier gate passes and we reach the env-keys check.
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, managedEligible: true, updatedAt: new Date(),
+        } as never);
+
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
         const envNoKeys = { ...FAKE_ENV, APP_MODE: 'saas' } as unknown as HonoConfig['Bindings'];
         const app = buildSmsApp(db, SAAS_PROFILE);
@@ -682,6 +687,11 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
     });
 
     it('POST /sms/compliance/provision on SaaS with managed keys → 200 returning current status', async () => {
+        // Seed managedEligible=true so the paid-tier gate passes.
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, managedEligible: true, updatedAt: new Date(),
+        } as never);
+
         // Stub fetch so provision Twilio calls return 201.
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
             new Response(JSON.stringify({ sid: 'CP123', status: 'PENDING_REVIEW' }), { status: 201 }),
@@ -730,6 +740,11 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
     });
 
     it('POST /sms/compliance/resubmit on SaaS with missing managed keys → 409 and fetch never called', async () => {
+        // Seed managedEligible=true so the paid-tier gate passes and we reach the env-keys check.
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, managedEligible: true, updatedAt: new Date(),
+        } as never);
+
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
         const envNoKeys = { ...FAKE_ENV, APP_MODE: 'saas' } as unknown as HonoConfig['Bindings'];
         const app = buildSmsApp(db, SAAS_PROFILE);
@@ -749,6 +764,11 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
     });
 
     it('POST /sms/compliance/resubmit on SaaS with managed keys → 200', async () => {
+        // Seed managedEligible=true so the paid-tier gate passes.
+        await db.insert(schema.tenantConfigs).values({
+            tenantId: TENANT, managedEligible: true, updatedAt: new Date(),
+        } as never);
+
         // Seed a partial row (customerProfileSid already set → provision resumes from step 2).
         const now = new Date();
         await db.insert(schema.messagingCompliance).values({
@@ -1298,5 +1318,192 @@ describe('POST /sms/test — managed-send compliance gate (Task 8)', () => {
         const body = await res.json() as { success: boolean; error?: string };
         // Gate must not return managed_not_approved for platform/own mode.
         expect(body.error).not.toBe('managed_not_approved');
+    });
+});
+
+// ─── Paid-tier gate for managed provisioning (Task 10) ───────────────────────
+
+describe('Paid-tier gate — POST /sms/compliance/provision and /resubmit (Task 10)', () => {
+    /** Seed managedEligible flag into tenant_configs for TENANT. */
+    async function seedManagedEligible(eligible: boolean) {
+        const existing = await db.select().from(schema.tenantConfigs)
+            .where(eq(schema.tenantConfigs.tenantId, TENANT)).get();
+        if (existing) {
+            await db.update(schema.tenantConfigs).set({ managedEligible: eligible } as never)
+                .where(eq(schema.tenantConfigs.tenantId, TENANT));
+        } else {
+            await db.insert(schema.tenantConfigs).values({
+                tenantId: TENANT, managedEligible: eligible, updatedAt: new Date(),
+            } as never);
+        }
+    }
+
+    it('provision: managedEligible=false → 403 managed_requires_paid_plan, provision NOT called', async () => {
+        await seedManagedEligible(false);
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        expect(res.status).toBe(403);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_requires_paid_plan');
+        // Provision must NOT have been called — no Twilio API calls.
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('provision: no tenant_configs row (managedEligible missing = false) → 403', async () => {
+        // No tenant_configs row seeded — default is not eligible (fail-closed).
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        expect(res.status).toBe(403);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_requires_paid_plan');
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('provision: managedEligible=true → proceeds past paid-tier gate (200)', async () => {
+        await seedManagedEligible(true);
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(JSON.stringify({ sid: 'CP999', status: 'PENDING_REVIEW' }), { status: 201 }),
+        );
+
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/provision', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St, City, ST 12345', repName: 'Jane Doe', email: 'jane@acme.com' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        expect(res.status).toBe(200);
+        const body = await res.json() as { success: boolean };
+        expect(body.success).toBe(true);
+    });
+
+    it('resubmit: managedEligible=false → 403 managed_requires_paid_plan, provision NOT called', async () => {
+        await seedManagedEligible(false);
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/resubmit', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St', repName: 'Jane' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        expect(res.status).toBe(403);
+        const body = await res.json() as { error: string };
+        expect(body.error).toBe('managed_requires_paid_plan');
+        expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it('resubmit: managedEligible=true → proceeds past paid-tier gate (200)', async () => {
+        await seedManagedEligible(true);
+
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT, mode: 'managed_dedicated', complianceStatus: 'profile_pending',
+            customerProfileSid: 'CP111', customerProfileStatus: 'PENDING_REVIEW',
+            createdAt: now, updatedAt: now,
+        } as never);
+
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            new Response(JSON.stringify({ sid: 'MS789', status: 'PENDING' }), { status: 201 }),
+        );
+
+        const app = buildSmsApp(db, SAAS_PROFILE);
+        const res = await app.request('/api/admin/sms/compliance/resubmit', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                businessInfo: { legalName: 'Acme Inc', address: '1 Main St, City, ST 12345', repName: 'Jane Doe', email: 'jane@acme.com' },
+                channel: 'tollfree',
+            }),
+        }, MANAGED_ENV, makeExecCtx());
+
+        fetchSpy.mockRestore();
+
+        expect(res.status).toBe(200);
+        const body = await res.json() as { success: boolean };
+        expect(body.success).toBe(true);
+    });
+});
+
+// ─── MeteringService.getCount (Task 10) ─────────────────────────────────────
+
+import { MeteringService } from '../../server/services/metering.service';
+
+describe('MeteringService.getCount (Task 10)', () => {
+    let meteringDb: BetterSQLite3Database<typeof schema>;
+    let meteringSqlite: { close: () => void };
+
+    beforeEach(async () => {
+        const fx = createTestDb();
+        meteringDb = fx.db as BetterSQLite3Database<typeof schema>;
+        meteringSqlite = fx.sqlite;
+        await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(meteringDb);
+    });
+
+    afterEach(() => meteringSqlite.close());
+
+    it('getCount returns 0 when no row exists', async () => {
+        const svc = new MeteringService({} as D1Database);
+        const count = await svc.getCount('some-tenant', 'sms', '2026-06');
+        expect(count).toBe(0);
+    });
+
+    it('getCount returns stored value after record()', async () => {
+        const svc = new MeteringService({} as D1Database);
+        await svc.record('t1', 'sms', '2026-06', 5);
+        const count = await svc.getCount('t1', 'sms', '2026-06');
+        expect(count).toBe(5);
+    });
+
+    it('getCount returns 0 for a different period even when another period has data', async () => {
+        const svc = new MeteringService({} as D1Database);
+        await svc.record('t1', 'sms', '2026-06', 3);
+        const count = await svc.getCount('t1', 'sms', '2026-07');
+        expect(count).toBe(0);
+    });
+
+    it('getCount accumulates across multiple record() calls', async () => {
+        const svc = new MeteringService({} as D1Database);
+        await svc.record('t1', 'sms', '2026-06', 1);
+        await svc.record('t1', 'sms', '2026-06', 1);
+        await svc.record('t1', 'sms', '2026-06', 1);
+        const count = await svc.getCount('t1', 'sms', '2026-06');
+        expect(count).toBe(3);
     });
 });

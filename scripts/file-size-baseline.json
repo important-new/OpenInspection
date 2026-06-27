@@ -9,7 +9,7 @@
   "server/index.ts": 823,
   "app/routes/settings-communication-templates.tsx": 731,
   "server/services/inspection.service.ts": 728,
-  "server/api/sms.ts": 719,
+  "server/api/sms.ts": 751,
   "app/components/media-studio/PhotoAnnotator.tsx": 692,
   "app/components/editor/PhotoStudio.tsx": 688,
   "app/routes/settings-communication.tsx": 686,
