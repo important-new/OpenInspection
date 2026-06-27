@@ -829,6 +829,23 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
 import { signParams as _signParamsForCompliance } from '../../server/lib/messaging/twilio';
 import { MessagingComplianceService } from '../../server/services/messaging-compliance.service';
 import { smsPublicRoutes as _smsPublicRoutes } from '../../server/api/sms';
+import { TwilioComplianceProvider } from '../../server/lib/messaging/providers/twilio-compliance';
+
+/**
+ * Build a ComplianceProvider over a minimal twilio-node-shaped fake exposing only
+ * the READ surfaces syncStatus touches (tollfree-verification + brand-registration
+ * list). The coordinator delegates the cron-poll read to this provider.
+ */
+function fakeReadProvider(tfvs: Array<{ sid: string; status: string }> = []): TwilioComplianceProvider {
+    return new TwilioComplianceProvider({
+        messaging: {
+            v1: {
+                tollfreeVerifications: { list: async () => tfvs },
+                brandRegistrations: { list: async () => [] },
+            },
+        },
+    } as never);
+}
 
 const COMPLIANCE_TOKEN = 'compliance-webhook-token';
 
@@ -1069,18 +1086,9 @@ describe('MessagingComplianceService.syncManagedStatus (cron poll)', () => {
             tfvStatus: 'PENDING_REVIEW',
         });
 
-        // Inject a fake read client — never calls real Twilio.
-        const fakeClient = {
-            tollfree: {
-                list: async () => [{ sid: 'HV123', status: 'TWILIO_APPROVED', phoneNumber: '+18005550001' }],
-            },
-            brands: {
-                list: async () => [] as Array<{ sid: string; status: string }>,
-            },
-        };
-
+        // Inject a fake provider — never calls real Twilio.
         const svc = new MessagingComplianceService({} as D1Database);
-        await svc.syncManagedStatus(TENANT, fakeClient);
+        await svc.syncManagedStatus(TENANT, fakeReadProvider([{ sid: 'HV123', status: 'TWILIO_APPROVED' }]));
 
         const stored = await svc.getStatus(TENANT);
         expect(stored?.complianceStatus).toBe('approved');
@@ -1092,17 +1100,8 @@ describe('MessagingComplianceService.syncManagedStatus (cron poll)', () => {
             tfvStatus: 'PENDING_REVIEW',
         });
 
-        const fakeClient = {
-            tollfree: {
-                list: async () => [{ sid: 'HV123', status: 'TWILIO_REJECTED', phoneNumber: '+18005550001' }],
-            },
-            brands: {
-                list: async () => [] as Array<{ sid: string; status: string }>,
-            },
-        };
-
         const svc = new MessagingComplianceService({} as D1Database);
-        await svc.syncManagedStatus(TENANT, fakeClient);
+        await svc.syncManagedStatus(TENANT, fakeReadProvider([{ sid: 'HV123', status: 'TWILIO_REJECTED' }]));
 
         const stored = await svc.getStatus(TENANT);
         expect(stored?.complianceStatus).toBe('rejected');
@@ -1111,13 +1110,8 @@ describe('MessagingComplianceService.syncManagedStatus (cron poll)', () => {
     it('empty tollfree list → no change to stored status', async () => {
         await seedComplianceRow(db, TENANT, { complianceStatus: 'tfv_pending', tfvStatus: 'PENDING_REVIEW' });
 
-        const fakeClient = {
-            tollfree: { list: async () => [] as Array<{ sid: string; status: string; phoneNumber: string }> },
-            brands: { list: async () => [] as Array<{ sid: string; status: string }> },
-        };
-
         const svc = new MessagingComplianceService({} as D1Database);
-        await svc.syncManagedStatus(TENANT, fakeClient);
+        await svc.syncManagedStatus(TENANT, fakeReadProvider([]));
 
         const stored = await svc.getStatus(TENANT);
         // No tollfree entry found → status unchanged.
@@ -1126,14 +1120,9 @@ describe('MessagingComplianceService.syncManagedStatus (cron poll)', () => {
 
     it('no row for tenant → returns without error (no-op)', async () => {
         // No compliance row seeded for TENANT.
-        const fakeClient = {
-            tollfree: { list: async () => [{ sid: 'HV123', status: 'TWILIO_APPROVED', phoneNumber: '+18005550001' }] },
-            brands: { list: async () => [] as Array<{ sid: string; status: string }> },
-        };
-
         const svc = new MessagingComplianceService({} as D1Database);
         // Must not throw. Returns {changed:false} when no row exists.
-        const result = await svc.syncManagedStatus(TENANT, fakeClient);
+        const result = await svc.syncManagedStatus(TENANT, fakeReadProvider([{ sid: 'HV123', status: 'TWILIO_APPROVED' }]));
         expect(result.changed).toBe(false);
     });
 });

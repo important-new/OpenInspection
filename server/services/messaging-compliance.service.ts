@@ -5,21 +5,11 @@ import { TwilioClient } from '../lib/messaging/twilio';
 import { logger } from '../lib/logger';
 import type { ComplianceEvent } from '../lib/sms/compliance-webhook';
 import type { UserSyncOutbox } from '../lib/integration/user-sync';
+import { D1ComplianceStateStore } from '../lib/messaging/compliance-state-store';
+import type { ComplianceProvider } from '../lib/messaging/compliance-provider';
+import { resolveComplianceProvider } from '../lib/sms/resolve-compliance-provider';
 
 type ReadClient = Pick<TwilioClient, 'tollfree' | 'brands'>;
-
-/**
- * Write surface injected into `provision`. Allows tests to pass a fake without
- * touching the network. The Task-6 managed route builds this from env.
- *
- * NOTE: Twilio API field names / resource paths live exclusively in
- * `server/lib/messaging/twilio.ts` — the drift surface for API-name changes is
- * that file alone, not here.
- */
-export type WriteClient = Pick<
-    TwilioClient,
-    'trusthub' | 'brands' | 'campaigns' | 'tollfree' | 'messagingServices' | 'numbers'
->;
 
 /** Map Twilio's raw TFV status string to our compliance_status enum. */
 const mapTfv = (s: string): 'approved' | 'rejected' | 'tfv_pending' =>
@@ -101,90 +91,31 @@ export class MessagingComplianceService {
     }
 
     // -------------------------------------------------------------------------
-    // Managed provisioning orchestrator (write path)
+    // Managed provisioning orchestrator (write path) — COORDINATOR
+    //
+    // The provisioning step graph + the row load/init/persist mechanics now live in
+    // the injected ComplianceProvider (server/lib/messaging/providers/*) and the
+    // D1ComplianceStateStore (server/lib/messaging/compliance-state-store.ts). This
+    // service is a thin coordinator: it builds the store on its own D1 handle and
+    // delegates the provider-specific orchestration.
     // -------------------------------------------------------------------------
 
-    /** Fetch the compliance row for a tenant; returns undefined if it does not exist. */
-    private async getRow(tenantId: string) {
-        return this.d()
-            .select()
-            .from(messagingCompliance)
-            .where(eq(messagingCompliance.tenantId, tenantId))
-            .get();
-    }
-
-    /** Insert an initial row for a new managed tenant. Returns the inserted row. */
-    private async initRow(tenantId: string, mode: 'managed_dedicated') {
-        const now = new Date();
-        await this.d()
-            .insert(messagingCompliance)
-            .values({
-                tenantId,
-                mode,
-                complianceStatus: 'not_started',
-                createdAt: now,
-                updatedAt: now,
-            })
-            .onConflictDoNothing();
-        const row = await this.getRow(tenantId);
-        if (!row) throw new Error('Failed to initialize compliance row');
-        return row;
-    }
-
     /**
-     * Persist partial column updates for a tenant's compliance row and return the
-     * refreshed row. ONLY the tenant's own row is modified (scoped by tenantId).
-     */
-    private async persist(
-        tenantId: string,
-        updates: Partial<typeof messagingCompliance.$inferInsert>,
-    ) {
-        const now = new Date();
-        await this.d()
-            .update(messagingCompliance)
-            .set({ ...updates, updatedAt: now })
-            .where(eq(messagingCompliance.tenantId, tenantId));
-        const row = await this.getRow(tenantId);
-        if (!row) throw new Error('Compliance row disappeared during provisioning');
-        return row;
-    }
-
-    /**
-     * Idempotent managed provisioning orchestrator.
+     * Idempotent managed provisioning orchestrator — delegates to the provider.
      *
-     * Runs the Twilio resource-creation chain as a sequence of GUARDED steps:
-     * if the relevant SID is already stored in the DB the step is skipped (resume).
-     * A step that throws stops the chain with all prior SIDs persisted, so a later
-     * call resumes from the first missing SID.
-     *
-     * Step ordering is driven by Twilio resource dependencies (each step's inputs
-     * are prior-persisted SIDs). THIS ORDERING IS THE DRIFT SURFACE — if Twilio
-     * changes the dependency graph, update the order here and in the comments:
-     *
-     *   sp10dlc:
-     *     1. customer profile (→ customerProfileSid, profile_pending)
-     *     2. brand  [needs customerProfileSid] (→ brandSid, brand_pending)
-     *     3. messaging service (→ messagingServiceSid)
-     *     4. campaign [needs messagingServiceSid + brandSid] (→ campaignSid, campaign_pending)
-     *     5. number: search + buy + attachSender [needs messagingServiceSid]
-     *        (→ provisionedNumber)
-     *
-     *   tollfree:
-     *     1. customer profile (→ customerProfileSid, profile_pending)
-     *     2. messaging service (→ messagingServiceSid)
-     *     3. number: search + buy + attachSender [needs messagingServiceSid]
-     *        (→ provisionedNumber)
-     *     4. tfv [needs provisionedNumber + messagingServiceSid] (→ tfvSid, tfv_pending)
-     *
-     * Final complianceStatus after a full run = 'campaign_pending' (sp10dlc) or
-     * 'tfv_pending' (tollfree). 'approved' is set asynchronously by the webhook
-     * (a later task) — never set here.
+     * Builds the D1-backed state store on this service's database handle and hands
+     * it to `provider.provision`, which runs the guarded, resumable resource-creation
+     * chain and persists each SID through the store. Behaviour (step ordering,
+     * resume-on-missing-SID, crash-leaves-prior-SIDs, statusCallback threading) is
+     * owned by the provider and unchanged from the previous in-service implementation.
      *
      * @param tenantId     - Tenant to provision (from JWT context, never user input).
-     * @param businessInfo - Legal name, address, rep name, optional area code.
+     * @param businessInfo - Legal name, address, rep name, optional area code/email.
      * @param channel      - 'sp10dlc' (10DLC sole-proprietor) or 'tollfree'.
-     * @param client       - Injectable Twilio write adapter (no default — callers
-     *                       must build it from env; tests inject a fake).
+     * @param provider     - Injectable ComplianceProvider (the managed admin route
+     *                       builds it via resolveComplianceProvider; tests inject one).
+     * @param statusCallbackUrl - Optional per-tenant compliance webhook URL, threaded
+     *                       into the customer-profile create (only on NEW provisions).
      */
     async provision(
         tenantId: string,
@@ -196,145 +127,15 @@ export class MessagingComplianceService {
             email?: string | undefined;
         },
         channel: 'sp10dlc' | 'tollfree',
-        client: WriteClient,
-        // Per-tenant compliance webhook URL. When provided, it is registered as the
-        // Trust Hub CustomerProfile StatusCallbackUrl at profile-creation time, so
-        // Twilio delivers brand/campaign status transitions to our webhook receiver
-        // automatically (no manual Console config). Omitted (undefined) → no callback
-        // registered; status still advances via the cron poll (brand/TFV) and any
-        // manually-configured Console callback. NOTE: only NEW provisions register it
-        // — a resume whose customerProfileSid already exists skips step 1.
+        provider: ComplianceProvider,
         statusCallbackUrl?: string,
     ): Promise<{ complianceStatus: string }> {
-        // Load or create the initial row.
-        let row = (await this.getRow(tenantId)) ?? (await this.initRow(tenantId, 'managed_dedicated'));
-
-        // Step 1 (shared): customer profile
-        if (!row.customerProfileSid) {
-            const cp = await client.trusthub.createSecondaryProfile({
-                friendlyName: businessInfo.legalName,
-                email: businessInfo.email ?? '',
-                isvRegisteringForSelfOrSubaccounts: 'false',
-                ...(statusCallbackUrl ? { statusCallbackUrl } : {}),
-            });
-            row = await this.persist(tenantId, {
-                customerProfileSid: cp.sid,
-                customerProfileStatus: cp.status ?? 'PENDING',
-                complianceStatus: 'profile_pending',
-            });
-        }
-
-        if (channel === 'sp10dlc') {
-            // Step 2 (sp10dlc): brand registration — needs customerProfileSid
-            if (!row.brandSid) {
-                const b = await client.brands.createSoleProprietor({
-                    customerProfileBundleSid: row.customerProfileSid!,
-                    a2pProfileBundleSid: row.customerProfileSid!, // same bundle for sole-prop
-                    brandType: 'SOLE_PROPRIETOR',
-                });
-                row = await this.persist(tenantId, {
-                    brandSid: b.sid,
-                    brandStatus: b.status,
-                    complianceStatus: 'brand_pending',
-                });
-            }
-
-            // Step 3 (sp10dlc): messaging service
-            if (!row.messagingServiceSid) {
-                const ms = await client.messagingServices.create({
-                    friendlyName: businessInfo.legalName,
-                });
-                row = await this.persist(tenantId, { messagingServiceSid: ms.sid });
-            }
-
-            // Step 4 (sp10dlc): campaign — needs messagingServiceSid + brandSid
-            if (!row.campaignSid) {
-                const c = await client.campaigns.create({
-                    messagingServiceSid: row.messagingServiceSid!,
-                    brandRegistrationSid: row.brandSid!,
-                    description: `Inspection notifications for ${businessInfo.legalName}`,
-                    messageFlow: 'Clients opt in via the inspection booking form.',
-                    messageSamples: [
-                        'Your inspection report is ready. View it at {{link}}.',
-                        'Reminder: your inspection is scheduled for {{date}}.',
-                    ],
-                    usAppToPersonUsecase: 'MIXED',
-                    hasEmbeddedLinks: true,
-                    hasEmbeddedPhone: false,
-                });
-                row = await this.persist(tenantId, {
-                    campaignSid: c.sid,
-                    campaignStatus: c.status,
-                    complianceStatus: 'campaign_pending',
-                });
-            }
-
-            // Step 5 (sp10dlc): buy number (guarded on provisionedNumberSid), then
-            // attach to messaging service (guarded separately on senderAttached).
-            // The two side effects have independent markers so a crash between buy
-            // and attach resumes by attaching the already-bought number — never by
-            // buying a second one, and never by skipping the attach (orphaned number).
-            if (!row.provisionedNumberSid) {
-                const available = await client.numbers.search('local', businessInfo.areaCode);
-                const bought = await client.numbers.buy(available[0].phoneNumber);
-                row = await this.persist(tenantId, {
-                    provisionedNumber: bought.phoneNumber,
-                    provisionedNumberSid: bought.sid,
-                });
-            }
-            if (!row.senderAttached) {
-                await client.messagingServices.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
-                row = await this.persist(tenantId, { senderAttached: true });
-            }
-        } else {
-            // tollfree channel
-
-            // Step 2 (tollfree): messaging service
-            if (!row.messagingServiceSid) {
-                const ms = await client.messagingServices.create({
-                    friendlyName: businessInfo.legalName,
-                });
-                row = await this.persist(tenantId, { messagingServiceSid: ms.sid });
-            }
-
-            // Step 3 (tollfree): buy number (guarded on provisionedNumberSid), then
-            // attach to messaging service (guarded separately on senderAttached).
-            // Independent markers so a crash between buy and attach resumes by
-            // attaching the already-bought number — never re-buying, never orphaning.
-            if (!row.provisionedNumberSid) {
-                const available = await client.numbers.search('tollfree', businessInfo.areaCode);
-                const bought = await client.numbers.buy(available[0].phoneNumber);
-                row = await this.persist(tenantId, {
-                    provisionedNumber: bought.phoneNumber,
-                    provisionedNumberSid: bought.sid,
-                });
-            }
-            if (!row.senderAttached) {
-                await client.messagingServices.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
-                row = await this.persist(tenantId, { senderAttached: true });
-            }
-
-            // Step 4 (tollfree): toll-free verification — needs provisionedNumberSid + messagingServiceSid.
-            // tollfreePhoneNumberSid must be the PN... SID, not the E.164 phone number string.
-            if (!row.tfvSid) {
-                const tfv = await client.tollfree.create({
-                    tollfreePhoneNumberSid: row.provisionedNumberSid!,
-                    messagingServiceSid: row.messagingServiceSid!,
-                    useCaseDescription: `Inspection notifications for ${businessInfo.legalName}`,
-                    useCaseSummary: 'Send inspection reports, scheduling reminders, and repair request updates to clients.',
-                    productionMessageSample: 'Your inspection report is ready. View it at {{link}}.',
-                    notificationEmail: businessInfo.email ?? '',
-                    optInType: 'VERBAL',
-                });
-                row = await this.persist(tenantId, {
-                    tfvSid: tfv.sid,
-                    tfvStatus: tfv.status,
-                    complianceStatus: 'tfv_pending',
-                });
-            }
-        }
-
-        return { complianceStatus: row.complianceStatus };
+        const store = new D1ComplianceStateStore(this.db);
+        const snapshot = await provider.provision(
+            { tenantId, channel, businessInfo, statusCallbackUrl },
+            store,
+        );
+        return { complianceStatus: snapshot.complianceStatus };
     }
 
     // -------------------------------------------------------------------------
@@ -370,7 +171,8 @@ export class MessagingComplianceService {
         tenantId: string,
         event: ComplianceEvent,
     ): Promise<{ changed: boolean; complianceStatus: string; rejectionReason: string | null }> {
-        const row = await this.getRow(tenantId);
+        const store = new D1ComplianceStateStore(this.db);
+        const row = await store.load(tenantId);
         if (!row) {
             logger.warn('[compliance-svc] applyComplianceCallback: no row for tenant — ignoring', { tenantId });
             return { changed: false, complianceStatus: 'not_started', rejectionReason: null };
@@ -435,7 +237,7 @@ export class MessagingComplianceService {
         // without a complianceStatus change do NOT set changed=true.
         const changed = newStatus !== row.complianceStatus;
 
-        await this.persist(tenantId, updates);
+        await store.persist(tenantId, updates);
         logger.info('[compliance-svc] applied compliance callback', {
             tenantId,
             entity: event.entity,
@@ -467,73 +269,26 @@ export class MessagingComplianceService {
      * Twilio posts the callback.
      *
      * @param tenantId - Tenant to sync.
-     * @param client   - Injectable TwilioClient (caller builds from env; tests inject a fake).
+     * @param provider - Injectable ComplianceProvider (the sweep builds it from the
+     *                   managed ISV creds; tests inject a fake). Owns the read +
+     *                   normalized-state advance; this coordinator owns change-detection.
      */
     async syncManagedStatus(
         tenantId: string,
-        client: ReadClient,
+        provider: ComplianceProvider,
     ): Promise<{ changed: boolean; complianceStatus: string; rejectionReason: string | null }> {
-        const row = await this.getRow(tenantId);
-        if (!row) return { changed: false, complianceStatus: 'not_started', rejectionReason: null };
+        const store = new D1ComplianceStateStore(this.db);
+        // Snapshot the prior rolled-up status BEFORE the provider advances state, so
+        // change-detection compares against the pre-sync value (the provider persists
+        // any transition through the store, but its snapshot carries no `changed`).
+        const priorRow = await store.load(tenantId);
+        if (!priorRow) return { changed: false, complianceStatus: 'not_started', rejectionReason: null };
 
-        const updates: Partial<typeof messagingCompliance.$inferInsert> = {};
-
-        // A managed row is single-channel: tollfree (tfv, terminal) OR sp10dlc
-        // (brand→campaign). These paths are mutually exclusive (`else if`) so a
-        // just-set TFV verdict can never be clobbered by the brand block reading
-        // the pre-update row snapshot.
-        // TFV path — poll toll-free verifications (tollfree channel, terminal).
-        if (row.tfvSid || row.tfvStatus) {
-            const tfvs = await client.tollfree.list().catch(() => []);
-            const tfv = row.tfvSid ? tfvs.find((t) => t.sid === row.tfvSid) : tfvs[0];
-            if (tfv) {
-                updates.tfvStatus = tfv.status;
-                const isApproved = tfv.status === 'TWILIO_APPROVED' || tfv.status === 'APPROVED';
-                const isRejected = tfv.status === 'TWILIO_REJECTED' || tfv.status === 'REJECTED' || tfv.status === 'FAILED';
-                if (isApproved) {
-                    updates.complianceStatus = 'approved';
-                    updates.rejectionReason = null;
-                } else if (isRejected) {
-                    updates.complianceStatus = 'rejected';
-                    updates.rejectionReason = tfv.status;
-                }
-            }
-        }
-
-        // Brand path — poll brand registrations (sp10dlc channel; campaign is the
-        // terminal entity, so brand approval only advances to brand_pending).
-        else if (row.brandSid || row.brandStatus) {
-            const brands = await client.brands.list().catch(() => []);
-            const brand = row.brandSid ? brands.find((b) => b.sid === row.brandSid) : brands[0];
-            if (brand) {
-                updates.brandStatus = brand.status;
-                const isApproved = brand.status === 'TWILIO_APPROVED' || brand.status === 'APPROVED';
-                const isRejected = brand.status === 'TWILIO_REJECTED' || brand.status === 'REJECTED' || brand.status === 'FAILED';
-                if (isApproved && row.complianceStatus !== 'approved' && row.complianceStatus !== 'campaign_pending') {
-                    // Brand approval advances to brand_pending (not overall approved —
-                    // campaign is terminal for sp10dlc). Never regress a more-advanced
-                    // status (campaign_pending/approved) — same invariant the webhook holds.
-                    updates.complianceStatus = 'brand_pending';
-                } else if (isRejected && row.complianceStatus !== 'rejected') {
-                    updates.complianceStatus = 'rejected';
-                    updates.rejectionReason = brand.status;
-                }
-            }
-        }
-
-        const newStatus = updates.complianceStatus ?? row.complianceStatus;
-        const newRejectionReason = 'rejectionReason' in updates
-            ? (updates.rejectionReason ?? null)
-            : (row.rejectionReason ?? null);
-        const changed = newStatus !== row.complianceStatus;
-
-        if (Object.keys(updates).length > 0) {
-            await this.persist(tenantId, updates);
-            logger.info('[compliance-svc] syncManagedStatus: updated row', {
-                tenantId, updates: JSON.stringify(updates),
-            });
-        }
-        return { changed, complianceStatus: newStatus, rejectionReason: newRejectionReason };
+        const snapshot = await provider.syncStatus({ tenantId }, store);
+        // Coordinator owns change-detection (same contract as before): `changed` is true
+        // only when the rolled-up complianceStatus differs from the prior persisted value.
+        const changed = snapshot.complianceStatus !== priorRow.complianceStatus;
+        return { changed, complianceStatus: snapshot.complianceStatus, rejectionReason: snapshot.rejectionReason };
     }
 
     /**
@@ -554,9 +309,13 @@ export class MessagingComplianceService {
         apiKeySecret: string,
         apiKeySid: string,
         outbox?: UserSyncOutbox,
-        // Injectable read client (tests pass a fake to avoid network). Production
-        // callers omit it; the managed ISV client is built from the creds below.
-        client: ReadClient = new TwilioClient({ sid: acctSid, token: apiKeySecret, authSid: apiKeySid }),
+        // Injectable provider (tests pass a fake to avoid network). Production callers
+        // omit it; the managed ISV provider is built once from the creds below.
+        // Plan 2: read tenant.managedProvider instead of hard-coding 'twilio'.
+        provider: ComplianceProvider = resolveComplianceProvider(
+            { TWILIO_ACCOUNT_SID: acctSid, TWILIO_API_KEY_SID: apiKeySid, TWILIO_API_KEY_SECRET: apiKeySecret },
+            'twilio',
+        ),
     ): Promise<void> {
         const db = this.d();
         const terminalStatuses = ['approved', 'rejected'] as const;
@@ -578,7 +337,7 @@ export class MessagingComplianceService {
 
         for (const { tenantId } of managedRows) {
             try {
-                const result = await this.syncManagedStatus(tenantId, client);
+                const result = await this.syncManagedStatus(tenantId, provider);
                 if (result.changed && outbox) {
                     // Fail-soft outbox emit: a queue failure must not abort the sweep.
                     outbox.append({
