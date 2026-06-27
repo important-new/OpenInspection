@@ -1132,8 +1132,9 @@ describe('MessagingComplianceService.syncManagedStatus (cron poll)', () => {
         };
 
         const svc = new MessagingComplianceService({} as D1Database);
-        // Must not throw.
-        await expect(svc.syncManagedStatus(TENANT, fakeClient)).resolves.toBeUndefined();
+        // Must not throw. Returns {changed:false} when no row exists.
+        const result = await svc.syncManagedStatus(TENANT, fakeClient);
+        expect(result.changed).toBe(false);
     });
 });
 

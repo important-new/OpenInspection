@@ -30,6 +30,7 @@ import { getBaseUrl } from '../url';
 import { MessagingComplianceService } from '../../services/messaging-compliance.service';
 import { logger } from '../logger';
 import type { HonoConfig } from '../../types/hono';
+import { OutboxService } from '../../portal/outbox.service';
 
 // ---------------------------------------------------------------------------
 // Compliance event type — parsed from the Twilio form params.
@@ -156,10 +157,31 @@ export function registerComplianceStatusRoute(router: Hono<HonoConfig>): void {
 
         // Delegate the state-machine update to the service layer.
         const svc = new MessagingComplianceService(c.env.DB);
-        await svc.applyComplianceCallback(tenant.id, event).catch((err) => {
+        const result = await svc.applyComplianceCallback(tenant.id, event).catch((err) => {
             logger.error('[compliance-webhook] DB update failed', { tenantId: tenant.id, entity: event.entity },
                 err instanceof Error ? err : new Error(String(err)));
+            return null;
         });
+
+        // Emit a core→portal sync event when the compliance status actually changed.
+        // Fail-soft: a queue/outbox failure must never break the 200 response Twilio expects.
+        if (result?.changed && c.env.SYNC_QUEUE) {
+            try {
+                const outbox = new OutboxService(c.env.DB);
+                await outbox.append({
+                    type: 'io.inspectorhub.tenant.compliance_status_updated',
+                    payload: {
+                        tenantId: tenant.id,
+                        complianceStatus: result.complianceStatus,
+                        rejectionReason: result.rejectionReason,
+                        updatedAt: Math.floor(Date.now() / 1000),
+                    },
+                });
+            } catch (err) {
+                logger.error('[compliance-webhook] outbox emit failed', { tenantId: tenant.id },
+                    err instanceof Error ? err : new Error(String(err)));
+            }
+        }
 
         return c.text('', 200);
     });

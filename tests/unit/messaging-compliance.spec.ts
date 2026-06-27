@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('drizzle-orm/d1', () => ({ drizzle: vi.fn() }));
 import { drizzle as mockDrizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
@@ -6,6 +6,7 @@ import { createTestDb, setupSchema } from './db';
 import * as schema from '../../server/lib/db/schema';
 import { MessagingComplianceService } from '../../server/services/messaging-compliance.service';
 import type { WriteClient } from '../../server/services/messaging-compliance.service';
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 
 it('syncOwnStatus upserts the latest toll-free status', async () => {
     const fx = createTestDb(); await setupSchema(fx.sqlite);
@@ -292,5 +293,334 @@ describe('MessagingComplianceService.provision', () => {
         expect(row?.campaignSid).toBeNull();
         expect(row?.complianceStatus).toBe('brand_pending');
         fx.sqlite.close();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// applyComplianceCallback — change-detection return value (Task 11)
+// ---------------------------------------------------------------------------
+
+describe('applyComplianceCallback — change detection', () => {
+    let db: BetterSQLite3Database<typeof schema>;
+    let sqlite: { close: () => void };
+
+    beforeEach(async () => {
+        const fx = createTestDb();
+        db = fx.db as BetterSQLite3Database<typeof schema>;
+        sqlite = fx.sqlite;
+        await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+    });
+
+    afterEach(() => sqlite.close());
+
+    async function seedRow(tenantId: string, complianceStatus: string) {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId,
+            mode: 'managed_dedicated',
+            complianceStatus,
+            createdAt: now,
+            updatedAt: now,
+        } as never);
+    }
+
+    it('returns changed=true + new status when campaign TWILIO_APPROVED transitions from campaign_pending', async () => {
+        await seedRow('t-chg-1', 'campaign_pending');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('t-chg-1', {
+            entity: 'campaign',
+            rawStatus: 'TWILIO_APPROVED',
+            rejectionReason: null,
+            entitySid: 'CR123',
+        });
+        expect(result.changed).toBe(true);
+        expect(result.complianceStatus).toBe('approved');
+        expect(result.rejectionReason).toBeNull();
+    });
+
+    it('returns changed=false when inbound status results in the same complianceStatus', async () => {
+        // If the row is already campaign_pending and a brand intermediate callback
+        // comes in that does not change complianceStatus, changed must be false.
+        await seedRow('t-chg-2', 'brand_pending');
+        const svc = new MessagingComplianceService({} as D1Database);
+        // brand TWILIO_APPROVED from brand_pending → stays brand_pending
+        const result = await svc.applyComplianceCallback('t-chg-2', {
+            entity: 'brand',
+            rawStatus: 'TWILIO_APPROVED',
+            rejectionReason: null,
+            entitySid: 'BN123',
+        });
+        // brand_pending → brand_pending = no change
+        expect(result.changed).toBe(false);
+        expect(result.complianceStatus).toBe('brand_pending');
+    });
+
+    it('returns changed=true + rejectionReason when campaign REJECTED transitions from campaign_pending', async () => {
+        await seedRow('t-chg-3', 'campaign_pending');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('t-chg-3', {
+            entity: 'campaign',
+            rawStatus: 'REJECTED',
+            rejectionReason: 'code=30034: Use case not approved',
+            entitySid: 'CR456',
+        });
+        expect(result.changed).toBe(true);
+        expect(result.complianceStatus).toBe('rejected');
+        expect(result.rejectionReason).toBe('code=30034: Use case not approved');
+    });
+
+    it('returns changed=false + sentinel status when no row exists for tenant', async () => {
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.applyComplianceCallback('no-such-tenant', {
+            entity: 'campaign',
+            rawStatus: 'TWILIO_APPROVED',
+            rejectionReason: null,
+            entitySid: 'CR000',
+        });
+        expect(result.changed).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// syncManagedStatus — change-detection return value (Task 11)
+// ---------------------------------------------------------------------------
+
+describe('syncManagedStatus — change detection', () => {
+    let db: BetterSQLite3Database<typeof schema>;
+    let sqlite: { close: () => void };
+
+    beforeEach(async () => {
+        const fx = createTestDb();
+        db = fx.db as BetterSQLite3Database<typeof schema>;
+        sqlite = fx.sqlite;
+        await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+    });
+
+    afterEach(() => sqlite.close());
+
+    async function seedRow(tenantId: string, complianceStatus: string, tfvStatus?: string) {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId,
+            mode: 'managed_dedicated',
+            complianceStatus,
+            tfvStatus: tfvStatus ?? null,
+            createdAt: now,
+            updatedAt: now,
+        } as never);
+    }
+
+    const approvedTfvClient = {
+        tollfree: { list: async () => [{ sid: 'HV1', status: 'TWILIO_APPROVED', phoneNumber: '+18005550001' }] },
+        brands: { list: async () => [] as Array<{ sid: string; status: string }> },
+    };
+
+    const noChangeTfvClient = {
+        tollfree: { list: async () => [] as Array<{ sid: string; status: string; phoneNumber: string }> },
+        brands: { list: async () => [] as Array<{ sid: string; status: string }> },
+    };
+
+    it('returns changed=true when TFV poll transitions status from tfv_pending to approved', async () => {
+        await seedRow('t-sc-1', 'tfv_pending', 'PENDING_REVIEW');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.syncManagedStatus('t-sc-1', approvedTfvClient);
+        expect(result.changed).toBe(true);
+        expect(result.complianceStatus).toBe('approved');
+    });
+
+    it('returns changed=false when TFV poll finds no entries (no status change)', async () => {
+        await seedRow('t-sc-2', 'tfv_pending', 'PENDING_REVIEW');
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.syncManagedStatus('t-sc-2', noChangeTfvClient);
+        expect(result.changed).toBe(false);
+        expect(result.complianceStatus).toBe('tfv_pending');
+    });
+
+    it('returns changed=false when no row exists for tenant', async () => {
+        const svc = new MessagingComplianceService({} as D1Database);
+        const result = await svc.syncManagedStatus('no-row', approvedTfvClient);
+        expect(result.changed).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// compliance-status webhook → outbox emit (Task 11)
+// Tests drive the webhook handler directly to verify the outbox is called
+// with the correct event type and payload when the status changes.
+// ---------------------------------------------------------------------------
+
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { AppError } from '../../server/lib/errors';
+import type { HonoConfig } from '../../server/types/hono';
+import { smsPublicRoutes } from '../../server/api/sms';
+import { signParams } from '../../server/lib/messaging/twilio';
+import { OutboxService } from '../../server/portal/outbox.service';
+
+const APP_BASE_URL_WH = 'https://app.example.test';
+const COMPLIANCE_TOKEN_WH = 'compliance-webhook-token-11';
+const TENANT_WH = '00000000-0000-0000-0000-000000000099';
+
+function makeExecCtx() {
+    return { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
+}
+
+async function buildWebhookApp(
+    database: BetterSQLite3Database<typeof schema>,
+    opts: { appendSpy?: ReturnType<typeof vi.fn>; hasSyncQueue?: boolean } = {},
+) {
+    const app = new OpenAPIHono<HonoConfig>();
+    app.onError((err, c) => {
+        if (err instanceof AppError) {
+            return c.json({ success: false, error: { code: err.code, message: err.message } }, err.status);
+        }
+        return c.json({ success: false, error: { code: 'internal_error', message: String(err) } }, 500);
+    });
+    app.route('/api/public', smsPublicRoutes);
+    (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(database);
+
+    // Mock OutboxService.append if a spy is supplied.
+    if (opts.appendSpy) {
+        vi.spyOn(OutboxService.prototype, 'append').mockImplementation(opts.appendSpy);
+    }
+
+    const env: HonoConfig['Bindings'] = {
+        DB: {},
+        APP_BASE_URL: APP_BASE_URL_WH,
+        JWT_SECRET: 'test-secret',
+        TWILIO_COMPLIANCE_WEBHOOK_TOKEN: COMPLIANCE_TOKEN_WH,
+        TENANT_CACHE: { get: async () => null, put: async () => {} },
+        ...(opts.hasSyncQueue ? { SYNC_QUEUE: {} } : {}),
+    } as unknown as HonoConfig['Bindings'];
+
+    return { app, env };
+}
+
+async function postWebhook(
+    app: OpenAPIHono<HonoConfig>,
+    env: HonoConfig['Bindings'],
+    tenantSlug: string,
+    params: Record<string, string>,
+) {
+    const url = `${APP_BASE_URL_WH}/api/public/twilio/compliance-status/${tenantSlug}`;
+    const sig = await signParams(COMPLIANCE_TOKEN_WH, url, params);
+    return app.request(
+        `/api/public/twilio/compliance-status/${tenantSlug}`,
+        {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/x-www-form-urlencoded',
+                'x-twilio-signature': sig,
+            },
+            body: new URLSearchParams(params).toString(),
+        },
+        env,
+        makeExecCtx(),
+    );
+}
+
+describe('compliance-status webhook → outbox emit (Task 11)', () => {
+    let db: BetterSQLite3Database<typeof schema>;
+    let sqlite: { close: () => void };
+
+    beforeEach(async () => {
+        const fx = createTestDb();
+        db = fx.db as BetterSQLite3Database<typeof schema>;
+        sqlite = fx.sqlite;
+        await setupSchema(fx.sqlite);
+        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(db);
+
+        // Seed the tenant used by webhook tests.
+        await db.insert(schema.tenants).values({
+            id: TENANT_WH, name: 'Webhook Co', slug: 'webhookco', status: 'active',
+            deploymentMode: 'shared', tier: 'free', createdAt: new Date(),
+        } as never);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        sqlite.close();
+    });
+
+    it('emits outbox event with correct type and payload on status-changing callback (SYNC_QUEUE present)', async () => {
+        // Seed a compliance row at campaign_pending so the APPROVED callback changes status.
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT_WH, mode: 'managed_dedicated',
+            complianceStatus: 'campaign_pending', createdAt: now, updatedAt: now,
+        } as never);
+
+        const appendSpy = vi.fn().mockResolvedValue('outbox-id-1');
+        const { app, env } = await buildWebhookApp(db, { appendSpy, hasSyncQueue: true });
+
+        const res = await postWebhook(app, env, 'webhookco', {
+            CampaignSid: 'CR_APPROVED', CampaignStatus: 'TWILIO_APPROVED',
+        });
+
+        expect(res.status).toBe(200);
+        expect(appendSpy).toHaveBeenCalledOnce();
+        const [calledWith] = appendSpy.mock.calls[0] as [{ type: string; payload: Record<string, unknown> }];
+        expect(calledWith.type).toBe('io.inspectorhub.tenant.compliance_status_updated');
+        expect(calledWith.payload.tenantId).toBe(TENANT_WH);
+        expect(calledWith.payload.complianceStatus).toBe('approved');
+        expect(calledWith.payload.rejectionReason).toBeNull();
+        expect(typeof calledWith.payload.updatedAt).toBe('number');
+    });
+
+    it('does NOT emit outbox event when status is unchanged (brand-only sub-status update)', async () => {
+        // brand_pending → brand TWILIO_APPROVED keeps complianceStatus=brand_pending (no change).
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT_WH, mode: 'managed_dedicated',
+            complianceStatus: 'brand_pending', createdAt: now, updatedAt: now,
+        } as never);
+
+        const appendSpy = vi.fn().mockResolvedValue('outbox-id-2');
+        const { app, env } = await buildWebhookApp(db, { appendSpy, hasSyncQueue: true });
+
+        const res = await postWebhook(app, env, 'webhookco', {
+            BrandSid: 'BN_NOCHANGE', BrandStatus: 'TWILIO_APPROVED',
+        });
+
+        expect(res.status).toBe(200);
+        expect(appendSpy).not.toHaveBeenCalled();
+    });
+
+    it('does NOT emit outbox event when SYNC_QUEUE is absent (standalone mode)', async () => {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT_WH, mode: 'managed_dedicated',
+            complianceStatus: 'campaign_pending', createdAt: now, updatedAt: now,
+        } as never);
+
+        const appendSpy = vi.fn().mockResolvedValue('outbox-id-3');
+        // hasSyncQueue=false (default) → no SYNC_QUEUE in env
+        const { app, env } = await buildWebhookApp(db, { appendSpy, hasSyncQueue: false });
+
+        const res = await postWebhook(app, env, 'webhookco', {
+            CampaignSid: 'CR_NO_QUEUE', CampaignStatus: 'TWILIO_APPROVED',
+        });
+
+        expect(res.status).toBe(200);
+        expect(appendSpy).not.toHaveBeenCalled();
+    });
+
+    it('still returns 200 even when outbox append throws (fail-soft)', async () => {
+        const now = new Date();
+        await db.insert(schema.messagingCompliance).values({
+            tenantId: TENANT_WH, mode: 'managed_dedicated',
+            complianceStatus: 'campaign_pending', createdAt: now, updatedAt: now,
+        } as never);
+
+        const appendSpy = vi.fn().mockRejectedValue(new Error('queue unavailable'));
+        const { app, env } = await buildWebhookApp(db, { appendSpy, hasSyncQueue: true });
+
+        const res = await postWebhook(app, env, 'webhookco', {
+            CampaignSid: 'CR_FAILSOFT', CampaignStatus: 'TWILIO_APPROVED',
+        });
+
+        // Despite outbox throwing, the route must return 200 so Twilio does not retry.
+        expect(res.status).toBe(200);
     });
 });

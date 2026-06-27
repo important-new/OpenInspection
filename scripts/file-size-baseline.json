@@ -24,7 +24,7 @@
   "server/api/inspections/publish.ts": 551,
   "app/lib/collab/results-binding.ts": 540,
   "app/components/editor/ItemEditor.tsx": 538,
-  "server/services/messaging-compliance.service.ts": 538,
+  "server/services/messaging-compliance.service.ts": 579,
   "server/api/inspections/media-studio.ts": 534,
   "server/api/inspections/report-delivery.ts": 534,
   "server/api/auth.ts": 531,

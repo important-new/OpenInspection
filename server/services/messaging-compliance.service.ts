@@ -4,6 +4,7 @@ import { messagingCompliance } from '../lib/db/schema';
 import { TwilioClient } from '../lib/messaging/twilio';
 import { logger } from '../lib/logger';
 import type { ComplianceEvent } from '../lib/sms/compliance-webhook';
+import type { OutboxService } from '../portal/outbox.service';
 
 type ReadClient = Pick<TwilioClient, 'tollfree' | 'brands'>;
 
@@ -349,11 +350,14 @@ export class MessagingComplianceService {
      *                   already resolved and verified before this is called).
      * @param event    - Parsed compliance event from parseComplianceEvent.
      */
-    async applyComplianceCallback(tenantId: string, event: ComplianceEvent): Promise<void> {
+    async applyComplianceCallback(
+        tenantId: string,
+        event: ComplianceEvent,
+    ): Promise<{ changed: boolean; complianceStatus: string; rejectionReason: string | null }> {
         const row = await this.getRow(tenantId);
         if (!row) {
             logger.warn('[compliance-svc] applyComplianceCallback: no row for tenant — ignoring', { tenantId });
-            return;
+            return { changed: false, complianceStatus: 'not_started', rejectionReason: null };
         }
 
         const isApproved = event.rawStatus === 'TWILIO_APPROVED' || event.rawStatus === 'APPROVED';
@@ -399,13 +403,24 @@ export class MessagingComplianceService {
             }
         }
 
+        const newStatus = updates.complianceStatus ?? row.complianceStatus;
+        const newRejectionReason = 'rejectionReason' in updates
+            ? (updates.rejectionReason ?? null)
+            : (row.rejectionReason ?? null);
+        // `changed` is true when the rolled-up complianceStatus differs from the
+        // prior persisted value. Sub-status fields (brandStatus etc.) changing
+        // without a complianceStatus change do NOT set changed=true.
+        const changed = newStatus !== row.complianceStatus;
+
         await this.persist(tenantId, updates);
         logger.info('[compliance-svc] applied compliance callback', {
             tenantId,
             entity: event.entity,
             rawStatus: event.rawStatus,
-            newStatus: updates.complianceStatus ?? row.complianceStatus,
+            newStatus,
+            changed,
         });
+        return { changed, complianceStatus: newStatus, rejectionReason: newRejectionReason };
     }
 
     // -------------------------------------------------------------------------
@@ -431,9 +446,12 @@ export class MessagingComplianceService {
      * @param tenantId - Tenant to sync.
      * @param client   - Injectable TwilioClient (caller builds from env; tests inject a fake).
      */
-    async syncManagedStatus(tenantId: string, client: ReadClient): Promise<void> {
+    async syncManagedStatus(
+        tenantId: string,
+        client: ReadClient,
+    ): Promise<{ changed: boolean; complianceStatus: string; rejectionReason: string | null }> {
         const row = await this.getRow(tenantId);
-        if (!row) return;
+        if (!row) return { changed: false, complianceStatus: 'not_started', rejectionReason: null };
 
         const updates: Partial<typeof messagingCompliance.$inferInsert> = {};
 
@@ -479,12 +497,19 @@ export class MessagingComplianceService {
             }
         }
 
+        const newStatus = updates.complianceStatus ?? row.complianceStatus;
+        const newRejectionReason = 'rejectionReason' in updates
+            ? (updates.rejectionReason ?? null)
+            : (row.rejectionReason ?? null);
+        const changed = newStatus !== row.complianceStatus;
+
         if (Object.keys(updates).length > 0) {
             await this.persist(tenantId, updates);
             logger.info('[compliance-svc] syncManagedStatus: updated row', {
                 tenantId, updates: JSON.stringify(updates),
             });
         }
+        return { changed, complianceStatus: newStatus, rejectionReason: newRejectionReason };
     }
 
     /**
@@ -504,6 +529,7 @@ export class MessagingComplianceService {
         acctSid: string,
         apiKeySecret: string,
         apiKeySid: string,
+        outbox?: OutboxService,
     ): Promise<void> {
         const db = this.d();
         const terminalStatuses = ['approved', 'rejected'] as const;
@@ -522,7 +548,22 @@ export class MessagingComplianceService {
 
         for (const { tenantId } of managedRows) {
             try {
-                await this.syncManagedStatus(tenantId, client);
+                const result = await this.syncManagedStatus(tenantId, client);
+                if (result.changed && outbox) {
+                    // Fail-soft outbox emit: a queue failure must not abort the sweep.
+                    outbox.append({
+                        type: 'io.inspectorhub.tenant.compliance_status_updated',
+                        payload: {
+                            tenantId,
+                            complianceStatus: result.complianceStatus,
+                            rejectionReason: result.rejectionReason,
+                            updatedAt: Math.floor(Date.now() / 1000),
+                        },
+                    }).catch((err) => {
+                        logger.error('[compliance-svc] sweepManagedStatuses: outbox emit failed', { tenantId },
+                            err instanceof Error ? err : new Error(String(err)));
+                    });
+                }
             } catch (err) {
                 // Fail-soft: log the error but continue sweeping remaining tenants.
                 logger.error('[compliance-svc] sweepManagedStatuses: tenant sync failed', { tenantId },
