@@ -223,7 +223,7 @@ describe('MessagingComplianceService.provision', () => {
         expect(result.complianceStatus).toBe('campaign_pending');
         expect(row?.brandSid).toBe('BNx');
         expect(row?.campaignSid).toBe('CMx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.complianceStatus).toBe('campaign_pending');
         expect(calls).toContain('cp');
@@ -270,7 +270,7 @@ describe('MessagingComplianceService.provision', () => {
             .get();
         expect(result.complianceStatus).toBe('tfv_pending');
         expect(row?.tfvSid).toBe('HVx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.complianceStatus).toBe('tfv_pending');
         expect(calls.filter(c => c === 'tfv').length).toBe(1);
@@ -340,7 +340,7 @@ describe('MessagingComplianceService.provision', () => {
             .get();
         expect(row?.customerProfileSid).toBe('BUx');
         expect(row?.brandSid).toBe('BNx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         // Campaign was not persisted.
         expect(row?.campaignSid).toBeNull();
         expect(row?.complianceStatus).toBe('brand_pending');

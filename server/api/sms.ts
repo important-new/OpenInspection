@@ -437,7 +437,7 @@ async function getManagedSubRow(db: ReturnType<typeof drizzle>, tenantId: string
             brandStatus: messagingCompliance.brandStatus,
             campaignStatus: messagingCompliance.campaignStatus,
             tfvStatus: messagingCompliance.tfvStatus,
-            messagingServiceSid: messagingCompliance.messagingServiceSid,
+            messagingServiceSid: messagingCompliance.messagingResourceSid,
             provisionedNumber: messagingCompliance.provisionedNumber,
         }).from(messagingCompliance).where(eq(messagingCompliance.tenantId, tenantId)).get();
     } catch { return undefined; }

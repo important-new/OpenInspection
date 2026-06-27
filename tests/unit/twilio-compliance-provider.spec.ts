@@ -127,7 +127,7 @@ describe('TwilioComplianceProvider.provision (sp10dlc)', () => {
         const row = await readRow(fx, 'p1');
         expect(row?.customerProfileSid).toBe('BUx');
         expect(row?.brandSid).toBe('BNx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         expect(row?.campaignSid).toBe('CMx');
         expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.provisionedNumberSid).toBe('PNx');
@@ -184,7 +184,7 @@ describe('TwilioComplianceProvider.provision (sp10dlc)', () => {
         const row = await readRow(fx, 'p4');
         expect(row?.customerProfileSid).toBe('BUx');
         expect(row?.brandSid).toBe('BNx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         expect(row?.campaignSid).toBeNull();
         expect(row?.complianceStatus).toBe('brand_pending');
         fx.sqlite.close();
@@ -230,7 +230,7 @@ describe('TwilioComplianceProvider.provision (tollfree)', () => {
         expect(snap.complianceStatus).toBe('tfv_pending');
         const row = await readRow(fx, 'p3');
         expect(row?.tfvSid).toBe('HVx');
-        expect(row?.messagingServiceSid).toBe('MGx');
+        expect(row?.messagingResourceSid).toBe('MGx');
         expect(row?.provisionedNumber).toBe('+18005550000');
         expect(row?.complianceStatus).toBe('tfv_pending');
         // sp10dlc-only steps must NOT run on the tollfree path.

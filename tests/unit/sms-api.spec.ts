@@ -627,7 +627,7 @@ describe('Managed compliance admin endpoints (Task 6)', () => {
             complianceStatus: 'brand_pending',
             customerProfileStatus: 'PENDING_REVIEW',
             brandStatus: 'PENDING',
-            messagingServiceSid: 'MG123',
+            messagingResourceSid: 'MG123',
             createdAt: now,
             updatedAt: now,
         } as never);

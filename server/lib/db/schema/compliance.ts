@@ -87,7 +87,12 @@ export const messagingCompliance = sqliteTable('messaging_compliance', {
     campaignStatus: text('campaign_status'),
     tfvSid: text('tfv_sid'),
     tfvStatus: text('tfv_status'),
-    messagingServiceSid: text('messaging_service_sid'),
+    messagingResourceSid: text('messaging_resource_sid'),
+    // Provider-specific metadata stored as a JSON string. Used by non-Twilio
+    // providers (e.g. Telnyx) to persist vetting or compliance entity IDs that
+    // do not map to the Twilio-shaped SID columns above. Nullable: absent for
+    // Twilio tenants and for rows that pre-date multi-provider support.
+    providerMeta: text('provider_meta'),
     provisionedNumber: text('provisioned_number'),
     // The Twilio phone-number SID (PN...) returned by numbers.buy. Required for
     // attachSender and tollfree.create; persisted before those calls so a crash-

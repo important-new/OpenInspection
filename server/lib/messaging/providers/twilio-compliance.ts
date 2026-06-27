@@ -175,16 +175,16 @@ export class TwilioComplianceProvider implements ComplianceProvider {
 
             // Step 3 (sp10dlc): messaging service.
             // → messaging.v1.services.create (POST /v1/Services)
-            if (!row.messagingServiceSid) {
+            if (!row.messagingResourceSid) {
                 const ms = await this.client.messaging.v1.services.create({ friendlyName: businessInfo.legalName });
-                row = await store.persist(tenantId, { messagingServiceSid: ms.sid });
+                row = await store.persist(tenantId, { messagingResourceSid: ms.sid });
             }
 
-            // Step 4 (sp10dlc): campaign — needs messagingServiceSid + brandSid.
+            // Step 4 (sp10dlc): campaign — needs messagingResourceSid + brandSid.
             // generic (Usa2p MessageSamples[] array form).
             if (!row.campaignSid) {
                 const c = await this.genericPost(
-                    `${MESSAGING}/v1/Services/${row.messagingServiceSid}/Compliance/Usa2p`,
+                    `${MESSAGING}/v1/Services/${row.messagingResourceSid}/Compliance/Usa2p`,
                     {
                         BrandRegistrationSid: row.brandSid!,
                         Description: `Inspection notifications for ${businessInfo.legalName}`,
@@ -211,16 +211,16 @@ export class TwilioComplianceProvider implements ComplianceProvider {
                 row = await this.buyNumber(tenantId, 'local', businessInfo.areaCode, store);
             }
             if (!row.senderAttached) {
-                await this.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
+                await this.attachSender(row.messagingResourceSid!, row.provisionedNumberSid!);
                 row = await store.persist(tenantId, { senderAttached: true });
             }
         } else {
             // tollfree channel
 
             // Step 2 (tollfree): messaging service.
-            if (!row.messagingServiceSid) {
+            if (!row.messagingResourceSid) {
                 const ms = await this.client.messaging.v1.services.create({ friendlyName: businessInfo.legalName });
-                row = await store.persist(tenantId, { messagingServiceSid: ms.sid });
+                row = await store.persist(tenantId, { messagingResourceSid: ms.sid });
             }
 
             // Step 3 (tollfree): buy number (guarded), then attach (guarded separately).
@@ -228,18 +228,18 @@ export class TwilioComplianceProvider implements ComplianceProvider {
                 row = await this.buyNumber(tenantId, 'tollfree', businessInfo.areaCode, store);
             }
             if (!row.senderAttached) {
-                await this.attachSender(row.messagingServiceSid!, row.provisionedNumberSid!);
+                await this.attachSender(row.messagingResourceSid!, row.provisionedNumberSid!);
                 row = await store.persist(tenantId, { senderAttached: true });
             }
 
             // Step 4 (tollfree): toll-free verification — needs provisionedNumberSid +
-            // messagingServiceSid. generic (ISV param shape: UseCaseDescription +
+            // messagingResourceSid. generic (ISV param shape: UseCaseDescription +
             // MessagingServiceSid). tollfreePhoneNumberSid is the PN... SID, not E.164.
             if (!row.tfvSid) {
                 const tfv = await this.genericPost(`${MESSAGING}/v1/Tollfree/Verifications`, {
                     TollfreePhoneNumberSid: row.provisionedNumberSid!,
                     UseCaseDescription: `Inspection notifications for ${businessInfo.legalName}`,
-                    MessagingServiceSid: row.messagingServiceSid!,
+                    MessagingServiceSid: row.messagingResourceSid!,
                     NotificationEmail: businessInfo.email ?? '',
                     UseCaseSummary: 'Send inspection reports, scheduling reminders, and repair request updates to clients.',
                     ProductionMessageSample: 'Your inspection report is ready. View it at {{link}}.',
