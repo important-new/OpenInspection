@@ -34,6 +34,7 @@ import type {
 } from '../compliance-provider';
 import type { ComplianceStateStore, ComplianceRow } from '../compliance-state-store';
 import { complianceWebhookUrl } from '../../sms/compliance-webhook';
+import { verifyTelnyxSignature } from '../telnyx';
 
 // ---------------------------------------------------------------------------
 // Minimal structural type of the telnyx SDK surface the provider uses. The real
@@ -65,6 +66,19 @@ interface TelnyxPhoneNumberCampaignResult { phoneNumber?: string; assignmentStat
 // `verificationRequestId`.
 interface TelnyxTfvResult { id?: string; verificationRequestId?: string; verificationStatus?: string }
 
+// --- syncStatus retrieve return shapes (pinned from node_modules/telnyx) ----
+// All three retrieve responses are FLAT (no `.data` wrapper) — unlike
+// messagingProfiles.create / numberOrders.create which ARE `.data`-wrapped.
+//   brand.retrieve(brandID)        → BrandRetrieveResponse extends TelnyxBrand
+//       → { brandId?, identityStatus?: BrandIdentityStatus, failureReasons? }
+//   campaign.retrieve(campaignID)  → TelnyxCampaignCsp
+//       → { campaignId, campaignStatus?, failureReasons? }
+//   requests.retrieve(id)          → VerificationRequestStatus
+//       → { id, verificationStatus: TfVerificationStatus, reason? }
+interface TelnyxBrandStatusResult { brandId?: string; identityStatus?: string; failureReasons?: string | null }
+interface TelnyxCampaignStatusResult { campaignId?: string; campaignStatus?: string; failureReasons?: string | null }
+interface TelnyxTfvStatusResult { id?: string; verificationStatus?: string; reason?: string | null }
+
 export interface TelnyxComplianceClient {
     messaging10dlc: {
         brand: {
@@ -72,6 +86,10 @@ export interface TelnyxComplianceClient {
             externalVetting: {
                 order(brandID: string, body: { evpId: string; vettingClass: string }): Promise<TelnyxVettingResult>;
             };
+            retrieve(brandID: string): Promise<TelnyxBrandStatusResult>;
+        };
+        campaign: {
+            retrieve(campaignID: string): Promise<TelnyxCampaignStatusResult>;
         };
         campaignBuilder: {
             submit(body: Record<string, unknown>): Promise<TelnyxCampaignResult>;
@@ -96,9 +114,85 @@ export interface TelnyxComplianceClient {
         verification: {
             requests: {
                 create(body: Record<string, unknown>): Promise<TelnyxTfvResult>;
+                retrieve(id: string): Promise<TelnyxTfvStatusResult>;
             };
         };
     };
+}
+
+// ---------------------------------------------------------------------------
+// Normalized status mapping (real Telnyx enums → ComplianceStatus). The raw
+// enum values are pinned from node_modules/telnyx; the normalized targets are
+// the ComplianceStatus union. `approved`/`rejected` are terminal and only set
+// at the terminal entity (campaign for sp10dlc, tfv for tollfree).
+// ---------------------------------------------------------------------------
+
+// TfVerificationStatus = 'Verified'|'Rejected'|'Waiting For Vendor'|
+//   'Waiting For Customer'|'Waiting For Telnyx'|'In Progress'.
+function normalizeTfvStatus(raw: string): 'approved' | 'rejected' | 'tfv_pending' {
+    if (raw === 'Verified') return 'approved';
+    if (raw === 'Rejected') return 'rejected';
+    return 'tfv_pending';
+}
+
+// BrandIdentityStatus = 'VERIFIED'|'UNVERIFIED'|'SELF_DECLARED'|'VETTED_VERIFIED'.
+// Brand approval advances toward the campaign step but is NOT terminal — it can
+// only ever set `brand_pending` (the campaign is the terminal sp10dlc entity),
+// and per no-regress it must never roll back a row already at campaign_pending /
+// approved. UNVERIFIED / SELF_DECLARED stay brand_pending. There is no brand
+// identity value that maps to `rejected`.
+function isBrandApproved(raw: string): boolean {
+    return raw === 'VERIFIED' || raw === 'VETTED_VERIFIED';
+}
+
+// campaignStatus = 'TCR_PENDING'|'TCR_SUSPENDED'|'TCR_EXPIRED'|'TCR_ACCEPTED'|
+//   'TCR_FAILED'|'TELNYX_ACCEPTED'|'TELNYX_FAILED'|'MNO_PENDING'|'MNO_ACCEPTED'|
+//   'MNO_REJECTED'|'MNO_PROVISIONED'|'MNO_PROVISIONING_FAILED'.
+// CHOSEN `approved` SET (LIVE-tunable): { MNO_PROVISIONED, MNO_ACCEPTED } — both
+// mean the mobile network operator has accepted/provisioned the campaign, i.e.
+// it is operational on the carrier. TELNYX_ACCEPTED / TCR_ACCEPTED are EARLIER
+// pipeline (Telnyx- / registry-level) acceptance and are intentionally NOT
+// treated as operational. `rejected` = any *_FAILED / MNO_REJECTED / TCR_SUSPENDED
+// / TCR_EXPIRED. Everything else stays campaign_pending.
+const CAMPAIGN_APPROVED = new Set(['MNO_PROVISIONED', 'MNO_ACCEPTED']);
+const CAMPAIGN_REJECTED = new Set([
+    'TCR_FAILED', 'TELNYX_FAILED', 'MNO_REJECTED', 'MNO_PROVISIONING_FAILED', 'TCR_SUSPENDED', 'TCR_EXPIRED',
+]);
+function normalizeCampaignStatus(raw: string): 'approved' | 'rejected' | 'campaign_pending' {
+    if (CAMPAIGN_APPROVED.has(raw)) return 'approved';
+    if (CAMPAIGN_REJECTED.has(raw)) return 'rejected';
+    return 'campaign_pending';
+}
+
+// ---------------------------------------------------------------------------
+// Webhook event_type → normalized entity. The Telnyx webhook payloads are NOT
+// SDK-modeled (webhook events have no type in node_modules/telnyx), so these
+// event_type strings + payload field paths are a BEST-UNDERSTANDING mapping
+// based on Telnyx's documented entity-status webhook naming.
+//
+// !!! LIVE-CONFIRMATION REQUIRED !!! Before the managed path is activated, the
+// exact event_type strings AND the payload field paths (brandId / identityStatus
+// / failureReasons, campaignId / campaignStatus / failureReasons, id /
+// verificationStatus / reason) MUST be confirmed against the live Telnyx webhook
+// docs / a real captured event. The whole managed path is LIVE-gated; these
+// mock fixtures prove the parse logic, LIVE confirms the strings.
+// ---------------------------------------------------------------------------
+const BRAND_EVENT_TYPES = new Set(['brand.status.updated', 'brand.update']);
+const CAMPAIGN_EVENT_TYPES = new Set(['campaign.status.updated', 'campaign.update']);
+const TFV_EVENT_TYPES = new Set(['tollfree_verification.updated', 'verification_request.update']);
+
+interface TelnyxWebhookPayload {
+    brandId?: string;
+    identityStatus?: string;
+    campaignId?: string;
+    campaignStatus?: string;
+    id?: string;
+    verificationStatus?: string;
+    failureReasons?: string | null;
+    reason?: string | null;
+}
+interface TelnyxWebhookEnvelope {
+    data?: { event_type?: string; payload?: TelnyxWebhookPayload };
 }
 
 // External vetting order defaults. evpId names the external vetting provider
@@ -417,21 +511,142 @@ export class TelnyxComplianceProvider implements ComplianceProvider {
         });
     }
 
-    // --- interface methods stubbed until later tasks ------------------------
+    // --- webhook verify / parse / cron sync ---------------------------------
 
-    /** Telnyx Ed25519 webhook-signature verification — Task 3. */
-    async verifyWebhookSignature(_ctx: WebhookVerifyCtx): Promise<boolean> {
-        throw new Error('not implemented');
+    /**
+     * Telnyx Ed25519 webhook-signature verification. Delegates to the shared
+     * verifyTelnyxSignature helper (Ed25519 over `${timestamp}|${rawBody}`, ±300s
+     * anti-replay, fail-closed). `ctx.secret` is the base64 Ed25519 public key.
+     * The helper already returns false (never throws) on missing headers / bad
+     * base64, so missing `telnyx-timestamp` / `telnyx-signature-ed25519` fail closed.
+     */
+    verifyWebhookSignature(ctx: WebhookVerifyCtx): Promise<boolean> {
+        return verifyTelnyxSignature(
+            ctx.secret,
+            ctx.headers['telnyx-timestamp'] ?? '',
+            ctx.rawBody,
+            ctx.headers['telnyx-signature-ed25519'] ?? '',
+            ctx.nowMs,
+        );
     }
 
-    /** Telnyx compliance-event parsing — Task 3. */
-    parseCallback(_headers: Record<string, string>, _rawBody: string): ComplianceEvent | null {
-        throw new Error('not implemented');
+    /**
+     * Parse a Telnyx compliance-status webhook into a normalized event. Telnyx
+     * wraps events as `{ data: { event_type, payload } }`. The `event_type`
+     * selects the entity (brand → campaign → tfv detection order, first match
+     * wins, mirroring the Twilio provider); `rawStatus` / `entitySid` /
+     * `rejectionReason` are pulled from the matching payload fields. Returns null
+     * for unparseable bodies and unrecognized event types.
+     *
+     * NOTE: event_type strings + payload field paths are a best-understanding
+     * mapping pending LIVE confirmation — see the BRAND/CAMPAIGN/TFV_EVENT_TYPES
+     * docblock at the top of this file.
+     */
+    parseCallback(_headers: Record<string, string>, rawBody: string): ComplianceEvent | null {
+        let env: TelnyxWebhookEnvelope;
+        try {
+            env = JSON.parse(rawBody) as TelnyxWebhookEnvelope;
+        } catch {
+            return null; // unparseable body
+        }
+        const eventType = env.data?.event_type ?? '';
+        const payload = env.data?.payload ?? {};
+
+        // Brand branch.
+        if (BRAND_EVENT_TYPES.has(eventType)) {
+            return {
+                entity: 'brand',
+                rawStatus: payload.identityStatus ?? '',
+                rejectionReason: payload.failureReasons ?? null,
+                entitySid: payload.brandId ?? '',
+            };
+        }
+        // Campaign branch.
+        if (CAMPAIGN_EVENT_TYPES.has(eventType)) {
+            return {
+                entity: 'campaign',
+                rawStatus: payload.campaignStatus ?? '',
+                rejectionReason: payload.failureReasons ?? null,
+                entitySid: payload.campaignId ?? '',
+            };
+        }
+        // TFV branch.
+        if (TFV_EVENT_TYPES.has(eventType)) {
+            return {
+                entity: 'tfv',
+                rawStatus: payload.verificationStatus ?? '',
+                rejectionReason: payload.reason ?? null,
+                entitySid: payload.id ?? '',
+            };
+        }
+        return null; // unrecognized event type
     }
 
-    /** Cron-poll status reconciliation — Task 3. */
-    async syncStatus(_input: { tenantId: string }, _store: ComplianceStateStore): Promise<ComplianceSnapshot> {
-        throw new Error('not implemented');
+    /**
+     * Cron-poll fallback: re-read status from Telnyx for a non-terminal managed
+     * row and advance the normalized enum. Branches are mutually exclusive
+     * (`else if`) and ordered terminal-entity-first so a terminal verdict can't
+     * be clobbered:
+     *   - TFV (tollfree, terminal): requests.retrieve(tfvSid) → Verified/Rejected.
+     *   - Campaign (sp10dlc, terminal): campaign.retrieve(campaignSid). Unlike
+     *     Twilio (no campaign REST read), Telnyx exposes the campaign status, so
+     *     this advances to approved/rejected directly.
+     *   - Brand (sp10dlc, intermediate): brand.retrieve(brandSid). Brand approval
+     *     only advances to brand_pending and, per no-regress, NEVER rolls back a
+     *     row already at campaign_pending / approved (guarded explicitly AND by the
+     *     else-if: a row with a campaignSid never reaches this branch).
+     */
+    async syncStatus(input: { tenantId: string }, store: ComplianceStateStore): Promise<ComplianceSnapshot> {
+        const { tenantId } = input;
+        const row = await store.load(tenantId);
+        if (!row) return { complianceStatus: 'not_started', rejectionReason: null };
+
+        const updates: Parameters<ComplianceStateStore['persist']>[1] = {};
+
+        if (row.tfvSid) {
+            const tfv = await this.client.messagingTollfree.verification.requests.retrieve(row.tfvSid);
+            const raw = tfv.verificationStatus ?? '';
+            updates.tfvStatus = raw;
+            const norm = normalizeTfvStatus(raw);
+            if (norm === 'approved') {
+                updates.complianceStatus = 'approved';
+                updates.rejectionReason = null;
+            } else if (norm === 'rejected') {
+                updates.complianceStatus = 'rejected';
+                updates.rejectionReason = tfv.reason ?? raw;
+            }
+        } else if (row.campaignSid) {
+            const camp = await this.client.messaging10dlc.campaign.retrieve(row.campaignSid);
+            const raw = camp.campaignStatus ?? '';
+            updates.campaignStatus = raw;
+            const norm = normalizeCampaignStatus(raw);
+            if (norm === 'approved') {
+                updates.complianceStatus = 'approved';
+                updates.rejectionReason = null;
+            } else if (norm === 'rejected') {
+                updates.complianceStatus = 'rejected';
+                updates.rejectionReason = camp.failureReasons ?? raw;
+            }
+            // else: stays campaign_pending (no change).
+        } else if (row.brandSid) {
+            const brand = await this.client.messaging10dlc.brand.retrieve(row.brandSid);
+            const raw = brand.identityStatus ?? '';
+            updates.brandStatus = raw;
+            // No-regress: brand approval can only set brand_pending, never roll back
+            // a row already at campaign_pending / approved.
+            if (isBrandApproved(raw)
+                && row.complianceStatus !== 'approved'
+                && row.complianceStatus !== 'campaign_pending') {
+                updates.complianceStatus = 'brand_pending';
+            }
+        }
+
+        const newStatus = updates.complianceStatus ?? row.complianceStatus;
+        const newRejectionReason = 'rejectionReason' in updates
+            ? (updates.rejectionReason ?? null)
+            : (row.rejectionReason ?? null);
+        if (Object.keys(updates).length > 0) await store.persist(tenantId, updates);
+        return { complianceStatus: newStatus, rejectionReason: newRejectionReason };
     }
 
     /** Public compliance-status webhook URL for a tenant slug (single source of truth). */
