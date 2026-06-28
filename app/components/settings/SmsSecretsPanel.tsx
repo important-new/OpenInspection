@@ -34,6 +34,7 @@ export function SmsSecretsPanel({
     TWILIO_FROM_NUMBER: string;
     TELNYX_API_KEY: string;
     TELNYX_FROM_NUMBER: string;
+    TELNYX_PUBLIC_KEY: string;
   };
   secretFieldError: (name: string) => string | undefined;
   secretFormError: (intent: string) => string | null;
@@ -109,9 +110,9 @@ export function SmsSecretsPanel({
           {provider === "telnyx" && (
             <>
               <p className="text-[13px] text-ih-fg-3">
-                Add your Telnyx API key and sending number. Configure your number in the{" "}
+                Add your Telnyx API key, sending number, and public key. Configure your number in the{" "}
                 <a href="https://portal.telnyx.com/" target="_blank" rel="noopener noreferrer" className="text-ih-primary hover:underline">Telnyx Mission Control Portal</a>.
-                Inbound STOP/HELP parity is a follow-up — outbound SMS is fully operational.
+                Outbound SMS plus inbound STOP/HELP parity are both fully operational once the public key is set.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <SecretField name="TELNYX_API_KEY" label="Telnyx API Key"
@@ -120,6 +121,9 @@ export function SmsSecretsPanel({
                 <SecretField name="TELNYX_FROM_NUMBER" label="Telnyx From Number"
                   value={secrets.TELNYX_FROM_NUMBER} error={secretFieldError("TELNYX_FROM_NUMBER")}
                   hint="Your Telnyx sending number in E.164, e.g. +15551234567" />
+                <SecretField name="TELNYX_PUBLIC_KEY" label="Telnyx Public Key"
+                  value={secrets.TELNYX_PUBLIC_KEY} error={secretFieldError("TELNYX_PUBLIC_KEY")}
+                  hint="Telnyx Mission Control → your Messaging Profile → Public Key. Used to verify inbound STOP/HELP webhooks." />
               </div>
             </>
           )}
@@ -152,7 +156,7 @@ export function SmsSecretsPanel({
             </div>
             <p className="text-[11px] text-ih-fg-4">
               {provider === "telnyx"
-                ? "Paste this into your Telnyx number’s inbound webhook so STOP/HELP replies sync (requires inbound handler — follow-up)."
+                ? "Paste this into your Telnyx number’s inbound webhook so STOP/HELP replies sync. Set your Public Key above so we can verify these webhooks."
                 : "Paste this into your Twilio number’s Messaging webhook so STOP/START replies sync."}
             </p>
           </div>
