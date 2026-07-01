@@ -1,4 +1,5 @@
 import { TabStrip } from "@core/shared-ui";
+import { DefectCategoryChip } from "../editor-shared/DefectCategoryChip";
 import { DefectFieldsRow, type DefectFieldsValue } from "./DefectFieldsRow";
 import { RepairItemsPanel } from "./RepairItemsPanel";
 import { CustomDefectForm } from "./CustomDefectForm";
@@ -201,15 +202,7 @@ export function CannedCommentTabs({
                   <div className="text-[12px] font-bold text-ih-fg-2">
                     {entry.title}
                     {"category" in entry && (entry as CannedDefect).category && (
-                      <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
-                        (entry as CannedDefect).category === "safety"
-                          ? "bg-ih-bad-bg text-ih-bad-fg"
-                          : (entry as CannedDefect).category === "recommendation"
-                          ? "bg-ih-watch-bg text-ih-watch-fg"
-                          : "bg-ih-bg-muted text-ih-fg-3"
-                      }`}>
-                        {(entry as CannedDefect).category}
-                      </span>
+                      <DefectCategoryChip category={(entry as CannedDefect).category} className="ml-1.5" />
                     )}
                   </div>
                   {(() => {
@@ -315,15 +308,7 @@ export function CannedCommentTabs({
                 <div className="flex-1 min-w-0">
                   <div className="text-[12px] font-bold text-ih-fg-2">
                     {cd.title}
-                    <span className={`ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
-                      cd.category === "safety"
-                        ? "bg-ih-bad-bg text-ih-bad-fg"
-                        : cd.category === "recommendation"
-                        ? "bg-ih-watch-bg text-ih-watch-fg"
-                        : "bg-ih-bg-muted text-ih-fg-2"
-                    }`}>
-                      {cd.category}
-                    </span>
+                    <DefectCategoryChip category={cd.category} className="ml-1.5" />
                     <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-ih-primary-tint text-ih-primary">
                       custom
                     </span>
