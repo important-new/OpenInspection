@@ -185,7 +185,7 @@ export function ItemEditor({
  const notesRef = useRef<HTMLTextAreaElement | null>(null);
  const [taOpen, setTaOpen] = useState(false);
  const [taQuery, setTaQuery] = useState("");
- const taEntries = flattenItemTabs(item?.tabs as never);
+ const taEntries = useMemo(() => flattenItemTabs(item?.tabs as never), [item?.tabs]);
  const ta = useCommentTypeahead(taEntries, taQuery, { max: 8 });
 
  const insertPick = (commentText: string) => {

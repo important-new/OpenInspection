@@ -15,11 +15,13 @@ export interface ItemHeaderProps {
 /** Shared item title line (spec §3.3): number + label + required/safety badges. */
 export function ItemHeader({ number, label, required, isSafety, size = "sm", className, as = "div" }: ItemHeaderProps) {
   const Tag = as;
-  const labelClass = size === "lg" ? "text-[19px] font-bold" : "text-[13px] font-medium";
+  // `lg` (inspection editor heading) wraps long labels like the original <h2>;
+  // `sm` (template item card) truncates to one line in its narrow card.
+  const labelClass = size === "lg" ? "text-[19px] font-bold" : "truncate text-[13px] font-medium";
   return (
     <Tag className={`flex items-center gap-2 min-w-0${className ? ` ${className}` : ""}`}>
       {number && <span className="text-[10px] font-mono text-ih-fg-4 w-5">{number}</span>}
-      <span className={`truncate ${labelClass}`}>{label}</span>
+      <span className={labelClass}>{label}</span>
       {required && (
         <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-ih-bad-bg text-ih-bad-fg">
           required
