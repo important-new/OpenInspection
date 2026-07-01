@@ -22,6 +22,7 @@ import { shouldTriggerSlash } from "../../lib/slash-trigger";
 import { findRatingLevel, type EditorRatingLevel } from "../../lib/rating-levels";
 import { findRatingContradictions } from "../../lib/contradiction-lint";
 import { filterCannedEntries, deriveDefectTitle, type CustomDefect, type CustomDefectCategory } from "../../lib/custom-defects";
+import { ItemHeader } from "../editor-shared/ItemHeader";
 
 export type { LibraryMatch };
 
@@ -357,7 +358,7 @@ export function ItemEditor({
  <div className="text-[11px] text-ih-primary font-bold uppercase tracking-wide">
  {sectionTitle}
  </div>
- <h2 className="text-[19px] font-bold mt-1">{item.label}</h2>
+ <ItemHeader label={item.label} size="lg" className="mt-1" as="h2" />
  </div>
 
  {/* Item attributes (equipment fields: brand, year, model, etc.) */}
