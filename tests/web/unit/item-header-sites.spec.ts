@@ -14,6 +14,7 @@ describe("item header sites (behavior-preserving)", () => {
     } as never));
     expect(out).toContain("Exterior");
     expect(out).toContain("Roof covering");
+    expect(out).toContain("<h2");
   });
 
   it("SectionsList still shows the padded index + item label", () => {
