@@ -82,7 +82,7 @@ export function SectionsList({ section, activeSection, previewMode, editingItem,
                       ) : (
                         <button
                           onClick={() => { setEditingItem(item.id); setRightRail("properties"); }}
-                          className="flex-1 text-left hover:text-ih-primary"
+                          className="flex-1 text-left text-ih-fg-1 hover:text-ih-primary"
                         >
                           <ItemHeader number={String(idx + 1).padStart(2, "0")} label={item.label} />
                         </button>

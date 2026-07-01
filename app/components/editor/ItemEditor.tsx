@@ -358,7 +358,7 @@ export function ItemEditor({
  <div className="text-[11px] text-ih-primary font-bold uppercase tracking-wide">
  {sectionTitle}
  </div>
- <ItemHeader label={item.label} size="lg" className="mt-1" as="h2" />
+ <ItemHeader label={item.label} size="lg" className="mt-1 text-ih-fg-1" as="h2" />
  </div>
 
  {/* Item attributes (equipment fields: brand, year, model, etc.) */}
