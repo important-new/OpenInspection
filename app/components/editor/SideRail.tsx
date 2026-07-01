@@ -4,6 +4,7 @@ import { DEFECT_TRADE_LABELS, DEFECT_DEADLINE_LABELS, DEFECT_TIMEFRAME_LABELS } 
 import { photoDisplayName, withDownload } from "../../lib/photo-name";
 import { PhotoGallery } from "~/components/media-studio/PhotoGallery";
 import { CommentLibraryList } from "./CommentLibraryList";
+import { CannedCommentRow } from "../editor-shared/CannedCommentRow";
 
 interface SideRailProps {
   activeItem?: { id: string; label: string; type?: string } | null;
@@ -20,6 +21,8 @@ interface SideRailProps {
   onLibrarySearch?: (q: string) => void;
   onLibraryInsert?: (text: string, id: string) => void;
   onLibraryTabChange?: (open: boolean) => void;
+  /** Initial open state — used only in server-rendered tests (defaults false). */
+  initialOpen?: boolean;
 }
 
 type TabId = "preview" | "library" | "photos";
@@ -30,9 +33,9 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: "photos", label: "Photos", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" },
 ];
 
-export function SideRail({ activeItem, activeResult, getRatingColor, getRatingLabel, inspectionId, photoCount, onGallerySetCover, onGalleryAnnotate, serverComments, librarySort, onLibrarySearch, onLibraryInsert, onLibraryTabChange }: SideRailProps) {
+export function SideRail({ activeItem, activeResult, getRatingColor, getRatingLabel, inspectionId, photoCount, onGallerySetCover, onGalleryAnnotate, serverComments, librarySort, onLibrarySearch, onLibraryInsert, onLibraryTabChange, initialOpen }: SideRailProps) {
   const [activeTab, setActiveTab] = useState<TabId>("preview");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen ?? false);
 
   const toggle = (tabId: TabId) => {
     if (activeTab === tabId && open) {
@@ -108,7 +111,7 @@ export function SideRail({ activeItem, activeResult, getRatingColor, getRatingLa
                     return included.length > 0 ? (
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-ih-fg-4">Comments</span>
-                        <ul className="mt-1 space-y-1">
+                        <div className="mt-1 space-y-1">
                           {included.map((c, i) => {
                             const isDefect = c.tabName === "defects";
                             const text = (c.text as string) || "";
@@ -120,10 +123,18 @@ export function SideRail({ activeItem, activeResult, getRatingColor, getRatingLa
                               ...attrVars,
                             }) : text;
                             return (
-                              <li key={i} className="text-[11px] text-ih-fg-2 pl-2 border-l-2 border-ih-border">{rendered}</li>
+                              <CannedCommentRow
+                                key={i}
+                                as="div"
+                                interactive={false}
+                                selected={false}
+                                title={(c.title as string | undefined) ?? undefined}
+                                category={isDefect ? (c.category as string | undefined) : undefined}
+                                bodySlot={<p className="text-[11px] leading-relaxed text-ih-fg-2">{rendered}</p>}
+                              />
                             );
                           })}
-                        </ul>
+                        </div>
                       </div>
                     ) : null;
                   })()}
