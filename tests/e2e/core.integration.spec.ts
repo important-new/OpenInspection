@@ -20,8 +20,8 @@ import { writeFileSync, existsSync, rmSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
-import { loadDevVars } from './helpers/dev-vars';
-import { makeStripeSignature } from './helpers/stripe-sig';
+import { loadDevVars } from '../helpers/dev-vars';
+import { makeStripeSignature } from '../helpers/stripe-sig';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
