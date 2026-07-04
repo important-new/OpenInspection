@@ -27,10 +27,22 @@ const root = process.cwd();
 const EXPLICIT = {
     // ambiguous names pinned by hand (reviewed in dry-run):
     'portal-isolation.spec.ts': 'sync',
-    'assignment-links.spec.ts': 'agents',
-    'aggregate-contractor-snapshot.spec.ts': 'repair',
+    // NOT the real-estate "agents" (AgentService referral-partner) domain —
+    // this tests syncInspectionAssignments/-Batch (inspectionInspectors
+    // lead/helper rows), consumed by server/api/inspections/core.ts and the
+    // booking/concierge/inspection-request write paths. Belongs with inspections.
+    'assignment-links.spec.ts': 'inspections',
+    // Tests AttachedRecommendationItemSchema (contractorTypeSnapshot on an
+    // attached recommendation) — same attached-recommendation-item shape as
+    // aggregate-recommendations.spec.ts, which RULES already sends to
+    // 'comments' (the recommendations/contractor-type home per the
+    // comments-repair fold). Keep the pair together, not in 'repair'.
+    'aggregate-contractor-snapshot.spec.ts': 'comments',
     'iter2-bug9-sign-redirect.spec.ts': 'agreements',
-    'import-history.service.spec.ts': 'inspections',
+    // Tests ImportHistoryService against tenantMarketplaceImportHistory
+    // (template/library install/update/replace/migrate rows) — this is
+    // marketplace template-import history, not inspection content.
+    'import-history.service.spec.ts': 'marketplace',
     'tag.service.spec.ts': 'inspections',
     'subsystem-b-results-shape-tolerance.spec.ts': 'inspections',
     'event.service.spec.ts': 'calendar',
@@ -52,6 +64,14 @@ const EXPLICIT = {
     'wizard-schema.spec.ts': 'platform',
     'profile-schema.spec.ts': 'auth',
     'resolve-provider.spec.ts': 'messaging',
+    // free-tier usage-quotas (2026-07-02/2026-07-03 specs) — names don't carry
+    // a usage-/quota- prefix RULES can key on:
+    'estimate-range.spec.ts': 'inspections', // sanitizeDefectStates + getReportData via InspectionService
+    'plan-quota-guarded-services.spec.ts': 'usage', // PlanQuotaGuard applied at concierge/booking/inspection-request boundaries
+    'plan-quota-notice.spec.ts': 'usage', // noticeFor() threshold-detection helper (Task 8)
+    'plan-quota.spec.ts': 'usage', // PlanQuotaGuard core (tenants.tier + MeteringService)
+    'quota-threshold-notice.spec.ts': 'usage', // EmailBaseService.sendQuotaThresholdNotice (Task 8)
+    'team-remove-softdelete.spec.ts': 'tenancy', // TeamService.removeMember soft-delete, matches team-invite.service.spec.ts bucket
 };
 const RULES = [
     [/^usage|^metering|^r2-usage|^email-metering|^sms-metering/, 'usage'],
