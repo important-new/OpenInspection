@@ -1,4 +1,4 @@
-// apps/openinspection/tests/portal-isolation.spec.ts
+// apps/openinspection/tests/unit/sync/portal-isolation.spec.ts
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 
@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 function gitGrepFiles(pattern: string, ...pathspecs: string[]): string[] {
   try {
     return execFileSync('git', ['grep', '-lE', pattern, '--', ...pathspecs], {
-      cwd: __dirname + '/..',
+      cwd: __dirname + '/../../..', // sync -> unit -> tests -> repo root
       encoding: 'utf8',
     }).split('\n').filter(Boolean);
   } catch (e) {
