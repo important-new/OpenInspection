@@ -1,7 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { groupByInspectionStatus } from '~/routes/inspections';
 
-describe('groupByInspectionStatus', () => {
+// TODO(tests-reorg): stale since #147 (288da4a0) — this spec was added alongside the
+// status-split PR but `groupByInspectionStatus` was never implemented as an exported
+// pure helper on app/routes/inspections.tsx. The grouped-bucket view that shipped
+// computes its groups inline (`filteredBuckets` useMemo, keyed off the `buckets` prop)
+// instead of via a standalone function with this name/shape. This file was never wired
+// into vitest.config.ts's include list (orphaned in tests/web/, never run) until the
+// tests-reorg co-location pass activated it, surfacing the drift. Re-enable by either
+// extracting the real grouping logic into an exported `groupByInspectionStatus` (and
+// updating this spec to match its actual signature/behavior) or delete this spec if the
+// coverage is superseded by the bucket-mode render tests.
+describe.skip('groupByInspectionStatus', () => {
   it('groups rows by status in canonical order', () => {
     const rows = [
       { id: '1', status: 'completed' },

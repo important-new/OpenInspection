@@ -3,7 +3,7 @@ import {
     SPEEDMODE_COACH_KEY,
     shouldShowSpeedModeCoach,
     markSpeedModeCoached,
-} from '../../../app/lib/speedmode-coach';
+} from '~/lib/speedmode-coach';
 
 // Track H (IA-17) — device-level one-time coach mark flag.
 describe('speedmode-coach', () => {

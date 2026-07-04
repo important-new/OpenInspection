@@ -6,7 +6,7 @@
 // Also covers B3: the standalone login loader honors a same-origin `returnTo`
 // (the OAuth consent loader bounces unauthenticated users here with it).
 import { describe, it, expect } from 'vitest';
-import { loader } from '../../../app/routes/login';
+import { loader } from '~/routes/login';
 
 type LoaderArgs = Parameters<typeof loader>[0];
 

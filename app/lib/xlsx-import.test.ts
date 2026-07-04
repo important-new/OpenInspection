@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
-import { cellToText, rowsToCsv, workbookFirstSheetToCsv } from '../../../app/lib/xlsx-import';
+import { cellToText, rowsToCsv, workbookFirstSheetToCsv } from '~/lib/xlsx-import';
 
 describe('cellToText', () => {
     it('passes strings through and stringifies numbers/booleans', () => {

@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 // A structural guard: the logic-only editor must not render embedded body inputs
 // and must reference the template-id fields. (Renders SSR-only; a source-level
 // assertion is the cheapest reliable signal that the body editors were removed.)
-const src = readFileSync(resolve(__dirname, '../../../app/routes/settings-automations.tsx'), 'utf8');
+const src = readFileSync(resolve(__dirname, './settings-automations.tsx'), 'utf8');
 
 describe('logic-only automation editor', () => {
   it('no longer binds a bodyTemplate / smsBody editor input', () => {
