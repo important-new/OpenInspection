@@ -33,9 +33,15 @@
 import { test, expect } from '@playwright/test';
 
 const BASE_URL = 'http://127.0.0.1:8789';
-const FAKE_INSPECTION_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 
-test.describe('Sprint 2 regression — A1 rating-systems wiring', () => {
+// TODO(tests-reorg): rewrite onto RR v7 selector — A1/A2 scrape retired Alpine
+// source files (src/templates/pages/rating-systems.tsx, src/templates/layouts/
+// main-layout.tsx, public/js/auth.js) that were all removed in the RR v7
+// migration; there is no live equivalent (RR bundles JS via Vite, no manual
+// <script> tag ordering). Skipped rather than left red. A3 (the /report route
+// smoke) was deleted — it duplicated inspection-subroutes.spec.ts, which
+// additionally asserts the exact Location:/login.
+test.describe.skip('Sprint 2 regression — A1 rating-systems wiring', () => {
     test('A1: rating-systems page loads /js/auth.js BEFORE /js/rating-systems.js', async ({ request }) => {
         // Hit the route — even if htmlAuthGuard redirects to /login, the page
         // template is what we care about here. Follow redirects to land on
@@ -91,7 +97,7 @@ test.describe('Sprint 2 regression — A1 rating-systems wiring', () => {
     });
 });
 
-test.describe('Sprint 2 regression — A2 SOON badge removed', () => {
+test.describe.skip('Sprint 2 regression — A2 SOON badge removed', () => {
     test('A2: main-layout.tsx no longer renders a SOON badge next to Rating Systems', async () => {
         const fs = await import('node:fs/promises');
         const path = await import('node:path');
@@ -108,20 +114,10 @@ test.describe('Sprint 2 regression — A2 SOON badge removed', () => {
     });
 });
 
-test.describe('Sprint 2 regression — A3 inspection /report editor mounts', () => {
-    test('A3: /inspections/:id/report responds (200 or auth 302), never 5xx', async ({ request }) => {
-        // The original sub-nav (Report / Photos / Summary / Signatures /
-        // Settings) was retired in the design-alignment rollback — the
-        // editor is now single-view with slide-over sheets for Photos and
-        // Settings. This test now just guards that the route is mounted
-        // and renders without a server error.
-        const res = await request.get(`${BASE_URL}/inspections/${FAKE_INSPECTION_ID}/report`, {
-            failOnStatusCode: false,
-            maxRedirects: 0,
-        });
-        expect([200, 301, 302, 303, 307, 308]).toContain(res.status());
-    });
-});
+// A3 describe deleted in the 2026-07 tests-reorg dedup — the
+// `GET /inspections/:id/report` route smoke is subsumed by
+// inspection-subroutes.spec.ts, which asserts the exact 302 + Location:/login
+// (this one only checked status ∈ {200,3xx}, an over-broad matcher).
 
 // A4 sub-page title + HTTP-smoke blocks were dropped together with the
 // /photos /summary /signatures /settings standalone pages that they

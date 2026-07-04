@@ -107,15 +107,10 @@ test.describe.serial('Standalone Mobile (iPhone 375x812)', () => {
         await expect(page.locator('input[type="password"]')).toBeVisible();
     });
 
-    test('M-02: Dashboard shows mobile card list, hides desktop table', async ({ page }) => {
-        await gotoMobile(page, '/inspections', adminToken);
-        // Mobile card list mount node exists and is visible
-        const cardList = page.locator('#inspectionsCardList');
-        await expect(cardList).toBeVisible();
-        // Desktop table parent is .hidden.md:block — the table itself should NOT be visible at 375px
-        const desktopTable = page.locator('div.hidden.md\\:block table').first();
-        await expect(desktopTable).not.toBeVisible();
-    });
+    // M-02 deleted in the 2026-07 tests-reorg de-stale: keyed off the Alpine
+    // `#inspectionsCardList` mount node (removed in the RR v7 migration). The
+    // mobile/desktop responsive split is exercised request-agnostically by
+    // public-pages-responsive.spec.ts.
 
     test('M-03: Sidebar collapses behind hamburger / mobile menu trigger exists', async ({ page }) => {
         await gotoMobile(page, '/inspections', adminToken);
@@ -124,39 +119,20 @@ test.describe.serial('Standalone Mobile (iPhone 375x812)', () => {
         await expect(aside).toBeHidden();
     });
 
-    test('M-04: Inspection edit shows mic + camera + library buttons per item', async ({ page }) => {
-        await gotoMobile(page, `/inspections/${inspectionId}/edit`, adminToken);
-        // Wait for sections to load
-        await page.waitForSelector('[data-rating-row], button:has-text("Sat"), button:has-text("Pass")', { timeout: NAV_TIMEOUT }).catch(() => null);
-        // Mic button(s) — voice-input.js attaches via data-mic-target
-        const micButtons = await page.locator('button[data-mic-target], button[aria-label*="mic" i]').count();
-        const cameraButtons = await page.locator('button:has-text("Camera"), button:has-text("Library")').count();
-        // At least one item exposed mic + photo controls
-        expect(micButtons + cameraButtons, 'mic or photo controls present').toBeGreaterThan(0);
-    });
+    // M-04 deleted in the 2026-07 tests-reorg de-stale: keyed off Alpine editor
+    // markup (`[data-rating-row]`, `button[data-mic-target]` attached by the
+    // retired voice-input.js) that no longer exists in the RR v7 editor.
 
-    test('M-05: Inspector messages floating button visible bottom-right', async ({ page }) => {
-        await gotoMobile(page, `/inspections/${inspectionId}/edit`, adminToken);
-        // T23: floating button is the only fixed bottom-right round chat icon
-        const floating = page.locator('button[aria-label*="message" i], button[title*="message" i], button.fixed.bottom-6, button.fixed.bottom-8').first();
-        // Just verify SOMETHING fixed-positioned exists in the bottom area
-        const fixedBottom = await page.locator('button.fixed').count();
-        expect(fixedBottom, 'at least one fixed-position floating button').toBeGreaterThan(0);
-        // Confirm not off-screen
-        if (await floating.count() > 0) {
-            const box = await floating.boundingBox();
-            if (box) {
-                expect(box.x + box.width, 'floating button within viewport').toBeLessThanOrEqual(375);
-            }
-        }
-    });
+    // TODO(tests-reorg): rewrite onto RR v7 selector. The mobile inspector
+    // message FAB moved into the RR editor mobile shell; the old check asserted
+    // "any button.fixed exists" behind an `if (count>0)` guard (green-while-
+    // broken). Rebind to the live message FAB before unskipping.
+    test.skip('M-05: Inspector messages floating button (needs RR rebind)', async () => {});
 
-    test('M-06: /reports 301-redirects to the dashboard Published tab on mobile', async ({ page }) => {
-        // #111: the standalone Reports page is retired. /reports is now a 301 redirect
-        // to /inspections?workflow=published (the Published tab absorbs the report list).
-        await gotoMobile(page, '/reports', adminToken);
-        await expect(page).toHaveURL(/\/inspections\?.*workflow=published/);
-    });
+    // M-06 deleted in the 2026-07 tests-reorg dedup: the /reports 301 redirect is
+    // covered more strongly by inspection-hub.spec.ts (raw 301 + exact Location
+    // + active-tab styling). A server-side redirect is viewport-independent, so
+    // there is nothing mobile-specific left to assert.
 
     test('M-07: Marketplace renders without horizontal overflow on mobile', async ({ page }) => {
         await gotoMobile(page, '/library/marketplace', adminToken);

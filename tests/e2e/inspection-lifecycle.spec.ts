@@ -21,15 +21,17 @@ const TEST_EMAIL = process.env.TEST_EMAIL || 'admin@example.com';
 const TEST_PASSWORD = process.env.TEST_PASSWORD || 'changeme';
 
 /**
- * Log in via the /login page and wait for the dashboard to appear.
- * The login form uses `#email`, `#password`, and `#submitBtn` IDs (see login.tsx).
+ * Log in via the /login page and wait for the inspections hub to appear.
+ * De-stale (2026-07 tests-reorg): the RR v7 login form uses conform field
+ * names + a type=submit button (app/routes/login.tsx), and the post-login
+ * landing route is /inspections (the /dashboard route was retired in #203).
  */
 async function login(page: Page): Promise<void> {
     await page.goto(`${BASE_URL}/login`);
-    await page.fill('#email', TEST_EMAIL);
-    await page.fill('#password', TEST_PASSWORD);
-    await page.click('#submitBtn');
-    await page.waitForURL(/\/(dashboard|agent-dashboard)/, { timeout: 15000 });
+    await page.fill('input[name=email]', TEST_EMAIL);
+    await page.fill('input[name=password]', TEST_PASSWORD);
+    await page.click('button[type=submit]');
+    await page.waitForURL('**/inspections', { timeout: 15000 });
 }
 
 // TODO(tests-reorg): manual suite — destructive DB reset (or foreign BASE_URL).

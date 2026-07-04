@@ -1,160 +1,36 @@
 /**
- * Cloud E2E Tests (Cloudflare HTTPS)
+ * Cloud E2E Tests (Cloudflare HTTPS) — prod-target smoke.
  *
- * Tests that require real HTTPS environment where __Host- cookies work properly.
- * Run against deployed Cloudflare Workers instance.
+ * Env-guarded: only collected when CLOUD_BASE_URL is set (see the `cloud`
+ * project in playwright.config.ts). Runs against a deployed HTTPS instance
+ * where __Host- cookies and HSTS actually apply.
  *
- * Covers: Full cookie-based auth flow, RBAC page redirects, cross-page sessions
- * Run: CLOUD_BASE_URL=https://your-core.workers.dev npx playwright test tests/cloud-e2e.spec.ts
+ * 2026-07 tests-reorg (user decision 2026-07-04): the RBAC / cookie / logout
+ * cases were DELETED as duplicates of the request-level standalone-api suite,
+ * which is migration-proof and asserts exact 302/Location:
+ *   - CLOUD-04/05/06 inspector RBAC  ⊂ standalone-api API-16/17/18
+ *   - CLOUD-02 login-sets-cookie     ≈ standalone-api API-02
+ *   - CLOUD-07 logout                ≈ standalone-api API-13
+ *   - CLOUD-01 setup wizard / CLOUD-03 cross-page session — Alpine #email/
+ *     #submitBtn flows, covered by the standalone suite.
+ * Only the genuinely cloud-only checks remain: security headers (need HTTPS)
+ * and the __Host- cookie Secure/HttpOnly flags (can't be set over local HTTP).
+ *
+ * Run: CLOUD_BASE_URL=https://your-core.workers.dev npx playwright test
  */
 import { test, expect } from '@playwright/test';
 
 const BASE_URL = process.env.CLOUD_BASE_URL || 'https://openinspection-api.important-new.workers.dev';
 const NAV_TIMEOUT = 20000;
 
-const ADMIN_EMAIL = 'admin@cloudtest.com';
-const ADMIN_PASSWORD = 'CloudTest123!';
-const COMPANY_NAME = 'Cloud E2E Test Corp';
-const INSPECTOR_EMAIL = 'inspector@cloudtest.com';
-const INSPECTOR_PASSWORD = 'Inspector123!';
+const ADMIN_EMAIL = process.env.CLOUD_ADMIN_EMAIL || 'admin@cloudtest.com';
+const ADMIN_PASSWORD = process.env.CLOUD_ADMIN_PASSWORD || 'CloudTest123!';
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test.describe.serial('Cloud E2E Tests (HTTPS)', () => {
 
-    // ── Setup Wizard (Real Browser Flow) ──────────────────────────────────────
-
-    test('CLOUD-01: Setup wizard full browser flow with real cookies', async ({ page }) => {
-        await page.goto(`${BASE_URL}/setup`, { timeout: NAV_TIMEOUT });
-
-        // If already set up, setup redirects to /login — that's OK for re-runs
-        if (page.url().includes('/login')) {
-            test.skip(true, 'Workspace already initialized — skipping setup');
-            return;
-        }
-
-        await page.fill('#companyName', COMPANY_NAME);
-        await page.fill('#email', ADMIN_EMAIL);
-        await page.fill('#password', ADMIN_PASSWORD);
-        const codeField = page.locator('#verificationCode');
-        if (await codeField.isVisible()) {
-            // In cloud, need real verification code from KV
-            const code = process.env.SETUP_CODE || '';
-            expect(code, 'SETUP_CODE env var required for cloud setup').toBeTruthy();
-            await codeField.fill(code);
-        }
-        await page.click('#submitBtn');
-
-        // With HTTPS, __Host- cookie is set properly — should redirect to dashboard
-        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
-        expect(page.url()).toContain('/inspections');
-    });
-
-    // ── Login (Real Cookie Flow) ──────────────────────────────────────────────
-
-    test('CLOUD-02: Login sets __Host-inspector_token cookie', async ({ page }) => {
-        await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
-        await page.fill('#email', ADMIN_EMAIL);
-        await page.fill('#password', ADMIN_PASSWORD);
-        await page.click('#submitBtn');
-
-        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
-        expect(page.url()).toContain('/inspections');
-
-        // Verify cookie is set (HTTPS allows __Host- prefix)
-        const cookies = await page.context().cookies();
-        const authCookie = cookies.find(c => c.name === '__Host-inspector_token');
-        expect(authCookie, '__Host-inspector_token cookie must be set').toBeTruthy();
-        expect(authCookie!.secure, 'Cookie must have Secure flag').toBe(true);
-        expect(authCookie!.httpOnly, 'Cookie must have HttpOnly flag').toBe(true);
-    });
-
-    // ── Cross-Page Session ────────────────────────────────────────────────────
-
-    test('CLOUD-03: Auth cookie persists across page navigations', async ({ page }) => {
-        // Login first
-        await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
-        await page.fill('#email', ADMIN_EMAIL);
-        await page.fill('#password', ADMIN_PASSWORD);
-        await page.click('#submitBtn');
-        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
-
-        // Navigate to multiple pages — should stay authenticated
-        const protectedPages = ['/library/templates', '/team', '/settings', '/library/agreements'];
-        for (const path of protectedPages) {
-            await page.goto(`${BASE_URL}${path}`, { timeout: NAV_TIMEOUT });
-            expect(page.url(), `${path} must not redirect to login`).not.toContain('/login');
-            expect(page.url(), `Must be on ${path}`).toContain(path);
-        }
-    });
-
-    // ── RBAC Page Redirects (Real Cookie, No Header Workaround) ───────────────
-
-    test('CLOUD-04: Inspector redirected from admin pages to /inspections', async ({ page }) => {
-        // Login as inspector
-        await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
-        await page.fill('#email', INSPECTOR_EMAIL);
-        await page.fill('#password', INSPECTOR_PASSWORD);
-        await page.click('#submitBtn');
-        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
-
-        // Try to access admin-only page
-        await page.goto(`${BASE_URL}/library/templates`, { timeout: NAV_TIMEOUT });
-        // With real cookies, the redirect chain works properly:
-        // /library/templates → 302 /inspections?error=unauthorized_role → renders dashboard
-        expect(page.url(), 'Inspector must be redirected away from /library/templates').toContain('/inspections');
-        expect(page.url()).not.toContain('/library/templates');
-    });
-
-    test('CLOUD-05: Inspector redirected from settings to /inspections', async ({ page }) => {
-        await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
-        await page.fill('#email', INSPECTOR_EMAIL);
-        await page.fill('#password', INSPECTOR_PASSWORD);
-        await page.click('#submitBtn');
-        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
-
-        await page.goto(`${BASE_URL}/settings`, { timeout: NAV_TIMEOUT });
-        expect(page.url(), 'Inspector must be redirected away from /settings').toContain('/inspections');
-    });
-
-    test('CLOUD-06: Inspector CAN access field form', async ({ page }) => {
-        await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
-        await page.fill('#email', INSPECTOR_EMAIL);
-        await page.fill('#password', INSPECTOR_PASSWORD);
-        await page.click('#submitBtn');
-        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
-
-        // Inspector should see their inspections — find one and navigate to form
-        // For now just verify dashboard loads for inspector
-        expect(page.url()).toContain('/inspections');
-    });
-
-    // ── Logout (Cookie Cleared) ───────────────────────────────────────────────
-
-    test('CLOUD-07: Logout clears cookie and redirects to login', async ({ page }) => {
-        // Login
-        await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
-        await page.fill('#email', ADMIN_EMAIL);
-        await page.fill('#password', ADMIN_PASSWORD);
-        await page.click('#submitBtn');
-        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
-
-        // Click logout button
-        const logoutBtn = page.locator('#logoutBtn');
-        if (await logoutBtn.isVisible()) {
-            await logoutBtn.click();
-            await page.waitForURL('**/login', { timeout: NAV_TIMEOUT });
-            expect(page.url()).toContain('/login');
-
-            // Cookie should be cleared
-            const cookies = await page.context().cookies();
-            const authCookie = cookies.find(c => c.name === '__Host-inspector_token');
-            const hasValidToken = authCookie && authCookie.value && authCookie.value.length > 10;
-            expect(hasValidToken, 'Auth cookie must be cleared after logout').toBeFalsy();
-        }
-    });
-
-    // ── Security Headers ──────────────────────────────────────────────────────
+    // ── Security Headers (cloud-only — HSTS requires HTTPS) ────────────────────
 
     test('CLOUD-08: Response includes security headers', async ({ page }) => {
         const res = await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
@@ -165,5 +41,24 @@ test.describe.serial('Cloud E2E Tests (HTTPS)', () => {
         expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
         expect(headers['content-security-policy']).toBeTruthy();
         expect(headers['strict-transport-security']).toContain('max-age=');
+    });
+
+    // ── __Host- cookie flags (cloud-only — the __Host- prefix + Secure flag
+    //    can only be set over real HTTPS) ─────────────────────────────────────
+
+    test('CLOUD-COOKIE: login sets a Secure, HttpOnly __Host-inspector_token', async ({ page }) => {
+        await page.goto(`${BASE_URL}/login`, { timeout: NAV_TIMEOUT });
+        // Live RR v7 login form (app/routes/login.tsx): conform field names +
+        // a type=submit button — NOT the retired Alpine #email/#submitBtn.
+        await page.fill('input[name="email"]', ADMIN_EMAIL);
+        await page.fill('input[name="password"]', ADMIN_PASSWORD);
+        await page.click('button[type="submit"]');
+        await page.waitForURL('**/inspections', { timeout: NAV_TIMEOUT });
+
+        const cookies = await page.context().cookies();
+        const authCookie = cookies.find((c) => c.name === '__Host-inspector_token');
+        expect(authCookie, '__Host-inspector_token cookie must be set').toBeTruthy();
+        expect(authCookie!.secure, 'Cookie must have Secure flag').toBe(true);
+        expect(authCookie!.httpOnly, 'Cookie must have HttpOnly flag').toBe(true);
     });
 });

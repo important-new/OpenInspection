@@ -20,21 +20,13 @@ import { test, expect } from '@playwright/test';
 const BASE_URL = 'http://127.0.0.1:8789';
 
 test.describe('Sprint 2 S2-2 — multi-inspection per request', () => {
-    test('booking page exposes the Services multi-select section', async ({ page }) => {
-        const res = await page.goto(`${BASE_URL}/book`, { waitUntil: 'domcontentloaded' });
-        test.skip(!res || res.status() >= 500, 'Booking page unreachable in this env');
-
-        // The S2-2 multi-service step renders a "Services" section with
-        // "Choose one or more inspections for this visit." copy — present in
-        // the static HTML even when no services are seeded yet (gated by
-        // x-show="hasServices"). Search the page source rather than waiting
-        // for visibility because the section is hidden by default.
-        const html = await page.content();
-        expect(html).toContain('Services');
-        expect(html).toMatch(/one or more inspections/i);
-        // The selectedServiceIds Alpine model is the multi-select primitive.
-        expect(html).toContain('selectedServiceIds');
-    });
+    // Deleted in the 2026-07 tests-reorg de-stale: the "Services multi-select"
+    // test scraped the Alpine booking page for the `selectedServiceIds` x-model
+    // (removed in the RR v7 migration) and hit the bare `/book` route (now
+    // `/book/:tenant`, so `/book` 404s). The multi-service selection is a React
+    // wizard step (app/components/booking/BookingSteps.tsx ServicesStep). The
+    // two request-level endpoint smokes below remain the migration-proof
+    // coverage of the S2-2 surface.
 
     test('by-inspection endpoint is wired up (no 404)', async ({ request }) => {
         // The endpoint must NOT return 404 — that would mean the route isn't
