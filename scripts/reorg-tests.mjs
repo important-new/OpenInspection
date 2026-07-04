@@ -208,7 +208,42 @@ if (SCOPE === 'all' || SCOPE === 'e2e') {
 // placement (no silent leftovers). Renames .spec.->.test. to match the
 // co-located component-test convention (vitest include already accepts both).
 const TILDE_IMPORT = /(?:from|import\s*\(|vi\.mock\s*\()\s*['"]~\/([^'"]+)['"]/;
+// Specs with no first `~/` import (relative imports, or a target outside app/)
+// — reviewed by hand in the Task 4 dry-run and pinned to their real home.
+// Value is an `app/`-relative directory; the base filename is unchanged
+// (.spec.->.test. rename still applied below).
+const EXPLICIT_WEB = {
+    // reads app/routes/settings-automations.tsx source text directly (no import)
+    'automation-editor-logic-only.spec.ts': 'app/routes',
+    'comment-typeahead.spec.ts': 'app/lib',
+    'CommentLibraryList.spec.tsx': 'app/components/editor',
+    'CommentTypeahead.spec.tsx': 'app/components/editor',
+    // tests packages/shared-ui/src/FileDropzone — no app/ home; genuinely-shared bucket
+    'file-dropzone.spec.ts': 'app/lib/__tests__',
+    'ItemCommentsPanel.spec.tsx': 'app/components/template',
+    'login-saas-bounce.spec.ts': 'app/routes',
+    // exercises both InspectionStatusCards + InspectionHub, same directory
+    'portal-hub.spec.ts': 'app/components/portal',
+    'report-card-stack.summary.spec.ts': 'app/routes/public',
+    // primary subject is app/routes/public/report-card-stack print-class constants
+    'report-print-layout.spec.ts': 'app/routes/public',
+    'settings-workspace-flags.spec.ts': 'app/lib/forms',
+    'speedmode-coach.spec.ts': 'app/lib',
+    'useCommentTypeahead.spec.ts': 'app/hooks',
+    'xlsx-import.spec.ts': 'app/lib',
+    'agreement-section.spec.ts': 'app/components/portal/sections',
+    'messages.spec.ts': 'app/components/portal/sections',
+    'payment-section.spec.ts': 'app/components/portal/sections',
+    'progress-view.spec.ts': 'app/components/portal/sections',
+    'repair-builder-section.spec.ts': 'app/components/portal/sections',
+    'report-view.spec.ts': 'app/components/portal/sections',
+};
 function colocateTarget(specPath) {
+    const base0 = specPath.split('/').pop();
+    if (EXPLICIT_WEB[base0]) {
+        const base = base0.replace(/\.spec\.(tsx?)$/, '.test.$1');
+        return `${EXPLICIT_WEB[base0]}/${base}`;
+    }
     const content = readFileSync(join(root, specPath), 'utf8');
     const m = content.match(TILDE_IMPORT);
     if (!m) return null;
