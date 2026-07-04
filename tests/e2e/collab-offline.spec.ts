@@ -37,11 +37,14 @@ import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext, BrowserContext, Page } from '@playwright/test';
 
-const BASE_URL = process.env.FRONTEND_URL || 'http://localhost:8787';
+// Must be `localhost` (not 127.0.0.1): the auth cookie is added with
+// domain 'localhost', and Chromium only treats http://localhost as a secure
+// context — required for the Secure `__Host-` cookie to ride the ws:// upgrade.
+const BASE_URL = process.env.FRONTEND_URL || 'http://localhost:8789';
 const NAV_TIMEOUT = 30000;
 
-const ADMIN_EMAIL = process.env.TEST_EMAIL || 'admin@example.com';
-const ADMIN_PASSWORD = process.env.TEST_PASSWORD || 'testpassword123';
+const ADMIN_EMAIL = process.env.TEST_EMAIL || 'admin@autotest.com';
+const ADMIN_PASSWORD = process.env.TEST_PASSWORD || 'Password123!';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_DIR = path.resolve(__dirname, '..', '..');

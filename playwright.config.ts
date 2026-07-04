@@ -5,6 +5,11 @@ export default defineConfig({
     testDir: './tests/e2e',
     testIgnore: ['**/*.integration.spec.ts'],
     timeout: 30000,
+    // Every project shares ONE wrangler-dev worker + ONE local D1 (globalSetup
+    // seeds it once). Cross-project parallelism therefore races on shared state:
+    // multiple SETUP tests init the same admin (409s), and concurrent
+    // `wrangler d1 execute --local` calls lock the SQLite file. Serialize.
+    workers: 1,
     use: {
         headless: true,
         baseURL: 'http://127.0.0.1:8789',
@@ -19,6 +24,15 @@ export default defineConfig({
         timeout: 60000,
     },
     projects: [
+        // api runs FIRST: it is the single-tenant workspace initializer. Its
+        // API-01 asserts POST /api/auth/setup returns a fresh 200, and it creates
+        // the shared admin (admin@autotest.com / Password123!) that every later
+        // project logs in as. globalSetup clears D1 once before all projects, so
+        // `api` must precede any other project's setup or API-01 sees a 409.
+        {
+            name: 'api',
+            testMatch: 'standalone-api.spec.ts',
+        },
         // former browser smoke (playwright.config.ts, tests/web/e2e) — now
         // seeded against real D1 by globalSetup, no self-seed needed:
         {
@@ -33,11 +47,8 @@ export default defineConfig({
             name: 'inspection-hub',
             testMatch: 'inspection-hub.spec.ts',
         },
-        // ...all projects previously in playwright.api.config.ts, verbatim:
-        {
-            name: 'api',
-            testMatch: 'standalone-api.spec.ts',
-        },
+        // ...all projects previously in playwright.api.config.ts, verbatim
+        // (the `api` initializer project is declared first, above):
         {
             name: 'browser',
             testMatch: 'standalone-browser.spec.ts',

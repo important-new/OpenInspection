@@ -14,6 +14,7 @@
  * preview without paying themselves.
  */
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { makeCsrfToken } from './helpers/csrf';
 
 const BASE_URL = 'http://127.0.0.1:8789';
 
@@ -25,12 +26,10 @@ const TENANT_SLUG = 'automation-test-corp';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-async function getCsrf(request: APIRequestContext): Promise<string> {
-    const res = await request.get(`${BASE_URL}/login`);
-    const setCookie = res.headers()['set-cookie'] ?? '';
-    const match = setCookie.match(/__Host-csrf_token=([^;]+)/);
-    return match?.[1] ?? '';
-}
+// CSRF here is a stateless double-submit (server/lib/middleware/csrf.ts): the
+// client mints its own token and echoes it as both cookie + header. The server
+// never issues the cookie, so there is nothing to fetch — see helpers/csrf.ts.
+const getCsrf = (_request?: APIRequestContext): string => makeCsrfToken();
 
 async function loginApi(request: APIRequestContext, email: string, password: string): Promise<string> {
     const csrf = await getCsrf(request);

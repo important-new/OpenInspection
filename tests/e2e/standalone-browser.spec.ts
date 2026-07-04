@@ -14,6 +14,7 @@
  */
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
+import { makeCsrfToken } from './helpers/csrf';
 
 const BASE_URL = 'http://127.0.0.1:8789';
 const NAV_TIMEOUT = 15000;
@@ -26,12 +27,10 @@ const INSPECTOR_PASSWORD = 'Inspector123!';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function getCsrfToken(request: APIRequestContext): Promise<string> {
-    const res = await request.get(`${BASE_URL}/login`);
-    const setCookie = res.headers()['set-cookie'] ?? '';
-    const match = setCookie.match(/__Host-csrf_token=([^;]+)/);
-    return match?.[1] ?? '';
-}
+// CSRF here is a stateless double-submit (server/lib/middleware/csrf.ts): the
+// client mints its own token and echoes it as both cookie + header. The server
+// never issues the cookie, so there is nothing to fetch — see helpers/csrf.ts.
+const getCsrfToken = (_request?: APIRequestContext): string => makeCsrfToken();
 
 async function loginApi(request: APIRequestContext, email: string, password: string): Promise<string> {
     const csrf = await getCsrfToken(request);
@@ -82,6 +81,7 @@ test.describe.serial('Standalone Browser Tests', () => {
         await request.post(`${BASE_URL}/api/auth/setup`, {
             data: {
                 companyName: COMPANY_NAME,
+                adminName: 'Test Admin',
                 email: ADMIN_EMAIL,
                 password: ADMIN_PASSWORD,
                 verificationCode: '000000',
