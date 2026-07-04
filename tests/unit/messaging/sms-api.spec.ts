@@ -470,17 +470,16 @@ function buildTenantConfigApp(
 }
 
 describe('PATCH /api/admin/tenant-config — smsMode tenant selector (Task 6)', () => {
-    it('SaaS: PATCH smsMode=platform → 400 platform_mode_not_allowed', async () => {
-        // The schema excludes 'platform'; this test verifies the guard for a direct API call
-        // that bypasses the schema (e.g. by sending a raw body the zod layer might pass).
-        // NOTE: Because the zod schema enum(['own','managed_shared','managed_dedicated'])
-        // already rejects 'platform' at the validation layer (422), we test the guard via
-        // the schema rejection first, then verify the guard in the handler is reachable
-        // when 'platform' somehow arrives (tested via integration).
-        //
-        // In practice, the zod enum rejects 'platform' before the handler runs — so the
-        // API returns 422 (unprocessable_entity), not 400 (bad_request). Both outcomes
-        // correctly reject 'platform' for SaaS tenants; the test asserts !2xx.
+    it('SaaS: PATCH smsMode=platform → 400 VALIDATION_ERROR (zod enum rejects before the handler guard runs)', async () => {
+        // The schema's enum(['own','managed_shared','managed_dedicated']) excludes
+        // 'platform', so zod validation (createApiRouter's defaultHook — see
+        // server/lib/openapi-router.ts) rejects the request with 400 code
+        // VALIDATION_ERROR BEFORE the handler's own `platform_mode_not_allowed`
+        // guard (server/api/admin/admin-settings.ts) is ever reached — that
+        // in-handler guard is currently unreachable/untested via this route.
+        // Assert the precise status+code, not a >=400 range: both this zod
+        // rejection AND the handler's own guard produce a 400, so asserting the
+        // code pins down WHICH layer actually fired.
         const updateBranding = vi.fn().mockResolvedValue(undefined);
         const getBranding = vi.fn().mockResolvedValue({});
         const app = buildTenantConfigApp(SAAS_PROFILE, updateBranding, getBranding);
@@ -491,10 +490,9 @@ describe('PATCH /api/admin/tenant-config — smsMode tenant selector (Task 6)', 
             body: JSON.stringify({ smsMode: 'platform' }),
         }, FAKE_ENV, makeExecCtx());
 
-        // Zod schema enum(['own','managed_shared','managed_dedicated']) rejects 'platform'
-        // before the handler body runs → expect a non-2xx response (400 or 422).
-        expect(res.status).toBeGreaterThanOrEqual(400);
-        expect(res.status).toBeLessThan(500);
+        expect(res.status).toBe(400);
+        const body = await res.json() as { error: { code: string } };
+        expect(body.error.code).toBe('VALIDATION_ERROR');
         expect(updateBranding).not.toHaveBeenCalled();
     });
 

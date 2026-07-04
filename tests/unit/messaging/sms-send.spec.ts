@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { sendTwilioSms, validateTwilioSignature } from '../../../server/lib/sms/send-sms';
+import { sendTwilioSms } from '../../../server/lib/sms/send-sms';
 
 describe('sendTwilioSms', () => {
     beforeEach(() => vi.unstubAllGlobals());
@@ -25,13 +25,5 @@ describe('sendTwilioSms', () => {
     });
 });
 
-describe('validateTwilioSignature', () => {
-    it('accepts a correctly-signed request and rejects a tampered one', async () => {
-        const url = 'https://app.example.com/api/public/sms/inbound';
-        const params = { From: '+15551234567', Body: 'STOP' };
-        const { signParams } = await import('../../../server/lib/sms/send-sms');
-        const good = await signParams('authtoken', url, params);
-        expect(await validateTwilioSignature('authtoken', url, params, good)).toBe(true);
-        expect(await validateTwilioSignature('authtoken', url, params, 'wrong')).toBe(false);
-    });
-});
+// validateTwilioSignature (re-exported from server/lib/messaging/twilio) is
+// covered — including a byte-identical-to-legacy check — in validate-inbound.spec.ts.

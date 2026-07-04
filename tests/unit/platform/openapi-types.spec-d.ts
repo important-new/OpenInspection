@@ -7,7 +7,7 @@ import type {
     BookingsApi,
     TeamApi,
     InspectionPrefsApi,
-} from '../../../../packages/api-types';
+} from '../../../packages/api-types';
 import { hc } from 'hono/client';
 
 /**

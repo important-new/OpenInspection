@@ -1,12 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_AUTO_SEED_NAMES, TemplateSeedService } from '../../../server/services/template-seed.service';
+import { DEFAULT_AUTO_SEED_NAMES } from '../../../server/services/template-seed.service';
 
 describe('TemplateSeedService', () => {
-    it('exposes bulkSeed', () => {
-        const svc = new TemplateSeedService({} as never);
-        expect(typeof svc.bulkSeed).toBe('function');
-    });
-
     it('DEFAULT_AUTO_SEED_NAMES contains exactly 7 entries', () => {
         expect(DEFAULT_AUTO_SEED_NAMES).toHaveLength(7);
     });

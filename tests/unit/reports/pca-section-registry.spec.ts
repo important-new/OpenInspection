@@ -38,7 +38,7 @@ describe('PCA_SECTION_REGISTRY', () => {
 
   it('includes the Phase-S structural sections', () => {
     const order = ids(PCA_SECTION_REGISTRY);
-    for (const id of ['transmittal-letter', 'systems-summary', 'document-review', 'additional-considerations']) {
+    for (const id of ['transmittal-letter', 'systems-summary', 'document-review', 'additional-considerations', 'summary.deviations']) {
       expect(order).toContain(id);
     }
   });

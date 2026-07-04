@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTwilio } from '../../../server/lib/sms/resolve-twilio';
+import { resolveTwilio, resolveTwilioSource } from '../../../server/lib/sms/resolve-twilio';
 import type { ManagedBag } from '../../../server/lib/sms/resolve-twilio';
 
 const PLATFORM: Parameters<typeof resolveTwilio>[2] = {
@@ -99,5 +99,29 @@ describe('resolveTwilio — own/platform modes (regression: unchanged behavior)'
         // Mirrors the standalone-operator case: no platform env, but tenant set keys via UI.
         const out = resolveTwilio('platform', OWN, {});
         expect(out?.sid).toBe('ACown');
+    });
+});
+
+// ─── resolveTwilioSource (moved from sms-resolve-twilio.spec.ts — deduped) ─────
+
+const SOURCE_PLATFORM = { TWILIO_ACCOUNT_SID: 'ACplatform', TWILIO_AUTH_TOKEN: 'tokP', TWILIO_FROM_NUMBER: '+1999' };
+const SOURCE_OWN = { TWILIO_ACCOUNT_SID: 'ACown', TWILIO_AUTH_TOKEN: 'tokO', TWILIO_FROM_NUMBER: '+1888' };
+
+describe('resolveTwilioSource — effective-source label (Settings UI, no secrets)', () => {
+    it('mode=own + complete tenant creds → own', () => {
+        expect(resolveTwilioSource('own', SOURCE_OWN, SOURCE_PLATFORM)).toBe('own');
+    });
+    it('mode=own but a key missing → platform', () => {
+        expect(resolveTwilioSource('own', { TWILIO_ACCOUNT_SID: 'ACown' }, SOURCE_PLATFORM)).toBe('platform');
+    });
+    it('mode=platform with platform env → platform', () => {
+        expect(resolveTwilioSource('platform', SOURCE_OWN, SOURCE_PLATFORM)).toBe('platform');
+    });
+    it('standalone: mode=platform but only tenant keys → own (last resort)', () => {
+        expect(resolveTwilioSource('platform', SOURCE_OWN, {})).toBe('own');
+    });
+    it('no creds anywhere → none (fail-closed)', () => {
+        expect(resolveTwilioSource('platform', {}, {})).toBe('none');
+        expect(resolveTwilioSource('own', {}, {})).toBe('none');
     });
 });

@@ -79,28 +79,8 @@ describe('tenant-routing — standalone path', () => {
 });
 
 describe('tenant-routing — saas mode', () => {
-    it('resolves the tenant via path-param on a public route', async () => {
-        // Section F rewrite. Replaces the old "shared saas leaves tenant
-        // unresolved" describe with a positive path-param happy path —
-        // the path-param resolver runs before the profile branch, so
-        // /book/<slug>/<inspector> correctly populates tenantId in saas
-        // mode without needing any slug magic.
-        const fakeTenant = { id: 'tenant-uuid', slug: 'acme', tier: 'pro', status: 'active' };
-        const { app, env } = makeApp(
-            {
-                DB: {} as never,
-                TENANT_CACHE: { get: vi.fn().mockResolvedValue(fakeTenant), put: vi.fn() } as never,
-            },
-            SAAS_PROFILE,
-        );
-        let capturedTenantId: string | undefined;
-        app.get('/book/:tenant/:slug', (c) => {
-            capturedTenantId = c.get('tenantId');
-            return c.text('ok');
-        });
-        await app.request('/book/acme/jane', { headers: { host: 'app.example.com' } }, env);
-        expect(capturedTenantId).toBe('tenant-uuid');
-    });
+    // The /book/:tenant/:slug path-param happy path is covered by
+    // tenant-routing-path-param.spec.ts (identical assertion) — not duplicated here.
 
     it('leaves tenantId unset on a non-public path so JWT middleware downstream can fill it', async () => {
         // Section F rewrite. Replaces the old "silo slug" describe.

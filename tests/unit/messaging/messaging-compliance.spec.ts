@@ -202,14 +202,18 @@ describe('MessagingComplianceService', () => {
 });
 
 // ---------------------------------------------------------------------------
-// provision() — coordinator delegates to the injected ComplianceProvider.
-// The orchestration (guarded resumable chain) is the provider's; these tests
-// inject a real TwilioComplianceProvider over the structural fake and assert the
-// behaviour still flows end-to-end through svc.provision → provider → store → D1.
+// provision() — coordinator delegates to the injected ComplianceProvider and
+// persists its result. The orchestration itself (guarded resumable chain,
+// crash-resume, mid-chain throw, statusCallback threading, attach resume) is
+// the PROVIDER's responsibility and is exhaustively covered against the real
+// TwilioComplianceProvider in twilio-compliance-provider.spec.ts — re-testing
+// the full chain here through the coordinator would be a pure duplicate.
+// This is a single smoke: the coordinator calls provider.provision and writes
+// whatever it returns to D1.
 // ---------------------------------------------------------------------------
 
-describe('MessagingComplianceService.provision', () => {
-    it('sp10dlc full run — persists all SIDs and sets campaign_pending', async () => {
+describe('MessagingComplianceService.provision — delegates + persists (smoke)', () => {
+    it('sp10dlc: delegates to the injected provider and persists its returned SIDs/status', async () => {
         const fx = createTestDb(); await setupSchema(fx.sqlite);
         (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
         const calls: string[] = [];
@@ -230,160 +234,9 @@ describe('MessagingComplianceService.provision', () => {
         expect(row?.brandSid).toBe('BNx');
         expect(row?.campaignSid).toBe('CMx');
         expect(row?.messagingResourceSid).toBe('MGx');
-        expect(row?.provisionedNumber).toBe('+15551110000');
         expect(row?.complianceStatus).toBe('campaign_pending');
-        expect(calls).toContain('cp');
         expect(calls).toContain('brand');
-        expect(calls).toContain('ms');
         expect(calls).toContain('camp');
-        fx.sqlite.close();
-    });
-
-    it('sp10dlc resume — second call does not recreate brand or campaign', async () => {
-        const fx = createTestDb(); await setupSchema(fx.sqlite);
-        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        const calls: string[] = [];
-        const provider = fakeProvider(calls);
-        const svc = new MessagingComplianceService({} as D1Database);
-        const info = { legalName: 'Acme Inspections', address: '1 Main, TX', repName: 'Bob' };
-        await svc.provision('p2', info, 'sp10dlc', provider);
-        // Reset call log; second invocation must skip already-created resources.
-        calls.length = 0;
-        await svc.provision('p2', info, 'sp10dlc', provider);
-        expect(calls.filter(c => c === 'brand').length).toBe(0);
-        expect(calls.filter(c => c === 'camp').length).toBe(0);
-        expect(calls.filter(c => c === 'cp').length).toBe(0);
-        expect(calls.filter(c => c === 'ms').length).toBe(0);
-        fx.sqlite.close();
-    });
-
-    it('tollfree full run — persists tfvSid and messagingServiceSid, sets tfv_pending', async () => {
-        const fx = createTestDb(); await setupSchema(fx.sqlite);
-        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        const calls: string[] = [];
-        const provider = fakeProvider(calls); // tollfree.create (generic) path exercised
-        const svc = new MessagingComplianceService({} as D1Database);
-        const result = await svc.provision(
-            'p3',
-            { legalName: 'Acme TF', address: '2 Main, TX', repName: 'Alice' },
-            'tollfree',
-            provider,
-        );
-        const row = await fx.db
-            .select()
-            .from(schema.messagingCompliance)
-            .where(eq(schema.messagingCompliance.tenantId, 'p3'))
-            .get();
-        expect(result.complianceStatus).toBe('tfv_pending');
-        expect(row?.tfvSid).toBe('HVx');
-        expect(row?.messagingResourceSid).toBe('MGx');
-        expect(row?.provisionedNumber).toBe('+15551110000');
-        expect(row?.complianceStatus).toBe('tfv_pending');
-        expect(calls.filter(c => c === 'tfv').length).toBe(1);
-        fx.sqlite.close();
-    });
-
-    it('tollfree crash-resume: buy called once even if process died after buy but before tfv.create', async () => {
-        // Simulate a crash AFTER buy (provisionedNumber + provisionedNumberSid persisted)
-        // but BEFORE tfv.create. A second provision() call with a non-throwing provider must
-        // reuse the already-persisted PN SID and NOT buy a second number.
-        const fx = createTestDb(); await setupSchema(fx.sqlite);
-        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        let buyCount = 0;
-        const info = { legalName: 'Resume Co', address: '5 Main, TX', repName: 'Dave' };
-        // First provider: throws on tfv.create to simulate crash mid-chain.
-        const crashProvider = fakeProvider([], { tfvThrows: true, onBuy: () => { buyCount++; } });
-        await expect(
-            new MessagingComplianceService({} as D1Database).provision('p5', info, 'tollfree', crashProvider),
-        ).rejects.toThrow('crash');
-
-        // Verify the number was persisted despite the crash on tfv.create.
-        const rowAfterCrash = await fx.db
-            .select()
-            .from(schema.messagingCompliance)
-            .where(eq(schema.messagingCompliance.tenantId, 'p5'))
-            .get();
-        expect(rowAfterCrash?.provisionedNumber).toBe('+15551110000');
-        expect(rowAfterCrash?.provisionedNumberSid).toBe('PNx');
-
-        // Second provider: fully succeeds. buy must NOT be called again.
-        const resumeCalls: string[] = [];
-        const resumeProvider = fakeProvider(resumeCalls, { onBuy: () => { buyCount++; } });
-        const svc2 = new MessagingComplianceService({} as D1Database);
-        const result = await svc2.provision('p5', info, 'tollfree', resumeProvider);
-        expect(buyCount).toBe(1); // buy ran exactly once across both calls
-        expect(result.complianceStatus).toBe('tfv_pending');
-        const finalRow = await fx.db
-            .select()
-            .from(schema.messagingCompliance)
-            .where(eq(schema.messagingCompliance.tenantId, 'p5'))
-            .get();
-        expect(finalRow?.tfvSid).toBe('HVx');
-        expect(resumeCalls.filter(c => c === 'tfv').length).toBe(1);
-        fx.sqlite.close();
-    });
-
-    it('mid-chain throw leaves prior SIDs persisted and propagates the error', async () => {
-        const fx = createTestDb(); await setupSchema(fx.sqlite);
-        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        const calls: string[] = [];
-        // campaign create throws to simulate a mid-chain failure.
-        const provider = fakeProvider(calls, { campThrows: true });
-        const svc = new MessagingComplianceService({} as D1Database);
-        await expect(
-            svc.provision(
-                'p4',
-                { legalName: 'Failing Co', address: '3 Main, TX', repName: 'Carol' },
-                'sp10dlc',
-                provider,
-            ),
-        ).rejects.toThrow('TCR error');
-        // Prior steps (profile, brand, messaging service) must be persisted despite the failure.
-        const row = await fx.db
-            .select()
-            .from(schema.messagingCompliance)
-            .where(eq(schema.messagingCompliance.tenantId, 'p4'))
-            .get();
-        expect(row?.customerProfileSid).toBe('BUx');
-        expect(row?.brandSid).toBe('BNx');
-        expect(row?.messagingResourceSid).toBe('MGx');
-        // Campaign was not persisted.
-        expect(row?.campaignSid).toBeNull();
-        expect(row?.complianceStatus).toBe('brand_pending');
-        fx.sqlite.close();
-    });
-});
-
-describe('MessagingComplianceService.provision — StatusCallback auto-registration (a)', () => {
-    it('threads statusCallbackUrl onto the customer-profile create when provided', async () => {
-        const fx = createTestDb(); await setupSchema(fx.sqlite);
-        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        const captured: { data?: Record<string, string> } = {};
-        const provider = fakeProvider([], { capturedProfile: captured });
-        const url = 'https://app.example.test/api/public/twilio/compliance-status/acme';
-        await new MessagingComplianceService({} as D1Database).provision(
-            'cb-1',
-            { legalName: 'Acme', address: '1 Main, TX', repName: 'Bob' },
-            'sp10dlc',
-            provider,
-            url,
-        );
-        expect(captured.data?.StatusCallbackUrl).toBe(url);
-        fx.sqlite.close();
-    });
-
-    it('omits statusCallbackUrl when not provided (backward-compatible)', async () => {
-        const fx = createTestDb(); await setupSchema(fx.sqlite);
-        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        const captured: { data?: Record<string, string> } = {};
-        const provider = fakeProvider([], { capturedProfile: captured });
-        await new MessagingComplianceService({} as D1Database).provision(
-            'cb-2',
-            { legalName: 'Acme', address: '1 Main, TX', repName: 'Bob' },
-            'sp10dlc',
-            provider,
-        );
-        expect('StatusCallbackUrl' in (captured.data ?? {})).toBe(false);
         fx.sqlite.close();
     });
 });
@@ -845,53 +698,6 @@ describe('syncManagedStatus — brand poll never regresses campaign_pending', ()
         const result = await svc.syncManagedStatus('t-cron-reg', approvedBrandProvider);
         expect(result.changed).toBe(false);
         expect(result.complianceStatus).toBe('campaign_pending');
-    });
-});
-
-// ---------------------------------------------------------------------------
-// provision — attachSender resume: a crash AFTER buy but DURING attachSender
-// must not orphan the purchased number. The resume run re-attaches (without
-// re-buying) and the senderAttached marker gates the attach independently.
-// ---------------------------------------------------------------------------
-
-describe('MessagingComplianceService.provision — attachSender resume (I1)', () => {
-    it('re-attaches the bought number on resume without buying a second number', async () => {
-        const fx = createTestDb(); await setupSchema(fx.sqlite);
-        (mockDrizzle as unknown as ReturnType<typeof vi.fn>).mockReturnValue(fx.db);
-        let buyCount = 0;
-        let attachCount = 0;
-        let attachShouldThrow = true;
-        const info = { legalName: 'Attach Co', address: '7 Main, TX', repName: 'Eve' };
-        // Shared opts (live getter on attachThrows) so both provider builds see the flag.
-        const opts: FakeOpts = {
-            get attachThrows() { return attachShouldThrow; },
-            onBuy: () => { buyCount++; },
-            onAttach: () => { attachCount++; },
-        };
-
-        // First run: throws inside attachSender (after the number is bought + persisted).
-        await expect(
-            new MessagingComplianceService({} as D1Database)
-                .provision('p-attach', info, 'sp10dlc', fakeProvider([], opts)),
-        ).rejects.toThrow('attach failed');
-
-        const mid = await fx.db.select().from(schema.messagingCompliance)
-            .where(eq(schema.messagingCompliance.tenantId, 'p-attach')).get();
-        expect(mid?.provisionedNumberSid).toBe('PNx'); // number persisted despite attach crash
-        expect(mid?.senderAttached).toBe(false);       // attach not yet confirmed
-
-        // Resume: attachSender now succeeds. Buy must NOT run again; attach completes.
-        attachShouldThrow = false;
-        const result = await new MessagingComplianceService({} as D1Database)
-            .provision('p-attach', info, 'sp10dlc', fakeProvider([], opts));
-
-        expect(buyCount).toBe(1);      // bought exactly once across both runs
-        expect(attachCount).toBe(2);   // attach retried on resume (1 failed + 1 success)
-        expect(result.complianceStatus).toBe('campaign_pending');
-        const final = await fx.db.select().from(schema.messagingCompliance)
-            .where(eq(schema.messagingCompliance.tenantId, 'p-attach')).get();
-        expect(final?.senderAttached).toBe(true);
-        fx.sqlite.close();
     });
 });
 

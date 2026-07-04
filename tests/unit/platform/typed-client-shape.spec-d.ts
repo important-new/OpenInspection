@@ -1,10 +1,17 @@
-import { describe, it, expectTypeOf, expect } from 'vitest';
+import { describe, it, expectTypeOf } from 'vitest';
 import { hc } from 'hono/client';
-import type { CoreAuthApi, MarketplaceApi, AdminApi, InspectionsApi } from '../../../../packages/api-types';
+import type { CoreAuthApi, MarketplaceApi, AdminApi, InspectionsApi } from '../../../packages/api-types';
+
+// Type-only file (typechecked by vitest.typecheck.config.ts / `npm run
+// test:types`) — vitest's typecheck mode never executes runtime code, so a
+// plain `expect()` assertion would silently never run here. The one runtime
+// assertion this file used to carry ("hc Proxy constructs without throwing")
+// now lives in typed-client-runtime.spec.ts, which runs under the normal
+// test:unit config.
 
 /**
  * Phase C migration depended on the per-module `hc<TModule>` client carrying
- * method-level type info. The smoke test (`openapi-types.spec.ts`) only
+ * method-level type info. The smoke test (`openapi-types.spec-d.ts`) only
  * checked that `keyof hc<T>` is non-never — i.e. that SOME route info
  * survived. This test goes deeper: it asserts that a specific path traversal
  * (`api.login`, `api.index`, etc.) resolves to something callable, not
@@ -54,13 +61,5 @@ describe('typed client method-level shapes', () => {
         const api = hc<InspectionsApi>('http://localhost');
         expectTypeOf(api.templates).not.toBeNever();
         expectTypeOf(api.templates.$get).toBeFunction();
-    });
-
-    it('runtime sanity: hc Proxy produces a function-shaped client', () => {
-        // hc returns a Proxy that's typeof === 'function' at runtime. Just
-        // confirm the client constructed without throwing.
-        const api = hc<CoreAuthApi>('http://localhost');
-        expect(api).toBeDefined();
-        expect(api.login).toBeDefined();
     });
 });

@@ -9,9 +9,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { OpenAPIHono } from '@hono/zod-openapi';
 import { tenantConfigs, tenants } from '../../../server/lib/db/schema';
 import { createTestDb, setupSchema } from '../db';
 import * as schema from '../../../server/lib/db/schema';
+import adminRoutes from '../../../server/api/admin';
+import type { HonoConfig } from '../../../server/types/hono';
 
 const TENANT = '00000000-0000-0000-0000-000000e0b710';
 
@@ -111,17 +114,35 @@ describe('tenantConfigs.emailByoProvider — PATCH → GET round-trip', () => {
     });
 });
 
-describe('TenantConfigGetResponseSchema emailByoProvider — GET handler logic', () => {
-    it('defaults to "resend" when config row has no emailByoProvider set (null-coalescing)', () => {
-        // Mirrors the GET handler: `(config?.emailByoProvider as ...) ?? 'resend'`
-        const config: Record<string, unknown> = {};
-        const emailByoProvider = (config?.emailByoProvider as 'resend' | 'sendgrid' | 'postmark' | 'mailgun' | null) ?? 'resend';
-        expect(emailByoProvider).toBe('resend');
+describe('GET /api/admin/tenant-config — emailByoProvider', () => {
+    // Drives the real route handler (not an inline reimplementation of its
+    // `?? 'resend'` fallback) — see admin-communication.spec.ts for the
+    // buildApp pattern this mirrors.
+    function buildApp(getBranding: (...args: unknown[]) => unknown) {
+        const app = new OpenAPIHono<HonoConfig>();
+        app.use('*', async (c, next) => {
+            c.set('userRole', 'owner');
+            c.set('tenantId', 't1');
+            c.set('services', { branding: { getBranding } } as unknown as HonoConfig['Variables']['services']);
+            await next();
+        });
+        app.route('/api/admin', adminRoutes);
+        return { app, env: { JWT_SECRET: 'x' } };
+    }
+
+    it('defaults to "resend" when config has no emailByoProvider set', async () => {
+        const { app, env } = buildApp(async () => ({}));
+        const res = await app.request('/api/admin/tenant-config', {}, env);
+        expect(res.status).toBe(200);
+        const body = await res.json() as { data: { emailByoProvider: string } };
+        expect(body.data.emailByoProvider).toBe('resend');
     });
 
-    it('passes through "sendgrid" when the config has it set', () => {
-        const config: Record<string, unknown> = { emailByoProvider: 'sendgrid' };
-        const emailByoProvider = (config?.emailByoProvider as 'resend' | 'sendgrid' | 'postmark' | 'mailgun' | null) ?? 'resend';
-        expect(emailByoProvider).toBe('sendgrid');
+    it('passes through "sendgrid" when the config has it set', async () => {
+        const { app, env } = buildApp(async () => ({ emailByoProvider: 'sendgrid' }));
+        const res = await app.request('/api/admin/tenant-config', {}, env);
+        expect(res.status).toBe(200);
+        const body = await res.json() as { data: { emailByoProvider: string } };
+        expect(body.data.emailByoProvider).toBe('sendgrid');
     });
 });
