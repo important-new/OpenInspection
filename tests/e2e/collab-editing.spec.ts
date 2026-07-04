@@ -39,7 +39,7 @@ const ADMIN_EMAIL = process.env.TEST_EMAIL || 'admin@example.com';
 const ADMIN_PASSWORD = process.env.TEST_PASSWORD || 'testpassword123';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_DIR = path.resolve(__dirname, '..', '..', '..');
+const APP_DIR = path.resolve(__dirname, '..', '..');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
