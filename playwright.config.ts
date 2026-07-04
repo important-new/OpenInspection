@@ -129,5 +129,18 @@ export default defineConfig({
             name: 'subsystem-b-team-strip',
             testMatch: 'subsystem-b-team-strip.spec.ts',
         },
+        // --- wired during 2026-07 tests reorg (were collected by no project) ---
+        { name: 'branding', testMatch: 'branding.spec.ts' },
+        { name: 'repair-list', testMatch: 'repair-list.spec.ts' },
+        { name: 'report-viewer', testMatch: 'report-viewer.spec.ts' },
+        { name: 'inspection-edit-hotkeys', testMatch: 'inspection-edit-hotkeys.spec.ts' },
+        { name: 'inspection-lifecycle', testMatch: 'inspection-lifecycle.spec.ts' },
+        // Destructive (reset/restore DB) — env-gated inside the specs:
+        { name: 'backup-restore-seed', testMatch: 'backup-restore-seed.spec.ts' },
+        { name: 'backup-restore-verify', testMatch: 'backup-restore-verify.spec.ts' },
+        // DS-0520 subsystem C/D/E — skip-shells pending multi-user seed harness:
+        { name: 'subsystem-c-stripe-smoke', testMatch: 'subsystem-c-stripe-cross-repo-smoke.spec.ts' },
+        { name: 'subsystem-d-flows', testMatch: 'subsystem-d-flows.spec.ts' },
+        { name: 'subsystem-e-flows', testMatch: 'subsystem-e-flows.spec.ts' },
     ],
 });

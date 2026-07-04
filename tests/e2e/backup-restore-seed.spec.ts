@@ -3,6 +3,10 @@ import { test, expect } from '@playwright/test';
 // Use BASE_URL from environment or default to localhost
 const BASE = process.env.BASE_URL || 'http://localhost:8789';
 
+// TODO(tests-reorg): manual suite — destructive DB reset (or foreign BASE_URL).
+// Wired as a project for discoverability; opt in explicitly:
+test.skip(!process.env.BACKUP_E2E, 'set BACKUP_E2E=1 to run');
+
 test.describe('Seeding Data for Backup Validation', () => {
     test('Initialize Workspace and Seed Data', async ({ request, page }) => {
         console.log(`Targeting: ${BASE}`);

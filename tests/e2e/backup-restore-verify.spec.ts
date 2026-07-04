@@ -2,6 +2,10 @@ import { test, expect } from '@playwright/test';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8789';
 
+// TODO(tests-reorg): manual suite — destructive DB reset (or foreign BASE_URL).
+// Wired as a project for discoverability; opt in explicitly:
+test.skip(!process.env.BACKUP_E2E, 'set BACKUP_E2E=1 to run');
+
 test.describe('Verifying Restored Data', () => {
     test('Check if data exists after restore', async ({ request, page }) => {
         console.log(`Targeting: ${BASE}`);

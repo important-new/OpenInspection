@@ -32,6 +32,10 @@ async function login(page: Page): Promise<void> {
     await page.waitForURL(/\/(dashboard|agent-dashboard)/, { timeout: 15000 });
 }
 
+// TODO(tests-reorg): manual suite — destructive DB reset (or foreign BASE_URL).
+// Wired as a project for discoverability; opt in explicitly:
+test.skip(!process.env.LIFECYCLE_E2E, 'set LIFECYCLE_E2E=1 to run');
+
 test.describe('Spec 3A — Inspection Lifecycle (action menu + cancel modal)', () => {
     test('cancel via action menu → appears in Cancelled section → uncancel', async ({ page }) => {
         await login(page);
