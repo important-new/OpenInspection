@@ -10,6 +10,13 @@ export default defineConfig({
     // multiple SETUP tests init the same admin (409s), and concurrent
     // `wrangler d1 execute --local` calls lock the SQLite file. Serialize.
     workers: 1,
+    // The browser projects drive real WebSocket + Durable Object collab flows
+    // against one shared wrangler-dev worker; transient socket resets
+    // (ECONNRESET on a concurrent login) and WS reconnect timing occasionally
+    // flake a single spec. Retry on CI so one transient blip can't red the run —
+    // a genuine failure still fails all attempts. Locally keep 0 for fast, honest
+    // feedback.
+    retries: process.env.CI ? 2 : 0,
     use: {
         headless: true,
         baseURL: 'http://127.0.0.1:8789',
@@ -38,6 +45,10 @@ export default defineConfig({
         {
             name: 'browser-collab',
             testMatch: /collab-(editing|offline)\.spec\.ts$/,
+            // Logs in as the shared admin@autotest.com that the `api` project
+            // seeds — depend on it so ordering is deterministic and the project
+            // is runnable in isolation (otherwise login 401s: no workspace).
+            dependencies: ['api'],
         },
         {
             name: 'frontend-browser',

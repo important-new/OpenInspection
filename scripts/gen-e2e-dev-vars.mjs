@@ -47,6 +47,11 @@ const lines = [
   // every workspace-init call is rejected and login fails. This is a test
   // fixture, not a secret.
   'SETUP_CODE=000000',
+  // Disable the login/booking/etc. rate limiter for the E2E worker: the seeded
+  // suite drives many logins from ONE IP and would flakily 429 (the limiter is
+  // 10/60s per IP — wrangler.jsonc). Honored only by checkRateLimit when set;
+  // this file is throwaway + gitignored, so no real deploy ever sees it.
+  'DISABLE_RATE_LIMIT=1',
   `JWT_SECRET=${randomBytes(32).toString('hex')}`,
   `JWT_PRIVATE_KEY_V1=${oneLine(privateKey)}`,
   `JWT_PUBLIC_KEY_V1=${oneLine(publicKey)}`,
