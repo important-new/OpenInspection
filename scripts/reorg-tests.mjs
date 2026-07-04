@@ -12,9 +12,9 @@
  * Scopes: unit (domain buckets) | e2e (merge all Playwright specs into
  * tests/e2e) | web (co-locate frontend tests into app/).
  */
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { join, posix } from 'node:path';
+import { join, posix, dirname } from 'node:path';
 
 const APPLY = process.argv.includes('--apply');
 const scopeArg = process.argv.indexOf('--scope');
@@ -251,6 +251,11 @@ for (const m of moves) {
     if (out !== content) rewrites++;
     console.log(`${APPLY ? 'MV' : 'plan'} ${m.from} -> ${m.to} (delta ${m.delta}${out !== content ? ', imports rewritten' : ''})`);
     if (APPLY) {
+        // `git mv` on Windows (git 2.51.0.windows.1, at least) does NOT create
+        // the destination directory itself — unlike plain `mv`, it fails with
+        // "No such file or directory" when the target dir is new. Dry-run never
+        // exercises this path (it doesn't call git mv), so pre-create it here.
+        mkdirSync(join(root, dirname(m.to)), { recursive: true });
         execSync(`git mv "${posix.join(...m.from.split('/'))}" "${posix.join(...m.to.split('/'))}"`, { cwd: root });
         writeFileSync(join(root, m.to), out);
     }
