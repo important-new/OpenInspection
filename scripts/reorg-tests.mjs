@@ -190,9 +190,14 @@ if (SCOPE === 'all' || SCOPE === 'e2e') {
         if (!f.endsWith('.spec.ts') || f === 'portal-isolation.spec.ts') continue;
         planMove(`tests/${f}`, `tests/e2e/${f}`); // tests/ (depth 1) → tests/e2e/ (depth 2): delta +1
     }
-    // former stateless browser smoke → tests/e2e (now runs against seeded D1):
+    // former stateless browser smoke → tests/e2e (now runs against seeded D1).
+    // noRewrite: this is a CROSS-SUBTREE move (tests/web/e2e → tests/e2e diverge
+    // at tests/), so delta-counting `../` is invalid (a `../helpers` would need
+    // `../web/helpers`). Today's 4 files have zero matching relative imports (all
+    // `~/`-alias/package imports, untouched by rewrite); hand-fix any future
+    // relative import the suite run flags.
     for (const f of readdirSync(join(root, 'tests/web/e2e'))) {
-        if (f.endsWith('.ts')) planMove(`tests/web/e2e/${f}`, `tests/e2e/${f}`); // depth 3 → 2: delta -1
+        if (f.endsWith('.ts')) planMove(`tests/web/e2e/${f}`, `tests/e2e/${f}`, /* noRewrite */ true);
     }
 }
 // --- scope: web (co-location, R2) --------------------------------------------
