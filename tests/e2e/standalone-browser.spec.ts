@@ -201,12 +201,29 @@ test.describe.serial('Standalone Browser Tests', () => {
 
     // ── Report Page (Public) ──────────────────────────────────────────────────
 
-    test('UI-PDF: Public /report page exposes Download PDF button', async ({ page }) => {
+    test('UI-REPORT: Public /report permalink resolves + report-view SSR-renders the branded state', async ({ page }) => {
         if (!createdInspectionId) test.skip();
+        // Scope note: the Download PDF FAB (ReportView.tsx) only renders on a
+        // PUBLISHED report, and publishing exercises Browser Rendering (PDF) +
+        // email delivery — side effects absent in the test/CI worker (no BROWSER
+        // binding → the publish path 503s the isolate), so it can't be driven
+        // here. The FAB's presence + label is covered hermetically by
+        // report-card-stack.buttons.test.ts. What THIS browser leg verifies is
+        // the public-report surface end-to-end: the /report permalink shim
+        // (→ /report-view) resolves in a real browser and the report-view route
+        // SSR-renders the branded state. The seeded inspection is unpublished, so
+        // the public report API refuses it (404 for the unpublished seed —
+        // existence-enumeration protection; 403 NOT_PUBLISHED for a published-
+        // then-unpublished report) and ReportView renders its branded error state
+        // ("Report not found" / "This report is not published"). Complements
+        // API-22 (request-level 302) with the render layer it can't see.
         const tenantSlug = COMPANY_NAME.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        await page.goto(`${BASE_URL}/report/${tenantSlug}/${createdInspectionId}`, { timeout: NAV_TIMEOUT });
-        // The FAB is a text <button> (no aria-label) — ReportView.tsx:323-333.
-        await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible({ timeout: 10000 });
+        await page.goto(`${BASE_URL}/report/${tenantSlug}/${createdInspectionId}`, { timeout: NAV_TIMEOUT, waitUntil: 'networkidle' });
+        // Followed the permalink shim onto the report-view target (not bounced to
+        // /login, not a bare 404).
+        expect(page.url()).toContain(`/report-view/${tenantSlug}/${createdInspectionId}`);
+        const pageText = (await page.textContent('body')) ?? '';
+        expect(pageText, 'report-view must SSR-render the branded not-viewable state').toMatch(/Report not found|not published/i);
     });
 
     // ── Alpine-only surfaces with no verified live equivalent yet ──────────────
