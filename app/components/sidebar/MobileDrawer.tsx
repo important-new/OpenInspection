@@ -95,7 +95,7 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
             <ThemeSegmentControl className="w-full" />
           </div>
           <div className="flex items-center gap-2.5 px-2 py-1">
-            <Avatar name={userName} size={28} variant="self" fallbackIcon="OI" />
+            <Avatar name={ctx?.user?.name || ""} size={28} variant="self" fallbackIcon="OI" />
             <div className="flex-1 min-w-0">
               <div className="text-[12px] font-bold text-ih-fg-1 truncate">{userName}</div>
             </div>

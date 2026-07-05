@@ -37,14 +37,14 @@ export function computeOverrideDiff(role: Role, caps: CapabilitySet): Permission
  return diff;
 }
 
-interface InviteSeatModalProps {
+interface InviteSeatDrawerProps {
  open: boolean;
  onClose: () => void;
  /**
   * Optional at-open seat-limit gate. The caller (the `/team` route, which
   * already loads `sessionCtx.seatUsage` for the SeatBanner above the page)
   * passes this so a tenant already at its seat cap sees the upgrade panel
-  * the instant the invite modal opens, instead of filling in email/role/
+  * the instant the invite drawer opens, instead of filling in email/role/
   * permissions and only finding out on submit (the server's 402
   * SEAT_LIMIT_REACHED, caught by the existing error state below, remains the
   * authoritative backstop for races). `undefined` (the default) = no gate —
@@ -55,7 +55,7 @@ interface InviteSeatModalProps {
  seatLimitAtOpen?: { used: number; max: number; billingUrl?: string };
 }
 
-export function InviteSeatModal({ open, onClose, seatLimitAtOpen }: InviteSeatModalProps) {
+export function InviteSeatDrawer({ open, onClose, seatLimitAtOpen }: InviteSeatDrawerProps) {
  const [email, setEmail] = useState("");
  const [notify, setNotify] = useState(true);
  const [role, setRole] = useState<Role>("inspector");
@@ -66,9 +66,9 @@ export function InviteSeatModal({ open, onClose, seatLimitAtOpen }: InviteSeatMo
  const [caps, setCaps] = useState(() => getCapabilities("inspector", null));
  const [error, setError] = useState("");
  // At-open seat-limit gate — seeded from the caller-supplied prop every time
- // the modal opens (not on every re-render) so a tenant already at cap sees
+ // the drawer opens (not on every re-render) so a tenant already at cap sees
  // the panel immediately. Deliberately keyed only on `open`: re-evaluating
- // whenever the parent re-renders while the modal is already open would let
+ // whenever the parent re-renders while the drawer is already open would let
  // a background loader revalidation flip this mid-fill.
  const [seatLimit, setSeatLimit] = useState<{ used: number; max: number; billingUrl?: string } | undefined>(seatLimitAtOpen);
  const emailRef = useRef<HTMLInputElement>(null);

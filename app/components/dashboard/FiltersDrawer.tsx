@@ -1,6 +1,6 @@
 import { Button, Drawer } from "@core/shared-ui";
 
-interface FiltersModalProps {
+interface FiltersDrawerProps {
   open: boolean;
   onClose: () => void;
   filterDateFrom: string;
@@ -11,7 +11,7 @@ interface FiltersModalProps {
   setFilterAgentId: (v: string) => void;
 }
 
-export function FiltersModal({
+export function FiltersDrawer({
   open,
   onClose,
   filterDateFrom,
@@ -20,7 +20,7 @@ export function FiltersModal({
   setFilterDateFrom,
   setFilterDateTo,
   setFilterAgentId,
-}: FiltersModalProps) {
+}: FiltersDrawerProps) {
   return (
     <Drawer
       open={open}

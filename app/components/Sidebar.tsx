@@ -154,7 +154,7 @@ export function Sidebar() {
             className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-ih-button hover:bg-ih-bg-muted transition-all focus:outline-none focus:shadow-ih-focus ${collapsed ? "justify-center" : ""}`}
           >
             {/* Avatar initials circle */}
-            <Avatar name={userName} size={32} variant="self" fallbackIcon="OI" />
+            <Avatar name={ctx?.user?.name || ""} size={32} variant="self" fallbackIcon="OI" />
             {!collapsed && (
               <>
                 <div className="flex-1 min-w-0 text-left">

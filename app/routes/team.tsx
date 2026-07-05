@@ -4,7 +4,7 @@ import type { Route } from "./+types/team";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { SeatBanner } from "~/components/SeatBanner";
-import { InviteSeatModal } from "~/components/modals/InviteSeatModal";
+import { InviteSeatDrawer } from "~/components/modals/InviteSeatDrawer";
 import { useSessionContext } from "~/hooks/useSessionContext";
 import { Breadcrumb } from "~/components/Breadcrumb";
 import { PageHeader, TabStrip, Card, Pill, Button, EmptyState, Table } from "@core/shared-ui";
@@ -66,7 +66,7 @@ export default function TeamPage() {
 
   // Reuse the same sessionCtx.seatUsage the SeatBanner below already consumes
   // (no extra API call) to gate the invite modal at open — see
-  // InviteSeatModal's `seatLimitAtOpen` doc comment. `seatUsage` is null for
+  // InviteSeatDrawer's `seatLimitAtOpen` doc comment. `seatUsage` is null for
   // unlimited deployments, so `atCapSeatUsage` stays undefined (normal
   // invite form) in that case; the server's 402 SEAT_LIMIT_REACHED remains
   // the authoritative backstop for races.
@@ -100,7 +100,7 @@ export default function TeamPage() {
         }
       />
 
-      <InviteSeatModal open={inviteOpen} onClose={() => setInviteOpen(false)} seatLimitAtOpen={atCapSeatUsage} />
+      <InviteSeatDrawer open={inviteOpen} onClose={() => setInviteOpen(false)} seatLimitAtOpen={atCapSeatUsage} />
 
       <TabStrip tabs={TABS} activeId={activeTab} onChange={setActiveTab} />
 

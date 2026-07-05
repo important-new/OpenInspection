@@ -31,7 +31,7 @@ import {
 } from "~/lib/dashboard-schema";
 import { matchesFilter, matchesWorkflow, tabMatches } from "~/lib/dashboard-filters";
 import { DashboardInspectionRow } from "~/components/dashboard/DashboardInspectionRow";
-import { FiltersModal } from "~/components/dashboard/FiltersModal";
+import { FiltersDrawer } from "~/components/dashboard/FiltersDrawer";
 import { ColumnsPopover } from "~/components/dashboard/ColumnsPopover";
 import { InspectionsToolbar } from "~/components/dashboard/InspectionsToolbar";
 
@@ -858,7 +858,7 @@ export default function InspectionsPage() {
       <CommandPalette onNewInspection={() => navigate("/inspections/new")} />
 
       {/* Filters drawer */}
-      <FiltersModal
+      <FiltersDrawer
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
         filterDateFrom={filterDateFrom}
