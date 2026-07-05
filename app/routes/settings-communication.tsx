@@ -578,7 +578,7 @@ export default function SettingsCommunication() {
   if (denied) return <AccessDenied />;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Communication" }]} />
       <p className="text-[13px] text-ih-fg-3">
         Configure email delivery, templates, and calendar sync.

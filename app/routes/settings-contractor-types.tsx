@@ -108,7 +108,7 @@ export default function SettingsContractorTypes() {
   if ("forbidden" in data) return <AccessDenied />;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Contractor types" }]} />
       <p className="text-[13px] text-ih-fg-3">Recommended contractor categories shown on repair items and reports.</p>
 

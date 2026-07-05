@@ -99,7 +99,7 @@ function TemplateEditor({ detail }: { detail: Detail }) {
   };
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <SettingsCrumb
           items={[

@@ -120,7 +120,7 @@ export default function SettingsEventTypes() {
   }
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Event types" }]} />
 
       <div className="flex items-start justify-between gap-4">

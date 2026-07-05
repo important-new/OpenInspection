@@ -605,7 +605,7 @@ export default function InspectionsPage() {
   );
 
   return (
-    <div className="max-w-[1080px] mx-auto pt-5 pb-[60px] px-9 space-y-[18px]">
+    <div className="max-w-[1080px] mx-auto pt-5 pb-[60px] px-9 space-y-ih-list">
       {/* F3 — Seat quota banner */}
       {sessionCtx?.seatUsage && (
         <SeatBanner usage={sessionCtx.seatUsage} billingUrl={billingUrl} />
@@ -671,7 +671,7 @@ export default function InspectionsPage() {
           { label: "Needs Attention", value: counts.needsAttention, icon: "zap" as const, color: "text-ih-bad-fg bg-ih-bad-bg" },
           { label: "Recent Reports", value: counts.recent, icon: "check" as const, color: "text-ih-ok-fg bg-ih-ok-bg" },
         ].map((stat) => (
-          <Card key={stat.label} className="p-[14px] cursor-pointer hover:shadow-ih-popover transition-all">
+          <Card key={stat.label} className="p-ih-card cursor-pointer hover:shadow-ih-popover transition-all">
             <div className={`w-10 h-10 rounded-md flex items-center justify-center mb-3 ${stat.color}`}>
               <Icon name={stat.icon} size={20} />
             </div>

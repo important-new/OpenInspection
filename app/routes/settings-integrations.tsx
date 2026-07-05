@@ -253,7 +253,7 @@ export default function SettingsIntegrations() {
     : null;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Integrations" }]} />
       <p className="text-[13px] text-ih-fg-3">
         Connect OpenInspection to your other business tools.

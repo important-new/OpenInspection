@@ -156,7 +156,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>

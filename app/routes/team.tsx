@@ -77,7 +77,7 @@ export default function TeamPage() {
       : undefined;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       {/* F3 — Seat quota banner */}
       {sessionCtx?.seatUsage && (
         <SeatBanner usage={sessionCtx.seatUsage} billingUrl={billingUrl} />

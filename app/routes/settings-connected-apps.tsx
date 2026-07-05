@@ -259,7 +259,7 @@ export default function SettingsConnectedApps() {
   const all = data.all ? data.all.filter((g) => !revokedIds.has(g.id)) : null;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Connected applications" }]} />
       <div>
         <p className="text-[13px] text-ih-fg-3">

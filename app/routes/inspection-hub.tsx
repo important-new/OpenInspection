@@ -433,7 +433,7 @@ export default function InspectionHubPage() {
   const invoiceSent = hub.invoice?.status === "sent" || hub.invoice?.status === "partial";
 
   return (
-    <div className="max-w-[1080px] mx-auto pt-5 pb-[60px] px-9 space-y-[18px]">
+    <div className="max-w-[1080px] mx-auto pt-5 pb-[60px] px-9 space-y-ih-list">
       {/* Breadcrumb — Inspections > this inspection */}
       <Breadcrumb
         items={[

@@ -223,7 +223,7 @@ export default function SettingsAdvancedPage() {
   };
 
   return (
-    <div className="space-y-[18px] max-w-3xl">
+    <div className="space-y-ih-list max-w-3xl">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Advanced" }]} />
       <p className="text-[13px] text-ih-fg-3">Stripe payments, AI features, and integrations.</p>
 

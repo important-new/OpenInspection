@@ -205,7 +205,7 @@ export default function AgreementsPage() {
   const rows = showingTemplates ? templates : requests;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <Breadcrumb items={[{ label: "Library", href: "/library" }, { label: "Agreements" }]} />
       <PageHeader
         title="Agreements"

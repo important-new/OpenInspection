@@ -277,7 +277,7 @@ export default function TemplatesPage() {
   if (withUpdates > 0) metaParts.push(`${withUpdates} with updates available`);
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       {/* PageHeader */}
       <div className="flex items-start justify-between gap-4">
         <div>

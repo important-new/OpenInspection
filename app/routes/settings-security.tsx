@@ -198,7 +198,7 @@ export default function SettingsSecurityPage() {
   });
 
   return (
-    <div className="space-y-[18px] max-w-3xl">
+    <div className="space-y-ih-list max-w-3xl">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Account & Security" }]} />
       <p className="text-[13px] text-ih-fg-3">Password, two-factor authentication, account data, and security settings.</p>
 

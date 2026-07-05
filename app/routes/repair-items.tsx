@@ -114,7 +114,7 @@ export default function RepairItemsPage() {
   }
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <Breadcrumb items={[{ label: "Library", href: "/library" }, { label: "Repair Items" }]} />
       <PageHeader
         title="Repair Items"

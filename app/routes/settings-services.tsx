@@ -184,7 +184,7 @@ export default function SettingsServices() {
   const { services, discounts, restrictionMap, members } = data;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Services & catalog" }]} />
 
       <div className="flex items-center justify-between gap-4">

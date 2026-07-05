@@ -143,7 +143,7 @@ export default function SettingsAutomations() {
   const { rules, services, recentLogs, reviewUrl, emailTemplates, smsTemplates } = data;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Automations" }]} />
 
       <div className="flex items-center justify-between gap-4">

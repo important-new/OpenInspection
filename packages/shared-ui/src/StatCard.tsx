@@ -37,7 +37,7 @@ export function StatCard({ label, value, tone, hint, className = "" }: StatCardP
   const accent = tone ? toneAccent[tone] : null;
   return (
     <div
-      className={`bg-ih-bg-card rounded-ih-card p-[14px] ${
+      className={`bg-ih-bg-card rounded-ih-card p-ih-card ${
         accent ? `border-l-4 ${accent.border}` : "border border-ih-border"
       } ${className}`}
     >

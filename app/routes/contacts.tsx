@@ -124,7 +124,7 @@ export default function ContactsPage() {
     : contactList;
 
   return (
-    <div className="space-y-[18px]">
+    <div className="space-y-ih-list">
       <PageHeader
         title={`${filtered.length} ${filtered.length === 1 ? "Contact" : "Contacts"}`}
         meta={`${filtered.length} contacts`}
