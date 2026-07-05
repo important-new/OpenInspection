@@ -61,6 +61,7 @@ export function InspectionRow({ inspection: i, visibleColumns }: InspectionRowPr
  const hasDefects = i.defectStats && (i.defectStats.safety + i.defectStats.recommendation + i.defectStats.maintenance) > 0;
 
  return (
+ /* ds-allow: compact inspection-row vertical padding (13px), no semantic spacing token */
  <div className="px-5 py-[13px] border-t border-ih-border flex items-center gap-3 flex-wrap sm:flex-nowrap" data-test="inspection-row">
  {/* Address + metadata — clickable */}
  <button

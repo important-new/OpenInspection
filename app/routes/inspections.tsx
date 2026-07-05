@@ -605,6 +605,7 @@ export default function InspectionsPage() {
   );
 
   return (
+    /* ds-allow: page bottom gutter (60px), bespoke page-shell spacing with no token */
     <div className="max-w-[1080px] mx-auto pt-5 pb-[60px] px-9 space-y-ih-list">
       {/* F3 — Seat quota banner */}
       {sessionCtx?.seatUsage && (

@@ -50,6 +50,7 @@ export function Sidebar() {
   return (
     <aside className="ih-sidebar bg-ih-bg-card border-r border-ih-border hidden lg:flex flex-col sticky top-0 h-screen overflow-hidden">
       {/* Logo + notifications */}
+      {/* ds-allow: compact sidebar nav rhythm (7/10/2/14px) — denser than the ih-list/ih-card content scale, no semantic spacing token */}
       <div className={`px-2 pt-1 pb-[14px] flex items-center gap-2.5 border-b border-ih-border shrink-0 ${collapsed ? "justify-center" : ""}`}>
         <img src={logoUrl} alt="" className="w-7 h-7 shrink-0" width={28} height={28} />
         {!collapsed && (
@@ -63,6 +64,7 @@ export function Sidebar() {
       </div>
 
       {/* Search trigger */}
+      {/* ds-allow: compact sidebar nav rhythm (7/10px), no semantic spacing token */}
       {!collapsed && (
         <div className="px-2 pt-2.5 pb-1">
           <button
@@ -82,6 +84,7 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 px-2 py-1 overflow-y-auto">
         <SidebarGroup label="Workspace" items={WORKSPACE_ITEMS} collapsed={collapsed} />
+        {/* ds-allow: compact sidebar nav rhythm (10/7/14px), no semantic spacing token */}
         <div className="mb-[14px]">
           <NavLink
             to="/library"
@@ -99,6 +102,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer — two rows: Settings + avatar identity row */}
+      {/* ds-allow: compact sidebar nav rhythm (2px row gap), no semantic spacing token */}
       <div className="relative mt-auto px-2 py-2.5 border-t border-ih-border space-y-[2px]">
         {/* Collapse handle — slim chevron on the sidebar right edge */}
         <button
@@ -115,6 +119,7 @@ export function Sidebar() {
         </button>
 
         {/* Row 1: Settings */}
+        {/* ds-allow: compact sidebar nav rhythm (10/7px), no semantic spacing token */}
         <NavLink
           to="/settings"
           className={({ isActive }) =>

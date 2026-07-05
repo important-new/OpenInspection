@@ -3,6 +3,7 @@ import type { NavItem } from "~/components/sidebar/nav-items";
 
 export function SidebarNavItem({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   return (
+    /* ds-allow: compact sidebar nav item rhythm (10/7px), no semantic spacing token */
     <NavLink
       to={item.to}
       className={({ isActive }) =>
