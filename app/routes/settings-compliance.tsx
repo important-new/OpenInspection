@@ -5,7 +5,7 @@ import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { requireAdminLoader } from "~/lib/access.server";
 import { AccessDenied } from "~/components/AccessDenied";
-import { Table } from "@core/shared-ui";
+import { Table, Pill, type PillTone } from "@core/shared-ui";
 
 const DEFAULT_RETENTION_YEARS = 6;
 const MIN_RETENTION_YEARS = 1;
@@ -246,21 +246,20 @@ function ErasureLogView({ rows }: { rows: ErasureLogRow[] }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    completed: "bg-ih-ok-bg text-ih-ok-fg",
-    partially_completed: "bg-ih-warn-bg text-ih-warn-fg",
-    refused: "bg-ih-bad-bg text-ih-bad-fg",
+  const tone: Record<string, PillTone> = {
+    completed: "sat",
+    partially_completed: "warning",
+    refused: "defect",
   };
   const label: Record<string, string> = {
     completed: "Completed",
     partially_completed: "Partial",
     refused: "Refused",
   };
-  const cls = map[status] ?? "bg-ih-bg-muted text-ih-fg-2";
   return (
-    <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wide ${cls}`}>
+    <Pill tone={tone[status] ?? "neutral"} className="uppercase tracking-wide">
       {label[status] ?? status}
-    </span>
+    </Pill>
   );
 }
 

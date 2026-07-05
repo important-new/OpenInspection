@@ -3,7 +3,7 @@ import { useLoaderData, useFetcher } from "react-router";
 import type { Route } from "./+types/invoices";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
-import { PageHeader, Card, StatCard, Button, EmptyState, Modal, Table } from "@core/shared-ui";
+import { PageHeader, Card, StatCard, Button, EmptyState, Modal, Table, Pill, type PillTone } from "@core/shared-ui";
 
 export function meta() {
   return [{ title: "Invoices - OpenInspection" }];
@@ -103,12 +103,12 @@ function money(cents: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format((cents || 0) / 100);
 }
 
-const STATUS_PILL: Record<string, string> = {
-  paid: "bg-ih-ok-bg text-ih-ok-fg",
-  partial: "bg-ih-watch-bg text-ih-watch-fg",
-  sent: "bg-ih-info-bg text-ih-info-fg",
-  draft: "bg-ih-bg-muted text-ih-fg-3",
-  void: "bg-ih-bg-muted text-ih-fg-3",
+const STATUS_TONE: Record<InvoiceRow["status"], PillTone> = {
+  paid: "sat",
+  partial: "monitor",
+  sent: "info",
+  draft: "neutral",
+  void: "neutral",
 };
 
 const METHOD_LABEL: Record<string, string> = {
@@ -263,12 +263,12 @@ export default function InvoicesPage() {
               cell: (invoice) => {
                 const isPaid = invoice.status === "paid";
                 return (
-                  <span className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${STATUS_PILL[invoice.status] ?? STATUS_PILL.draft}`}>
+                  <Pill tone={STATUS_TONE[invoice.status] ?? "neutral"} className="uppercase tracking-wide">
                     {invoice.status}
                     {isPaid && invoice.paymentMethod && (
                       <span className="font-medium normal-case tracking-normal opacity-80">· {METHOD_LABEL[invoice.paymentMethod]}</span>
                     )}
-                  </span>
+                  </Pill>
                 );
               },
             },
