@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useLoaderData, useFetcher } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
+import { SettingsCrumb } from "~/components/SettingsCrumb";
 import type { Route } from "./+types/settings-compliance";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
@@ -107,15 +108,7 @@ export default function SettingsCompliancePage() {
 
   return (
     <div className="space-y-[18px]">
-      <div className="flex items-center gap-2 text-[13px] text-ih-fg-3">
-        <Link to="/settings" className="hover:text-ih-primary transition-colors">
-          Settings
-        </Link>
-        <span>&rsaquo;</span>
-        <span className="text-ih-fg-1">Compliance</span>
-      </div>
-
-      <h2 className="text-[19px] font-bold text-ih-fg-1">Compliance</h2>
+      <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Compliance" }]} />
       <p className="text-[13px] text-ih-fg-3">
         GDPR retention policy and the record of erasure requests you have honored.
       </p>

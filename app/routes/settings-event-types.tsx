@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { useLoaderData, Link } from "react-router";
+import { useLoaderData } from "react-router";
+import { SettingsCrumb } from "~/components/SettingsCrumb";
 import type { Route } from "./+types/settings-event-types";
 import { createApi } from "~/lib/api-client.server";
 import { requireAdminLoader } from "~/lib/access.server";
@@ -120,27 +121,13 @@ export default function SettingsEventTypes() {
 
   return (
     <div className="space-y-[18px]">
-      <div className="flex items-center gap-2 text-[13px] text-ih-fg-3">
-        <Link
-          to="/settings"
-          className="hover:text-ih-primary transition-colors"
-        >
-          Settings
-        </Link>
-        <span>&rsaquo;</span>
-        <span className="text-ih-fg-1">Event types</span>
-      </div>
+      <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Event types" }]} />
 
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-[19px] font-bold text-ih-fg-1">
-            Event types
-          </h2>
-          <p className="text-[13px] text-ih-fg-3 mt-1">
-            Define ancillary inspection events that can be attached to an
-            inspection.
-          </p>
-        </div>
+        <p className="text-[13px] text-ih-fg-3">
+          Define ancillary inspection events that can be attached to an
+          inspection.
+        </p>
         <button
           onClick={openCreate}
           className="h-9 px-4 rounded-md bg-ih-primary text-white font-bold text-[13px] hover:bg-ih-primary-600 transition-colors"

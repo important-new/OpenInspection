@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLoaderData, Form, useNavigation, useFetcher } from "react-router";
+import { SettingsCrumb } from "~/components/SettingsCrumb";
 import type { Route } from "./+types/settings-automations";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
@@ -143,17 +144,10 @@ export default function SettingsAutomations() {
 
   return (
     <div className="space-y-[18px]">
-      <div className="flex items-center gap-2 text-[13px] text-ih-fg-3">
-        <Link to="/settings" className="hover:text-ih-primary transition-colors">Settings</Link>
-        <span>&rsaquo;</span>
-        <span className="text-ih-fg-1">Automations</span>
-      </div>
+      <SettingsCrumb items={[{ label: "Settings", href: "/settings" }, { label: "Automations" }]} />
 
       <div className="flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-[19px] font-bold text-ih-fg-1">Automations</h2>
-          <p className="text-[13px] text-ih-fg-3 mt-0.5">Emails sent automatically when inspection events occur.</p>
-        </div>
+        <p className="text-[13px] text-ih-fg-3">Emails sent automatically when inspection events occur.</p>
         <button onClick={() => setEditing("new")}
           className="h-8 px-4 rounded-md bg-ih-primary text-white font-bold text-[13px] hover:bg-ih-primary-600 transition-colors">
           + New automation
