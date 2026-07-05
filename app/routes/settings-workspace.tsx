@@ -216,7 +216,7 @@ export default function SettingsWorkspacePage() {
         <section className="bg-ih-bg-card rounded-lg border border-ih-border p-6 space-y-5">
           <h3 className="text-[11px] font-bold text-ih-fg-2 uppercase tracking-[0.2em]">Report Theme</h3>
           <p className="text-[12px] text-ih-fg-3">Default visual style for client-facing reports.</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {THEMES.map((t) => (
               <label key={t} className="cursor-pointer">
                 <input type="radio" name={fields.reportTheme.name} value={t}

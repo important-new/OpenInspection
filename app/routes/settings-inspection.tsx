@@ -31,7 +31,7 @@ export default function SettingsInspectionPage() {
     if (!loaded) return <div className="p-6 text-[13px] text-ih-fg-3">Loading...</div>;
 
     return (
-        <div className="max-w-2xl mx-auto p-6 space-y-8">
+        <div className="space-y-8">
             <div>
                 <h1 className="text-[19px] font-bold">Inspection Workflow</h1>
                 <p className="text-[13px] text-ih-fg-3 mt-1">Defaults that apply to every inspector on this workspace.</p>
