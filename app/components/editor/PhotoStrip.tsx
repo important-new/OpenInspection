@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Icon } from "@core/shared-ui";
 
 interface Photo {
   id: string;
@@ -82,9 +83,7 @@ export function PhotoStrip({ photos, onAdd, onRemove, onExpand }: PhotoStripProp
               className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
               aria-label="Close"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <Icon name="x" className="w-5 h-5" />
             </button>
             {/* ds-allow: fixed-dark photo lightbox caption (light-on-dark over image) */}
             {expanded.caption && (

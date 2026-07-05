@@ -2,7 +2,7 @@ import { NavLink } from "react-router";
 import { useSessionContext } from "~/hooks/useSessionContext";
 import { IC, WORKSPACE_ITEMS } from "~/components/sidebar/nav-items";
 import { ThemeSegmentControl } from "~/components/sidebar/ThemeSegmentControl";
-import { Avatar } from "@core/shared-ui";
+import { Avatar, Icon } from "@core/shared-ui";
 
 // ─── Mobile drawer ─────────────────────────────────────────────────────────────
 export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -27,7 +27,7 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
             <span className="text-sm font-bold text-ih-fg-1 tracking-tight">{companyName}</span>
           </div>
           <button onClick={onClose} className="p-2 rounded-ih-button text-ih-fg-4 hover:bg-ih-bg-muted hover:text-ih-fg-2 transition-colors" aria-label="Close menu">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            <Icon name="x" className="w-5 h-5" />
           </button>
         </div>
         <nav className="flex-1 p-3 overflow-y-auto space-y-3">
