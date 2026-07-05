@@ -8,6 +8,8 @@ import {
 export default [
   index("routes/home.tsx"),
   route("login", "routes/login.tsx"),
+  route("forgot-password", "routes/forgot-password.tsx"),
+  route("reset-password", "routes/reset-password.tsx"),
   route("logout", "routes/logout.tsx"),
   // Remote MCP OAuth consent screen (B3). Bare route (own chrome, own auth
   // handling); the OAuthProvider wrapper routes /oauth/authorize here via the
