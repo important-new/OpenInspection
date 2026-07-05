@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { useLoaderData, useFetcher, useSearchParams, redirect } from "react-router";
+import { useLoaderData, useFetcher, useSearchParams, useNavigate, redirect } from "react-router";
 import type { InspectionSearchItem } from "~/routes/resources/inspection-search";
 import type { Route } from "./+types/inspections";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { buildCreateInspectionJson } from "~/lib/inspection-create";
-import { NewInspectionWizard, type WizardTeamMember } from "~/components/NewInspectionWizard";
+import { type WizardTeamMember } from "~/components/NewInspectionWizard";
 import { OnboardingChecklist } from "~/components/dashboard/OnboardingChecklist";
 import { CommandPalette } from "~/components/CommandPalette";
 import { SeatBanner } from "~/components/SeatBanner";
@@ -269,11 +269,12 @@ export async function action({ request, context }: Route.ActionArgs) {
 /* ------------------------------------------------------------------ */
 
 export default function InspectionsPage() {
-  const { buckets, conciergePending, greeting: _ssrGreeting, tags, templates, services, teamMembers, checklistDismissed: loaderDismissed, templateCount, serviceCount, quotaCaps, quotaUsage } = useLoaderData<typeof loader>();
+  const { buckets, conciergePending, greeting: _ssrGreeting, tags, checklistDismissed: loaderDismissed, templateCount, serviceCount, quotaCaps, quotaUsage } = useLoaderData<typeof loader>();
   const sessionCtx = useSessionContext();
   const [greeting, setGreeting] = useState(_ssrGreeting);
   useEffect(() => { setGreeting(getGreeting()); }, []);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const fetcher = useFetcher();
 
   /* ---- IA-12 Onboarding checklist ---- */
@@ -293,7 +294,6 @@ export default function InspectionsPage() {
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [activeTagFilter, setActiveTagFilter] = useState("");
   const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(new Set());
-  const [wizardOpen, setWizardOpen] = useState(searchParams.get("newInspection") === "1" || searchParams.get("new") === "1");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const columnsBtnRef = useRef<HTMLButtonElement>(null);
@@ -585,16 +585,9 @@ export default function InspectionsPage() {
   // from the auth-layout session context the dashboard already consumes.
   const tenantSlug = sessionCtx?.branding?.tenantSlug ?? null;
 
-  // Free-tier at-open quota gate — reuses the same quotaCaps/quotaUsage the
-  // QuotaBanner below already consumes (no extra API call). `caps` is null
-  // for standalone and paid-saas tenants, so this stays undefined (normal
-  // wizard) for both. `inspections` cap of 0 is the "unlimited" sentinel
-  // (mirrors QuotaBanner's `cap <= 0` guard) and never gates.
+  // Portal billing deep-link — consumed by the SeatBanner and free-tier
+  // QuotaBanner below. Undefined when no portal base URL is configured.
   const billingUrl = sessionCtx?.branding?.portalBaseUrl ? `${sessionCtx.branding.portalBaseUrl}/billing` : undefined;
-  const quotaExceededAtOpen: string | null | undefined =
-    quotaCaps && quotaUsage && quotaCaps.inspections > 0 && quotaUsage.inspections >= quotaCaps.inspections
-      ? billingUrl ?? null
-      : undefined;
 
   // A row's props are identical in both the grouped and flat views; this keeps
   // the two render sites in sync.
@@ -663,7 +656,7 @@ export default function InspectionsPage() {
             <Button variant="secondary" size="sm" onClick={exportCsv}>
               Export
             </Button>
-            <Button variant="primary" size="sm" icon={<Icon name="plus" size={14} />} onClick={() => setWizardOpen(true)}>
+            <Button variant="primary" size="sm" icon={<Icon name="plus" size={14} />} onClick={() => navigate("/inspections/new")}>
               New Inspection
             </Button>
           </>
@@ -699,7 +692,7 @@ export default function InspectionsPage() {
             { method: "post" },
           );
         }}
-        onOpenWizard={() => setWizardOpen(true)}
+        onOpenWizard={() => navigate("/inspections/new")}
       />
 
       {/* Workflow tabs */}
@@ -860,18 +853,8 @@ export default function InspectionsPage() {
         })()
       )}
 
-      {/* Wizard modal */}
-      <NewInspectionWizard
-        open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-        templates={templates}
-        services={services}
-        teamMembers={teamMembers}
-        quotaExceededAtOpen={quotaExceededAtOpen}
-      />
-
       {/* Command Palette */}
-      <CommandPalette onNewInspection={() => setWizardOpen(true)} />
+      <CommandPalette onNewInspection={() => navigate("/inspections/new")} />
 
       {/* Filters drawer */}
       <FiltersModal

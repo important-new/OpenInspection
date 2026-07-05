@@ -143,8 +143,11 @@ export default function CalendarPage() {
   };
 
   /* ---- Day click (create) ---- */
-  const handleDayClick = (dateStr: string) => {
-    navigate(`/inspections?newInspection=1&date=${encodeURIComponent(dateStr)}`);
+  const handleDayClick = (_dateStr: string) => {
+    // Opens the dedicated New Inspection page. (The former ?date= seed was
+    // never consumed by the wizard — it always defaults to today — so no date
+    // is forwarded; behavior is unchanged.)
+    navigate("/inspections/new");
   };
 
   /* ---- Drag reschedule ---- */
