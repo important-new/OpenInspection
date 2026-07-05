@@ -1,11 +1,10 @@
 import { NavLink } from "react-router";
-import { useTheme } from "~/hooks/useTheme";
 import { useSessionContext } from "~/hooks/useSessionContext";
 import { IC, WORKSPACE_ITEMS } from "~/components/sidebar/nav-items";
+import { ThemeSegmentControl } from "~/components/sidebar/ThemeSegmentControl";
 
 // ─── Mobile drawer ─────────────────────────────────────────────────────────────
 export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { scheme, setColorScheme } = useTheme();
   const ctx = useSessionContext();
 
   const companyName = ctx?.branding?.companyName || "OpenInspection";
@@ -90,13 +89,7 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
         <div className="p-3 border-t border-ih-border bg-ih-bg-muted/50 space-y-1">
           <div className="px-1 py-0.5">
             <div className="text-[10px] font-bold text-ih-fg-4 uppercase tracking-wide mb-1.5 px-1">Theme</div>
-            <div className="flex gap-1">
-              {(["auto", "light", "dark", "field"] as const).map((mode) => (
-                <button key={mode} onClick={() => setColorScheme(mode)} className={`flex-1 py-1.5 rounded-[6px] text-[11px] font-bold transition-colors ${scheme === mode ? "bg-ih-primary-tint text-ih-primary" : "text-ih-fg-3 hover:bg-ih-bg-muted"}`}>
-                  {mode === "auto" ? "Auto" : mode === "dark" ? "Dark" : mode === "field" ? "Field" : "Light"}
-                </button>
-              ))}
-            </div>
+            <ThemeSegmentControl className="w-full" />
           </div>
           <div className="flex items-center gap-2.5 px-2 py-1">
             <div className="w-7 h-7 rounded-full bg-gradient-to-br from-ih-primary to-ih-primary-700 flex items-center justify-center text-ih-fg-inverse text-[11px] font-bold shrink-0">

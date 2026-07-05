@@ -22,3 +22,4 @@ export { FileDropzone, firstFileFromDrop, formatFileSize, truncateMiddle } from 
 export type { FileDropzoneProps } from "./FileDropzone";
 export { Table } from "./Table";
 export type { TableProps, TableColumn, TableAlign } from "./Table";
+export { SegmentedControl, type SegmentedControlOption } from "./SegmentedControl";
