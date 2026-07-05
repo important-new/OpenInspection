@@ -19,7 +19,7 @@ export function MobileDrawer({ open, onClose }: { open: boolean; onClose: () => 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
-      <div className="absolute inset-0 bg-[rgba(15,23,42,0.55)] backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-ih-backdrop" onClick={onClose} />
       <div className="relative w-80 max-w-[85vw] h-full bg-ih-bg-card shadow-ih-popover flex flex-col">
         <div className="p-4 flex items-center justify-between border-b border-ih-border">
           <div className="flex items-center gap-3">

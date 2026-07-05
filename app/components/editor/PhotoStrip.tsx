@@ -68,7 +68,11 @@ export function PhotoStrip({ photos, onAdd, onRemove, onExpand }: PhotoStripProp
 
       {/* Expanded view */}
       {expanded && (
-        <div className="fixed inset-0 z-50 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-4" onClick={() => setExpandedId(null)}>
+        <div
+          /* ds-allow: fixed-dark photo lightbox backdrop (light-on-dark over the image) */
+          className="fixed inset-0 z-50 bg-[rgba(0,0,0,0.8)] flex items-center justify-center p-4"
+          onClick={() => setExpandedId(null)}
+        >
           <div className="relative max-w-3xl max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
             <img src={expanded.url} alt={expanded.caption || "Photo"} className="max-w-full max-h-[80vh] rounded-lg object-contain" />
             {/* ds-allow: fixed-dark photo lightbox overlay (light-on-dark over image) */}

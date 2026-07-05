@@ -101,7 +101,7 @@ export function AgentCommandPalette({ inspectors, agentSlug, bookingHost }: Agen
     <>
       {open && (
         <div className="fixed inset-0 z-[10000] flex items-start justify-center pt-[12vh] px-4" role="dialog" aria-modal="true" aria-label="Agent command palette" data-testid="agent-command-palette">
-          <div className="absolute inset-0 bg-[rgba(15,23,42,0.5)] backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="absolute inset-0 bg-ih-backdrop" onClick={() => setOpen(false)} />
           <div className="relative w-full max-w-[36rem] bg-ih-bg-card border border-ih-border rounded-2xl shadow-ih-popover flex flex-col overflow-hidden max-h-[70vh]">
             <div className="flex items-center gap-3 px-5 py-4 border-b border-ih-border">
               <span className="font-bold text-lg tracking-tight text-ih-fg-1 mr-auto" style={{ fontFamily: "'Fraunces', serif" }}>Quick search</span>
