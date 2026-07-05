@@ -1735,8 +1735,8 @@ export default function InspectionEditPage() {
  />
 
  {/* Comment library drawer */}
- {state.showCommentLibrary && (
  <CommentLibraryDrawer
+ open={state.showCommentLibrary}
  comments={{
  filterMode: comments.filterMode,
  setFilterMode: comments.setFilterMode,
@@ -1762,7 +1762,6 @@ export default function InspectionEditPage() {
  onInsert={onInsert}
  onClose={() => state.setShowCommentLibrary(false)}
  />
- )}
 
  {/* Section picker modal */}
  <SectionPickerModal

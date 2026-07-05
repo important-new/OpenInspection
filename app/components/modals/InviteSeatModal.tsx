@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useFetcher } from "react-router";
+import { Drawer } from "@core/shared-ui";
 import { getCapabilities, TOGGLEABLE, type Capability, type CapabilitySet, type PermissionOverrides } from "../../../server/lib/auth/capabilities";
 import { SeatLimitPanel } from "./SeatLimitPanel";
+
+const FORM_ID = "invite-seat-form";
 
 type Role = "owner" | "manager" | "inspector" | "agent";
 
@@ -68,6 +71,7 @@ export function InviteSeatModal({ open, onClose, seatLimitAtOpen }: InviteSeatMo
  // whenever the parent re-renders while the modal is already open would let
  // a background loader revalidation flip this mid-fill.
  const [seatLimit, setSeatLimit] = useState<{ used: number; max: number; billingUrl?: string } | undefined>(seatLimitAtOpen);
+ const emailRef = useRef<HTMLInputElement>(null);
 
  useEffect(() => {
   setCaps(getCapabilities(role, null));
@@ -92,9 +96,8 @@ export function InviteSeatModal({ open, onClose, seatLimitAtOpen }: InviteSeatMo
   }
  }, [inviteFetcher.data, onClose]);
 
- if (!open) return null;
-
- function submitPermanent() {
+ function submitPermanent(e?: React.FormEvent) {
+  e?.preventDefault();
   if (submitting) return;
   setError("");
   // Only send capabilities that differ from the role template; the server
@@ -109,21 +112,28 @@ export function InviteSeatModal({ open, onClose, seatLimitAtOpen }: InviteSeatMo
  }
 
  return (
- <div className="fixed inset-0 z-50 bg-[rgba(15,23,42,0.7)] flex items-center justify-center p-6" onClick={onClose} role="dialog" aria-modal="true" aria-label="Invite seat">
- <div className="max-w-md w-full bg-ih-bg-card rounded-xl shadow-ih-popover" onClick={(e) => e.stopPropagation()}>
- <header className="px-6 py-4 border-b border-ih-border flex items-center gap-4">
- <h2 className="text-lg font-bold flex-1 text-ih-fg-1">Invite</h2>
- </header>
-
+ <Drawer
+ open={open}
+ onClose={onClose}
+ title="Invite"
+ initialFocusRef={emailRef}
+ footer={
+ seatLimit ? undefined : (
+ <>
+ <button type="button" onClick={onClose} className="px-4 h-10 rounded-xl border border-ih-border text-sm font-semibold text-ih-fg-3 hover:bg-ih-bg-muted">Cancel</button>
+ <button type="submit" form={FORM_ID} disabled={submitting} className="px-4 h-10 rounded-xl bg-ih-primary text-white text-sm font-semibold hover:bg-ih-primary-600 disabled:opacity-50">Send invite</button>
+ </>
+ )
+ }
+ >
  {seatLimit ? (
  <SeatLimitPanel used={seatLimit.used} max={seatLimit.max} billingUrl={seatLimit.billingUrl} onClose={onClose} />
  ) : (
- <>
- <div className="p-6 space-y-4">
+ <form id={FORM_ID} onSubmit={submitPermanent} className="space-y-4">
  <div className="space-y-3">
  <label className="block">
  <span className="block text-[10px] font-bold uppercase tracking-widest text-ih-fg-3 mb-1">Email</span>
- <input className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card text-sm text-ih-fg-1" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+ <input ref={emailRef} className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-card text-sm text-ih-fg-1" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
  </label>
  <label className="flex items-center gap-2 text-sm text-ih-fg-3">
  <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
@@ -168,15 +178,8 @@ export function InviteSeatModal({ open, onClose, seatLimitAtOpen }: InviteSeatMo
  </div>
 
  {error && <p className="text-xs text-ih-bad-fg font-semibold">{error}</p>}
- </div>
-
- <footer className="px-6 py-4 border-t border-ih-border flex justify-end gap-2">
- <button onClick={onClose} className="px-4 h-10 rounded-xl border border-ih-border text-sm font-semibold text-ih-fg-3 hover:bg-ih-bg-muted">Cancel</button>
- <button onClick={submitPermanent} disabled={submitting} className="px-4 h-10 rounded-xl bg-ih-primary text-white text-sm font-semibold hover:bg-ih-primary-600 disabled:opacity-50">Send invite</button>
- </footer>
- </>
+ </form>
  )}
- </div>
- </div>
+ </Drawer>
  );
 }

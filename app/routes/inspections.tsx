@@ -873,18 +873,17 @@ export default function InspectionsPage() {
       {/* Command Palette */}
       <CommandPalette onNewInspection={() => setWizardOpen(true)} />
 
-      {/* Filters modal */}
-      {filtersOpen && (
-        <FiltersModal
-          onClose={() => setFiltersOpen(false)}
-          filterDateFrom={filterDateFrom}
-          filterDateTo={filterDateTo}
-          filterAgentId={filterAgentId}
-          setFilterDateFrom={setFilterDateFrom}
-          setFilterDateTo={setFilterDateTo}
-          setFilterAgentId={setFilterAgentId}
-        />
-      )}
+      {/* Filters drawer */}
+      <FiltersModal
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filterDateFrom={filterDateFrom}
+        filterDateTo={filterDateTo}
+        filterAgentId={filterAgentId}
+        setFilterDateFrom={setFilterDateFrom}
+        setFilterDateTo={setFilterDateTo}
+        setFilterAgentId={setFilterAgentId}
+      />
 
       {/* Columns modal */}
       {columnsOpen && (
