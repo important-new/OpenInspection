@@ -23,3 +23,4 @@ export type { FileDropzoneProps } from "./FileDropzone";
 export { Table } from "./Table";
 export type { TableProps, TableColumn, TableAlign } from "./Table";
 export { SegmentedControl, type SegmentedControlOption } from "./SegmentedControl";
+export { Avatar, avatarInitials, type AvatarSize, type AvatarVariant, type AvatarStatus } from "./Avatar";

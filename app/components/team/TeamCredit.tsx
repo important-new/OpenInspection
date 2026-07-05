@@ -1,3 +1,5 @@
+import { Avatar } from "@core/shared-ui";
+
 interface TeamCreditMember {
   name: string;
   role: string;
@@ -16,9 +18,7 @@ export function TeamCredit({ team, nachi }: TeamCreditProps) {
       <ul className="space-y-2 text-sm">
         {team.map((m, i) => (
           <li key={i} className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-full bg-ih-bg-muted flex items-center justify-center text-xs font-bold text-ih-fg-2">
-              {(m.name || "?").slice(0, 2).toUpperCase()}
-            </div>
+            <Avatar name={m.name} size={28} variant="flat" fallbackIcon="?" />
             <span className="font-medium">{m.name}</span>
             <span className="text-xs text-ih-fg-3">
               {m.role}

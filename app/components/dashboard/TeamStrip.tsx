@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useFetcher } from "react-router";
+import { Avatar } from "@core/shared-ui";
 
 interface TeamMember {
   id: string;
@@ -43,15 +44,12 @@ export function TeamStrip({ members: propMembers }: TeamStripProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {members.map((m) => (
           <div key={m.id} className="flex items-center gap-3 p-2 rounded border border-ih-border">
-            <div className="relative shrink-0">
-              <div className="w-9 h-9 rounded-full bg-ih-bg-muted flex items-center justify-center text-xs font-bold text-ih-fg-2">
-                {(m.name || m.email || "?").slice(0, 2).toUpperCase()}
-              </div>
-              <span
-                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-ih-bg-card ${m.online ? "bg-ih-ok" : "bg-ih-fg-4"}`}
-                aria-hidden="true"
-              />
-            </div>
+            <Avatar
+              name={m.name || m.email}
+              size={36}
+              variant="flat"
+              statusDot={m.online ? "online" : "offline"}
+            />
             <div className="min-w-0 flex-1">
               <div className="text-sm font-medium truncate text-ih-fg-1">{m.name || m.email}</div>
               <div className="text-xs text-ih-fg-4">

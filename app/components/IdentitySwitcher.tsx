@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useFetcher } from "react-router";
+import { Avatar } from "@core/shared-ui";
 
 interface Identity {
   id: string;
@@ -53,9 +54,7 @@ export function IdentitySwitcher() {
           onClick={() => switchTo(id.linkedUserId)}
           disabled={submitting}
         >
-          <div className="w-7 h-7 rounded-full bg-ih-bg-muted flex items-center justify-center text-xs font-bold text-ih-fg-2">
-            {(id.linkedDisplayName || "?").slice(0, 2).toUpperCase()}
-          </div>
+          <Avatar name={id.linkedDisplayName} size={28} variant="flat" fallbackIcon="?" />
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium truncate">{id.linkedDisplayName}</div>
             <div className="text-xs text-ih-fg-3">{id.linkedRole}</div>

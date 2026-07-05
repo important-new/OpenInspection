@@ -6,6 +6,7 @@ import { IC, WORKSPACE_ITEMS } from "~/components/sidebar/nav-items";
 import { SidebarGroup } from "~/components/sidebar/SidebarGroup";
 import { UserMenuPopover } from "~/components/sidebar/UserMenuPopover";
 import { MobileHeader } from "~/components/sidebar/MobileHeader";
+import { Avatar } from "@core/shared-ui";
 
 export { MobileHeader };
 
@@ -25,7 +26,6 @@ export function Sidebar() {
   const logoUrl = ctx?.branding?.logoUrl || "/logo.svg";
   const userName = ctx?.user?.name || "Inspector";
   const userSubline = ctx?.branding?.tenantSlug || "openinspection.dev";
-  const userInitials = ctx?.user?.initials || "OI";
   const userRole = ctx?.user?.role || null;
   const showSwitchWorkspace = ctx?.branding?.isSaas && ctx?.branding?.portalBaseUrl;
   const privacyUrl = ctx?.branding?.privacyUrl ?? null;
@@ -149,9 +149,7 @@ export function Sidebar() {
             className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[6px] hover:bg-ih-bg-muted transition-all focus:outline-none focus:shadow-ih-focus ${collapsed ? "justify-center" : ""}`}
           >
             {/* Avatar initials circle */}
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ih-primary to-ih-primary-700 flex items-center justify-center text-ih-fg-inverse text-[12px] font-bold shrink-0">
-              {userInitials}
-            </div>
+            <Avatar name={userName} size={32} variant="self" fallbackIcon="OI" />
             {!collapsed && (
               <>
                 <div className="flex-1 min-w-0 text-left">
