@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Modal } from "@core/shared-ui";
 
 export interface SectionPickerModalProps {
@@ -19,16 +20,17 @@ export function SectionPickerModal({
  pickSection,
  closeSectionPicker,
 }: SectionPickerModalProps) {
+ const inputRef = useRef<HTMLInputElement>(null);
  return (
- <Modal open={open} onClose={closeSectionPicker} title="Jump to section" size="md">
+ <Modal open={open} onClose={closeSectionPicker} title="Jump to section" size="md" initialFocusRef={inputRef}>
  <input
+ ref={inputRef}
  id="section-picker-input"
  type="text"
  placeholder="Jump to section..."
  value={sectionPickerQuery}
  onChange={(e) => setSectionPickerQuery(e.target.value)}
  className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-app text-[13px]"
- autoFocus
  />
  <div className="mt-3 -mx-4 max-h-60 overflow-y-auto border-t border-ih-border">
  {filteredSectionsForPicker.map((sec) => (

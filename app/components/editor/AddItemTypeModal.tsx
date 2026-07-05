@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Modal } from "@core/shared-ui";
 import type { ItemType } from "~/lib/editor/structure-ops";
 
@@ -30,6 +30,7 @@ const ITEM_TYPES: Array<{ value: ItemType; label: string }> = [
 export function AddItemTypeModal({ open, onConfirm, onCancel }: AddItemTypeModalProps) {
   const [label, setLabel] = useState("");
   const [type, setType] = useState<ItemType>("rich");
+  const labelRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) { setLabel(""); setType("rich"); }
@@ -47,6 +48,7 @@ export function AddItemTypeModal({ open, onConfirm, onCancel }: AddItemTypeModal
       onClose={onCancel}
       title="Add item"
       size="sm"
+      initialFocusRef={labelRef}
       footer={
         <>
           <button
@@ -68,10 +70,10 @@ export function AddItemTypeModal({ open, onConfirm, onCancel }: AddItemTypeModal
       <label className="block text-[12px] font-bold text-ih-fg-2">
         Label
         <input
+          ref={labelRef}
           type="text"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          autoFocus
           placeholder="New item"
           className="mt-1 w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-app text-[13px] font-normal"
           onKeyDown={(e) => { if (e.key === "Enter") submit(); }}

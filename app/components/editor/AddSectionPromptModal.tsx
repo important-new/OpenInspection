@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Modal } from "@core/shared-ui";
 
 /**
@@ -22,12 +23,14 @@ export function AddSectionPromptModal({
   onConfirm,
   onCancel,
 }: AddSectionPromptModalProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
   return (
     <Modal
       open={open}
       onClose={onCancel}
       title="Add section"
       size="sm"
+      initialFocusRef={inputRef}
       footer={
         <>
           <button
@@ -46,8 +49,8 @@ export function AddSectionPromptModal({
       }
     >
       <input
+        ref={inputRef}
         type="text"
-        autoFocus
         className="w-full px-3 py-2 rounded-md border border-ih-border bg-ih-bg-app text-[13px] text-ih-fg-1 placeholder:text-ih-fg-4 focus:outline-none focus:ring-2 focus:ring-ih-primary"
         placeholder="Section title (e.g. Roof)"
         value={value}

@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Modal } from "@core/shared-ui";
 
 export interface SaveTemplateModalProps {
@@ -20,6 +21,7 @@ export interface SaveTemplateModalProps {
  */
 export function SaveTemplateModal({ mode, name, onChangeName, onConfirm, onCancel }: SaveTemplateModalProps) {
   const isNew = mode === "new";
+  const nameRef = useRef<HTMLInputElement>(null);
 
   return (
     <Modal
@@ -27,6 +29,7 @@ export function SaveTemplateModal({ mode, name, onChangeName, onConfirm, onCance
       onClose={onCancel}
       title={isNew ? "Save as new template" : "Save structure to template"}
       size="sm"
+      initialFocusRef={nameRef}
       footer={
         <>
           <button
@@ -54,10 +57,10 @@ export function SaveTemplateModal({ mode, name, onChangeName, onConfirm, onCance
         <label className="block mt-4 text-[12px] font-bold text-ih-fg-2">
           Template name
           <input
+            ref={nameRef}
             type="text"
             value={name}
             onChange={(e) => onChangeName(e.target.value)}
-            autoFocus
             placeholder="Custom Template"
             className="mt-1 w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-app text-[13px] font-normal"
             onKeyDown={(e) => { if (e.key === "Enter") onConfirm(); }}
