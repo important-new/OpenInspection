@@ -5,6 +5,7 @@ import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { requireAdminLoader } from "~/lib/access.server";
 import { AccessDenied } from "~/components/AccessDenied";
+import { Modal } from "@core/shared-ui";
 
 export function meta() {
   return [{ title: "Automations - Settings - OpenInspection" }];
@@ -264,11 +265,34 @@ function AutomationEditor({
   }, [fetcher.state, fetcher.data, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] p-4" onClick={onClose}>
-      <fetcher.Form method="post" role="dialog" aria-modal="true" aria-label="Automation editor" onClick={(e) => e.stopPropagation()} className="bg-ih-bg-card border border-ih-border rounded-xl w-full max-w-lg max-h-[90vh] overflow-auto p-5 space-y-5">
+    <Modal
+      open
+      onClose={onClose}
+      title={rule ? "Edit automation" : "New automation"}
+      size="lg"
+      footer={
+        <>
+          {rule && !rule.isDefault && (
+            <button type="button" disabled={submitting}
+              onClick={() => {
+                if (!confirmDelete) { setConfirmDelete(true); return; }
+                fetcher.submit({ intent: "delete", id: rule.id }, { method: "post" });
+              }}
+              className="h-9 px-4 rounded-md border border-ih-border text-[13px] text-ih-bad-fg disabled:opacity-50">
+              {confirmDelete ? "Confirm delete?" : "Delete"}
+            </button>
+          )}
+          <div className="flex-1" />
+          <button type="button" onClick={onClose} className="h-9 px-4 rounded-md border border-ih-border text-[13px] text-ih-fg-2">Cancel</button>
+          <button type="submit" form="automation-editor-form" disabled={submitting || saveBlocked}
+            title={noChannel ? "Pick at least one delivery channel" : undefined}
+            className="h-9 px-4 rounded-md bg-ih-primary text-white font-bold text-[13px] disabled:opacity-50">Save</button>
+        </>
+      }
+    >
+      <fetcher.Form id="automation-editor-form" method="post" className="space-y-5">
         <input type="hidden" name="intent" value="save" />
         {rule && <input type="hidden" name="id" value={rule.id} />}
-        <h3 className="text-[16px] font-bold text-ih-fg-1">{rule ? "Edit automation" : "New automation"}</h3>
 
         <input name="name" required defaultValue={rule?.name ?? ""} placeholder="Automation name"
           className="w-full h-9 px-3 rounded-md border border-ih-border bg-ih-bg-input text-[13px]" />
@@ -365,25 +389,7 @@ function AutomationEditor({
         {fetcher.data && fetcher.data.ok === false && (
           <p className="text-[12px] text-ih-bad-fg">Could not save — please try again.</p>
         )}
-
-        <div className="flex items-center gap-2">
-          {rule && !rule.isDefault && (
-            <button type="button" disabled={submitting}
-              onClick={() => {
-                if (!confirmDelete) { setConfirmDelete(true); return; }
-                fetcher.submit({ intent: "delete", id: rule.id }, { method: "post" });
-              }}
-              className="h-9 px-4 rounded-md border border-ih-border text-[13px] text-ih-bad-fg disabled:opacity-50">
-              {confirmDelete ? "Confirm delete?" : "Delete"}
-            </button>
-          )}
-          <div className="flex-1" />
-          <button type="button" onClick={onClose} className="h-9 px-4 rounded-md border border-ih-border text-[13px] text-ih-fg-2">Cancel</button>
-          <button type="submit" disabled={submitting || saveBlocked}
-            title={noChannel ? "Pick at least one delivery channel" : undefined}
-            className="h-9 px-4 rounded-md bg-ih-primary text-white font-bold text-[13px] disabled:opacity-50">Save</button>
-        </div>
       </fetcher.Form>
-    </div>
+    </Modal>
   );
 }

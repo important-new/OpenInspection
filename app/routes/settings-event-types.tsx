@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useLoaderData, Link } from "react-router";
 import type { Route } from "./+types/settings-event-types";
 import { createApi } from "~/lib/api-client.server";
 import { requireAdminLoader } from "~/lib/access.server";
 import { AccessDenied } from "~/components/AccessDenied";
-import { Table } from "@core/shared-ui";
+import { Table, Modal } from "@core/shared-ui";
 
 interface EventType {
   id: string;
@@ -51,6 +51,7 @@ export default function SettingsEventTypes() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
 
   if ("forbidden" in data) return <AccessDenied />;
 
@@ -212,22 +213,36 @@ export default function SettingsEventTypes() {
       )}
 
       {/* Create / Edit modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-[rgba(15,23,42,0.4)]"
-            onClick={() => setModalOpen(false)}
-          />
-          <div className="relative bg-ih-bg-card border border-ih-border rounded-lg shadow-ih-popover w-full max-w-md mx-4 p-6 space-y-4">
-            <h3 className="text-[16px] font-bold text-ih-fg-1">
-              {editingId ? "Edit event type" : "New event type"}
-            </h3>
-            <div className="space-y-3">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingId ? "Edit event type" : "New event type"}
+        initialFocusRef={nameRef}
+        footer={
+          <>
+            <button
+              onClick={() => setModalOpen(false)}
+              className="px-4 py-2 rounded-md border border-ih-border text-[13px] font-bold text-ih-fg-2 hover:bg-ih-bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="px-4 py-2 rounded-md bg-ih-primary text-white text-[13px] font-bold hover:bg-ih-primary-600 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
               <div>
                 <label className="block text-[11px] font-bold text-ih-fg-3 mb-1 uppercase tracking-widest">
                   Name
                 </label>
                 <input
+                  ref={nameRef}
                   type="text"
                   value={form.name}
                   onChange={(e) =>
@@ -330,25 +345,8 @@ export default function SettingsEventTypes() {
                   />
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setModalOpen(false)}
-                className="px-4 py-2 rounded-md border border-ih-border text-[13px] font-bold text-ih-fg-2 hover:bg-ih-bg-muted transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={save}
-                disabled={saving}
-                className="px-4 py-2 rounded-md bg-ih-primary text-white text-[13px] font-bold hover:bg-ih-primary-600 transition-colors disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
