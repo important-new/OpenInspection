@@ -33,6 +33,7 @@ import { matchesFilter, matchesWorkflow, tabMatches } from "~/lib/dashboard-filt
 import { DashboardInspectionRow } from "~/components/dashboard/DashboardInspectionRow";
 import { FiltersModal } from "~/components/dashboard/FiltersModal";
 import { ColumnsPopover } from "~/components/dashboard/ColumnsPopover";
+import { InspectionsToolbar } from "~/components/dashboard/InspectionsToolbar";
 
 // Re-exported for unit tests (tests/web import these from ~/routes/inspections).
 export { tabMatches, matchesWorkflow };
@@ -656,26 +657,9 @@ export default function InspectionsPage() {
         }
         actions={
           <>
-            {/* Search */}
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search..."
-                className="h-8 w-40 pl-8 pr-3 rounded-md border border-ih-border bg-ih-bg-card text-[13px] text-ih-fg-2 focus:ring-2 focus:ring-ih-primary/30 focus:border-ih-primary outline-none placeholder:text-ih-fg-4"
-              />
-              <Icon name="search" size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ih-fg-4" />
-            </div>
-            <Button variant="secondary" size="sm" icon={<Icon name="filter" size={14} />} onClick={() => setFiltersOpen(true)}>
-              Filters
-            </Button>
-            {/* onMouseDown stopPropagation excludes the trigger from the Popover's
-                click-outside handler so a click toggles cleanly (no close-then-reopen). */}
-            <Button ref={columnsBtnRef} variant="secondary" size="sm" icon={<Icon name="panel" size={14} />}
-              onMouseDown={(e) => e.stopPropagation()} onClick={() => setColumnsOpen((v) => !v)}>
-              Columns
-            </Button>
+            {/* Page-level actions only. List controls (search / filters /
+                columns) live in the table toolbar strip below — DS two-layer
+                actions convention. */}
             <Button variant="secondary" size="sm" onClick={exportCsv}>
               Export
             </Button>
@@ -767,6 +751,18 @@ export default function InspectionsPage() {
           </select>
         )}
       </div>
+
+      {/* Table toolbar strip — list controls (search + filters + columns).
+          Split out of the page header per the DS two-layer actions convention.
+          columnsBtnRef is forwarded through so the ColumnsPopover stays anchored
+          to the relocated Columns button. */}
+      <InspectionsToolbar
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onOpenFilters={() => setFiltersOpen(true)}
+        onToggleColumns={() => setColumnsOpen((v) => !v)}
+        columnsBtnRef={columnsBtnRef}
+      />
 
       {/* Batch actions bar */}
       {selectedIds.size > 0 && (
