@@ -270,6 +270,11 @@ export default function AgreementsPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden">
+          {/* TODO(ds-table): not migrated to the shared <Table> primitive — the
+              Signing tab's RequestRow renders expandable detail rows (a second
+              <tr colSpan> per row driven by expandedId), which the flat
+              columns/rows primitive does not model. Migrate once the primitive
+              grows an expandable-row slot. */}
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-ih-border">

@@ -5,6 +5,7 @@ import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { requireAdminLoader } from "~/lib/access.server";
 import { AccessDenied } from "~/components/AccessDenied";
+import { Table } from "@core/shared-ui";
 
 const DEFAULT_RETENTION_YEARS = 6;
 const MIN_RETENTION_YEARS = 1;
@@ -226,52 +227,18 @@ function ErasureLogView({ rows }: { rows: ErasureLogRow[] }) {
         <p className="text-[12px] text-ih-fg-4 italic">No erasure requests have been recorded yet.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-ih-border">
-                <th className="py-2 pr-4 text-[11px] font-bold uppercase tracking-[0.1em] text-ih-fg-3">
-                  Subject
-                </th>
-                <th className="py-2 pr-4 text-[11px] font-bold uppercase tracking-[0.1em] text-ih-fg-3">
-                  Date
-                </th>
-                <th className="py-2 pr-4 text-[11px] font-bold uppercase tracking-[0.1em] text-ih-fg-3">
-                  Status
-                </th>
-                <th className="py-2 pr-4 text-[11px] font-bold uppercase tracking-[0.1em] text-ih-fg-3 text-right">
-                  Deleted
-                </th>
-                <th className="py-2 pr-4 text-[11px] font-bold uppercase tracking-[0.1em] text-ih-fg-3 text-right">
-                  Anonymized
-                </th>
-                <th className="py-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ih-fg-3 text-right">
-                  Retained
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b border-ih-border last:border-0">
-                  <td className="py-2.5 pr-4 text-[13px] text-ih-fg-1 font-medium">{r.subjectEmail}</td>
-                  <td className="py-2.5 pr-4 text-[13px] text-ih-fg-2 whitespace-nowrap">
-                    {formatDate(r.createdAt)}
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td className="py-2.5 pr-4 text-[13px] text-ih-fg-2 text-right tabular-nums">
-                    {r.deletedCount}
-                  </td>
-                  <td className="py-2.5 pr-4 text-[13px] text-ih-fg-2 text-right tabular-nums">
-                    {r.anonymizedCount}
-                  </td>
-                  <td className="py-2.5 text-[13px] text-ih-fg-2 text-right tabular-nums">
-                    {r.retainedCount}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table<ErasureLogRow>
+            rows={rows}
+            getRowKey={(r) => r.id}
+            columns={[
+              { label: "Subject", cell: (r) => <span className="font-medium text-ih-fg-1">{r.subjectEmail}</span> },
+              { label: "Date", cell: (r) => <span className="text-ih-fg-2 whitespace-nowrap">{formatDate(r.createdAt)}</span> },
+              { label: "Status", cell: (r) => <StatusBadge status={r.status} /> },
+              { label: "Deleted", align: "right", cell: (r) => <span className="text-ih-fg-2 tabular-nums">{r.deletedCount}</span> },
+              { label: "Anonymized", align: "right", cell: (r) => <span className="text-ih-fg-2 tabular-nums">{r.anonymizedCount}</span> },
+              { label: "Retained", align: "right", cell: (r) => <span className="text-ih-fg-2 tabular-nums">{r.retainedCount}</span> },
+            ]}
+          />
         </div>
       )}
     </section>
