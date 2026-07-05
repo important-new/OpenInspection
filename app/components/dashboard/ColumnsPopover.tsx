@@ -1,25 +1,40 @@
+import type React from "react";
 import { COLUMN_REGISTRY, ALWAYS_ON } from "~/lib/dashboard-schema";
-import { Button } from "@core/shared-ui";
+import { Button, Popover } from "@core/shared-ui";
 
-interface ColumnsModalProps {
+interface ColumnsPopoverProps {
+  open: boolean;
   onClose: () => void;
+  /** The "Columns" toolbar button the panel anchors beneath. */
+  anchorRef: React.RefObject<HTMLElement | null>;
   isColumnVisible: (id: string) => boolean;
   toggleColumn: (id: string) => void;
   resetColumns: () => void;
 }
 
-export function ColumnsModal({
+/**
+ * Column-visibility toggle list. A lightweight, in-context choice anchored to
+ * its trigger button — so a Popover, not a Modal (design system §4). Toggles
+ * apply immediately (each onChange persists straight through toggleColumn);
+ * there is no Apply/Cancel step. Dismissal is click-outside or Esc, handled by
+ * the Popover primitive.
+ */
+export function ColumnsPopover({
+  open,
   onClose,
+  anchorRef,
   isColumnVisible,
   toggleColumn,
   resetColumns,
-}: ColumnsModalProps) {
+}: ColumnsPopoverProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.4)] backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-sm bg-ih-bg-card rounded-xl shadow-ih-popover p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[16px] font-bold text-ih-fg-1">Customize Columns</h2>
-          <button onClick={onClose} className="text-ih-fg-4 hover:text-ih-fg-2 text-lg">&times;</button>
+    <Popover open={open} onClose={onClose} anchorRef={anchorRef} align="right">
+      <div className="w-64 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[13px] font-bold text-ih-fg-1">Customize Columns</h2>
+          <button onClick={onClose} className="text-ih-fg-4 hover:text-ih-fg-2 text-lg leading-none" aria-label="Close">
+            &times;
+          </button>
         </div>
         <div className="space-y-2">
           {COLUMN_REGISTRY.map((col) => (
@@ -38,15 +53,12 @@ export function ColumnsModal({
             </label>
           ))}
         </div>
-        <div className="flex items-center justify-between mt-6">
+        <div className="mt-4">
           <Button variant="ghost" size="sm" onClick={resetColumns}>
             Reset to defaults
           </Button>
-          <Button variant="primary" size="sm" onClick={onClose}>
-            Done
-          </Button>
         </div>
       </div>
-    </div>
+    </Popover>
   );
 }

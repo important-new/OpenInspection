@@ -32,7 +32,7 @@ import {
 import { matchesFilter, matchesWorkflow, tabMatches } from "~/lib/dashboard-filters";
 import { DashboardInspectionRow } from "~/components/dashboard/DashboardInspectionRow";
 import { FiltersModal } from "~/components/dashboard/FiltersModal";
-import { ColumnsModal } from "~/components/dashboard/ColumnsModal";
+import { ColumnsPopover } from "~/components/dashboard/ColumnsPopover";
 
 // Re-exported for unit tests (tests/web import these from ~/routes/inspections).
 export { tabMatches, matchesWorkflow };
@@ -295,6 +295,7 @@ export default function InspectionsPage() {
   const [wizardOpen, setWizardOpen] = useState(searchParams.get("newInspection") === "1" || searchParams.get("new") === "1");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const columnsBtnRef = useRef<HTMLButtonElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [visiblePage, setVisiblePage] = useState(1);
@@ -669,7 +670,10 @@ export default function InspectionsPage() {
             <Button variant="secondary" size="sm" icon={<Icon name="filter" size={14} />} onClick={() => setFiltersOpen(true)}>
               Filters
             </Button>
-            <Button variant="secondary" size="sm" icon={<Icon name="panel" size={14} />} onClick={() => setColumnsOpen(true)}>
+            {/* onMouseDown stopPropagation excludes the trigger from the Popover's
+                click-outside handler so a click toggles cleanly (no close-then-reopen). */}
+            <Button ref={columnsBtnRef} variant="secondary" size="sm" icon={<Icon name="panel" size={14} />}
+              onMouseDown={(e) => e.stopPropagation()} onClick={() => setColumnsOpen((v) => !v)}>
               Columns
             </Button>
             <Button variant="secondary" size="sm" onClick={exportCsv}>
@@ -885,15 +889,9 @@ export default function InspectionsPage() {
         setFilterAgentId={setFilterAgentId}
       />
 
-      {/* Columns modal */}
-      {columnsOpen && (
-        <ColumnsModal
-          onClose={() => setColumnsOpen(false)}
-          isColumnVisible={isColumnVisible}
-          toggleColumn={toggleColumn}
-          resetColumns={resetColumns}
-        />
-      )}
+      {/* Columns popover — anchored to the toolbar "Columns" button */}
+      <ColumnsPopover open={columnsOpen} onClose={() => setColumnsOpen(false)} anchorRef={columnsBtnRef}
+        isColumnVisible={isColumnVisible} toggleColumn={toggleColumn} resetColumns={resetColumns} />
     </div>
   );
 }
