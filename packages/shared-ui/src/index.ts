@@ -1,5 +1,6 @@
 export { Button } from "./Button";
-export { Pill } from "./Pill";
+export { Pill, type PillTone } from "./Pill";
+export { StatCard } from "./StatCard";
 export { Icon, type IconProps } from "./Icon";
 export { Eyebrow, type EyebrowColor } from "./Eyebrow";
 export { PageHeader } from "./PageHeader";

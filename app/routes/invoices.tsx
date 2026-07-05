@@ -3,7 +3,7 @@ import { useLoaderData, useFetcher } from "react-router";
 import type { Route } from "./+types/invoices";
 import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
-import { PageHeader, Card, Button, EmptyState, Modal, Table } from "@core/shared-ui";
+import { PageHeader, Card, StatCard, Button, EmptyState, Modal, Table } from "@core/shared-ui";
 
 export function meta() {
   return [{ title: "Invoices - OpenInspection" }];
@@ -244,10 +244,7 @@ export default function InvoicesPage() {
           { label: "PAID", value: String(paid) },
           { label: "REVENUE", value: money(revenue) },
         ].map((s) => (
-          <Card key={s.label} className="p-[14px]">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-ih-fg-3">{s.label}</div>
-            <div className="text-xl font-bold mt-1 text-ih-fg-1">{s.value}</div>
-          </Card>
+          <StatCard key={s.label} label={s.label} value={s.value} />
         ))}
       </div>
 
