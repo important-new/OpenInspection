@@ -305,13 +305,13 @@ export default function AgreementsPage() {
         </Card>
       )}
 
-      {sendOpen && (
-        <SendAgreementModal
-          onSend={submitSend}
-          onClose={() => setSendOpen(false)}
-          busy={sendBusy}
-        />
-      )}
+      <SendAgreementModal
+        open={sendOpen}
+        onSend={submitSend}
+        onClose={() => setSendOpen(false)}
+        busy={sendBusy}
+      />
+
 
       {signingId && (
         <div className="fixed inset-0 bg-[rgba(15,23,42,0.4)] flex items-center justify-center z-50">
