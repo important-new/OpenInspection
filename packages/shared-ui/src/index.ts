@@ -8,6 +8,7 @@ export { Input } from "./Input";
 export { EmptyState } from "./EmptyState";
 export { Skeleton } from "./Skeleton";
 export { Card } from "./Card";
+export { Banner, type BannerTone } from "./Banner";
 export { Modal } from "./Modal";
 export { Drawer } from "./Drawer";
 export { Popover } from "./Popover";
