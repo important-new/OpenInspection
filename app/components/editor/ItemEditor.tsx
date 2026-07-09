@@ -23,6 +23,7 @@ import { findRatingLevel, type EditorRatingLevel } from "../../lib/rating-levels
 import { findRatingContradictions } from "../../lib/contradiction-lint";
 import { filterCannedEntries, deriveDefectTitle, type CustomDefect, type CustomDefectCategory } from "../../lib/custom-defects";
 import { ItemHeader } from "../editor-shared/ItemHeader";
+import type { ItemOptions } from "../form/FormField";
 
 export type { LibraryMatch };
 
@@ -60,7 +61,7 @@ const CANNED_TABS: Array<{ id: CannedTabId; label: string }> = [
 /* ------------------------------------------------------------------ */
 
 interface ItemEditorProps {
- item: { id: string; label: string; type: string; tabs?: unknown; attributes?: ItemAttribute[] } | undefined;
+ item: { id: string; label: string; type: string; description?: string; options?: ItemOptions; tabs?: unknown; attributes?: ItemAttribute[] } | undefined;
  sectionTitle: string | undefined;
  result: Record<string, unknown>;
  /** Rating-system levels for this inspection; falls back to the standard five. */
@@ -359,6 +360,11 @@ export function ItemEditor({
  {sectionTitle}
  </div>
  <ItemHeader label={item.label} size="lg" className="mt-1 text-ih-fg-1" as="h2" />
+ {item.description && (
+ <p data-testid="item-description-hint" className="mt-1 text-[12px] text-ih-fg-4 leading-relaxed">
+ {item.description}
+ </p>
+ )}
  </div>
 
  {/* Item attributes (equipment fields: brand, year, model, etc.) */}
