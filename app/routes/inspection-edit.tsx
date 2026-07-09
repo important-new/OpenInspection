@@ -18,7 +18,7 @@ import { bindResultMap, appendPendingPhoto } from "~/lib/collab/results-binding"
 import { enqueueMedia } from "~/lib/collab/media-upload-queue";
 import { VersionHistoryPanel } from "~/components/collab/VersionHistoryPanel";
 import type { ResultsProjection } from "../../server/lib/collab/results-doc.types";
-import { SectionRail } from "~/components/editor/SectionRail";
+import { SectionRail } from "~/components/editor-shared/SectionRail";
 import { EditorHeader } from "~/components/editor/EditorHeader";
 import { ItemList } from "~/components/editor/ItemList";
 import { ItemEditor } from "~/components/editor/ItemEditor";
@@ -1157,6 +1157,7 @@ export default function InspectionEditPage() {
 
  const sectionRailEl = (
  <SectionRail
+ mode="fill"
  sections={state.sections}
  activeSection={state.currentSection?.id || ""}
  onSelect={(id) => {
