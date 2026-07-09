@@ -9,8 +9,10 @@ import { RatingSystemModal } from "~/components/template/RatingSystemModal";
 import { ItemPropertiesPanel } from "~/components/template/ItemPropertiesPanel";
 import { ItemCommentsPanel } from "~/components/template/ItemCommentsPanel";
 import { ItemPreviewPanel } from "~/components/template/ItemPreviewPanel";
-import { SectionsList } from "~/components/template/SectionsList";
+import { SectionAuthorHeader } from "~/components/template/SectionAuthorHeader";
+import { SectionPreview } from "~/components/template/SectionPreview";
 import { SectionRail } from "~/components/editor-shared/SectionRail";
+import { ItemList } from "~/components/editor-shared/ItemList";
 import { TemplatePropertyTypePanel } from "~/components/template/TemplatePropertyTypePanel";
 import { SectionPropertiesPanel } from "~/components/template/SectionPropertiesPanel";
 import { SectionApplicabilityPreview } from "~/components/template/SectionApplicabilityPreview";
@@ -230,6 +232,35 @@ export default function TemplateEditPage() {
     });
   }
 
+  function duplicateItem(itemId: string) {
+    if (!section) return;
+    const newId = `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    updateSections((s) => {
+      const items = s[activeSection].items;
+      const idx = items.findIndex((i) => i.id === itemId);
+      if (idx < 0) return s;
+      const clone = structuredClone(items[idx]);
+      clone.id = newId;
+      clone.label = `${clone.label} (copy)`;
+      items.splice(idx + 1, 0, clone);
+      return s;
+    });
+    setEditingItem(newId);
+    setRightRail("properties");
+  }
+
+  function reorderItem(fromId: string, toId: string) {
+    updateSections((s) => {
+      const items = s[activeSection].items;
+      const from = items.findIndex((i) => i.id === fromId);
+      const to = items.findIndex((i) => i.id === toId);
+      if (from < 0 || to < 0 || from === to) return s;
+      const [moved] = items.splice(from, 1);
+      items.splice(to, 0, moved);
+      return s;
+    });
+  }
+
   /* ---- Canned comment CRUD ---- */
   function addCannedToItem(tab: "information" | "limitations" | "defects") {
     if (!editingItem || !section) return;
@@ -418,27 +449,34 @@ export default function TemplateEditPage() {
           }}
         />
 
-        {/* Item list */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <SectionsList
-            section={section}
-            activeSection={activeSection}
-            previewMode={previewMode}
-            editingItem={editingItem}
-            renameSection={renameSection}
-            updateSections={updateSections}
-            setEditingItem={setEditingItem}
-            setRightRail={setRightRail}
-            updateItem={updateItem}
-            moveItem={moveItem}
-            removeItem={removeItem}
-            addItem={addItem}
-          />
+        {/* Item nav (center column) */}
+        <div className="w-[280px] shrink-0 flex flex-col overflow-hidden">
+          {section && <SectionAuthorHeader section={section} activeSection={activeSection} renameSection={renameSection} updateSections={updateSections} />}
+          {section ? (
+            previewMode ? (
+              <div className="flex-1 overflow-y-auto p-3"><SectionPreview section={section} /></div>
+            ) : (
+              <ItemList
+                mode="author"
+                items={section.items}
+                sectionId={section.id}
+                activeItemId={editingItem}
+                onSelect={(id) => { setEditingItem(id); setRightRail("properties"); }}
+                onAddItem={addItem}
+                onDuplicateItem={duplicateItem}
+                onDeleteItem={removeItem}
+                onMoveItem={(id, dir) => { const idx = section.items.findIndex((i) => i.id === id); if (idx >= 0) moveItem(idx, dir); }}
+                onReorderItem={reorderItem}
+              />
+            )
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-[13px] text-ih-fg-4">Add a section to get started</div>
+          )}
         </div>
 
-        {/* Right rail (item properties) */}
+        {/* Right rail (item properties) — now the main editor area */}
         {selectedItem && !previewMode && (
-          <aside className="w-[280px] shrink-0 border-l border-ih-border bg-ih-bg-card overflow-y-auto">
+          <aside className="flex-1 border-l border-ih-border bg-ih-bg-card overflow-y-auto">
             {/* Rail tabs */}
             <div className="flex border-b border-ih-border">
               {(["properties", "comments", "preview"] as const).map((tab) => (
@@ -452,7 +490,7 @@ export default function TemplateEditPage() {
               ))}
             </div>
 
-            <div className="p-3 space-y-3">
+            <div className="p-4 space-y-3 max-w-xl">
               {rightRail === "properties" && (
                 <ItemPropertiesPanel
                   selectedItem={selectedItem}
@@ -482,7 +520,7 @@ export default function TemplateEditPage() {
 
         {/* Right rail (section applicability) — shown when a section is active and no item is selected */}
         {section && !selectedItem && !previewMode && (
-          <aside className="w-[280px] shrink-0 border-l border-ih-border bg-ih-bg-card overflow-y-auto">
+          <aside className="flex-1 border-l border-ih-border bg-ih-bg-card overflow-y-auto">
             <div className="p-3 border-b border-ih-border">
               <h3 className="text-[11px] font-bold uppercase tracking-widest text-ih-fg-4">Section applicability</h3>
             </div>
