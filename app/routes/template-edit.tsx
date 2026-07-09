@@ -180,6 +180,21 @@ export default function TemplateEditPage() {
     setActiveSection(Math.max(0, Math.min(sections.length - 1, activeSection + dir)));
   }
 
+  function reorderSection(fromId: string, toId: string) {
+    const activeId = sections[activeSection]?.id;
+    let nextIdx = activeSection;
+    updateSections((s) => {
+      const from = s.findIndex((sec) => sec.id === fromId);
+      const to = s.findIndex((sec) => sec.id === toId);
+      if (from < 0 || to < 0 || from === to) return s;
+      const [moved] = s.splice(from, 1);
+      s.splice(to, 0, moved);
+      nextIdx = s.findIndex((sec) => sec.id === activeId);
+      return s;
+    });
+    if (nextIdx >= 0) setActiveSection(nextIdx);
+  }
+
   function updateSection(patch: Partial<TemplateSection>) {
     updateSections((s) => {
       if (s[activeSection]) Object.assign(s[activeSection], patch);
@@ -447,6 +462,7 @@ export default function TemplateEditPage() {
             const idx = findSectionIdx(id);
             if (idx >= 0) removeSection(idx);
           }}
+          onReorderSection={reorderSection}
         />
 
         {/* Item nav (center column) */}

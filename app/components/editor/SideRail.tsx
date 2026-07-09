@@ -5,8 +5,10 @@ import { photoDisplayName, withDownload } from "../../lib/photo-name";
 import { PhotoGallery } from "~/components/media-studio/PhotoGallery";
 import { CommentLibraryList } from "./CommentLibraryList";
 import { CannedCommentRow } from "../editor-shared/CannedCommentRow";
+import type { EditorMode } from "../editor-shared/editor-mode";
 
 interface SideRailProps {
+  mode: EditorMode;
   activeItem?: { id: string; label: string; type?: string } | null;
   activeResult?: Record<string, unknown> | null;
   ratingLevels?: Array<{ id: string; name?: string; label?: string; abbreviation?: string; color?: string }>;
@@ -33,9 +35,10 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: "photos", label: "Photos", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" },
 ];
 
-export function SideRail({ activeItem, activeResult, getRatingColor, getRatingLabel, inspectionId, photoCount, onGallerySetCover, onGalleryAnnotate, serverComments, librarySort, onLibrarySearch, onLibraryInsert, onLibraryTabChange, initialOpen }: SideRailProps) {
+export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRatingLabel, inspectionId, photoCount, onGallerySetCover, onGalleryAnnotate, serverComments, librarySort, onLibrarySearch, onLibraryInsert, onLibraryTabChange, initialOpen }: SideRailProps) {
   const [activeTab, setActiveTab] = useState<TabId>("preview");
   const [open, setOpen] = useState(initialOpen ?? false);
+  const visibleTabs = mode === "fill" ? TABS : TABS.filter((t) => t.id !== "photos");
 
   const toggle = (tabId: TabId) => {
     if (activeTab === tabId && open) {
@@ -203,7 +206,7 @@ export function SideRail({ activeItem, activeResult, getRatingColor, getRatingLa
 
       {/* 44px vertical tab strip */}
       <div className="w-11 flex-shrink-0 bg-ih-bg-app/50 border-l border-ih-border flex flex-col items-center py-2 gap-1">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => toggle(tab.id)}

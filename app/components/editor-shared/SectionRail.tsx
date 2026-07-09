@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { SectionDonut } from '../editor/SectionDonut';
 import { sectionIconFor } from '../editor/section-icons';
 import type { EditorMode } from './editor-mode';
+import { useDragReorder } from './useDragReorder';
 
 interface SharedSectionRailProps {
  mode: EditorMode;
@@ -82,9 +83,11 @@ export function SectionRail({
  onDuplicateSection,
  onDeleteSection,
  onMoveSection,
+ onReorderSection,
 }: SharedSectionRailProps) {
  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
  const hasStructuralOps = Boolean(onAddSection || onDuplicateSection || onDeleteSection || onMoveSection);
+ const { dragProps } = useDragReorder({ ids: sections.map((s) => s.id), onReorder: onReorderSection ?? (() => {}) });
 
  return (
  <aside data-shortcut-scope className="w-[200px] flex-shrink-0 border-r border-ih-border overflow-y-auto bg-ih-bg-app/50">
@@ -129,7 +132,14 @@ export function SectionRail({
  const menuOpen = openMenuId === section.id;
 
  return (
- <div key={section.id} className="relative group">
+ <div key={section.id} className="relative group" {...(onReorderSection ? dragProps(section.id) : {})}>
+  {onReorderSection && (
+   <span
+    aria-label={`Drag ${section.title}`}
+    title="Drag to reorder"
+    className="absolute left-0 top-1/2 -translate-y-1/2 px-0.5 hidden group-hover:flex items-center cursor-grab text-ih-fg-4 select-none pointer-events-none"
+   >☰</span>
+  )}
   <button
   onClick={() => onSelect(section.id)}
   title={`${section.title}: ${tipParts.join(', ')}`}

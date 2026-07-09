@@ -65,3 +65,8 @@ test('fill mode: active overview entry sets aria-current and active styling', ()
   expect(entry.getAttribute('aria-current')).toBe('true');
   expect(entry.className).toContain('text-ih-primary');
 });
+
+test('author section has a drag handle when onReorderSection is wired', () => {
+  render(<SectionRail mode="author" sections={sections} activeSection="s1" onSelect={()=>{}} onReorderSection={()=>{}} onAddSection={()=>{}} />);
+  expect(screen.getByLabelText('Drag Roof')).toBeTruthy();
+});

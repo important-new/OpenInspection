@@ -1175,6 +1175,7 @@ export default function InspectionEditPage() {
  onDuplicateSection={structure.duplicateSection}
  onDeleteSection={structure.deleteSection}
  onMoveSection={structure.moveSection}
+ onReorderSection={structure.reorderSection}
  onSaveToTemplate={structure.openSaveTemplate}
  canSaveBack={structure.canSaveBack}
  />
@@ -1345,6 +1346,7 @@ export default function InspectionEditPage() {
 
  const sideRailEl = (
  <SideRail
+ mode="fill"
  activeItem={state.activeItem ? { id: state.activeItem.id, label: (state.activeItem.label || state.activeItem.name || "") as string } : null}
  activeResult={state.activeItemId ? state.getResult(state.activeItemId) : null}
  ratingLevels={state.ratingLevels}
