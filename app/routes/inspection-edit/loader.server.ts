@@ -31,8 +31,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
  status: "draft",
  };
  // templateSnapshot may arrive as a JSON string (wizard-created inspections)
- // — parse before use, mirroring form-renderer.tsx. Mutating a string here
- // 500'd the whole editor.
+ // — parse before use, mirroring the template-snapshot normalization used
+ // elsewhere. Mutating a string here 500'd the whole editor.
  const rawSchema = data?.templateSnapshot ||
  (data?.template as Record<string, unknown>)?.schema;
  const schema = ((typeof rawSchema === "string"

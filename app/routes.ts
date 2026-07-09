@@ -68,7 +68,6 @@ export default [
   ]),
   // Standalone pages (own chrome, no sidebar)
   route("setup", "routes/setup.tsx"),
-  route("inspections/:id/form", "routes/form-renderer.tsx"),
   route("join/:token", "routes/join.tsx"),
   route("version-diff/:id", "routes/version-diff.tsx"),
   // Standalone public — no layout (iframe-friendly)
