@@ -20,7 +20,7 @@ import { VersionHistoryPanel } from "~/components/collab/VersionHistoryPanel";
 import type { ResultsProjection } from "../../server/lib/collab/results-doc.types";
 import { SectionRail } from "~/components/editor-shared/SectionRail";
 import { EditorHeader } from "~/components/editor/EditorHeader";
-import { ItemList } from "~/components/editor/ItemList";
+import { ItemList } from "~/components/editor-shared/ItemList";
 import { ItemEditor } from "~/components/editor/ItemEditor";
 import { TagChipRow, type TagPin } from "~/components/editor/TagChipRow";
 import type { DefectFieldsValue } from "~/components/editor/DefectFieldsRow";
@@ -29,6 +29,7 @@ import { SpeedMode } from "~/components/editor/SpeedMode";
 import { FooterBar } from "~/components/editor/FooterBar";
 import { BatchActionBar } from "~/components/editor/BatchActionBar";
 import { capturePriorRatings } from "~/lib/editor/batch-undo";
+import { reorderItemBySwap } from "~/lib/editor/reorder-by-swap";
 import { KeyboardHud } from "~/components/editor/KeyboardHud";
 import { InspectorToolsDock } from "~/components/editor/InspectorToolsDock";
 import { BurstCamera } from "~/components/editor/BurstCamera";
@@ -1181,6 +1182,7 @@ export default function InspectionEditPage() {
 
  const itemListEl = (
  <ItemList
+ mode="fill"
  items={visibleItems}
  sectionId={state.currentSection?.id || ""}
  activeItemId={state.activeItemId}
@@ -1197,6 +1199,7 @@ export default function InspectionEditPage() {
  onDuplicateItem={(itemId) => structure.duplicateItem(state.currentSection?.id || "", itemId)}
  onDeleteItem={(itemId) => structure.deleteItem(state.currentSection?.id || "", itemId)}
  onMoveItem={(itemId, dir) => structure.moveItem(state.currentSection?.id || "", itemId, dir)}
+ onReorderItem={(fromId, toId) => reorderItemBySwap(state.currentSectionItems, fromId, toId, state.currentSection?.id || "", structure.moveItem)}
  />
  );
 
