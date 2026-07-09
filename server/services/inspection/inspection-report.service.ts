@@ -266,8 +266,12 @@ export class InspectionReportService extends InspectionSubService {
                         // configured category color; undefined (no color) falls
                         // back to DefectCategoryChip's own tokened/muted styling.
                         categoryColor: categoryColorByKey.get(effectiveCategory),
-                        // Whether this defect's category counts toward the report
-                        // Summary rollup (defect_categories.drivesSummary).
+                        // Category-axis Summary-inclusion signal
+                        // (defect_categories.drivesSummary), resolved data-driven
+                        // rather than by a hard-coded category name. Exposed on the
+                        // report data model as the foundation for a category-based
+                        // "Summary" view; orthogonal to ReportView's severity-based
+                        // Summary filter (spec §9), which no consumer conflates.
                         drivesSummary: defectDrivesSummary(effectiveCategory, defectCategories),
                         effectiveLocation: (typeof st?.location === 'string' && st.location.length > 0) ? st.location : d.location,
                         // #181 PR-G: pending uploads have no R2 object yet — skip them.

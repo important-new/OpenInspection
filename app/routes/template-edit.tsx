@@ -596,7 +596,7 @@ export default function TemplateEditPage() {
               )}
 
               {rightRail === "preview" && (
-                <ItemPreviewPanel selectedItem={selectedItem} />
+                <ItemPreviewPanel selectedItem={selectedItem} categoryColor={catColor} />
               )}
             </div>
           </aside>
