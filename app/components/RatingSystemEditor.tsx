@@ -63,10 +63,14 @@ export function RatingSystemEditor({
   open,
   onClose,
   system,
+  onSaveLevels,
 }: {
   open: boolean;
   onClose: () => void;
   system?: EditorSystem | null;
+  /** When provided, the editor persists levels via this callback (template schema)
+   *  instead of POSTing to /library/rating-systems (the default library-table save). */
+  onSaveLevels?: (levels: EditorLevel[]) => void;
 }) {
   const fetcher = useFetcher<{ ok?: boolean; error?: string }>();
   const editing = !!system;
@@ -132,6 +136,11 @@ export function RatingSystemEditor({
 
   function save() {
     if (error && error !== fetcher.data?.error) return;
+    if (onSaveLevels) {
+      onSaveLevels(levels.map((l) => ({ ...l })));
+      onClose();
+      return;
+    }
     submittedRef.current = true;
     fetcher.submit(
       {
@@ -304,11 +313,13 @@ export function RatingSystemEditor({
           )}
         </div>
 
-        {/* Default toggle */}
-        <label className="flex items-center gap-2 text-[13px] text-ih-fg-2 select-none cursor-pointer">
-          <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="h-4 w-4 rounded border-ih-border text-ih-primary focus:ring-ih-primary/30" />
-          Use as the default rating system for new templates
-        </label>
+        {/* Default toggle — meaningless when persisting to a template's own schema */}
+        {!onSaveLevels && (
+          <label className="flex items-center gap-2 text-[13px] text-ih-fg-2 select-none cursor-pointer">
+            <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} className="h-4 w-4 rounded border-ih-border text-ih-primary focus:ring-ih-primary/30" />
+            Use as the default rating system for new templates
+          </label>
+        )}
 
         {error && (
           <div className="px-3 py-2 rounded-lg bg-ih-bad-bg border border-ih-bad text-[12px] text-ih-bad-fg">

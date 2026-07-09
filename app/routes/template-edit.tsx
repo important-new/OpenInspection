@@ -5,7 +5,8 @@ import { requireToken } from "~/lib/session.server";
 import { createApi } from "~/lib/api-client.server";
 import { RATING_PRESETS } from "~/components/template/types";
 import type { RatingLevel, RatingSystem, TemplateItem, TemplateSchema, TemplateSection, CannedComment } from "~/components/template/types";
-import { RatingSystemModal } from "~/components/template/RatingSystemModal";
+import { RatingSystemEditor } from "~/components/RatingSystemEditor";
+import { toEditorLevel, fromEditorLevel } from "~/lib/editor/rating-level-adapter";
 import { ItemPropertiesPanel } from "~/components/template/ItemPropertiesPanel";
 import { ItemCommentsPanel } from "~/components/template/ItemCommentsPanel";
 import { ItemPreviewPanel } from "~/components/template/ItemPreviewPanel";
@@ -297,22 +298,6 @@ export default function TemplateEditPage() {
       item.tabs[tab].splice(idx, 1);
       return s;
     });
-  }
-
-  /* ---- Rating system ---- */
-  function applyPreset(preset: typeof RATING_PRESETS[0]) {
-    setRatingSystem({
-      name: preset.name,
-      defaultLevelId: preset.levels.find((l) => l.default)?.id || preset.levels[0]?.id,
-      levels: structuredClone(preset.levels),
-    });
-  }
-
-  function addRatingLevel() {
-    setRatingSystem((prev) => ({
-      ...prev,
-      levels: [...prev.levels, { id: "NEW", label: "New Level", abbreviation: "", color: "#6b7280", severity: "minor", isDefect: false, default: false, description: "" }],
-    }));
   }
 
   /* ---- Save ---- */
@@ -614,14 +599,27 @@ export default function TemplateEditPage() {
         />
       )}
 
-      {/* Rating system modal */}
-      <RatingSystemModal
+      {/* Rating system editor — canonical editor shared with /library/rating-systems (module F).
+          `onSaveLevels` writes back onto the template's own schema instead of POSTing to the
+          library table. */}
+      <RatingSystemEditor
         open={ratingModalOpen}
-        ratingSystem={ratingSystem}
-        setRatingSystem={setRatingSystem}
-        applyPreset={applyPreset}
-        addRatingLevel={addRatingLevel}
         onClose={() => setRatingModalOpen(false)}
+        system={{
+          id,
+          name: ratingSystem.name || "Rating System",
+          slug: "template",
+          levels: ratingSystem.levels.map(toEditorLevel),
+        }}
+        onSaveLevels={(levels) => {
+          setRatingSystem((prev) => {
+            const nextLevels = levels.map(fromEditorLevel);
+            const defaultLevelId = nextLevels.some((l) => l.id === prev.defaultLevelId)
+              ? prev.defaultLevelId
+              : nextLevels[0]?.id;
+            return { ...prev, levels: nextLevels, defaultLevelId };
+          });
+        }}
       />
     </div>
   );
