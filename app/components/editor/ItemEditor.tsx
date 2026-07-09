@@ -23,7 +23,7 @@ import { findRatingLevel, type EditorRatingLevel } from "../../lib/rating-levels
 import { findRatingContradictions } from "../../lib/contradiction-lint";
 import { filterCannedEntries, deriveDefectTitle, type CustomDefect, type CustomDefectCategory } from "../../lib/custom-defects";
 import { ItemHeader } from "../editor-shared/ItemHeader";
-import type { ItemOptions } from "../form/FormField";
+import { FormField, type ItemOptions, type TemplateItem } from "../form/FormField";
 
 export type { LibraryMatch };
 
@@ -69,6 +69,8 @@ interface ItemEditorProps {
  onRating: (rating: string) => void;
  onNotes: (notes: string) => void;
  onNotesBlur: (notes: string) => void;
+ /** Module B — capture a non-rich typed value onto result.value (collab doc). */
+ onValue?: (value: string | boolean | number) => void;
  onToggleCanned?: (tabName: string, cannedId: string, included: boolean) => void;
  /** FE-2 — opens the photo picker (the button was previously unwired). */
  onAddPhoto?: () => void;
@@ -142,6 +144,7 @@ export function ItemEditor({
  onRating,
  onNotes,
  onNotesBlur,
+ onValue,
  onToggleCanned,
  onAddPhoto,
  onAddDefectPhoto,
@@ -391,6 +394,25 @@ export function ItemEditor({
  full words on ≥sm, abbreviation on narrow, always-on semantic colour. */}
  {item.type === "rich" && (
  <RatingButtonRow levels={levels} activeLevel={activeLevel} onRating={onRating} />
+ )}
+
+ {/* Module B — non-rich typed inputs (text/number/boolean/select/
+ multi_select/textarea/date). photo_only is owned by the Photos strip
+ below, so we skip FormField's placeholder for it. Rich is handled above. */}
+ {item.type !== "rich" && item.type !== "photo_only" && (
+ <div>
+ <FormField
+ item={{
+ id: item.id,
+ label: item.label,
+ type: item.type as TemplateItem["type"],
+ ...(item.description !== undefined ? { description: item.description } : {}),
+ ...(item.options !== undefined ? { options: item.options } : {}),
+ }}
+ value={(result.value ?? "") as string | boolean | number}
+ onChange={(val) => onValue?.(val)}
+ />
+ </div>
  )}
 
  {/* C-14b — contradiction lint: the rating says defect/monitor while an
