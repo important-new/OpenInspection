@@ -38,7 +38,16 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
 export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRatingLabel, inspectionId, photoCount, onGallerySetCover, onGalleryAnnotate, serverComments, librarySort, onLibrarySearch, onLibraryInsert, onLibraryTabChange, initialOpen }: SideRailProps) {
   const [activeTab, setActiveTab] = useState<TabId>("preview");
   const [open, setOpen] = useState(initialOpen ?? false);
-  const visibleTabs = mode === "fill" ? TABS : TABS.filter((t) => t.id !== "photos");
+  // Photos: fill-only (Plan 1). Library: rich-only in fill mode — the canned
+  // library is meaningless for a data-entry item (module E). In author mode
+  // Library always stays (template canned authoring).
+  const hideLibrary = mode === "fill" && !!activeItem && activeItem.type !== "rich";
+  const visibleTabs = TABS.filter((t) => {
+    if (t.id === "photos" && mode !== "fill") return false;
+    if (t.id === "library" && hideLibrary) return false;
+    return true;
+  });
+  const effectiveTab = visibleTabs.some((t) => t.id === activeTab) ? activeTab : "preview";
 
   const toggle = (tabId: TabId) => {
     if (activeTab === tabId && open) {
@@ -65,11 +74,11 @@ export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRa
       {open && (
         <div className="w-64 border-l border-ih-border bg-ih-bg-card flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 py-2 border-b border-ih-border">
-            <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-ih-fg-4 capitalize">{activeTab}</span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-ih-fg-4 capitalize">{effectiveTab}</span>
             <button onClick={closePanel} className="w-6 h-6 flex items-center justify-center rounded text-ih-fg-4 hover:text-ih-fg-2">&#x2715;</button>
           </div>
           <div className="flex-1 overflow-y-auto p-3">
-            {activeTab === "preview" && (
+            {effectiveTab === "preview" && (
               activeItem && activeResult ? (
                 <div className="space-y-3">
                   <h4 className="text-[13px] font-bold text-ih-fg-1">{activeItem.label}</h4>
@@ -174,7 +183,7 @@ export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRa
                 <p className="text-[13px] text-ih-fg-3 text-center py-8">Select an item to see a live preview.</p>
               )
             )}
-            {activeTab === "library" && (
+            {effectiveTab === "library" && (
               <div>
                 <input
                   type="text"
@@ -193,7 +202,7 @@ export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRa
                 />
               </div>
             )}
-            {activeTab === "photos" && (
+            {effectiveTab === "photos" && (
               inspectionId ? (
                 <PhotoGallery inspectionId={inspectionId} onSetCover={(p) => onGallerySetCover?.(p)} onAnnotate={(p) => onGalleryAnnotate?.(p)} />
               ) : (
@@ -211,7 +220,7 @@ export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRa
             key={tab.id}
             onClick={() => toggle(tab.id)}
             className={`relative w-10 flex flex-col items-center gap-0.5 py-2.5 rounded-r-md transition-all ${
-              activeTab === tab.id && open
+              effectiveTab === tab.id && open
                 ? "bg-ih-bg-card text-ih-primary shadow-ih-card border-l-2 border-ih-primary -ml-px"
                 : "text-ih-fg-4 hover:text-ih-fg-2"
             }`}
