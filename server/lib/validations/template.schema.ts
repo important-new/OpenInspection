@@ -187,9 +187,12 @@ const TemplateSectionSchema = z.object({
     // PCA / multi-unit — gates a section by (propertyType, commercialSubtype)
     // via server/lib/section-applicability.ts sectionApplies(). Absent = applies
     // to every property type.
+    // FROZEN (module A): retired from authoring UI; field retained so the OpenAPI
+    // snapshot does not churn and already-stored templates still validate.
     applicableTo: SectionApplicabilitySchema.optional().describe('Property-type / commercial-subtype gating for this section'),
     // PCA / multi-unit — 'unit' sections repeat per unit in per-unit inspections
     // (Phase U). Absent defaults to 'common'.
+    // FROZEN (module A): Phase-U per-unit scope placeholder; not authored in UI yet.
     defaultScope: z.enum(['common', 'unit']).optional().describe('common (once) or unit (repeats per unit)'),
 }).strict();
 

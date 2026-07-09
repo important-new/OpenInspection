@@ -142,7 +142,10 @@ export interface TemplateSection {
     disclaimerText?: string | null;
     alwaysPageBreak?: boolean;
     source?: ItemSource | null;
+    /** FROZEN (module A): authored applicability retired; kept for round-trip of
+     *  already-stored templates + OpenAPI-snapshot stability. Not authored in UI. */
     defaultScope?: 'common' | 'unit';
+    /** FROZEN (module A): see `server/lib/section-applicability.ts`. Not authored in UI. */
     applicableTo?: SectionApplicability;
     sharedComments?: {
         information?: CannedInfoComment[];
