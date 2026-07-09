@@ -233,6 +233,19 @@ export default function InspectionEditPage() {
  // instead of a raw client fetch against /api/tags.
  const tagLibrary = (loaderData.tagLibrary ?? []) as TagPin[];
 
+ // Authoring unification Plan-4 module K — one tenant-wide category → color
+ // lookup, built once from the loader's single fetch, keyed by BOTH name and
+ // id (a defect's stored `category` may be either a legacy seed name or a
+ // defect_categories.id, mirroring how the report resolves drivesSummary).
+ const catColor = useMemo(() => {
+  const map = new Map<string, string>();
+  for (const c of loaderData.defectCategories ?? []) {
+   map.set(c.name, c.color);
+   map.set(c.id, c.color);
+  }
+  return map;
+ }, [loaderData.defectCategories]);
+
  const pinnedTags = useMemo(() => {
  return inspectionPrefs.pinnedTagIds
  .map(id => tagLibrary.find(t => t.id === id))
@@ -1291,6 +1304,7 @@ export default function InspectionEditPage() {
  locationSuggestions={locationSuggestions}
  missingFields={missingFields}
  requiredDefectFields={requiredDefectFields}
+ categoryColor={catColor}
  onDefectFields={(cannedId, patch) => {
  if (state.activeItemId && state.currentSection) {
  findings.setDefectFields(
@@ -1374,6 +1388,7 @@ export default function InspectionEditPage() {
  comments.touchSnippet(id);
  }}
  onLibraryTabChange={(isOpen) => setLibrarySideOpen(isOpen)}
+ categoryColor={catColor}
  />
  );
 

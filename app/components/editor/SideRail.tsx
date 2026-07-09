@@ -25,6 +25,10 @@ interface SideRailProps {
   onLibraryTabChange?: (open: boolean) => void;
   /** Initial open state — used only in server-rendered tests (defaults false). */
   initialOpen?: boolean;
+  /** Authoring unification Plan-4 module K — tenant defect_categories color
+   *  lookup (keyed by name AND id), forwarded to the preview tab's
+   *  CannedCommentRow chip so a configured color renders here too. */
+  categoryColor?: Map<string, string>;
 }
 
 type TabId = "preview" | "library" | "photos";
@@ -35,7 +39,7 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: "photos", label: "Photos", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 6h16a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" },
 ];
 
-export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRatingLabel, inspectionId, photoCount, onGallerySetCover, onGalleryAnnotate, serverComments, librarySort, onLibrarySearch, onLibraryInsert, onLibraryTabChange, initialOpen }: SideRailProps) {
+export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRatingLabel, inspectionId, photoCount, onGallerySetCover, onGalleryAnnotate, serverComments, librarySort, onLibrarySearch, onLibraryInsert, onLibraryTabChange, initialOpen, categoryColor }: SideRailProps) {
   const [activeTab, setActiveTab] = useState<TabId>("preview");
   const [open, setOpen] = useState(initialOpen ?? false);
   // Photos: fill-only (Plan 1). Library: rich-only in fill mode — the canned
@@ -153,6 +157,7 @@ export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRa
                                 selected={false}
                                 title={(c.title as string | undefined) ?? undefined}
                                 category={isDefect ? (c.category as string | undefined) : undefined}
+                                categoryColor={isDefect ? categoryColor?.get((c.category as string | undefined) ?? "") : undefined}
                                 bodySlot={<p className="text-[11px] leading-relaxed text-ih-fg-2">{rendered}</p>}
                               />
                             );

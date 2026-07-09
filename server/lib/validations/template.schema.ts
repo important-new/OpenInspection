@@ -13,7 +13,10 @@ import { z } from '@hono/zod-openapi';
  * silently drop on the wire.
  */
 
-const DefectCategoryEnum = z.enum(['maintenance', 'recommendation', 'safety']);
+// Widened (Authoring unification Plan-4 module K): CannedDefect.category
+// references a tenant defect_categories.id (or a legacy seed name) rather
+// than a hard-coded 3-value enum — see server/types/template-schema.ts.
+const DefectCategorySchema = z.string().min(1);
 
 const PropertyTypeEnum = z.enum(['single-family', 'multi-unit', 'commercial']);
 
@@ -35,7 +38,7 @@ const CannedInfoCommentSchema = z.object({
 const CannedDefectSchema = z.object({
     id:       z.string().min(1).describe('TODO describe id field for the OpenInspection MCP integration'),
     title:    z.string().min(1).describe('TODO describe title field for the OpenInspection MCP integration'),
-    category: DefectCategoryEnum.describe('TODO describe category field for the OpenInspection MCP integration'),
+    category: DefectCategorySchema.describe('TODO describe category field for the OpenInspection MCP integration'),
     location: z.string().describe('TODO describe location field for the OpenInspection MCP integration'),
     comment:  z.string().describe('TODO describe comment field for the OpenInspection MCP integration'),
     photos:   z.array(z.string()).describe('TODO describe photos field for the OpenInspection MCP integration'),

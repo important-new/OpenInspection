@@ -438,7 +438,6 @@
   "types:server/api/admin/admin-config.ts:AdminConfigApi",
   "types:server/api/admin/admin-data-import.ts:AdminDataImportApi",
   "types:server/api/admin/admin-data.ts:AdminDataApi",
-  "types:server/api/admin/admin-defect-categories.ts:AdminDefectCategoriesApi",
   "types:server/api/admin/admin-esign.ts:AdminEsignApi",
   "types:server/api/admin/admin-settings.ts:AdminSettingsApi",
   "types:server/api/auth.ts:AuthPayload",

@@ -91,6 +91,10 @@ interface ItemEditorProps {
   *  fields are required at publish. Drives the proactive red asterisk on
   *  every defect row (missingFields still unions in post-gate flags). */
  requiredDefectFields?: { location: boolean; trade: boolean };
+ /** Authoring unification Plan-4 module K — tenant defect_categories color
+  *  lookup (keyed by name AND id), forwarded to CannedCommentTabs so every
+  *  canned/custom defect chip renders the tenant's configured color. */
+ categoryColor?: Map<string, string>;
  onItemAttribute?: (itemId: string, attributeId: string, value: string | number | boolean | null) => void;
  onCloneLast?: (scope: 'rating' | 'rating_notes' | 'all') => void;
  cloneDefaultScope?: 'rating' | 'rating_notes' | 'all';
@@ -156,6 +160,7 @@ export function ItemEditor({
  onDefectFields,
  missingFields,
  requiredDefectFields,
+ categoryColor,
  onItemAttribute,
  onCloneLast,
  cloneDefaultScope,
@@ -527,6 +532,7 @@ export function ItemEditor({
  requiredDefectFields={requiredDefectFields}
  defectPhotoChip={defectPhotoChip}
  cannedDefectPhotoCount={cannedDefectPhotoCount}
+ categoryColor={categoryColor}
  libraryMatches={libraryMatches}
  onSeedFromLibrary={(m) => {
   setCustomTitle(deriveDefectTitle(m.text));

@@ -19,11 +19,16 @@ export interface ItemCommentsPanelProps {
   /** Module C: open the shared comment-library drawer hard-filtered to this
    *  item + the tab's rating bucket. Absent → the Browse-library entry is hidden. */
   onOpenLibrary?: (tab: "information" | "limitations" | "defects") => void;
+  /** Authoring unification Plan-4 module K — tenant defect_categories color
+   *  lookup (keyed by name AND id), so the defects-tab chip renders the
+   *  tenant's configured color in template authoring too, not just the
+   *  inspection editor + report. Absent → the chip's muted fallback. */
+  categoryColor?: Map<string, string>;
 }
 
 type CannedTab = "information" | "limitations" | "defects";
 
-export function ItemCommentsPanel({ selectedItem, activeSection, editingItem, updateSections, addCannedToItem, removeCannedFromItem, onOpenLibrary }: ItemCommentsPanelProps) {
+export function ItemCommentsPanel({ selectedItem, activeSection, editingItem, updateSections, addCannedToItem, removeCannedFromItem, onOpenLibrary, categoryColor }: ItemCommentsPanelProps) {
   // Inline comment typeahead (authoring assist) hosted ONCE at panel level and
   // keyed to the focused row. Source = this item's Tier-1 canned entries, same
   // as the inspection-side notes typeahead (mirrors ItemEditor's pattern).
@@ -79,6 +84,7 @@ export function ItemCommentsPanel({ selectedItem, activeSection, editingItem, up
                 as="div"
                 interactive={false}
                 category={tab === "defects" ? c.category : undefined}
+                categoryColor={tab === "defects" ? categoryColor?.get(c.category ?? "") : undefined}
                 leading={
                   <div className="flex flex-col gap-0.5 pt-0.5">
                     <button

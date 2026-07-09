@@ -75,6 +75,12 @@ export interface CannedCommentTabsProps {
   /** Photo count on a canned defect's STATE row. */
   cannedDefectPhotoCount: (cannedId: string) => number;
 
+  /** Authoring unification Plan-4 module K — one tenant-wide lookup (keyed by
+   *  BOTH defect_categories.name and .id) resolving a defect's `category` to
+   *  its configured color. Forwarded to every CannedCommentRow's chip so the
+   *  configured color renders in the editor, not just the report. */
+  categoryColor?: Map<string, string>;
+
   /** Track H (IA-5/迁移③) — whole-library hits under the same search box. */
   libraryMatches: LibraryMatch[];
   /** Seeds the custom-defect form from a tapped library match. */
@@ -126,6 +132,7 @@ export function CannedCommentTabs({
   requiredDefectFields,
   defectPhotoChip,
   cannedDefectPhotoCount,
+  categoryColor,
   libraryMatches,
   onSeedFromLibrary,
   customDefects,
@@ -207,6 +214,7 @@ export function CannedCommentTabs({
                 selected={isIncluded}
                 title={entry.title}
                 category={"category" in entry ? (entry as CannedDefect).category || undefined : undefined}
+                categoryColor={"category" in entry ? categoryColor?.get((entry as CannedDefect).category) : undefined}
                 leading={
                   <input
                     type="checkbox"
@@ -278,6 +286,7 @@ export function CannedCommentTabs({
                 selected={cd.included !== false}
                 title={cd.title}
                 category={cd.category}
+                categoryColor={categoryColor?.get(cd.category)}
                 extraBadge={
                   <span className="ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-ih-primary-tint text-ih-primary">
                     custom

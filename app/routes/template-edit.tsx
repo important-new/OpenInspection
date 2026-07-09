@@ -33,7 +33,13 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const token = await requireToken(context, request);
   const id = params.id;
   const api = createApi(context, { token });
-  const res = await api.inspections.templates[":id"].$get({ param: { id } });
+  const [res, defectCatRes] = await Promise.all([
+    api.inspections.templates[":id"].$get({ param: { id } }),
+    // Authoring unification Plan-4 module K — the tenant's defect categories,
+    // fetched ONCE here (seeded on first read) so the editor can build a
+    // single name/id → color lookup for the defects-tab chip.
+    api.defectCategories["defect-categories"].$get().catch(() => null),
+  ]);
   // A non-OK response previously fell through to an empty `{}`, which rendered a
   // section-less editor that looks blank ("the editor never opened"). Surface the
   // failure to the ErrorBoundary instead so the user gets an actionable message.
@@ -75,7 +81,13 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       : [];
     return s;
   });
-  return { id, name, version, schema, token };
+  // Authoring unification Plan-4 module K — tenant defect categories (id/name/color).
+  let defectCategories: Array<{ id: string; name: string; color: string }> = [];
+  if (defectCatRes?.ok) {
+    const defectCatBody = await defectCatRes.json() as { data?: Array<{ id: string; name: string; color: string }> };
+    defectCategories = defectCatBody.data ?? [];
+  }
+  return { id, name, version, schema, token, defectCategories };
 }
 
 /* ------------------------------------------------------------------ */
@@ -115,8 +127,20 @@ function serializeCanned(c: CannedComment): Record<string, unknown> {
 }
 
 export default function TemplateEditPage() {
-  const { id, name: initialName, version: initialVersion, schema: initial } = useLoaderData<typeof loader>();
+  const { id, name: initialName, version: initialVersion, schema: initial, defectCategories } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+
+  // Authoring unification Plan-4 module K — one tenant-wide category → color
+  // lookup, built once from the loader's single fetch, keyed by BOTH name and
+  // id (mirroring the report's + inspection editor's resolution).
+  const catColor = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of defectCategories ?? []) {
+      map.set(c.name, c.color);
+      map.set(c.id, c.color);
+    }
+    return map;
+  }, [defectCategories]);
 
   const [templateName, setTemplateName] = useState(initialName);
   const [sections, setSections] = useState<TemplateSection[]>(initial.sections || []);
@@ -567,6 +591,7 @@ export default function TemplateEditPage() {
                   addCannedToItem={addCannedToItem}
                   removeCannedFromItem={removeCannedFromItem}
                   onOpenLibrary={openCommentLibrary}
+                  categoryColor={catColor}
                 />
               )}
 
