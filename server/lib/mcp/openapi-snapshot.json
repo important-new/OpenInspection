@@ -3935,11 +3935,11 @@
                   "maxLength": 64,
                   "description": "TODO describe id field for the OpenInspection MCP integration"
                 },
-                "abbr": {
+                "abbreviation": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 8,
-                  "description": "TODO describe abbr field for the OpenInspection MCP integration"
+                  "description": "TODO describe abbreviation field for the OpenInspection MCP integration"
                 },
                 "label": {
                   "type": "string",
@@ -3952,15 +3952,24 @@
                   "pattern": "^#[0-9a-fA-F]{6}$",
                   "description": "TODO describe color field for the OpenInspection MCP integration"
                 },
-                "bucket": {
+                "severity": {
                   "type": "string",
                   "enum": [
-                    "satisfactory",
-                    "monitor",
-                    "defect",
-                    "na"
+                    "good",
+                    "marginal",
+                    "significant",
+                    "minor"
                   ],
-                  "description": "TODO describe bucket field for the OpenInspection MCP integration"
+                  "description": "TODO describe severity field for the OpenInspection MCP integration"
+                },
+                "isDefect": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "TODO describe isDefect field for the OpenInspection MCP integration"
+                },
+                "pausesAdvance": {
+                  "type": "boolean",
+                  "description": "TODO describe pausesAdvance field for the OpenInspection MCP integration"
                 },
                 "hotkey": {
                   "type": "string",
@@ -3975,10 +3984,10 @@
                 }
               },
               "required": [
-                "abbr",
+                "abbreviation",
                 "label",
                 "color",
-                "bucket"
+                "severity"
               ],
               "additionalProperties": false
             },
@@ -9246,9 +9255,10 @@
           "schema": {
             "type": "string",
             "enum": [
-              "satisfactory",
-              "monitor",
-              "defect"
+              "good",
+              "marginal",
+              "significant",
+              "minor"
             ],
             "description": "TODO describe severity field for the OpenInspection MCP integration"
           }
@@ -9690,19 +9700,20 @@
     "inputSchema": {
       "parameters": [
         {
-          "name": "rating",
+          "name": "severity",
           "in": "query",
           "required": false,
-          "description": "TODO describe rating field for the OpenInspection MCP integration",
+          "description": "Filter by the single severity vocabulary shared with rating levels.",
           "schema": {
             "type": "string",
             "enum": [
-              "satisfactory",
-              "monitor",
-              "defect"
+              "good",
+              "marginal",
+              "significant",
+              "minor"
             ],
-            "example": "defect",
-            "description": "TODO describe rating field for the OpenInspection MCP integration"
+            "example": "significant",
+            "description": "Filter by the single severity vocabulary shared with rating levels."
           }
         },
         {
@@ -13469,11 +13480,11 @@
                   "maxLength": 64,
                   "description": "TODO describe id field for the OpenInspection MCP integration"
                 },
-                "abbr": {
+                "abbreviation": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 8,
-                  "description": "TODO describe abbr field for the OpenInspection MCP integration"
+                  "description": "TODO describe abbreviation field for the OpenInspection MCP integration"
                 },
                 "label": {
                   "type": "string",
@@ -13486,15 +13497,24 @@
                   "pattern": "^#[0-9a-fA-F]{6}$",
                   "description": "TODO describe color field for the OpenInspection MCP integration"
                 },
-                "bucket": {
+                "severity": {
                   "type": "string",
                   "enum": [
-                    "satisfactory",
-                    "monitor",
-                    "defect",
-                    "na"
+                    "good",
+                    "marginal",
+                    "significant",
+                    "minor"
                   ],
-                  "description": "TODO describe bucket field for the OpenInspection MCP integration"
+                  "description": "TODO describe severity field for the OpenInspection MCP integration"
+                },
+                "isDefect": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "TODO describe isDefect field for the OpenInspection MCP integration"
+                },
+                "pausesAdvance": {
+                  "type": "boolean",
+                  "description": "TODO describe pausesAdvance field for the OpenInspection MCP integration"
                 },
                 "hotkey": {
                   "type": "string",
@@ -13509,10 +13529,10 @@
                 }
               },
               "required": [
-                "abbr",
+                "abbreviation",
                 "label",
                 "color",
-                "bucket"
+                "severity"
               ],
               "additionalProperties": false
             },

@@ -335,7 +335,7 @@ export default function InspectionEditPage() {
 
  const comments = useCannedComments({
  inspectionId: String(state.inspection.id),
- bucketForRatingId: state.bucketForRatingId,
+ severityForRatingId: state.severityForRatingId,
  });
 
  /* ---------------------------------------------------------------- */
@@ -352,22 +352,22 @@ export default function InspectionEditPage() {
 
  useEffect(() => {
  if (!state.showCommentLibrary && !librarySideOpen) { setServerComments([]); return; }
- const ctx: { itemLabel?: string; section?: string; ratingBucket?: string; search?: string } = {};
+ const ctx: { itemLabel?: string; section?: string; severity?: string; search?: string } = {};
  if (comments.filterMode === 'auto' && state.activeItem) {
  ctx.itemLabel = (state.activeItem.label || state.activeItem.name || '') as string;
  ctx.section   = state.currentSection?.title;
  const r = state.activeItemId ? state.getResult(state.activeItemId)?.rating : null;
- if (r && state.bucketForRatingId) {
- ctx.ratingBucket = state.bucketForRatingId(r as string);
+ if (r && state.severityForRatingId) {
+ ctx.severity = state.severityForRatingId(r as string);
  }
  }
  // Track H (IA-5) — the modal's search box queries the SERVER (SQL pushdown
  // over the whole tenant library incl. imported rows); it used to only reset
- // the keyboard cursor. Bucket chips override the context-derived rating.
+ // the keyboard cursor. Severity chips override the context-derived severity.
  const q = state.commentLibrarySearch.trim();
  if (q.length >= 2) ctx.search = q;
- if (['satisfactory', 'monitor', 'defect'].includes(state.commentLibraryFilter)) {
- ctx.ratingBucket = state.commentLibraryFilter;
+ if (['good', 'marginal', 'significant'].includes(state.commentLibraryFilter)) {
+ ctx.severity = state.commentLibraryFilter;
  }
  let cancelled = false;
  const t = setTimeout(() => {
@@ -389,7 +389,7 @@ export default function InspectionEditPage() {
  state.currentSection,
  comments.fetchFiltered,
  state.getResult,
- state.bucketForRatingId,
+ state.severityForRatingId,
  ]);
 
  const revalidator = useRevalidator();
@@ -1055,7 +1055,7 @@ export default function InspectionEditPage() {
  if (!state.activeItemId) return;
  const r = state.getResult(state.activeItemId);
  state.setCommentLibraryFilter(
- state.bucketForRatingId(r?.rating as string),
+ state.severityForRatingId(r?.rating as string),
  );
  state.setCommentLibrarySearch("");
  state.setCommentLibrarySelectedIdx(0);
@@ -1102,9 +1102,9 @@ export default function InspectionEditPage() {
  const r = state.getResult(state.activeItemId);
  const notes = ((r?.notes as string) || "").trim();
  if (!notes) return;
- const bucket = state.bucketForRatingId(r?.rating as string);
+ const severity = state.severityForRatingId(r?.rating as string);
  const section = state.currentSection?.title || "";
- comments.saveSnippet(notes, bucket, section, undefined, (state.activeItem?.label || state.activeItem?.name || undefined) as string | undefined);
+ comments.saveSnippet(notes, severity, section, undefined, (state.activeItem?.label || state.activeItem?.name || undefined) as string | undefined);
  },
  onToggleCheatsheet: () =>
  state.setShowCheatsheet(!state.showCheatsheet),
@@ -1313,7 +1313,7 @@ export default function InspectionEditPage() {
  const text = input.comment ? `${input.title} — ${input.comment}` : input.title;
  comments.saveSnippet(
  text,
- "defect",
+ "significant",
  state.currentSection?.title || "",
  undefined,
  (state.activeItem?.label || state.activeItem?.name || undefined) as string | undefined,

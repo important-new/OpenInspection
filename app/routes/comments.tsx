@@ -23,12 +23,12 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       ? ((await res.json()) as { data?: unknown[]; meta?: { total: number; page: number; pageSize: number; totalPages: number } })
       : { data: [], meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 } };
     return {
-      comments: (body.data ?? []) as Array<{ id: string; text: string; ratingBucket?: string; section?: string }>,
+      comments: (body.data ?? []) as Array<{ id: string; text: string; severity?: string; section?: string }>,
       meta: body.meta ?? { total: 0, page: 1, pageSize: 50, totalPages: 1 },
     };
   } catch {
     return {
-      comments: [] as Array<{ id: string; text: string; ratingBucket?: string; section?: string }>,
+      comments: [] as Array<{ id: string; text: string; severity?: string; section?: string }>,
       meta: { total: 0, page: 1, pageSize: 50, totalPages: 1 },
     };
   }
@@ -36,15 +36,15 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 
 const TABS = [
   { id: "all", label: "All" },
-  { id: "satisfactory", label: "Satisfactory" },
-  { id: "monitor", label: "Monitor" },
-  { id: "defect", label: "Defect" },
+  { id: "good", label: "Satisfactory" },
+  { id: "marginal", label: "Monitor" },
+  { id: "significant", label: "Defect" },
 ];
 
-const BUCKET_TONE: Record<string, "sat" | "monitor" | "defect"> = {
-  satisfactory: "sat",
-  monitor: "monitor",
-  defect: "defect",
+const SEVERITY_TONE: Record<string, "sat" | "monitor" | "defect"> = {
+  good: "sat",
+  marginal: "monitor",
+  significant: "defect",
 };
 
 export default function CommentsPage() {
@@ -79,8 +79,8 @@ export default function CommentsPage() {
               <Card key={c.id} className="p-4">
                 <p className="text-[13px] text-ih-fg-3 line-clamp-3">{c.text}</p>
                 <div className="flex items-center gap-2 mt-2">
-                  {c.ratingBucket && (
-                    <Pill tone={BUCKET_TONE[c.ratingBucket] || "gen"}>{c.ratingBucket}</Pill>
+                  {c.severity && (
+                    <Pill tone={SEVERITY_TONE[c.severity] || "gen"}>{c.severity}</Pill>
                   )}
                   {c.section && <span className="text-[10px] font-bold uppercase tracking-wide text-ih-fg-4">{c.section}</span>}
                 </div>

@@ -29,7 +29,7 @@ export type { LibraryMatch };
 
 /* C-14a — rating buttons render from the inspection's rating-system levels
  * (full words + always-on semantic colour). The hardcoded SAT/MON/DEF row
- * wrote ids the rest of the editor (bucketForRatingId, getRatingColor,
+ * wrote ids the rest of the editor (severityForRatingId, getRatingColor,
  * pausesAdvance lookup) could never match. This fallback only covers the
  * no-levels edge and mirrors the server's fallback ids. */
 const FALLBACK_LEVELS: EditorRatingLevel[] = [
@@ -221,7 +221,7 @@ export function ItemEditor({
  onSearchLibrary(q).then((rows) => {
  if (cancelled) return;
  const ranked = [...rows].sort((a, b) =>
- (a.rating === "defect" ? 0 : 1) - (b.rating === "defect" ? 0 : 1));
+ (a.severity === "significant" ? 0 : 1) - (b.severity === "significant" ? 0 : 1));
  setLibraryMatches(ranked.slice(0, 6));
  }).catch(() => { /* search is best-effort */ });
  }, 250);

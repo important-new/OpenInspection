@@ -18,7 +18,7 @@ import { serializeTemplateMeta, serializeSectionMeta } from "~/lib/editor/templa
 import type { PropertyType } from "~/components/template/types";
 import { CommentLibraryDrawer } from "~/components/editor/CommentLibraryDrawer";
 import { useCannedComments } from "~/hooks/useCannedComments";
-import { buildCannedFromText, TAB_BUCKET, type CannedTab } from "~/lib/editor/canned-from-library";
+import { buildCannedFromText, TAB_SEVERITY, type CannedTab } from "~/lib/editor/canned-from-library";
 
 export function meta() {
   return [{ title: "Edit Template - OpenInspection" }];
@@ -404,18 +404,18 @@ export default function TemplateEditPage() {
 
   // Reuse the inspection editor's hook verbatim. `inspectionId` is only a load
   // key for the tenant library route; the template id is a stable, unique key.
-  // `bucketForRatingId` is unused on this surface (we pass the bucket explicitly
-  // via TAB_BUCKET), so a constant identity is sufficient.
+  // `severityForRatingId` is unused on this surface (we pass the severity
+  // explicitly via TAB_SEVERITY), so a constant identity is sufficient.
   const comments = useCannedComments({
     inspectionId: id,
-    bucketForRatingId: () => "all",
+    severityForRatingId: () => "all",
   });
 
   useEffect(() => {
     if (!libraryTab || !selectedItem) { setServerComments([]); return; }
-    const ctx: { itemLabel?: string; section?: string; ratingBucket?: string; search?: string } = {
+    const ctx: { itemLabel?: string; section?: string; severity?: string; search?: string } = {
       itemLabel: selectedItem.label,
-      ratingBucket: TAB_BUCKET[libraryTab], // hard rating filter = the tab
+      severity: TAB_SEVERITY[libraryTab], // hard severity filter = the tab
     };
     if (section?.title) ctx.section = section.title; // hard item-context filter
     const q = commentLibrarySearch.trim();
@@ -600,7 +600,7 @@ export default function TemplateEditPage() {
             currentSection: { id: section.id, title: section.title },
             activeItemId: selectedItem.id,
             getResult: () => ({}),          // template authoring has no per-item rating result
-            commentLibraryFilter: TAB_BUCKET[libraryTab], // rating chip pinned to the tab's bucket
+            commentLibraryFilter: TAB_SEVERITY[libraryTab], // severity chip pinned to the tab's severity
             setCommentLibraryFilter: () => {},            // locked
             setCommentLibrarySelectedIdx,
             commentLibrarySearch,

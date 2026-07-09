@@ -17,13 +17,13 @@ export interface LibraryComment {
     id: string;
     text: string;
     category: string | null;
-    ratingBucket: string | null;
+    severity: string | null;
     section: string | null;
     libraryId?: string | null;
     useCount?: number;
 }
 
-const QUERY_KEYS = ["search", "sort", "filterMode", "itemLabel", "section", "rating", "pageSize"] as const;
+const QUERY_KEYS = ["search", "sort", "filterMode", "itemLabel", "section", "severity", "pageSize"] as const;
 
 export async function loader({ request, context }: Route.LoaderArgs) {
     const token = await getToken(context, request);
@@ -71,10 +71,10 @@ export async function action({ request, context }: Route.ActionArgs) {
         if (intent === "save") {
             const text = String(form.get("text") ?? "").trim();
             if (!text) return { ok: false as const };
-            const rawBucket = String(form.get("ratingBucket") ?? "");
-            const BUCKETS = ["satisfactory", "monitor", "defect"] as const;
-            const ratingBucket = (BUCKETS as readonly string[]).includes(rawBucket)
-                ? (rawBucket as (typeof BUCKETS)[number])
+            const rawSeverity = String(form.get("severity") ?? "");
+            const SEVERITIES = ["good", "marginal", "significant", "minor"] as const;
+            const severity = (SEVERITIES as readonly string[]).includes(rawSeverity)
+                ? (rawSeverity as (typeof SEVERITIES)[number])
                 : null;
             const section = String(form.get("section") ?? "");
             const category = String(form.get("category") ?? "");
@@ -83,7 +83,7 @@ export async function action({ request, context }: Route.ActionArgs) {
                 {
                     json: {
                         text,
-                        ratingBucket,
+                        severity,
                         section: section || null,
                         category: category || null,
                         itemLabel: itemLabel || null,

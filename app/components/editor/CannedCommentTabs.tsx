@@ -38,7 +38,7 @@ export interface CannedDefect {
 export interface LibraryMatch {
   id?: string;
   text: string;
-  rating: string;
+  severity: string;
   category?: string | null;
   section?: string | null;
 }
@@ -259,7 +259,7 @@ export function CannedCommentTabs({
                 >
                   <p className="text-[12px] leading-relaxed text-ih-fg-2 line-clamp-2">{m.text}</p>
                   <span className="text-[10px] text-ih-fg-4">
-                    {m.rating !== "all" ? m.rating : "any rating"}
+                    {m.severity !== "all" ? m.severity : "any severity"}
                     {m.section ? ` · ${m.section}` : ""} · tap to use as custom defect
                   </span>
                 </button>

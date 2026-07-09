@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { TAB_BUCKET, buildCannedFromText } from "~/lib/editor/canned-from-library";
+import { TAB_SEVERITY, buildCannedFromText } from "~/lib/editor/canned-from-library";
 
-describe("TAB_BUCKET", () => {
-  it("maps each template comment tab to its rating bucket (RatingBucketSchema values)", () => {
-    expect(TAB_BUCKET.information).toBe("satisfactory");
-    expect(TAB_BUCKET.limitations).toBe("monitor");
-    expect(TAB_BUCKET.defects).toBe("defect");
+describe("TAB_SEVERITY", () => {
+  it("maps each template comment tab to its severity (the single canonical vocabulary)", () => {
+    expect(TAB_SEVERITY.information).toBe("good");
+    expect(TAB_SEVERITY.limitations).toBe("marginal");
+    expect(TAB_SEVERITY.defects).toBe("significant");
   });
 });
 
