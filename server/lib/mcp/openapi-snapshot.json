@@ -930,6 +930,24 @@
     "description": "Auto-generated placeholder for createContractorType (POST /, contractor-types domain). TODO: replace with a real description sourced from the handler."
   },
   {
+    "operationId": "createDefectCategory",
+    "method": "POST",
+    "pathTemplate": "/api/admin/defect-categories",
+    "scopes": [
+      "admin"
+    ],
+    "tag": "admin",
+    "tier": "extended",
+    "inputSchema": {
+      "parameters": [],
+      "body": {
+        "$ref": "#/components/schemas/CreateDefectCategory"
+      }
+    },
+    "summary": "Create a defect category for current tenant",
+    "description": "Create a custom defect category (name/color/drivesSummary/sortOrder)."
+  },
+  {
     "operationId": "createEventType",
     "method": "POST",
     "pathTemplate": "/api/admin/event-types",
@@ -4676,6 +4694,34 @@
     "description": "Auto-generated placeholder for deleteContractorType (DELETE /{id}, contractor-types domain). TODO: replace with a real description sourced from the handler."
   },
   {
+    "operationId": "deleteDefectCategory",
+    "method": "DELETE",
+    "pathTemplate": "/api/admin/defect-categories/{id}",
+    "scopes": [
+      "admin"
+    ],
+    "tag": "admin",
+    "tier": "extended",
+    "inputSchema": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Defect category id.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Defect category id."
+          }
+        }
+      ],
+      "body": null
+    },
+    "summary": "Delete a non-seed defect category for current tenant",
+    "description": "Delete a custom (non-seed) defect category. Seed rows (maintenance/recommendation/safety) are protected and silently no-op."
+  },
+  {
     "operationId": "deleteEventType",
     "method": "DELETE",
     "pathTemplate": "/api/admin/event-types/{id}",
@@ -8071,6 +8117,22 @@
     },
     "summary": "List contractor types for current tenant",
     "description": "Auto-generated placeholder for listContractorTypes (GET /, contractor-types domain). TODO: replace with a real description sourced from the handler."
+  },
+  {
+    "operationId": "listDefectCategories",
+    "method": "GET",
+    "pathTemplate": "/api/admin/defect-categories",
+    "scopes": [
+      "admin"
+    ],
+    "tag": "admin",
+    "tier": "extended",
+    "inputSchema": {
+      "parameters": [],
+      "body": null
+    },
+    "summary": "List defect categories for current tenant, seeding defaults on first read",
+    "description": "List the tenant defect categories, seeding maintenance/recommendation/safety on first read."
   },
   {
     "operationId": "listEmailTemplates",
@@ -14706,6 +14768,36 @@
     },
     "summary": "Update contractor type for current tenant",
     "description": "Auto-generated placeholder for updateContractorType (PATCH /{id}, contractor-types domain). TODO: replace with a real description sourced from the handler."
+  },
+  {
+    "operationId": "updateDefectCategory",
+    "method": "PUT",
+    "pathTemplate": "/api/admin/defect-categories/{id}",
+    "scopes": [
+      "admin"
+    ],
+    "tag": "admin",
+    "tier": "extended",
+    "inputSchema": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "description": "Defect category id.",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Defect category id."
+          }
+        }
+      ],
+      "body": {
+        "$ref": "#/components/schemas/UpdateDefectCategory"
+      }
+    },
+    "summary": "Update a defect category for current tenant",
+    "description": "Patch name/color/drivesSummary/sortOrder on an existing defect category (seed rows may be edited, not deleted)."
   },
   {
     "operationId": "updateEventType",
