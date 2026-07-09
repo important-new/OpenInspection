@@ -1267,6 +1267,15 @@ export default function InspectionEditPage() {
  );
  }
  }}
+ onValue={(value) => {
+ if (state.activeItemId && state.currentSection) {
+ findings.setItemValue(
+ state.currentSection.id,
+ state.activeItemId,
+ value,
+ );
+ }
+ }}
  onToggleCanned={(tabName, cannedId, included) => {
  if (state.activeItemId && state.currentSection) {
  findings.toggleCannedComment(
