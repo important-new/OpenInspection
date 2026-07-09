@@ -203,6 +203,7 @@ const RatingLevelSchema = z.object({
     color:        z.string().optional().describe('TODO describe color field for the OpenInspection MCP integration'),
     severity:     z.enum(['good', 'minor', 'marginal', 'significant']).optional().describe('TODO describe severity field for the OpenInspection MCP integration'),
     isDefect:     z.boolean().optional().describe('TODO describe isDefect field for the OpenInspection MCP integration'),
+    pausesAdvance: z.boolean().optional().describe('Pause auto-advance after selecting this level (focus notes)'),
     default:      z.boolean().optional().describe('TODO describe default field for the OpenInspection MCP integration'),
     description:  z.string().optional().describe('TODO describe description field for the OpenInspection MCP integration'),
 }).strict();

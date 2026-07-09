@@ -3357,6 +3357,10 @@
                               "type": "boolean",
                               "description": "TODO describe isDefect field for the OpenInspection MCP integration"
                             },
+                            "pausesAdvance": {
+                              "type": "boolean",
+                              "description": "Pause auto-advance after selecting this level (focus notes)"
+                            },
                             "default": {
                               "type": "boolean",
                               "description": "TODO describe default field for the OpenInspection MCP integration"
@@ -12486,6 +12490,10 @@
                           "type": "boolean",
                           "description": "TODO describe isDefect field for the OpenInspection MCP integration"
                         },
+                        "pausesAdvance": {
+                          "type": "boolean",
+                          "description": "Pause auto-advance after selecting this level (focus notes)"
+                        },
                         "default": {
                           "type": "boolean",
                           "description": "TODO describe default field for the OpenInspection MCP integration"
@@ -16880,6 +16888,10 @@
                             "isDefect": {
                               "type": "boolean",
                               "description": "TODO describe isDefect field for the OpenInspection MCP integration"
+                            },
+                            "pausesAdvance": {
+                              "type": "boolean",
+                              "description": "Pause auto-advance after selecting this level (focus notes)"
                             },
                             "default": {
                               "type": "boolean",

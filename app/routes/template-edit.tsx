@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLoaderData, useFetcher, Link, isRouteErrorResponse, useRouteError } from "react-router";
 import type { Route } from "./+types/template-edit";
 import { requireToken } from "~/lib/session.server";
@@ -354,6 +354,7 @@ export default function TemplateEditPage() {
           if (l.color) lv.color = l.color;
           if (l.severity) lv.severity = l.severity;
           if (typeof l.isDefect === "boolean") lv.isDefect = l.isDefect;
+          if (typeof l.pausesAdvance === "boolean") lv.pausesAdvance = l.pausesAdvance;
           if (typeof l.default === "boolean") lv.default = l.default;
           if (l.description) lv.description = l.description;
           return lv as unknown as RatingLevel;
@@ -435,6 +436,14 @@ export default function TemplateEditPage() {
     setCommentLibrarySelectedIdx(0);
     setLibraryTab(tab);
   }
+
+  // Stable reference so the shared editor's seed effect (keyed on the `system`
+  // prop identity) does not re-seed and discard in-progress edits on unrelated
+  // re-renders while the modal is open.
+  const editorSystem = useMemo(
+    () => ({ id, name: ratingSystem.name || "Rating System", slug: "template", levels: ratingSystem.levels.map(toEditorLevel) }),
+    [id, ratingSystem],
+  );
 
   return (
     <div className="flex flex-col h-screen bg-[#f8fafc] dark:bg-[#0f172a]">
@@ -605,15 +614,22 @@ export default function TemplateEditPage() {
       <RatingSystemEditor
         open={ratingModalOpen}
         onClose={() => setRatingModalOpen(false)}
-        system={{
-          id,
-          name: ratingSystem.name || "Rating System",
-          slug: "template",
-          levels: ratingSystem.levels.map(toEditorLevel),
-        }}
+        system={editorSystem}
         onSaveLevels={(levels) => {
           setRatingSystem((prev) => {
-            const nextLevels = levels.map(fromEditorLevel);
+            const nextLevels = levels.map((l, i) => {
+              const next = fromEditorLevel(l, i);
+              // Preserve per-level fields the shared editor does not author
+              // (description feeds inspection helpers.backfillLevelDescriptions;
+              // `default` is a legacy per-level flag) by re-attaching from the
+              // prior level with the same id.
+              const old = prev.levels.find((o) => o.id === next.id);
+              if (old) {
+                if (old.description !== undefined) next.description = old.description;
+                if (old.default !== undefined) next.default = old.default;
+              }
+              return next;
+            });
             const defaultLevelId = nextLevels.some((l) => l.id === prev.defaultLevelId)
               ? prev.defaultLevelId
               : nextLevels[0]?.id;

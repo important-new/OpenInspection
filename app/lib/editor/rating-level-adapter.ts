@@ -18,6 +18,7 @@ export function toEditorLevel(l: RatingLevel): EditorLevel {
     color: l.color || "#6b7280",
     severity: isSeverity(l.severity) ? l.severity : "minor",
     isDefect: !!l.isDefect,
+    pausesAdvance: l.pausesAdvance,
   };
 }
 
@@ -34,5 +35,6 @@ export function fromEditorLevel(l: EditorLevel, i: number): RatingLevel {
     color: l.color,
     severity: l.severity,
     isDefect: l.isDefect,
+    pausesAdvance: l.pausesAdvance,
   };
 }
