@@ -14,9 +14,6 @@ import { SectionPreview } from "~/components/template/SectionPreview";
 import { SectionRail } from "~/components/editor-shared/SectionRail";
 import { ItemList } from "~/components/editor-shared/ItemList";
 import { TemplatePropertyTypePanel } from "~/components/template/TemplatePropertyTypePanel";
-import { SectionPropertiesPanel } from "~/components/template/SectionPropertiesPanel";
-import { SectionApplicabilityPreview } from "~/components/template/SectionApplicabilityPreview";
-import type { TemplateSection as ServerTemplateSection } from "../../server/types/template-schema";
 import { serializeTemplateMeta, serializeSectionMeta } from "~/lib/editor/template-meta";
 import type { PropertyType } from "~/components/template/types";
 
@@ -193,13 +190,6 @@ export default function TemplateEditPage() {
       return s;
     });
     if (nextIdx >= 0) setActiveSection(nextIdx);
-  }
-
-  function updateSection(patch: Partial<TemplateSection>) {
-    updateSections((s) => {
-      if (s[activeSection]) Object.assign(s[activeSection], patch);
-      return s;
-    });
   }
 
   /* ---- Item CRUD ---- */
@@ -530,30 +520,6 @@ export default function TemplateEditPage() {
               {rightRail === "preview" && (
                 <ItemPreviewPanel selectedItem={selectedItem} />
               )}
-            </div>
-          </aside>
-        )}
-
-        {/* Right rail (section applicability) — shown when a section is active and no item is selected */}
-        {section && !selectedItem && !previewMode && (
-          <aside className="flex-1 border-l border-ih-border bg-ih-bg-card overflow-y-auto">
-            <div className="p-3 border-b border-ih-border">
-              <h3 className="text-[11px] font-bold uppercase tracking-widest text-ih-fg-4">Section applicability</h3>
-            </div>
-            <div className="p-3">
-              <SectionPropertiesPanel
-                section={section}
-                templatePropertyType={propertyType}
-                updateSection={updateSection}
-              />
-            </div>
-            <div className="p-3 border-t border-ih-border">
-              <h3 className="text-[11px] font-bold uppercase tracking-widest text-ih-fg-4 mb-2">Preview</h3>
-              <SectionApplicabilityPreview
-                sections={sections as unknown as ServerTemplateSection[]}
-                initialPropertyType={propertyType}
-                initialCommercialSubtype={commercialSubtype}
-              />
             </div>
           </aside>
         )}
