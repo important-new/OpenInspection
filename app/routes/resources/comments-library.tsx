@@ -68,7 +68,7 @@ export async function action({ request, context }: Route.ActionArgs) {
             return { ok: res.ok };
         }
 
-        if (intent === "save") {
+        if (intent === "save" || intent === "edit") {
             const text = String(form.get("text") ?? "").trim();
             if (!text) return { ok: false as const };
             const rawSeverity = String(form.get("severity") ?? "");
@@ -79,18 +79,30 @@ export async function action({ request, context }: Route.ActionArgs) {
             const section = String(form.get("section") ?? "");
             const category = String(form.get("category") ?? "");
             const itemLabel = String(form.get("itemLabel") ?? "");
-            const res = await api.admin.comments.$post(
-                {
-                    json: {
-                        text,
-                        severity,
-                        section: section || null,
-                        category: category || null,
-                        itemLabel: itemLabel || null,
-                    },
-                },
-                { headers: { "x-token-relay": "1" } },
-            );
+            const numOrNull = (k: string) => {
+                const v = String(form.get(k) ?? "");
+                return v ? Number(v) : null;
+            };
+            const json = {
+                text,
+                severity,
+                section: section || null,
+                category: category || null,
+                itemLabel: itemLabel || null,
+                repairSummary: String(form.get("repairSummary") ?? "") || null,
+                estimateMinCents: numOrNull("estimateMinCents"),
+                estimateMaxCents: numOrNull("estimateMaxCents"),
+                recommendedContractorTypeId: String(form.get("recommendedContractorTypeId") ?? "") || null,
+            };
+            const res = intent === "edit"
+                ? await api.admin.comments[":id"].$put(
+                    { param: { id: String(form.get("id") ?? "") }, json },
+                    { headers: { "x-token-relay": "1" } },
+                )
+                : await api.admin.comments.$post(
+                    { json },
+                    { headers: { "x-token-relay": "1" } },
+                );
             return { ok: res.ok };
         }
     } catch {
