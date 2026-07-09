@@ -16,6 +16,9 @@ import { ItemList } from "~/components/editor-shared/ItemList";
 import { TemplatePropertyTypePanel } from "~/components/template/TemplatePropertyTypePanel";
 import { serializeTemplateMeta, serializeSectionMeta } from "~/lib/editor/template-meta";
 import type { PropertyType } from "~/components/template/types";
+import { CommentLibraryDrawer } from "~/components/editor/CommentLibraryDrawer";
+import { useCannedComments } from "~/hooks/useCannedComments";
+import { buildCannedFromText, TAB_BUCKET, type CannedTab } from "~/lib/editor/canned-from-library";
 
 export function meta() {
   return [{ title: "Edit Template - OpenInspection" }];
@@ -111,7 +114,7 @@ function serializeCanned(c: CannedComment): Record<string, unknown> {
 }
 
 export default function TemplateEditPage() {
-  const { name: initialName, version: initialVersion, schema: initial } = useLoaderData<typeof loader>();
+  const { id, name: initialName, version: initialVersion, schema: initial } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
 
   const [templateName, setTemplateName] = useState(initialName);
@@ -393,6 +396,61 @@ export default function TemplateEditPage() {
     }
   }, [editingItem]);
 
+  // Module C — shared comment-library drawer, hard-filtered by item + rating.
+  const [libraryTab, setLibraryTab] = useState<CannedTab | null>(null);
+  const [commentLibrarySearch, setCommentLibrarySearch] = useState("");
+  const [commentLibrarySelectedIdx, setCommentLibrarySelectedIdx] = useState(0);
+  const [serverComments, setServerComments] = useState<Array<{ id: string; text: string; useCount?: number; lastUsedAt?: number | null }>>([]);
+
+  // Reuse the inspection editor's hook verbatim. `inspectionId` is only a load
+  // key for the tenant library route; the template id is a stable, unique key.
+  // `bucketForRatingId` is unused on this surface (we pass the bucket explicitly
+  // via TAB_BUCKET), so a constant identity is sufficient.
+  const comments = useCannedComments({
+    inspectionId: id,
+    bucketForRatingId: () => "all",
+  });
+
+  useEffect(() => {
+    if (!libraryTab || !selectedItem) { setServerComments([]); return; }
+    const ctx: { itemLabel?: string; section?: string; ratingBucket?: string; search?: string } = {
+      itemLabel: selectedItem.label,
+      ratingBucket: TAB_BUCKET[libraryTab], // hard rating filter = the tab
+    };
+    if (section?.title) ctx.section = section.title; // hard item-context filter
+    const q = commentLibrarySearch.trim();
+    if (q.length >= 2) ctx.search = q;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      comments.fetchFiltered(ctx).then((rows) => {
+        if (cancelled) return;
+        setServerComments(rows as Array<{ id: string; text: string; useCount?: number; lastUsedAt?: number | null }>);
+      });
+    }, q ? 250 : 0);
+    return () => { cancelled = true; clearTimeout(t); };
+    // `selectedItem`/`section` are recomputed each render from state; depend on the
+    // stable ids so the effect re-runs on item/section change, not every render.
+  }, [libraryTab, selectedItem?.id, section?.id, commentLibrarySearch, comments.sort, comments.fetchFiltered]);
+
+  /* ---- Append a picked library comment to a tab (module C) ---- */
+  function addCannedFromLibrary(tab: CannedTab, text: string) {
+    if (!editingItem || !section) return;
+    updateSections((s) => {
+      const item = s[activeSection].items.find((i) => i.id === editingItem);
+      if (!item || item.type !== "rich") return s;
+      if (!item.tabs) item.tabs = { information: [], limitations: [], defects: [] };
+      item.tabs[tab].push(buildCannedFromText(tab, text));
+      return s;
+    });
+  }
+
+  function openCommentLibrary(tab: CannedTab) {
+    comments.setFilterMode("auto"); // ensure item context rides fetchFiltered
+    setCommentLibrarySearch("");
+    setCommentLibrarySelectedIdx(0);
+    setLibraryTab(tab);
+  }
+
   return (
     <div className="flex flex-col h-screen bg-[#f8fafc] dark:bg-[#0f172a]">
       {/* Toolbar */}
@@ -514,6 +572,7 @@ export default function TemplateEditPage() {
                   updateSections={updateSections}
                   addCannedToItem={addCannedToItem}
                   removeCannedFromItem={removeCannedFromItem}
+                  onOpenLibrary={openCommentLibrary}
                 />
               )}
 
@@ -524,6 +583,36 @@ export default function TemplateEditPage() {
           </aside>
         )}
       </div>
+
+      {/* Comment library drawer (shared with inspection editor; hard-filtered) */}
+      {libraryTab && selectedItem && section && (
+        <CommentLibraryDrawer
+          open              // required prop (CommentLibraryDrawer.tsx: `open: boolean`); host mounts only while open
+          comments={{
+            filterMode: "auto",            // locked: item context always rides
+            setFilterMode: () => {},       // template hard-filters — no auto/all toggle
+            sort: comments.sort,
+            setSort: comments.setSort,
+            touchSnippet: comments.touchSnippet,
+          }}
+          state={{
+            activeItem: { label: selectedItem.label },
+            currentSection: { id: section.id, title: section.title },
+            activeItemId: selectedItem.id,
+            getResult: () => ({}),          // template authoring has no per-item rating result
+            commentLibraryFilter: TAB_BUCKET[libraryTab], // rating chip pinned to the tab's bucket
+            setCommentLibraryFilter: () => {},            // locked
+            setCommentLibrarySelectedIdx,
+            commentLibrarySearch,
+            setCommentLibrarySearch,
+            commentLibrarySelectedIdx,
+            setShowCommentLibrary: (open: boolean) => { if (!open) setLibraryTab(null); },
+          }}
+          serverComments={serverComments}
+          onInsert={(_sectionId, _itemId, text) => addCannedFromLibrary(libraryTab, text)}
+          onClose={() => setLibraryTab(null)}
+        />
+      )}
 
       {/* Rating system modal */}
       <RatingSystemModal
