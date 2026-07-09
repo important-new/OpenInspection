@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
 import { SectionRail } from '~/components/editor-shared/SectionRail';
 
 const sections = [
@@ -36,4 +37,31 @@ test('author mode hides the Inspection Details overview and shows item counts', 
   expect(screen.queryByTestId('inspection-details-entry')).toBeNull();
   expect(screen.getByTestId('add-section-btn')).toBeTruthy();
   expect(screen.getByText('2')).toBeTruthy(); // Roof item count
+});
+
+test('author mode: clicking a section calls onSelect with its id', () => {
+  const onSelect = vi.fn();
+  render(
+    <SectionRail mode="author" sections={sections} activeSection="s1" onSelect={onSelect} onAddSection={() => {}} />
+  );
+  fireEvent.click(screen.getByText('Electrical'));
+  expect(onSelect).toHaveBeenCalledWith('s2');
+});
+
+test('fill mode: active overview entry sets aria-current and active styling', () => {
+  render(
+    <SectionRail
+      mode="fill"
+      sections={sections}
+      activeSection="s1"
+      onSelect={() => {}}
+      results={{}}
+      sectionProgress={() => ({ total: 2, rated: 1, percent: 50, hasDefect: false })}
+      overviewActive
+      onSelectOverview={() => {}}
+    />
+  );
+  const entry = screen.getByTestId('inspection-details-entry');
+  expect(entry.getAttribute('aria-current')).toBe('true');
+  expect(entry.className).toContain('text-ih-primary');
 });

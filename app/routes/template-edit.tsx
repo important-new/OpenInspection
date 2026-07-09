@@ -10,7 +10,7 @@ import { ItemPropertiesPanel } from "~/components/template/ItemPropertiesPanel";
 import { ItemCommentsPanel } from "~/components/template/ItemCommentsPanel";
 import { ItemPreviewPanel } from "~/components/template/ItemPreviewPanel";
 import { SectionsList } from "~/components/template/SectionsList";
-import { SectionRail } from "~/components/template/SectionRail";
+import { SectionRail } from "~/components/editor-shared/SectionRail";
 import { TemplatePropertyTypePanel } from "~/components/template/TemplatePropertyTypePanel";
 import { SectionPropertiesPanel } from "~/components/template/SectionPropertiesPanel";
 import { SectionApplicabilityPreview } from "~/components/template/SectionApplicabilityPreview";
@@ -131,6 +131,12 @@ export default function TemplateEditPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const section = sections[activeSection] || null;
+  const activeSectionId = sections[activeSection]?.id ?? "";
+  const findSectionIdx = (id: string) => sections.findIndex((s) => s.id === id);
+  const selectSectionById = (id: string) => {
+    const idx = findSectionIdx(id);
+    if (idx >= 0) { setActiveSection(idx); setEditingItem(null); }
+  };
 
   const fetcherData = fetcher.data as { ok?: boolean; error?: string; version?: number } | undefined;
 
@@ -397,13 +403,19 @@ export default function TemplateEditPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Section rail */}
         <SectionRail
+          mode="author"
           sections={sections}
-          activeSection={activeSection}
-          setActiveSection={setActiveSection}
-          setEditingItem={setEditingItem}
-          moveSection={moveSection}
-          removeSection={removeSection}
-          addSection={addSection}
+          activeSection={activeSectionId}
+          onSelect={selectSectionById}
+          onAddSection={addSection}
+          onMoveSection={(id, dir) => {
+            const idx = findSectionIdx(id);
+            if (idx >= 0) moveSection(idx, dir);
+          }}
+          onDeleteSection={(id) => {
+            const idx = findSectionIdx(id);
+            if (idx >= 0) removeSection(idx);
+          }}
         />
 
         {/* Item list */}
