@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { renderTemplate } from "../../lib/mustache";
 import { DEFECT_TRADE_LABELS, DEFECT_DEADLINE_LABELS, DEFECT_TIMEFRAME_LABELS } from "../../lib/defect-fields";
 import { photoDisplayName, withDownload } from "../../lib/photo-name";
@@ -48,6 +48,17 @@ export function SideRail({ mode, activeItem, activeResult, getRatingColor, getRa
     return true;
   });
   const effectiveTab = visibleTabs.some((t) => t.id === activeTab) ? activeTab : "preview";
+
+  // If the active item switches to non-rich while the Library tab is selected,
+  // the Library tab vanishes from the strip — reset the selection to preview and
+  // tell the parent the library panel closed, so its comment-fetch state (gated
+  // on onLibraryTabChange) doesn't leak "open" for an item that has no library.
+  useEffect(() => {
+    if (hideLibrary && activeTab === "library") {
+      setActiveTab("preview");
+      onLibraryTabChange?.(false);
+    }
+  }, [hideLibrary, activeTab, onLibraryTabChange]);
 
   const toggle = (tabId: TabId) => {
     if (activeTab === tabId && open) {

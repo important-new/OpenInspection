@@ -1356,7 +1356,7 @@ export default function InspectionEditPage() {
  const sideRailEl = (
  <SideRail
  mode="fill"
- activeItem={state.activeItem ? { id: state.activeItem.id, label: (state.activeItem.label || state.activeItem.name || "") as string } : null}
+ activeItem={state.activeItem ? { id: state.activeItem.id, label: (state.activeItem.label || state.activeItem.name || "") as string, type: state.activeItem.type } : null}
  activeResult={state.activeItemId ? state.getResult(state.activeItemId) : null}
  ratingLevels={state.ratingLevels}
  getRatingColor={state.getRatingColor}

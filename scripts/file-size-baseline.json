@@ -37,7 +37,6 @@
   "app/components/NewInspectionWizard.tsx": 499,
   "server/api/repair-builder.ts": 496,
   "server/api/portal.ts": 486,
-  "app/routes/form-renderer.tsx": 484,
   "app/components/collab/VersionHistoryPanel.tsx": 480,
   "server/api/bookings/agreement.ts": 474,
   "server/api/admin/admin-config.ts": 473,
