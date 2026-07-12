@@ -1,4 +1,5 @@
 export { Button } from "./Button";
+export { IconButton } from "./IconButton";
 export { Pill, type PillTone } from "./Pill";
 export { StatCard } from "./StatCard";
 export { Icon, type IconProps } from "./Icon";
