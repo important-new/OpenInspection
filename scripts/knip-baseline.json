@@ -411,6 +411,8 @@
   "types:app/components/SettingsCrumb.tsx:CrumbItem",
   "types:app/components/agreements/SendAgreementModal.tsx:SignerRole",
   "types:app/components/agreements/SignerList.tsx:SignerStatus",
+  "types:app/components/editor-shared/RatingSegment.tsx:RatingOption",
+  "types:app/components/editor-shared/RatingSegment.tsx:RatingTone",
   "types:app/components/form/FormField.tsx:CannedComment",
   "types:app/components/form/FormField.tsx:ItemResult",
   "types:app/components/inspection-edit/CompliancePanel.tsx:DocumentReviewItemView",
