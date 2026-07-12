@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button, MenuItem } from "@core/shared-ui";
 import type { AttachedRepairItem } from "~/hooks/useFindings";
 
 interface RepairItemOption {
@@ -54,7 +55,15 @@ export function RepairItemsPanel({
     <div className="mt-3 border-t border-ih-border pt-3">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold uppercase tracking-widest text-ih-fg-4">Repair items</span>
-        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="repair-items-disclosure" className="text-[12px] text-ih-primary font-bold hover:underline">+ Attach repair item</button>
+        <Button
+          variant="link"
+          size="sm"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="repair-items-disclosure"
+        >
+          + Attach repair item
+        </Button>
       </div>
 
       {attached.length > 0 && (
@@ -72,7 +81,15 @@ export function RepairItemsPanel({
                     {a.contractorTypeSnapshot && <span className="text-[11px] text-ih-info-fg">{a.contractorTypeSnapshot}</span>}
                   </div>
                 </div>
-                <button type="button" onClick={() => onDetach(a.recommendationId)} className="text-ih-bad-fg hover:underline shrink-0" aria-label={`Remove ${a.summarySnapshot}`}>Remove</button>
+                <Button
+                  variant="danger-link"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => onDetach(a.recommendationId)}
+                  aria-label={`Remove ${a.summarySnapshot}`}
+                >
+                  Remove
+                </Button>
               </li>
             );
           })}
@@ -88,10 +105,10 @@ export function RepairItemsPanel({
               <li className="py-2 text-[12px] text-ih-fg-4">No matching repair items. Add some under Library → Repair Items.</li>
             ) : filtered.map((o) => (
               <li key={o.id}>
-                <button type="button" onClick={() => attach(o)} className="w-full text-left py-2 hover:bg-ih-bg-card rounded px-1">
+                <MenuItem onClick={() => attach(o)} className="py-2 hover:bg-ih-bg-card rounded px-1">
                   <span className="text-[12px] font-semibold text-ih-fg-1">{o.name}</span>
                   {o.contractorTypeName && <span className="ml-2 text-[11px] text-ih-info-fg">{o.contractorTypeName}</span>}
-                </button>
+                </MenuItem>
               </li>
             ))}
           </ul>
