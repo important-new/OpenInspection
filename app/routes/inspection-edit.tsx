@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useLoaderData, useFetcher, useNavigate, useRevalidator } from "react-router";
 import { findRatingLevel, ratingAdvanceDecision } from "~/lib/rating-levels";
 import { makeCustomDefect } from "~/lib/custom-defects";
-import { useInspectionState, type InspectionSchema } from "~/hooks/useInspection";
+import { useInspectionState, type InspectionSchema, type ItemFilter } from "~/hooks/useInspection";
 import { findingKey } from "~/hooks/findings/shared";
 import { useFindings, type AttachedRepairItem } from "~/hooks/useFindings";
 import { usePhotoOps } from "~/hooks/usePhotoOps";
@@ -74,6 +74,7 @@ import { UnitsManager } from "~/components/editor/UnitsManager";
 import { CostItemsHost } from "~/components/editor/CostItemsHost";
 import type { ResultMap } from "~/hooks/useInspection";
 import type { PublishReadiness, PublishBlockingDefect } from "~/lib/types";
+import { Button, IconButton, SegmentedControl } from "@core/shared-ui";
 
 export function meta() {
  return [{ title: "Edit Inspection - OpenInspection" }];
@@ -1541,12 +1542,12 @@ export default function InspectionEditPage() {
  <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
   <p className="text-[15px] font-semibold text-ih-fg-1">This inspection has no template content</p>
   <p className="text-[13px] text-ih-fg-3 max-w-sm">Apply a template to get sections, items and canned comments — or import your Spectora template.</p>
-  <button
+  <Button
+  variant="primary"
   onClick={() => state.setSettingsOpen(true)}
-  className="px-4 h-10 rounded-lg bg-ih-primary text-white text-[13px] font-bold hover:bg-ih-primary-600"
   >
   Choose a template
-  </button>
+  </Button>
  </div>
  ) : null;
 
@@ -2008,28 +2009,34 @@ export default function InspectionEditPage() {
     {isPerUnit && (
       <BreadcrumbDropdown units={units} activeUnitId={activeUnitId} onSelect={requestScope} />
     )}
-    <button
-     type="button"
+    <Button
+     variant="secondary"
+     size="sm"
      onClick={() => setUnitsManagerOpen(true)}
-     className="hidden lg:inline-flex h-7 px-2.5 rounded-ih-button bg-ih-bg-muted text-ih-fg-2 text-[12px] font-bold hover:bg-ih-border items-center gap-1.5"
+     className="hidden lg:inline-flex"
      title="Manage units"
+     icon={
+      <svg className="w-3.5 h-3.5 text-ih-fg-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+      </svg>
+     }
     >
-     <svg className="w-3.5 h-3.5 text-ih-fg-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-     </svg>
      Units
-    </button>
-    <button
-     type="button"
+    </Button>
+    <Button
+     variant="secondary"
+     size="sm"
      onClick={() => setCostItemsOpen(true)}
-     className="hidden lg:inline-flex h-7 px-2.5 rounded-ih-button bg-ih-bg-muted text-ih-fg-2 text-[12px] font-bold hover:bg-ih-border items-center gap-1.5"
+     className="hidden lg:inline-flex"
      title="Cost items"
+     icon={
+      <svg className="w-3.5 h-3.5 text-ih-fg-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 12v-2m0-10a4 4 0 100 8 4 4 0 000-8z" />
+      </svg>
+     }
     >
-     <svg className="w-3.5 h-3.5 text-ih-fg-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V6m0 12v-2m0-10a4 4 0 100 8 4 4 0 000-8z" />
-     </svg>
      Cost Items
-    </button>
+    </Button>
    </div>
   ) : undefined
  }
@@ -2072,27 +2079,27 @@ export default function InspectionEditPage() {
  <div className="w-[280px] flex-shrink-0 border-r border-ih-border flex flex-col overflow-hidden relative">
  {/* Item filter tabs */}
  <div className="flex items-center gap-1 px-3 py-1.5 border-b border-ih-border">
- {(["all", "unrated", "issues", "flagged"] as const).map((f) => (
- <button
- key={f}
- onClick={() => state.setItemFilter(f)}
- className={`px-2 py-0.5 rounded text-[11px] font-bold capitalize ${
- state.itemFilter === f
- ? "bg-ih-primary-tint text-ih-primary"
- : "text-ih-fg-3 hover:text-ih-fg-2"
- }`}
- >
+ <SegmentedControl
+ ariaLabel="Item filter"
+ value={state.itemFilter}
+ onChange={(v) => state.setItemFilter(v as ItemFilter)}
+ options={(["all", "unrated", "issues", "flagged"] as const).map((f) => ({
+ value: f,
+ label: (
+ <>
  {f === "all" ? "All" : f === "unrated" ? "Unrated" : f === "issues" ? "Issues" : "Flagged"}
  {f !== "all" && (
  <span className="ml-1 text-[10px]">
  {f === "unrated" ? state.filterCounts.unrated : f === "issues" ? state.filterCounts.issues : state.filterCounts.flagged}
  </span>
  )}
- </button>
- ))}
+ </>
+ ),
+ }))}
+ />
  {/* Batch mode toggle — object-scoped action, lives with the items it selects
      (moved out of the global header). */}
- <button
+ <IconButton
  onClick={() => {
   if (state.batchMode) {
   state.setBatchMode(false);
@@ -2101,17 +2108,16 @@ export default function InspectionEditPage() {
   state.setBatchMode(true);
   }
  }}
- className={`ml-auto flex items-center justify-center w-7 h-7 rounded ${
-  state.batchMode ? "bg-ih-primary-tint text-ih-primary" : "text-ih-fg-3 hover:bg-ih-bg-muted"
- }`}
+ selected={state.batchMode}
+ size="sm"
+ className="ml-auto"
  title={state.batchMode ? "Exit batch mode" : "Batch mode (B)"}
  aria-label={state.batchMode ? "Exit batch mode" : "Batch select items"}
- aria-pressed={state.batchMode}
  >
  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
  </svg>
- </button>
+ </IconButton>
  </div>
  {itemListEl}
  </div>
@@ -2197,29 +2203,30 @@ export default function InspectionEditPage() {
  {!state.itemFullscreen && (
   state.sideRailCollapsed ? (
   <div className="w-8 flex-shrink-0 border-l border-ih-border flex flex-col items-center pt-3">
-   <button
-   type="button"
+   <IconButton
+   aria-label="Expand photo rail"
    onClick={() => state.setSideRailCollapsed(false)}
-   className="w-7 h-7 rounded-md flex items-center justify-center text-ih-fg-3 hover:bg-ih-bg-muted"
+   size="sm"
    title="Expand photo rail"
    >
    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
    </svg>
-   </button>
+   </IconButton>
   </div>
   ) : (
   <div className="relative flex-shrink-0">
-   <button
-   type="button"
+   <IconButton
+   aria-label="Collapse photo rail"
    onClick={() => state.setSideRailCollapsed(true)}
-   className="absolute top-3 left-1 z-10 w-6 h-6 rounded-md flex items-center justify-center text-ih-fg-4 hover:bg-ih-bg-muted hover:text-ih-fg-2"
+   size="sm"
+   className="absolute top-3 left-1 z-10 w-6 h-6"
    title="Collapse photo rail"
    >
    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
    </svg>
-   </button>
+   </IconButton>
    {sideRailEl}
   </div>
   )
