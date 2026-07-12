@@ -33,6 +33,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   const selectedClass = selected ? "ring-2 ring-ih-primary ring-inset" : "";
   return (
     <button
+      type="button"
       ref={ref}
       aria-pressed={selected === undefined ? undefined : selected}
       className={cn(

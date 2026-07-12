@@ -37,7 +37,7 @@ export function TemplateMenu({
       <Button
         ref={anchorRef}
         variant="secondary"
-        size="sm"
+        size="md"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}

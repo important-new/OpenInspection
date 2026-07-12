@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Button, MenuItem, Popover } from "@core/shared-ui";
+import { Button, Popover } from "@core/shared-ui";
 
 /**
  * Commercial PCA Phase U (Batch C2b) — a flat unit row as it arrives from
@@ -115,9 +115,12 @@ function ScopeOption({
 }) {
   return (
     <li role="option" aria-selected={selected}>
-      <MenuItem
+      <button
+        type="button"
         onClick={onSelect}
-        className={selected ? "text-ih-primary font-bold" : ""}
+        className={`w-full flex items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-ih-bg-muted ${
+          selected ? "text-ih-primary font-bold" : "text-ih-fg-2"
+        }`}
       >
         <svg
           className={`w-3.5 h-3.5 flex-shrink-0 ${selected ? "text-ih-primary" : "text-transparent"}`}
@@ -131,7 +134,7 @@ function ScopeOption({
           <span className="block truncate">{label}</span>
           {hint && <span className="block text-[11px] text-ih-fg-4 font-normal truncate">{hint}</span>}
         </span>
-      </MenuItem>
+      </button>
     </li>
   );
 }

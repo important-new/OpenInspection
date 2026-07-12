@@ -65,3 +65,15 @@ describe("Button selected state", () => {
     expect(screen.getByRole("button", { name: "Tag" }).hasAttribute("aria-pressed")).toBe(false);
   });
 });
+
+describe("Button type defaults", () => {
+  it("defaults to type=button (safe inside a <form>)", () => {
+    render(<Button>Click</Button>);
+    expect(screen.getByRole("button", { name: "Click" }).getAttribute("type")).toBe("button");
+  });
+
+  it("explicit type=submit overrides the default", () => {
+    render(<Button type="submit">Save</Button>);
+    expect(screen.getByRole("button", { name: "Save" }).getAttribute("type")).toBe("submit");
+  });
+});
