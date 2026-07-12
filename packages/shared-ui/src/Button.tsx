@@ -7,6 +7,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   icon?: React.ReactNode;
+  selected?: boolean;
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -25,13 +26,15 @@ const sizeClasses: Record<ButtonSize, string> = {
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = "secondary", size = "md", icon, children, className = "", ...props },
+  { variant = "secondary", size = "md", icon, children, className = "", selected, ...props },
   ref,
 ) {
+  const selectedClass = selected ? "ring-2 ring-ih-primary ring-inset" : "";
   return (
     <button
       ref={ref}
-      className={`inline-flex items-center justify-center font-bold rounded-ih-button transition-all focus:outline-none focus:shadow-ih-focus disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
+      aria-pressed={selected === undefined ? undefined : selected}
+      className={`inline-flex items-center justify-center font-bold rounded-ih-button transition-all focus:outline-none focus:shadow-ih-focus disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${selectedClass} ${className}`}
       {...props}
     >
       {icon}

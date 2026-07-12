@@ -1,5 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, cleanup, screen } from "@testing-library/react";
 import { Button } from "./Button";
+
+afterEach(cleanup);
 
 test("link variant renders borderless text action", () => {
   render(<Button variant="link">Browse library</Button>);
@@ -15,4 +18,22 @@ test("danger-link variant renders borderless destructive text", () => {
   expect(btn.className).toContain("text-ih-bad-fg");
   expect(btn.className).toContain("hover:underline");
   expect(btn.className).not.toContain("bg-ih-bad");
+});
+
+describe("Button selected state", () => {
+  it("selected sets aria-pressed and pressed style", () => {
+    render(
+      <Button variant="secondary" selected>
+        Tag
+      </Button>,
+    );
+    const btn = screen.getByRole("button", { name: "Tag" });
+    expect(btn.getAttribute("aria-pressed")).toBe("true");
+    expect(btn.className).toContain("ring-ih-primary");
+  });
+
+  it("unselected omits aria-pressed", () => {
+    render(<Button variant="secondary">Tag</Button>);
+    expect(screen.getByRole("button", { name: "Tag" }).hasAttribute("aria-pressed")).toBe(false);
+  });
 });
