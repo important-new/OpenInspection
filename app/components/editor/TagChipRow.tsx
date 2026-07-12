@@ -46,10 +46,10 @@ export function TagChipRow({ pinnedTags, activeTagIds, onToggle, onOpenLibrary }
             })}
             {onOpenLibrary && (
                 <Button
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
                     onClick={onOpenLibrary}
-                    className="h-auto px-2 py-0.5 rounded-full border-dashed border-ih-border text-ih-fg-4 hover:bg-ih-bg-muted"
+                    className="h-auto px-2 py-0.5 rounded-full border border-dashed border-ih-border text-ih-fg-4 hover:bg-ih-bg-muted"
                     aria-label="Open tag library"
                 >
                     + more

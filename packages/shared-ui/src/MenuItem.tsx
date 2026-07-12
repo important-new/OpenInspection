@@ -22,7 +22,7 @@ export const MenuItem = React.forwardRef<HTMLButtonElement, MenuItemProps>(
         {...props}
       >
         {icon != null && <span className="shrink-0" aria-hidden="true">{icon}</span>}
-        <span>{children}</span>
+        {children}
       </button>
     );
   },

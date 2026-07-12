@@ -329,10 +329,10 @@ export function CannedCommentTabs({
                 />
               ) : (
                 <Button
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
                   onClick={onOpenCustomForm}
-                  className="w-full h-auto py-2.5 justify-start border-dashed border-ih-border-strong text-ih-fg-3 hover:border-ih-primary hover:text-ih-primary"
+                  className="w-full h-auto py-2.5 justify-start border border-dashed border-ih-border-strong text-ih-fg-3 hover:bg-transparent hover:border-ih-primary hover:text-ih-primary"
                 >
                   + Add custom defect
                 </Button>

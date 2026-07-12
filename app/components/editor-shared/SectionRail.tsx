@@ -302,11 +302,11 @@ export function SectionRail({
  {onAddSection && (
   <div className="p-2 pt-0">
   <Button
-   variant="secondary"
+   variant="ghost"
    size="sm"
    onClick={onAddSection}
    data-testid="add-section-btn"
-   className="w-full justify-start border-dashed border-ih-border text-ih-fg-4 hover:border-ih-primary hover:text-ih-primary"
+   className="w-full justify-start h-auto py-2 border border-dashed border-ih-border text-ih-fg-4 hover:bg-transparent hover:border-ih-primary hover:text-ih-primary"
   >
    + Add section
   </Button>

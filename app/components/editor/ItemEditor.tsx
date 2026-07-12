@@ -309,9 +309,9 @@ export function ItemEditor({
  );
  const defectPhotoChip = (target: { kind: "canned" | "custom"; id: string }, count: number) =>
  onAddDefectPhoto ? (
- <Button variant="secondary" size="sm" disabled={photoUploading} aria-label="Add photo to this defect" icon={addPhotoIcon}
+ <Button variant="ghost" size="sm" disabled={photoUploading} aria-label="Add photo to this defect" icon={addPhotoIcon}
  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddDefectPhoto(target); }}
- className="mt-1.5 border-dashed border-ih-border-strong text-ih-fg-3 hover:border-ih-primary hover:text-ih-primary"
+ className="mt-1.5 h-auto px-2 py-1 border border-dashed border-ih-border-strong text-ih-fg-3 hover:bg-transparent hover:border-ih-primary hover:text-ih-primary"
  >
  {count > 0 ? `${count} photo${count === 1 ? "" : "s"} · add` : "Add photo"}
  </Button>
