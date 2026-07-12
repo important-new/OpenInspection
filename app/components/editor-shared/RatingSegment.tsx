@@ -46,7 +46,11 @@ const TONE_FILLED: Record<RatingTone, string> = {
   warn: "bg-ih-watch text-ih-fg-inverse",
   bad: "bg-ih-bad text-ih-fg-inverse",
   info: "bg-ih-info text-ih-fg-inverse",
-  neutral: "bg-ih-bg-muted text-ih-fg-inverse",
+  // Solid inverse chip (not `bg-ih-bg-muted`) — muted-bg + inverse-fg pairs
+  // to ~1:1 contrast in both themes. This mirrors the pre-migration
+  // RatingButtonRow `minor` tier's `bg-ih-bg-inverse`, which flips with
+  // theme and correctly pairs with `ih-fg-inverse`.
+  neutral: "bg-ih-bg-inverse text-ih-fg-inverse",
 };
 
 const TONE_IDLE: Record<RatingTone, string> = {
@@ -135,7 +139,22 @@ export function RatingSegment({
         // (data-driven, like BatchActionBar's existing pattern) and applies
         // regardless of selection — see the RatingOption.color doc above.
         const style = r.color ? { background: r.color, color: "#fff" } : undefined;
-        const text = size === "sm" ? (r.shortLabel ?? r.label) : r.label;
+        // At `size="sm"` (compact tiles, e.g. BatchActionBar) always show the
+        // short form. At md/lg, responsively swap: shortLabel below the `sm`
+        // breakpoint, full label at `sm` and up — mirrors the pre-migration
+        // RatingButtonRow behavior of abbreviating on narrow screens. When no
+        // `shortLabel` is provided, just render the full label everywhere.
+        const text =
+          size === "sm" ? (
+            (r.shortLabel ?? r.label)
+          ) : r.shortLabel ? (
+            <>
+              <span className="sm:hidden">{r.shortLabel}</span>
+              <span className="hidden sm:inline">{r.label}</span>
+            </>
+          ) : (
+            r.label
+          );
         const title = r.hint ? `${r.label} (${r.hint})` : r.label;
         return (
           <button

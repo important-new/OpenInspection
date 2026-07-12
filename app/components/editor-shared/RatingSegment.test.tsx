@@ -43,7 +43,7 @@ describe("RatingSegment", () => {
     expect(screen.getByRole("radio", { name: "Monitor" }).className).toContain("bg-ih-watch");
   });
 
-  it("maps the neutral tone to bg-ih-bg-muted when selected", () => {
+  it("maps the neutral tone to a solid inverse chip when selected (contrast fix)", () => {
     render(
       <RatingSegment
         ratings={[{ value: "n", label: "N/A", tone: "neutral" as const }]}
@@ -51,7 +51,9 @@ describe("RatingSegment", () => {
         onChange={() => {}}
       />
     );
-    expect(screen.getByRole("radio", { name: "N/A" }).className).toContain("bg-ih-bg-muted");
+    const tile = screen.getByRole("radio", { name: "N/A" });
+    expect(tile.className).toContain("bg-ih-bg-inverse");
+    expect(tile.className).not.toContain("bg-ih-bg-muted");
   });
 
   it("only the selected tile is tab-focusable (roving tabindex)", () => {
@@ -107,5 +109,30 @@ describe("RatingSegment", () => {
     const tile = screen.getByRole("radio", { name: "Serviceable" });
     expect(tile.textContent).toContain("OK");
     expect(tile.textContent).not.toContain("Serviceable");
+  });
+
+  it("size=md renders a responsive short/full label swap, still findable by full-label accessible name", () => {
+    render(
+      <RatingSegment
+        ratings={[{ value: "ok", label: "Serviceable", shortLabel: "OK", tone: "ok" as const }]}
+        value="ok"
+        onChange={() => {}}
+        size="md"
+      />
+    );
+    // Full label remains the accessible name at every viewport.
+    const tile = screen.getByRole("radio", { name: "Serviceable" });
+    expect(tile.textContent).toContain("OK");
+    expect(tile.textContent).toContain("Serviceable");
+
+    const shortSpan = Array.from(tile.querySelectorAll("span")).find(
+      (el) => el.textContent === "OK"
+    );
+    const fullSpan = Array.from(tile.querySelectorAll("span")).find(
+      (el) => el.textContent === "Serviceable"
+    );
+    expect(shortSpan?.className).toContain("sm:hidden");
+    expect(fullSpan?.className).toContain("hidden");
+    expect(fullSpan?.className).toContain("sm:inline");
   });
 });
