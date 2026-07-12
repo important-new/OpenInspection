@@ -265,7 +265,7 @@ export function EditorHeader({
  {tenantSlug && (
   <Button
   variant="secondary"
-  size="sm"
+  size="md"
   onClick={() => window.open(`/report-view/${tenantSlug}/${state.inspection.id}`, "_blank", "noopener")}
   className="hidden 2xl:inline-flex"
   title="Preview the full report (all sections) in a new tab"
@@ -285,7 +285,7 @@ export function EditorHeader({
      on drafts via the owner/JWT-authed /api/inspections/:id/pdf endpoint. */}
  <Button
   variant="secondary"
-  size="sm"
+  size="md"
   onClick={() => window.open(`/api/inspections/${state.inspection.id}/pdf?type=full`, "_blank", "noopener")}
   className="hidden xl:inline-flex"
   title="Preview the real server-rendered PDF (the exact client deliverable) in a new tab"
@@ -301,7 +301,7 @@ export function EditorHeader({
  {/* Sign now button */}
  <Button
   variant="secondary"
-  size="sm"
+  size="md"
   onClick={() => setSignModalOpen(true)}
   className="hidden xl:inline-flex"
   title="Sign this inspection now"

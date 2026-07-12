@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "./cn";
 
 interface Tab {
   id: string;
@@ -17,11 +18,11 @@ export function TabStrip({ tabs, activeId, onChange, orientation = "horizontal" 
   const vertical = orientation === "vertical";
   return (
     <div
-      className={
+      className={cn(
         vertical
           ? "flex flex-col items-stretch border-l border-ih-border"
-          : "flex flex-wrap items-center border-b border-ih-border"
-      }
+          : "flex flex-wrap items-center border-b border-ih-border",
+      )}
     >
       {tabs.map((tab) => (
         <button

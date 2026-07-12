@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "./cn";
 
 type IconButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type IconButtonSize = "sm" | "md" | "lg";
@@ -32,7 +33,13 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
         ref={ref}
         type="button"
         aria-pressed={selected === undefined ? undefined : selected}
-        className={`inline-flex items-center justify-center rounded-ih-button transition-all focus:outline-none focus:shadow-ih-focus disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${selectedClass} ${className}`}
+        className={cn(
+          "inline-flex items-center justify-center rounded-ih-button transition-all focus:outline-none focus:shadow-ih-focus disabled:opacity-50 disabled:cursor-not-allowed",
+          variantClasses[variant],
+          sizeClasses[size],
+          selectedClass,
+          className,
+        )}
         {...props}
       >
         {children}

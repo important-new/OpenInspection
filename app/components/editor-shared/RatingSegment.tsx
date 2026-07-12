@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "../../../packages/shared-ui/src/cn";
 
 export type RatingTone = "ok" | "warn" | "bad" | "info" | "neutral";
 
@@ -125,7 +126,7 @@ export function RatingSegment({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className={`flex gap-2 flex-wrap ${className}`}
+      className={cn("flex gap-2 flex-wrap", className)}
     >
       {ratings.map((r, i) => {
         const selected = r.value === value;

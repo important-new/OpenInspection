@@ -20,6 +20,34 @@ test("danger-link variant renders borderless destructive text", () => {
   expect(btn.className).not.toContain("bg-ih-bad");
 });
 
+describe("Button className merge (tailwind-merge)", () => {
+  it("consumer className wins over the base display utility on same-property conflict", () => {
+    render(
+      <Button variant="primary" className="hidden xl:inline-flex">
+        Responsive
+      </Button>,
+    );
+    const btn = screen.getByRole("button", { name: "Responsive" });
+    expect(btn.className).toContain("hidden");
+    expect(btn.className).toContain("xl:inline-flex");
+    // The base's unprefixed `inline-flex` must be dropped in favor of `hidden`
+    // — tailwind-merge resolves same-property conflicts by className order,
+    // not stylesheet order.
+    expect(btn.className.split(/\s+/)).not.toContain("inline-flex");
+  });
+
+  it("consumer size className wins over the size preset's height", () => {
+    render(
+      <Button size="md" className="h-12">
+        Tall
+      </Button>,
+    );
+    const btn = screen.getByRole("button", { name: "Tall" });
+    expect(btn.className).toContain("h-12");
+    expect(btn.className.split(/\s+/)).not.toContain("h-9");
+  });
+});
+
 describe("Button selected state", () => {
   it("selected sets aria-pressed and pressed style", () => {
     render(
