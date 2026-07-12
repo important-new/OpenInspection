@@ -183,7 +183,7 @@ export function SpeedMode({
       {/* IA-17 — first-run coach mark: tap anywhere (or press any key) to dismiss */}
       {showCoach && (
         <div
-          className="absolute inset-0 z-10 bg-ih-bg-app/80 flex items-center justify-center cursor-pointer"
+          className="absolute inset-0 z-10 bg-ih-backdrop flex items-center justify-center cursor-pointer"
           onPointerDown={dismissCoach}
           data-testid="speedmode-coach"
           role="dialog"
