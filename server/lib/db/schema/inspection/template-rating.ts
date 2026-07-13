@@ -26,7 +26,7 @@ export const templates = sqliteTable('templates', {
     name: text('name').notNull(),
     version: integer('version').notNull().default(1),
     schema: text('schema', { mode: 'json' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     // Sprint 2 S2-1 — selects the active rating system. Null = use tenant default.
     ratingSystemId: text('rating_system_id'),
     propertyType: text('property_type'),

@@ -41,7 +41,7 @@ export const inspections = sqliteTable('inspections', {
     // to read the authoritative price. Written by the inspection-create path as a
     // convenience snapshot; kept in sync when service lines change.
     price:               integer('price_cents').notNull().default(0),
-    createdAt:           integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt:           integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     // Phase 0 parity additions
     confirmedAt:         text('confirmed_at'),
     cancelReason:        text('cancel_reason'),
@@ -214,7 +214,7 @@ export const inspectionResults = sqliteTable('inspection_results', {
     // inspections created before collab editing have no doc yet. This is the only
     // BLOB column in the schema.
     ydocState: blob('ydoc_state'),
-    lastSyncedAt: integer('last_synced_at', { mode: 'timestamp' }).notNull(),
+    lastSyncedAt: integer('last_synced_at', { mode: 'timestamp_ms' }).notNull(),
     // Sprint 2 S2-1 — denormalized rating system reference and a frozen
     // snapshot of the levels array at inspection creation. Editing the
     // source rating system afterwards never mutates an existing inspection.

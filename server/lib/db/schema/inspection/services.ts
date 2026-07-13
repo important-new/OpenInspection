@@ -16,7 +16,7 @@ export const services = sqliteTable('services', {
     agreementId: text('agreement_id').references(() => agreements.id),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_services_tenant').on(t.tenantId),
 ]);
@@ -47,7 +47,7 @@ export const discountCodes = sqliteTable('discount_codes', {
     usesCount: integer('uses_count').notNull().default(0),
     expiresAt: text('expires_at'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_discount_codes_tenant').on(t.tenantId),
     uniqueIndex('uq_discount_codes_code_tenant').on(sql`upper(code)`, t.tenantId),

@@ -56,7 +56,7 @@ export const tenantDestructionRecords = sqliteTable('tenant_destruction_records'
     r2Objects:   integer('r2_objects').notNull().default(0),
     r2Bytes:     integer('r2_bytes').notNull().default(0),
     kvKeys:      integer('kv_keys').notNull().default(0),
-    destroyedAt: integer('destroyed_at', { mode: 'timestamp' }).notNull(),
+    destroyedAt: integer('destroyed_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_destruction_tenant').on(t.tenantId),
     index('idx_destruction_destroyed_at').on(t.destroyedAt),
@@ -75,7 +75,7 @@ export const auditLogs = sqliteTable('audit_logs', {
     // helper); NULL otherwise so the column stays signal-rich for the audit
     // dashboard's per-inspector grouping.
     inspectorSlug: text('inspector_slug'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_audit_tenant_created').on(t.tenantId, t.createdAt),
     index('idx_audit_entity').on(t.entityType, t.entityId),
@@ -95,8 +95,8 @@ export const agentTenantLinks = sqliteTable('agent_tenant_links', {
     // Schema Rules: state-machine column declares its enum (type-layer only).
     status:              text('status', { enum: ['pending', 'active', 'revoked'] }).notNull().default('active'),
     invitedByUserId:     text('invited_by_user_id'),
-    createdAt:           integer('created_at', { mode: 'timestamp' }).notNull(),
-    revokedAt:           integer('revoked_at', { mode: 'timestamp' }),
+    createdAt:           integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    revokedAt:           integer('revoked_at', { mode: 'timestamp_ms' }),
 }, (t) => [
     uniqueIndex('idx_agent_tenant_unique').on(t.agentUserId, t.tenantId),
     index('idx_agent_tenant_by_tenant').on(t.tenantId, t.status),
@@ -113,9 +113,9 @@ export const notifications = sqliteTable('notifications', {
     entityType:  text('entity_type'),
     entityId:    text('entity_id'),
     metadata:    text('metadata', { mode: 'json' }).$type<Record<string, unknown>>(),
-    readAt:      integer('read_at', { mode: 'timestamp' }),
-    archivedAt:  integer('archived_at', { mode: 'timestamp' }),
-    createdAt:   integer('created_at', { mode: 'timestamp' }).notNull(),
+    readAt:      integer('read_at', { mode: 'timestamp_ms' }),
+    archivedAt:  integer('archived_at', { mode: 'timestamp_ms' }),
+    createdAt:   integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_notifications_tenant_user_created').on(t.tenantId, t.userId, t.createdAt),
     index('idx_notifications_tenant_user_unread').on(t.tenantId, t.userId, t.readAt),

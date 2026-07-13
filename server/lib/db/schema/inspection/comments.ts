@@ -37,7 +37,7 @@ export const comments = sqliteTable('comments', {
     estimateMaxCents:  integer('estimate_max_cents'),
     // Soft ref → contractor_types.id (no DB FK per schema rules). Stale ref acceptable.
     recommendedContractorTypeId: text('recommended_contractor_type_id'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_comments_tenant').on(t.tenantId),
     index('idx_comments_rating_bucket').on(t.tenantId, t.ratingBucket),
