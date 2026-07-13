@@ -82,7 +82,7 @@ export class ObserverLinkService {
             tokenHash:    await hashToken(token),
             tokenEnc:     await sealToken(token, tenantId, s.jwtSecret),
             createdBy:    input.createdBy,
-            createdAt:    new Date().toISOString(),
+            createdAt:    new Date(),
             expiresAt:    expiresAtDate,
         });
 

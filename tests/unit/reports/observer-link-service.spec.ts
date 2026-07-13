@@ -118,7 +118,7 @@ describe('ObserverLinkService (subsystem D P4 T4.3)', () => {
         const id = crypto.randomUUID();
         await testDb.insert(schema.observerLinks).values({
             id, tenantId: TENANT, inspectionId: INSPECTION, token: legacyToken,
-            createdBy: 'user-a', createdAt: new Date().toISOString(),
+            createdBy: 'user-a', createdAt: new Date(),
             expiresAt: new Date(Date.now() + 3600_000),
         });
         const out = await svc.claim(legacyToken);
@@ -135,7 +135,7 @@ describe('ObserverLinkService (subsystem D P4 T4.3)', () => {
         const id = crypto.randomUUID();
         await testDb.insert(schema.observerLinks).values({
             id, tenantId: TENANT, inspectionId: INSPECTION, token: legacyToken,
-            createdBy: 'user-a', createdAt: new Date().toISOString(),
+            createdBy: 'user-a', createdAt: new Date(),
             expiresAt: new Date(Date.now() + 3600_000),
         });
         await svc.claim(legacyToken); // upgrades + seals enc

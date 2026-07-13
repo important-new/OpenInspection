@@ -45,7 +45,7 @@ async function seed(testDb: BetterSQLite3Database<typeof schema>) {
         id: crypto.randomUUID(), tenantId: TENANT, inspectionId: ORIGINAL,
         versionNumber: 1, snapshotJson: JSON.stringify(snapshot),
         publishedAt: new Date(), publishedBy: 'user-a',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(),
     });
 
     // DRAFT inspection with NO report_versions row (gate test).

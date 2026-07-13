@@ -241,7 +241,7 @@ describe('#120 report amendments — end-to-end (real workerd)', () => {
             summary: null,
             publishedAt: new Date(),
             publishedBy: PUBLISHER,
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
             contentHash: null,
             prevHash: null,
             signature: null,

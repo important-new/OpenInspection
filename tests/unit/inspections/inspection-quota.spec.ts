@@ -96,7 +96,7 @@ describe('Inspection creation consumes the free-tier quota (Task 3)', () => {
             versionNumber: 1,
             snapshotJson: JSON.stringify({ inspection: { id: a.id }, data: {}, units: [] }),
             publishedAt: new Date(), publishedBy: 'user-a',
-            createdAt: new Date().toISOString(),
+            createdAt: new Date(),
         });
         await svc.createReinspection(TENANT, a.id, { selectedItemIds: [] }); // 3
 

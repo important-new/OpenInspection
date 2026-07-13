@@ -100,7 +100,7 @@ export class ReportVersionService {
             summary:        summary ?? null,
             publishedAt:    new Date(),
             publishedBy,
-            createdAt:      new Date().toISOString(),
+            createdAt:      new Date(),
             contentHash,
             prevHash,
             signature,
