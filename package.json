@@ -47,6 +47,7 @@
     "lint:tests": "node scripts/check-test-layout.mjs",
     "lint:deadcode": "node scripts/check-deadcode.mjs",
     "lint:timestamps": "node scripts/check-timestamps.mjs",
+    "check:ts-range": "node scripts/check-ts-range.mjs",
     "lint:fix": "eslint . --fix --cache",
     "security-scan": "npm audit --audit-level=high",
     "test:unit": "vitest run --config vitest.api.config.ts",
