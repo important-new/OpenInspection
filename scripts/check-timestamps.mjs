@@ -37,6 +37,13 @@ export function findTimestampViolations(source, filename) {
         out.push(`${filename}:${i + 1} integer('${m[1]}') missing { mode: 'timestamp_ms' }`);
       }
     }
+    // Rule D: text('*_at') is a timestamp stored as text — must be integer timestamp_ms.
+    // Calendar/clock fields (`*_date`, `*_time`, bare `date`) are intentionally TEXT and
+    // are not matched here; document them with a Schema Rules exception comment instead.
+    const tm = line.match(/text\('([a-z0-9_]+)'/);
+    if (tm && /_at$/.test(tm[1])) {
+      out.push(`${filename}:${i + 1} text('${tm[1]}') is a text timestamp; use integer { mode: 'timestamp_ms' }`);
+    }
   }
   return out;
 }

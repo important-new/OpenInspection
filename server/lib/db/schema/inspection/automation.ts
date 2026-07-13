@@ -62,8 +62,8 @@ export const automationLogs = sqliteTable('automation_logs', {
     recipient: text('recipient').notNull(),   // RENAMED from recipient_email (0025)
     // Track L — the log's own delivery channel (a multi-channel rule emits one log each).
     channel: text('channel', { enum: ['email', 'sms'] }).notNull().default('email'),
-    sendAt: text('send_at').notNull(),
-    deliveredAt: text('delivered_at'),
+    sendAt: integer('send_at', { mode: 'timestamp_ms' }).notNull(),
+    deliveredAt: integer('delivered_at', { mode: 'timestamp_ms' }),
     status: text('status', { enum: ['pending', 'sent', 'failed', 'skipped'] }).notNull().default('pending'),
     error: text('error'),
     eventId: text('event_id'),

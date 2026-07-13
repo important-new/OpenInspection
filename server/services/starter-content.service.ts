@@ -355,7 +355,7 @@ export async function seedStarterContent(
     {
         const existing = await d.select({ name: marketplaceLibraries.name }).from(marketplaceLibraries).all();
         const existingNames = new Set(existing.map(r => r.name as string));
-        const now = new Date().toISOString();
+        const now = new Date();
         const rows = MARKETPLACE_LIBRARIES.filter(lib => !existingNames.has(lib.name)).map(lib => ({
             id:            crypto.randomUUID(),
             name:          lib.name,

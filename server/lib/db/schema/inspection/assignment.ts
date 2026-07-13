@@ -38,6 +38,8 @@ export const availability = sqliteTable('availability', {
     tenantId: text('tenant_id').notNull().references(() => tenants.id),
     inspectorId: text('inspector_id').notNull().references(() => users.id),
     dayOfWeek: integer('day_of_week').notNull(),
+    // Clock time-of-day 'HH:MM' for a recurring weekly window (keyed by day_of_week) —
+    // intentionally TEXT (no date, no epoch) per the Schema Rules calendar/clock exception.
     startTime: text('start_time').notNull(),
     endTime: text('end_time').notNull(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),

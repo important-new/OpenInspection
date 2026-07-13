@@ -31,6 +31,8 @@ export const inspections = sqliteTable('inspections', {
     clientEmail:         text('client_email'),
     clientPhone:         text('client_phone'),
     templateId:          text('template_id').references(() => templates.id),
+    // Calendar-semantic YYYY-MM-DD (inspection date, no time component) — intentionally
+    // TEXT per the Schema Rules calendar-field exception, not an epoch timestamp.
     date:                text('date').notNull(),
     status:              text('status', { enum: [...INSPECTION_STATUSES] }).notNull().default('requested'),
     reportStatus:        text('report_status', { enum: [...REPORT_STATUSES] }).notNull().default('in_progress'),
@@ -43,7 +45,7 @@ export const inspections = sqliteTable('inspections', {
     price:               integer('price_cents').notNull().default(0),
     createdAt:           integer('created_at', { mode: 'timestamp_ms' }).notNull(),
     // Phase 0 parity additions
-    confirmedAt:         text('confirmed_at'),
+    confirmedAt:         integer('confirmed_at', { mode: 'timestamp_ms' }),
     cancelReason:        text('cancel_reason'),
     cancelNotes:         text('cancel_notes'),  // Spec 3A
     paymentRequired:     integer('payment_required', { mode: 'boolean' }).notNull().default(false),
@@ -53,6 +55,8 @@ export const inspections = sqliteTable('inspections', {
     autoSignOnPublish:   integer('auto_sign_on_publish', { mode: 'boolean' }).notNull().default(false),
     discountCodeId:      text('discount_code_id').references(() => discountCodes.id),
     discountAmount:      integer('discount_amount_cents'),
+    // Calendar-semantic YYYY-MM-DD (real-estate closing date, no time) — intentionally
+    // TEXT per the Schema Rules calendar-field exception, not an epoch timestamp.
     closingDate:         text('closing_date'),
     referralSource:      text('referral_source'),
     referenceNumber:             text('reference_number'),
@@ -187,7 +191,7 @@ export const inspectionRequests = sqliteTable('inspection_requests', {
     propertyCity:     text('property_city'),
     propertyState:    text('property_state'),
     propertyZip:      text('property_zip'),
-    scheduledAt:      text('scheduled_at').notNull(),
+    scheduledAt:      integer('scheduled_at', { mode: 'timestamp_ms' }).notNull(),
     status:           text('status', {
         enum: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'],
     }).notNull().default('pending'),

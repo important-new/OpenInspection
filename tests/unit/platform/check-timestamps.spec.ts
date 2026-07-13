@@ -44,6 +44,19 @@ describe('check-timestamps gate', () => {
         const src = `createdAt: text('created_at').notNull().default(sql\`(datetime('now'))\`),`;
         expect(findTimestampViolations(src, 'x.ts')).toHaveLength(1);
     });
+    it("flags a text('*_at') column (ISO-string timestamp)", () => {
+        const src = `confirmedAt: text('confirmed_at'),`;
+        expect(findTimestampViolations(src, 'x.ts')).toHaveLength(1);
+    });
+    it("does NOT flag calendar/clock text columns (_date / _time / date)", () => {
+        const src = [
+            `dueDate: text('due_date'),`,
+            `closingDate: text('closing_date'),`,
+            `startTime: text('start_time').notNull(),`,
+            `date: text('date').notNull(),`,
+        ].join('\n');
+        expect(findTimestampViolations(src, 'x.ts')).toEqual([]);
+    });
     it('respects // ts-lint-ok exemption', () => {
         const src = `retainUntilAt: integer('retain_until_at'), // ts-lint-ok: raw epoch-ms number by design`;
         expect(findTimestampViolations(src, 'x.ts')).toEqual([]);

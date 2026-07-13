@@ -45,7 +45,7 @@ export const discountCodes = sqliteTable('discount_codes', {
     value: integer('value').notNull(),
     maxUses: integer('max_uses'),
     usesCount: integer('uses_count').notNull().default(0),
-    expiresAt: text('expires_at'),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [

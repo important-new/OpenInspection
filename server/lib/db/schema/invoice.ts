@@ -15,6 +15,8 @@ export const invoices = sqliteTable('invoices', {
     // getEffectivePriceCents() in app/lib/effective-price.ts.
     amountCents: integer('amount_cents').notNull().default(0),
     lineItems: text('line_items', { mode: 'json' }).notNull().$type<Array<{ description: string; amountCents: number; quantity?: number; unitAmountCents?: number }>>().default([]),
+    // Calendar-semantic YYYY-MM-DD (invoice due date, no time component) — intentionally
+    // TEXT per the Schema Rules calendar-field exception, not an epoch timestamp.
     dueDate: text('due_date'),
     notes: text('notes'),
     sentAt: integer('sent_at', { mode: 'timestamp_ms' }),
