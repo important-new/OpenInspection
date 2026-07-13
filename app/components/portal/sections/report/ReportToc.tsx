@@ -63,9 +63,11 @@ export function ReportToc({
               aria-hidden="true"
             />
             {/* Reserved page-ref slot — Task 19a's pass-2 render fills this from
-                `tocPages` (resolved by extractAnchorPages against pass 1). Always
-                rendered (same width) on both the web and every PDF pass so pass-1
-                vs pass-2 pagination stays identical. */}
+                `tocPages` (resolved by extractAnchorPages against pass 1). The slot
+                is always present on every pass; filling it with a 1-3 digit number
+                adds no TOC LINES (the flex-1 dotted separator absorbs the width),
+                so the document's line count — and thus pass-1 vs pass-2 pagination —
+                stays identical. */}
             <span
               className="toc-pageref text-ih-fg-4 tabular-nums"
               aria-hidden="true"
