@@ -203,11 +203,17 @@ export default function InspectionEditPage() {
  const unitsFetcher = useFetcher<{ ok: boolean; intent?: string }>();
  const scopeFetcher = useFetcher<{ ok: boolean; intent?: string; scope?: string; results?: ResultMap }>();
  const navigate = useNavigate();
- const photoInputRef = useRef<HTMLInputElement>(null);
+ // Task 16 — split the single photo input into a camera capture input
+ // (single file, capture=environment — "Take photo") and a library input
+ // (multiple, no capture — "Add from library", desktop's default add-photo
+ // affordance). Both feed the same handlePhotoUpload batch handler.
+ const cameraInputRef = useRef<HTMLInputElement>(null);
+ const libraryInputRef = useRef<HTMLInputElement>(null);
  const { scheme, setColorScheme } = useTheme();
 
  /* Plan 7 — add-media chooser (photo OR video) + video capture overlay. The
-  * add tile opens the chooser; "Photo" triggers the existing photo input,
+  * add tile opens the chooser; Task 16 split "Photo" into "Take photo"
+  * (camera input) and "Add from library" (multi-select library input),
   * "Video" opens VideoCapture. Video upload requires a connection (it does NOT
   * use the offline photo queue — clip sizes make IndexedDB replay impractical). */
  const [addMediaChooser, setAddMediaChooser] = useState<{ itemId: string } | null>(null);
@@ -1008,35 +1014,49 @@ export default function InspectionEditPage() {
  // picker opens, consumed (and cleared) by handlePhotoUpload.
  const pendingPhotoTargetRef = useRef<{ kind: "canned" | "custom"; id: string } | null>(null);
 
+ // Task 16 — Worker subrequest safety: a single submission fans out one
+ // upstream upload call per file (see action.server.ts's mapPool), so an
+ // unbounded selection could blow the per-request subrequest budget. Cap the
+ // batch and tell the user rather than silently dropping the overflow.
+ const MAX_BATCH_PHOTOS = 20;
+
  const handlePhotoUpload = useCallback(
  (e: React.ChangeEvent<HTMLInputElement>) => {
- const file = e.target.files?.[0];
- if (!file || !state.activeItemId) return;
+ const all = Array.from(e.target.files ?? []);
+ if (all.length === 0 || !state.activeItemId) return;
  const itemId = state.activeItemId;
+ const overflow = all.length > MAX_BATCH_PHOTOS;
+ const files = overflow ? all.slice(0, MAX_BATCH_PHOTOS) : all;
 
  // N2+N4 — bake before submit (auto-orient + downscale + EXIF/GPS strip),
  // unless the user opted into original quality. Capture the
  // defect target ref into a local BEFORE the await so a second picker open
- // cannot clobber it. The offline branch above keeps the RAW File (Task 5
- // bakes at replay).
+ // cannot clobber it. The offline branch below keeps the RAW File (Task 5
+ // bakes at replay). Single-file selections take this exact same path with
+ // a one-element array, so behavior is byte-identical to the old code.
  const orig = originalQualityEnabled();
  const target = pendingPhotoTargetRef.current;
  pendingPhotoTargetRef.current = null;
  void (async () => {
- const baked = orig ? file : await preprocessImage(file);
+ const bakedFiles: File[] = [];
+ for (const f of files) {
+ bakedFiles.push(orig ? f : await preprocessImage(f));
+ }
 
- // #181 PR-G — offline: persist the baked photo locally + append a PENDING
- // doc entry (empty key + pendingUpload). The strip renders it from the
- // local blob; the drain (on reconnect / online) uploads it to R2 and swaps
- // in the real key. Defect-targeted offline adds fall back to the online
- // fetcher (the pending-doc model covers item photos; defect pending is out
- // of scope) — they simply re-fire when back online.
+ // #181 PR-G — offline: persist each baked photo locally + append a
+ // PENDING doc entry (empty key + pendingUpload) per file. The strip
+ // renders them from the local blob; the drain (on reconnect / online)
+ // uploads each to R2 and swaps in the real key. Defect-targeted offline
+ // adds fall back to the online fetcher (the pending-doc model covers
+ // item photos; defect pending is out of scope) — they simply re-fire
+ // when back online.
  const doc = collab?.doc ?? null;
  const sid = state.sectionIdForItem(itemId) ?? state.currentSection?.id;
  if (typeof navigator !== "undefined" && navigator.onLine === false && doc && sid && !target) {
   // Phase U (Batch C2a) — key the offline pending-photo doc entry to the active
   // unit. At activeUnitId == null this === the legacy `_default:{sid}:{itemId}`.
   const fk = findingKey(activeUnitId, sid, itemId);
+  for (const baked of bakedFiles) {
   const pendingId = crypto.randomUUID();
   await enqueueMedia({
   pendingId,
@@ -1047,22 +1067,31 @@ export default function InspectionEditPage() {
   enqueuedAt: Date.now(),
   });
   appendPendingPhoto(doc, fk, pendingId);
-  return;
- }
-
- const formData = new FormData();
- formData.append("intent", "upload-photo");
- formData.append("itemId", itemId);
- formData.append("file", baked);
- if (target) {
+  }
+ } else {
+  const formData = new FormData();
+  formData.append("intent", "upload-photo");
+  formData.append("itemId", itemId);
+  for (const baked of bakedFiles) formData.append("file", baked);
+  if (target) {
   formData.append("targetType", "defect");
   formData.append("customId", target.id);
   formData.append("defectKind", target.kind);
+  }
+  uploadFetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
  }
- uploadFetcher.submit(formData, { method: "post", encType: "multipart/form-data" });
+
+ if (overflow) {
+  pushToast({
+  message: "Added the first 20 photos; add the rest in another batch.",
+  variant: "warning",
+  durationMs: 6000,
+  });
+ }
  })();
- // Reset input so picking the same file twice re-fires onChange
- if (photoInputRef.current) photoInputRef.current.value = "";
+ // Reset both inputs so re-picking the same file(s) re-fires onChange
+ if (cameraInputRef.current) cameraInputRef.current.value = "";
+ if (libraryInputRef.current) libraryInputRef.current.value = "";
  },
  [state.activeItemId, state.inspection.id, uploadFetcher, collab?.doc, state.sectionIdForItem, state.currentSection, activeUnitId],
  );
@@ -1098,6 +1127,8 @@ export default function InspectionEditPage() {
  | {
  ok?: boolean;
  keys?: string[];
+ // Task 15/16 — per-file status; drives the partial-failure toast below.
+ results?: Array<{ index: number; ok: boolean; key?: string; error?: string }>;
  itemId?: string;
  targetType?: "item" | "defect";
  customId?: string;
@@ -1106,6 +1137,8 @@ export default function InspectionEditPage() {
  | undefined;
  if (uploadFetcher.state !== "idle" || !d || processedUploadData.current === d) return;
  processedUploadData.current = d;
+ // Attach every successful key exactly as before — unchanged regardless of
+ // whether the submission was a single file or a batch.
  if (d.keys?.length && d.itemId) {
  for (const k of d.keys) {
  if (d.targetType === "defect" && d.customId) {
@@ -1118,16 +1151,36 @@ export default function InspectionEditPage() {
  findings.addPhotoToItem(d.itemId, k);
  }
  }
+ }
+ // Task 16 — results[] lets a batch report exactly how many of a large
+ // selection made it, instead of an all-or-nothing toast. d.ok is derived
+ // from results.every(ok) server-side, so without this a single failed file
+ // in a 12-photo batch would fire BOTH the success toast (for the 11 that
+ // attached) and the old generic failure toast — keep them mutually
+ // exclusive here.
+ if (d.results?.length) {
+ const total = d.results.length;
+ const successCount = d.results.filter((r) => r.ok).length;
+ const failCount = total - successCount;
+ if (failCount > 0) {
  pushToast({
- message: `${d.keys.length} photo${d.keys.length === 1 ? "" : "s"} added${d.targetType === "defect" ? " to defect" : ""}`,
-				variant: "success",
+ message: `${successCount} of ${total} photos uploaded — ${failCount} failed.`,
+ variant: "error",
+ durationMs: 8000,
+ });
+ } else {
+ pushToast({
+ message: `${successCount} photo${successCount === 1 ? "" : "s"} added${d.targetType === "defect" ? " to defect" : ""}`,
+ variant: "success",
  durationMs: 2000,
  });
  }
- if (d.ok === false) {
+ } else if (d.ok === false) {
+ // Fallback for a response shape without results[] (e.g. an older/other
+ // action path) — preserves the pre-Task-16 generic failure toast.
  pushToast({
  message: "Photo upload failed — your photo did NOT reach the server.",
-				variant: "error",
+ variant: "error",
  durationMs: 8000,
  });
  }
@@ -1245,8 +1298,15 @@ export default function InspectionEditPage() {
  },
  onLibraryClose: () => state.setShowCommentLibrary(false),
  onPhoto: () => {
- if (!state.activeItemId) return;
- photoInputRef.current?.click();
+ if (!state.activeItemId || uploadFetcher.state !== "idle") return;
+ // Task 16 — desktop file pickers already offer camera-vs-library choice
+ // natively, so go straight to the multi-select library input; mobile
+ // still needs the explicit chooser (camera capture has no multi-select).
+ if (isMobile) {
+ setAddMediaChooser({ itemId: state.activeItemId });
+ } else {
+ libraryInputRef.current?.click();
+ }
  },
  onSave: () => findings.saveNow(),
  onPublish: () => { setPublishError(null); state.setShowPublishModal(true); },
@@ -1285,6 +1345,8 @@ export default function InspectionEditPage() {
  comments,
  commentLibraryItems,
  serverComments,
+ uploadFetcher.state,
+ isMobile,
  ],
  );
 
@@ -1377,11 +1439,18 @@ export default function InspectionEditPage() {
  onAddPhoto={() =>
   state.activeItemId
    ? setAddMediaChooser({ itemId: state.activeItemId })
-   : photoInputRef.current?.click()
+   : libraryInputRef.current?.click()
  }
  onAddDefectPhoto={(target) => {
+ if (uploadFetcher.state !== "idle") return;
  pendingPhotoTargetRef.current = target;
- photoInputRef.current?.click();
+ // Task 16 — same camera/library split as onPhoto above, scoped to a
+ // specific defect row instead of the item.
+ if (isMobile) {
+ setAddMediaChooser({ itemId: state.activeItemId ?? "" });
+ } else {
+ libraryInputRef.current?.click();
+ }
  }}
  photoUploading={uploadFetcher.state !== "idle"}
  onAddCustomDefect={(input) => {
@@ -1551,6 +1620,76 @@ export default function InspectionEditPage() {
  </div>
  ) : null;
 
+ // Task 16 — hoisted so the SAME elements mount in both the mobile and
+ // desktop render trees below (they're two separate early-return JSX trees,
+ // not nested). FE-2 already hit this bug once for the old single photo
+ // input (see the comment that used to sit here): a ref/overlay defined only
+ // in the desktop tree is simply null/absent on mobile, so any handler that
+ // targets it silently no-ops. camera/library inputs feed handlePhotoUpload
+ // directly; the add-media chooser (camera vs library vs video) and the
+ // video-capture overlay it can open must mount on both surfaces too, since
+ // onPhoto/onAddPhoto/onAddDefectPhoto now route mobile through the chooser.
+ const photoInputsEl = (
+ <>
+ <input
+ ref={cameraInputRef}
+ type="file"
+ accept="image/*"
+ capture="environment"
+ className="hidden"
+ onChange={handlePhotoUpload}
+ />
+ <input
+ ref={libraryInputRef}
+ type="file"
+ accept="image/*"
+ multiple
+ className="hidden"
+ onChange={handlePhotoUpload}
+ />
+ </>
+ );
+
+ const addMediaOverlaysEl = (
+ <>
+ {/* Plan 7 — add-media chooser: take a photo, add from library, or video.
+ * Video requires a connection (no offline queue); the Video option
+ * disables + hints when offline. */}
+ {addMediaChooser && (
+ <AddMediaChooser
+ onClose={() => setAddMediaChooser(null)}
+ onTakePhoto={() => {
+ setAddMediaChooser(null);
+ cameraInputRef.current?.click();
+ }}
+ onAddFromLibrary={() => {
+ setAddMediaChooser(null);
+ libraryInputRef.current?.click();
+ }}
+ onPickVideo={() => {
+ const t = addMediaChooser;
+ setAddMediaChooser(null);
+ setVideoCaptureTarget(t);
+ }}
+ />
+ )}
+
+ {/* Plan 7 — video capture + pluggable backend upload overlay. */}
+ {videoCaptureTarget && (
+ <VideoCapture
+ inspectionId={String(state.inspection.id)}
+ provider={videoProvider}
+ itemId={videoCaptureTarget.itemId}
+ onClose={() => setVideoCaptureTarget(null)}
+ onUploaded={() => {
+ setVideoCaptureTarget(null);
+ revalidator.revalidate();
+ }}
+ />
+ )}
+ </>
+ );
+
  /* ---------------------------------------------------------------- */
  /* Render */
  /* ---------------------------------------------------------------- */
@@ -1559,17 +1698,8 @@ export default function InspectionEditPage() {
  return (
  <div className="min-h-screen pb-14">
  <ToastPortal />
- {/* FE-2: the hidden photo input previously rendered only in the desktop
- tree — on mobile photoInputRef.current was null and every photo
- entry point was dead. */}
- <input
- ref={photoInputRef}
- type="file"
- accept="image/*"
- capture="environment"
- className="hidden"
- onChange={handlePhotoUpload}
- />
+ {photoInputsEl}
+ {addMediaOverlaysEl}
  <MobileAppBar
  sectionTitle={state.currentSection?.title ?? ''}
  itemLabel={((state.activeItem?.label || state.activeItem?.name) as string | undefined) ?? 'Select an item'}
@@ -1623,15 +1753,7 @@ export default function InspectionEditPage() {
   className="flex h-screen bg-ih-bg-card overflow-x-auto"
  >
  <ToastPortal />
- {/* Hidden photo input */}
- <input
- ref={photoInputRef}
- type="file"
- accept="image/*"
- capture="environment"
- className="hidden"
- onChange={handlePhotoUpload}
- />
+ {photoInputsEl}
 
  {/* SpeedMode overlay */}
  {state.speedMode && speedItem && (
@@ -1744,36 +1866,7 @@ export default function InspectionEditPage() {
  />
  )}
 
- {/* Plan 7 — add-media chooser: photo OR video. Video requires a connection
-  * (no offline queue); the Video option disables + hints when offline. */}
- {addMediaChooser && (
- <AddMediaChooser
-  onClose={() => setAddMediaChooser(null)}
-  onPickPhoto={() => {
-   setAddMediaChooser(null);
-   photoInputRef.current?.click();
-  }}
-  onPickVideo={() => {
-   const t = addMediaChooser;
-   setAddMediaChooser(null);
-   setVideoCaptureTarget(t);
-  }}
- />
- )}
-
- {/* Plan 7 — video capture + pluggable backend upload overlay. */}
- {videoCaptureTarget && (
- <VideoCapture
-  inspectionId={String(state.inspection.id)}
-  provider={videoProvider}
-  itemId={videoCaptureTarget.itemId}
-  onClose={() => setVideoCaptureTarget(null)}
-  onUploaded={() => {
-   setVideoCaptureTarget(null);
-   revalidator.revalidate();
-  }}
- />
- )}
+ {addMediaOverlaysEl}
 
  {/* Plan 4 (Task 8) — per-photo crop overlay. Cropping ALWAYS re-derives from
   * the ORIGINAL key. A re-crop that would discard an existing annotation warns

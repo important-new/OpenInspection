@@ -181,6 +181,8 @@ export default defineConfig({
         { name: 'repair-list', testMatch: 'repair-list.spec.ts' },
         { name: 'report-viewer', testMatch: 'report-viewer.spec.ts' },
         { name: 'inspection-edit-hotkeys', testMatch: 'inspection-edit-hotkeys.spec.ts', dependencies: ['editor-seed'] },
+        // Phase 3 Task 16 — batch photo upload (library input multi-select).
+        { name: 'batch-photo-upload', testMatch: 'batch-photo-upload.spec.ts', dependencies: ['editor-seed'] },
         { name: 'inspection-lifecycle', testMatch: 'inspection-lifecycle.spec.ts', dependencies: ['editor-seed'] },
         // Destructive (reset/restore DB) — env-gated inside the specs:
         { name: 'backup-restore-seed', testMatch: 'backup-restore-seed.spec.ts' },
