@@ -25,15 +25,20 @@
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
 import { extractAnchorPages } from '../../server/lib/toc-pages';
+import { makeCsrfToken } from './helpers/csrf';
 
 const BASE_URL = 'http://127.0.0.1:8789';
 const ADMIN_EMAIL = 'admin@autotest.com';
 const ADMIN_PASSWORD = 'Password123!';
 
 async function loginApi(request: APIRequestContext, email: string, password: string): Promise<string> {
+    // /api/auth/login enforces the double-submit CSRF cookie — mirror
+    // editor-seed.setup.ts (send the token as both header and __Host-csrf_token
+    // cookie), or the POST is rejected before authenticating.
+    const csrf = makeCsrfToken();
     const res = await request.post(`${BASE_URL}/api/auth/login`, {
         data: { email, password },
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf, Cookie: `__Host-csrf_token=${csrf}` },
     });
     expect(res.status(), `Login failed for ${email}: expected 200`).toBe(200);
     const cookie = res.headers()['set-cookie'] ?? '';
@@ -45,9 +50,9 @@ async function loginApi(request: APIRequestContext, email: string, password: str
 
 test.describe('Commercial PCA Task 19a — real TOC page numbers (e2e)', () => {
     test('the published commercial report PDF resolves increasing TOC page numbers via the two-pass render', async ({ request }) => {
-        // The editor-seed project (a dependency of this test's project) already
-        // ran /api/auth/setup for the shared admin — reuse it, mirroring
-        // standalone-browser.spec.ts's loginApi pattern.
+        // The api project (an ancestor dependency via editor-seed) already ran
+        // /api/auth/setup for the shared admin — reuse it via the CSRF-aware
+        // loginApi above.
         const adminToken = await loginApi(request, ADMIN_EMAIL, ADMIN_PASSWORD);
 
         // Wizard-create a TEMPLATELESS commercial inspection. propertyType:
