@@ -206,7 +206,11 @@ export class ReportVersionService {
             .where(and(eq(reportVersions.tenantId, tenantId), eq(reportVersions.inspectionId, inspectionId)))
             .orderBy(desc(reportVersions.versionNumber))
             .all();
-        return rows;
+        return rows.map((row) => ({
+            ...row,
+            // Unix SECONDS — mirrors verifyByToken/getLatestPublished's public contract above.
+            publishedAt: row.publishedAt ? Math.floor(row.publishedAt.getTime() / 1000) : null,
+        }));
     }
 
     async get(tenantId: string, inspectionId: string, versionNumber: number): Promise<Snapshot | null> {
