@@ -30,7 +30,7 @@ export const reportVersions = sqliteTable('report_versions', {
     keyFingerprint:    text('key_fingerprint'),
     isAmendment:       integer('is_amendment', { mode: 'boolean' }).notNull().default(false),
     verificationToken: text('verification_token'),
-    publishedAt:    integer('published_at').notNull(),
+    publishedAt:    integer('published_at', { mode: 'timestamp_ms' }).notNull(),
     publishedBy:    text('published_by').notNull(),
     createdAt:      text('created_at').notNull().default(sql`(datetime('now'))`),
 }, (t) => [

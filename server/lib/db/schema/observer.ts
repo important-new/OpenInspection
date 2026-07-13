@@ -18,9 +18,9 @@ export const observerLinks = sqliteTable('observer_links', {
     token:           text('token').notNull().unique(),
     createdBy:       text('created_by').notNull(),
     createdAt:       text('created_at').notNull().default(sql`(datetime('now'))`),
-    expiresAt:       integer('expires_at').notNull(),
-    revokedAt:       integer('revoked_at'),
-    lastViewedAt:    integer('last_viewed_at'),
+    expiresAt:       integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    revokedAt:       integer('revoked_at', { mode: 'timestamp_ms' }),
+    lastViewedAt:    integer('last_viewed_at', { mode: 'timestamp_ms' }),
     tokenHash:       text('token_hash'),
     tokenEnc:        text('token_enc'),
 }, (t) => [

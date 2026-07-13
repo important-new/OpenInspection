@@ -22,8 +22,8 @@ export const syncOutbox = sqliteTable('sync_outbox', {
     // Schema Rules: state-machine column declares its enum (type-layer only).
     status:       text('status', { enum: ['pending', 'published', 'failed'] }).notNull().default('pending'),
     attempts:     integer('attempts').notNull().default(0),
-    createdAt:    integer('created_at').notNull(),
-    lastTriedAt:  integer('last_tried_at'),
+    createdAt:    integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    lastTriedAt:  integer('last_tried_at', { mode: 'timestamp_ms' }),
     lastError:    text('last_error'),
 }, (t) => [
     index('idx_sync_outbox_status_created').on(t.status, t.createdAt),
@@ -126,8 +126,8 @@ export const notifications = sqliteTable('notifications', {
 export const processedCmdEvents = sqliteTable('processed_cmd_events', {
     eventId:     text('event_id').primaryKey(),
     cmdType:     text('cmd_type').notNull(),
-    // Raw unix SECONDS — same convention as sync_outbox.created_at.
-    processedAt: integer('processed_at').notNull(),
+    // Epoch ms — same convention as sync_outbox.created_at.
+    processedAt: integer('processed_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
 /** A-21 — parking lot for inbound command envelopes this build cannot apply
@@ -138,7 +138,7 @@ export const parkedCmdEvents = sqliteTable('parked_cmd_events', {
     id:         text('id').primaryKey(),
     envelope:   text('envelope').notNull(),
     reason:     text('reason').notNull(),
-    receivedAt: integer('received_at').notNull(),
+    receivedAt: integer('received_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_parked_cmd_events_received_at').on(t.receivedAt),
 ]);

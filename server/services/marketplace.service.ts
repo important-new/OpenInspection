@@ -114,7 +114,7 @@ export class MarketplaceService {
         targetVersion: input.targetVersion ?? null,
         rowsAffected:  input.rowsAffected,
         metadata:      input.metadata ? JSON.stringify(input.metadata) : null,
-        createdAt:     Date.now(),
+        createdAt:     new Date(),
         createdBy:     input.userId,
       }).run();
     } catch (err) {

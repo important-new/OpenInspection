@@ -74,7 +74,7 @@ export const tenantMarketplaceImportHistory = sqliteTable('tenant_marketplace_im
   // JSON-encoded action-specific context (deleted ids, migration counts, …).
   // Stored as TEXT so we can keep parity with raw SQL inserts in tests.
   metadata:      text('metadata'),
-  createdAt:     integer('created_at').notNull(),
+  createdAt:     integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   createdBy:     text('created_by').notNull(),
 }, (t) => [
   index('idx_marketplace_history_tenant').on(t.tenantId, t.createdAt),

@@ -22,7 +22,7 @@ export const inspections = sqliteTable('inspections', {
     addressCounty:       text('address_county'),
     addressLat:          real('address_lat'),
     addressLng:          real('address_lng'),
-    addressGeocodedAt:   integer('address_geocoded_at'),
+    addressGeocodedAt:   integer('address_geocoded_at', { mode: 'timestamp_ms' }),
     // IA-1 — the order finally captures WHO. Points at contacts.id (app-layer
     // integrity per the FK policy); the denormalized clientName/Email/Phone
     // below remain as a read cache and are double-written on create.

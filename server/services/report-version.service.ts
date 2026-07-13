@@ -98,7 +98,7 @@ export class ReportVersionService {
             versionNumber:  nextVersion,
             snapshotJson,
             summary:        summary ?? null,
-            publishedAt:    Math.floor(Date.now() / 1000),
+            publishedAt:    new Date(),
             publishedBy,
             createdAt:      new Date().toISOString(),
             contentHash,
@@ -151,7 +151,9 @@ export class ReportVersionService {
             inspectionId:  row.inspectionId,
             versionNumber: row.versionNumber,
             isAmendment:   row.isAmendment,
-            publishedAt:   row.publishedAt,
+            // Public contract (app/routes/public/v.$token.tsx formatDate) is
+            // unix SECONDS — independent of the column's own Date storage type.
+            publishedAt:   Math.floor(row.publishedAt.getTime() / 1000),
             contentHash:   row.contentHash ?? null,
             keyFingerprint: row.keyFingerprint ?? null,
             legacy,
@@ -188,7 +190,8 @@ export class ReportVersionService {
             versionNumber:     row.versionNumber,
             contentHash:       row.contentHash ?? null,
             verificationToken: row.verificationToken,
-            publishedAt:       row.publishedAt ?? null,
+            // Unix SECONDS — mirrors verifyByToken's public contract above.
+            publishedAt:       row.publishedAt ? Math.floor(row.publishedAt.getTime() / 1000) : null,
         };
     }
 

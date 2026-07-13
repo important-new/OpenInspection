@@ -52,7 +52,7 @@ export const commentUsage = sqliteTable('comment_usage', {
     userId:     text('user_id').notNull(),
     commentId:  text('comment_id').notNull().references(() => comments.id, { onDelete: 'cascade' }),
     useCount:   integer('use_count').notNull().default(0),
-    lastUsedAt: integer('last_used_at'),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
 }, (table) => ({
     pk: primaryKey({ columns: [table.tenantId, table.userId, table.commentId] }),
     userLastUsedIdx: index('idx_comment_usage_user_last_used').on(table.tenantId, table.userId, table.lastUsedAt),

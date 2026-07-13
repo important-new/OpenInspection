@@ -60,7 +60,7 @@ export const users = sqliteTable('users', {
     // timestamp updated by touch-last-active middleware (30s debounce window
     // per worker isolate). Powers TeamStrip "last active Nm ago" pill and the
     // soft-presence fallback when WebSocket cannot connect.
-    lastActiveAt:     integer('last_active_at'),
+    lastActiveAt:     integer('last_active_at', { mode: 'timestamp_ms' }),
     // Design System 0520 subsystem C phase 1 — role-extension columns.
     //   mentorId            = DEAD (2026-06-13, apprentice subsystem removed).
     //                          Formerly the apprentice's mentor FK → users.id —
@@ -75,7 +75,7 @@ export const users = sqliteTable('users', {
     // DEAD (2026-06-13, guest removal / specialist deferred) — no reads/writes
     assignedSectionIds:   text('assigned_section_ids').notNull().default('[]'),
     // DEAD (2026-06-13, guest removal / specialist deferred) — no reads/writes
-    expiresAt:            integer('expires_at'),
+    expiresAt:            integer('expires_at'), // ts-lint-ok: DEAD frozen column (guest removal), no reads/writes
     // Account soft-delete marker — set by POST /api/account/delete after
     // the user retypes their email to confirm. NULL = active. Kept rather
     // than hard-deleted so audit-linked rows remain referentially intact.
