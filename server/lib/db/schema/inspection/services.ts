@@ -44,6 +44,8 @@ export const services = sqliteTable('services', {
     depositPolicy: text('deposit_policy', { mode: 'json' }).$type<DepositPolicy>(),
 }, (t) => [
     index('idx_services_tenant').on(t.tenantId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_services_tenant_id').on(t.tenantId, t.id),
 ]);
 
 export const inspectionServices = sqliteTable('inspection_services', {
@@ -75,6 +77,8 @@ export const inspectionServices = sqliteTable('inspection_services', {
 }, (t) => [
     index('idx_insp_services_tenant').on(t.tenantId),
     index('idx_insp_services_insp').on(t.inspectionId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_inspection_services_tenant_id').on(t.tenantId, t.id),
 ]);
 
 export const discountCodes = sqliteTable('discount_codes', {
@@ -95,4 +99,6 @@ export const discountCodes = sqliteTable('discount_codes', {
 }, (t) => [
     index('idx_discount_codes_tenant').on(t.tenantId),
     uniqueIndex('uq_discount_codes_code_tenant').on(sql`upper(code)`, t.tenantId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_discount_codes_tenant_id').on(t.tenantId, t.id),
 ]);

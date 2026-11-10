@@ -100,4 +100,6 @@ export const reports = sqliteTable('reports', {
     // by the service layer: "which one does the client mean" must not depend on
     // which caller wrote last. Partial index — ancillary reports are unbounded.
     uniqueIndex('uq_reports_primary').on(t.inspectionId).where(sql`kind = 'primary'`),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_reports_tenant_id').on(t.tenantId, t.id),
 ]);

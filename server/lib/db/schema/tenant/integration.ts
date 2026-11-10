@@ -131,6 +131,8 @@ export const tenantDestructionRecords = sqliteTable('tenant_destruction_records'
 }, (t) => [
     index('idx_destruction_tenant').on(t.tenantId),
     index('idx_destruction_destroyed_at').on(t.destroyedAt),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_tenant_destruction_records_tenant_id').on(t.tenantId, t.id),
 ]);
 
 export const auditLogs = sqliteTable('audit_logs', {
@@ -188,6 +190,8 @@ export const auditLogs = sqliteTable('audit_logs', {
 }, (t) => [
     index('idx_audit_tenant_created').on(t.tenantId, t.createdAt),
     index('idx_audit_entity').on(t.entityType, t.entityId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_audit_logs_tenant_id').on(t.tenantId, t.id),
 ]);
 
 
@@ -244,6 +248,8 @@ export const notifications = sqliteTable('notifications', {
     // tenant. The user side is staff only: owners, managers, inspectors — all
     // of whom have a tenant_id by construction.
     index('idx_notifications_tenant_contact_created').on(t.tenantId, t.contactId, t.createdAt),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_notifications_tenant_id').on(t.tenantId, t.id),
 ]);
 
 /** A-21 — dedup ledger for inbound portal→core commands (mirror of portal's
@@ -309,4 +315,6 @@ export const integrationTestResults = sqliteTable('integration_test_results', {
     step:           text('step'),
 }, (t) => [
     index('idx_integration_test_tenant_target').on(t.tenantId, t.target, t.testedAt),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_integration_test_results_tenant_id').on(t.tenantId, t.id),
 ]);

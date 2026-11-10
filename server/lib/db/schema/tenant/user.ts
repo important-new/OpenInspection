@@ -166,6 +166,8 @@ export const users = sqliteTable('users', {
     uniqueIndex('uq_users_tenant_email').on(t.tenantId, t.email).where(sql`deleted_at IS NULL`),
     uniqueIndex('idx_users_slug_per_tenant').on(t.tenantId, t.slug),
     index('idx_users_email').on(t.email),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_users_tenant_id').on(t.tenantId, t.id),
 ]);
 
 export const tenantInvites = sqliteTable('tenant_invites', {
@@ -197,4 +199,6 @@ export const tenantInvites = sqliteTable('tenant_invites', {
     uniqueIndex('uq_tenant_invites_pending_email')
         .on(t.tenantId, t.email)
         .where(sql`status = 'pending'`),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_tenant_invites_tenant_id').on(t.tenantId, t.id),
 ]);

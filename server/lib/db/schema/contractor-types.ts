@@ -53,4 +53,6 @@ export const contractorTypes = sqliteTable('contractor_types', {
     uniqueIndex('uq_contractor_types_tenant_trade')
         .on(t.tenantId, t.tradeSlug)
         .where(sql`trade_slug IS NOT NULL`),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_contractor_types_tenant_id').on(t.tenantId, t.id),
 ]);

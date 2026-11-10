@@ -34,6 +34,8 @@ export const contactRoleProfiles = sqliteTable('contact_role_profiles', {
 }, (t) => [
     index('idx_crp_tenant').on(t.tenantId),
     uniqueIndex('uq_crp_tenant_key').on(t.tenantId, t.key).where(sql`is_active = 1`),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_contact_role_profiles_tenant_id').on(t.tenantId, t.id),
 ]);
 
 // inspection <-> contact <-> role association. Replaces the fixed people columns
@@ -48,4 +50,6 @@ export const inspectionPeople = sqliteTable('inspection_people', {
 }, (t) => [
     index('idx_ip_tenant').on(t.tenantId),
     uniqueIndex('uq_ip_insp_contact_role').on(t.inspectionId, t.contactId, t.roleProfileId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_inspection_people_tenant_id').on(t.tenantId, t.id),
 ]);

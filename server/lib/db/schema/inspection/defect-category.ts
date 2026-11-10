@@ -19,4 +19,6 @@ export const defectCategories = sqliteTable('defect_categories', {
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_defect_categories_tenant').on(t.tenantId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_defect_categories_tenant_id').on(t.tenantId, t.id),
 ]);

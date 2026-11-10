@@ -116,6 +116,8 @@ One caveat cost an hour and is worth passing on: sqlite3 caches statements, so a
 "after" plan read on the same connection can still name an index that has already
 been dropped. Read it on a fresh connection.
 
+**Every tenant-scoped table has a `(tenant_id, key)` index.** A full read of one tenant, paged by key (`WHERE tenant_id = ? AND id > ? ORDER BY id LIMIT n`), must cost the size of that tenant, not of the database. A `(tenant_id)` index forces a sort per page and the primary key walks every tenant, so each table carries an index whose leading columns are `(tenant_id, <paging key>)`; a composite primary key that already leads with `tenant_id` and the one-row-per-tenant tables need none. `esign_audit_logs` also has `(tenant_id, created_at)` for its chain-order `(created_at, rowid)` read. `tests/unit/db/tenant-export-indexes.spec.ts` enumerates the schema, checks the replayed migrations and asserts the plan (`SEARCH ... USING INDEX`, no temp b-tree), so a new tenant table without the index fails. Each index adds one written row per insert, update of an indexed column and delete. Where a table already had a single-column `(tenant_id)` index, that older index is now prefix-redundant; it is kept on purpose, because dropping it is a separate change that has to be proven per index (see above).
+
 **A dead column is not the same as an unused one.** Ten came out on the first
 pass; the ones that survived it did so because a name search made them look alive.
 `commercial_subtypes` (the table) matched only because a template-schema FIELD

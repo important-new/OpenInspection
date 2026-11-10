@@ -18,6 +18,8 @@ export const tags = sqliteTable('tags', {
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => ({
     tenantNameUnique: uniqueIndex('idx_tags_tenant_name').on(t.tenantId, t.name),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    idxTenantKey: index('idx_tags_tenant_id').on(t.tenantId, t.id),
 }));
 
 export const inspectionItemTagLinks = sqliteTable('inspection_item_tag_links', {
@@ -31,6 +33,8 @@ export const inspectionItemTagLinks = sqliteTable('inspection_item_tag_links', {
     index('idx_tag_links_tenant').on(t.tenantId),
     index('idx_tag_links_tag').on(t.tagId),
     index('idx_tag_links_inspection_item').on(t.inspectionId, t.itemId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_inspection_item_tag_links_tenant_pk').on(t.tenantId, t.inspectionId, t.itemId, t.tagId),
 ]);
 
 // Round-2 backlog #9 — Media Center pool. Photos uploaded
@@ -83,6 +87,8 @@ export const inspectionMediaPool = sqliteTable('inspection_media_pool', {
 }, (t) => [
     index('idx_media_pool_tenant').on(t.tenantId),
     index('idx_media_pool_inspection').on(t.inspectionId),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_inspection_media_pool_tenant_id').on(t.tenantId, t.id),
 ]);
 
 // Bookkeeping for the background orphaned-media GC (Q8). Each row records the
@@ -96,4 +102,6 @@ export const orphanedMedia = sqliteTable('orphaned_media', {
     firstSeenAt:  integer('first_seen_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     index('idx_orphaned_media_key').on(t.tenantId, t.r2Key),
+    // Keyset paging within one tenant (export): leading (tenant_id, key).
+    index('idx_orphaned_media_tenant_id').on(t.tenantId, t.id),
 ]);
