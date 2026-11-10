@@ -411,7 +411,6 @@ export const inspectionResults = sqliteTable('inspection_results', {
     // Appended at table end for D1 rebuild safety.
     reportId:             text('report_id'),
 }, (t) => [
-    index('idx_results_tenant').on(t.tenantId),
     index('idx_results_inspection').on(t.inspectionId),
     // Was uq_results_inspection. A second report on one order is the whole
     // point of the reports entity; the old index made it impossible.

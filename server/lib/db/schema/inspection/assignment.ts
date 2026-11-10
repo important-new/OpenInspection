@@ -40,7 +40,6 @@ export const serviceInspectors = sqliteTable('service_inspectors', {
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     primaryKey({ columns: [t.serviceId, t.userId] }),
-    index('idx_service_inspectors_tenant').on(t.tenantId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_service_inspectors_tenant_service_id_user_id').on(t.tenantId, t.serviceId, t.userId),
 ]);

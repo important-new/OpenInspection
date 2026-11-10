@@ -164,7 +164,6 @@ export const migrationRows = sqliteTable('migration_rows', {
     appliedAt: integer('applied_at', { mode: 'timestamp_ms' }),
 }, (t) => [
     index('idx_migration_rows_batch_status').on(t.batchId, t.status),
-    index('idx_migration_rows_tenant').on(t.tenantId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_migration_rows_tenant_id').on(t.tenantId, t.id),
 ]);

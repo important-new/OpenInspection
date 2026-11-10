@@ -33,7 +33,6 @@ export const contractorTypes = sqliteTable('contractor_types', {
      */
     tradeSlug: text('trade_slug'),
 }, (t) => [
-    index('idx_contractor_types_tenant').on(t.tenantId),
     /**
      * One row per canonical trade, per workspace — and PARTIAL, for the reason
      * spelled out on `tradeSlug` above: SQLite treats NULLs as distinct, so an

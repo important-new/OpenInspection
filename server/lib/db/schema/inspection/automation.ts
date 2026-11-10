@@ -89,7 +89,6 @@ export const automations = sqliteTable('automations', {
     // Appended at table end for D1 rebuild safety.
     inAppTemplateId: text('in_app_template_id'),
 }, (t) => [
-    index('idx_automations_tenant').on(t.tenantId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_automations_tenant_id').on(t.tenantId, t.id),
 ]);

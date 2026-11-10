@@ -96,7 +96,6 @@ export const comments = sqliteTable('comments', {
     // unedited: nothing was recorded, so nothing can be claimed. See #348.
     importHash: text('import_hash'),
 }, (t) => [
-    index('idx_comments_tenant').on(t.tenantId),
     index('idx_comments_library_id').on(t.libraryId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_comments_tenant_id').on(t.tenantId, t.id),

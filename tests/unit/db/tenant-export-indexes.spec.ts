@@ -242,3 +242,84 @@ describe('the shipped migrations create the export indexes and the planner uses 
         });
     }
 });
+
+/**
+ * Single-column `(tenant_id)` indexes retired because a wider index on the same
+ * table now leads with `tenant_id` and serves every query they served. SQLite can
+ * seek on the leading column of a composite index, so the narrow one only cost a
+ * written row per insert and delete. Listed by name so a later change cannot bring
+ * one back unnoticed, and so each retirement is checked against the index that
+ * replaced it rather than assumed.
+ */
+const RETIRED_TENANT_ONLY_INDEXES: ReadonlyArray<readonly [index: string, table: string]> = [
+    ['idx_templates_tenant', 'templates'],
+    ['idx_results_tenant', 'inspection_results'],
+    ['idx_agreements_tenant', 'agreements'],
+    ['idx_service_inspectors_tenant', 'service_inspectors'],
+    ['idx_comments_tenant', 'comments'],
+    ['idx_agreement_requests_tenant', 'agreement_requests'],
+    ['idx_services_tenant', 'services'],
+    ['idx_insp_services_tenant', 'inspection_services'],
+    ['idx_discount_codes_tenant', 'discount_codes'],
+    ['idx_automations_tenant', 'automations'],
+    ['idx_media_pool_tenant', 'inspection_media_pool'],
+    ['idx_tag_links_tenant', 'inspection_item_tag_links'],
+    ['idx_defect_categories_tenant', 'defect_categories'],
+    ['idx_reports_tenant', 'reports'],
+    ['idx_inspector_credentials_tenant', 'inspector_credentials'],
+    ['idx_contractor_types_tenant', 'contractor_types'],
+    ['idx_report_pdfs_tenant', 'report_pdfs'],
+    ['idx_crp_tenant', 'contact_role_profiles'],
+    ['idx_ip_tenant', 'inspection_people'],
+    ['idx_migration_rows_tenant', 'migration_rows'],
+    ['idx_tenant_slug_history_tenant', 'tenant_slug_history'],
+    ['idx_invites_tenant', 'tenant_invites'],
+    ['idx_destruction_tenant', 'tenant_destruction_records'],
+];
+
+describe('retired single-column tenant indexes stay retired and are each replaced by a wider one', () => {
+    const byName = new Map(allTables.map((t) => [getTableConfig(t).name, t]));
+
+    it('the replacement check is red for a table whose only tenant index is the narrow one (control)', () => {
+        const narrow = sqliteTable('synthetic_narrow', {
+            id: text('id').primaryKey(),
+            tenantId: text('tenant_id').notNull(),
+        }, (t) => [index('idx_synthetic_narrow_tenant').on(t.tenantId)]);
+        const shape = shapeOf(narrow)!;
+        expect(covers(shape)).toBe(false);
+    });
+
+    it('none of the retired names is declared in the schema, and each table is still covered by a (tenant_id, key) index', () => {
+        const declared = new Set<string>();
+        for (const t of allTables) for (const i of getTableConfig(t).indexes) declared.add(i.config.name);
+        const stillDeclared = RETIRED_TENANT_ONLY_INDEXES.filter(([n]) => declared.has(n)).map(([n]) => n);
+        const uncovered: string[] = [];
+        for (const [, table] of RETIRED_TENANT_ONLY_INDEXES) {
+            const t = byName.get(table);
+            const shape = t ? shapeOf(t) : null;
+            if (!shape || !covers(shape)) uncovered.push(table);
+        }
+        console.log(`retired names: ${RETIRED_TENANT_ONLY_INDEXES.length}; still declared: ${stillDeclared.length}; tables without a covering index: ${uncovered.length}`);
+        expect(RETIRED_TENANT_ONLY_INDEXES.length).toBe(23);
+        expect(stillDeclared).toEqual([]);
+        expect(uncovered).toEqual([]);
+    });
+
+    it('none of the retired names exists in the replayed database, and the covering index does', () => {
+        const { sqlite } = createTestDb();
+        try {
+            const names = new Set((sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>).map((r) => r.name));
+            expect(names.size).toBeGreaterThan(200);
+            expect(RETIRED_TENANT_ONLY_INDEXES.filter(([n]) => names.has(n)).map(([n]) => n)).toEqual([]);
+            for (const [, table] of RETIRED_TENANT_ONLY_INDEXES) {
+                const list = sqlite.prepare(`PRAGMA index_list(${JSON.stringify(table)})`).all() as Array<{ name: string; partial: number }>;
+                const lead = list.filter((ix) => !ix.partial).some((ix) => {
+                    const cols = sqlite.prepare(`PRAGMA index_info(${JSON.stringify(ix.name)})`).all() as Array<{ seqno: number; name: string }>;
+                    const first = cols.sort((a, b) => a.seqno - b.seqno)[0];
+                    return first?.name === 'tenant_id' && cols.length > 1;
+                });
+                expect(lead, `${table} lost its tenant-leading index`).toBe(true);
+            }
+        } finally { sqlite.close(); }
+    });
+});

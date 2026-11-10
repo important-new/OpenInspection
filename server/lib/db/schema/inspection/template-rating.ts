@@ -71,7 +71,6 @@ export const templates = sqliteTable('templates', {
      */
     retiredAt: integer('retired_at', { mode: 'timestamp_ms' }),
 }, (t) => [
-    index('idx_templates_tenant').on(t.tenantId),
     index('idx_templates_rating_system').on(t.ratingSystemId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_templates_tenant_id').on(t.tenantId, t.id),

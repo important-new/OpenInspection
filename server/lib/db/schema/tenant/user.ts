@@ -193,7 +193,6 @@ export const tenantInvites = sqliteTable('tenant_invites', {
     permissionOverrides: text('permission_overrides', { mode: 'json' })
       .$type<import('../../../auth/capabilities').PermissionOverrides | null>(),
 }, (t) => [
-    index('idx_invites_tenant').on(t.tenantId),
     // DB-9 — at most one OUTSTANDING invite per (tenant, email). Partial so an
     // accepted invite doesn't block re-inviting later (history is preserved).
     uniqueIndex('uq_tenant_invites_pending_email')

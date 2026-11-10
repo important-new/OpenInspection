@@ -39,7 +39,6 @@ export const reportPdfs = sqliteTable('report_pdfs', {
     contentHash:   text('content_hash'),
 }, (t) => ({
     uqInspectionType: uniqueIndex('uq_report_pdfs_inspection_type').on(t.inspectionId, t.type, t.versionNumber),
-    idxTenant:        index('idx_report_pdfs_tenant').on(t.tenantId),
     idxStatus:        index('idx_report_pdfs_status').on(t.status),
     idxContentHash:   index('idx_report_pdfs_content_hash').on(t.inspectionId, t.type, t.contentHash),
     // Keyset paging within one tenant (export): leading (tenant_id, key).

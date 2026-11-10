@@ -129,7 +129,6 @@ export const tenantDestructionRecords = sqliteTable('tenant_destruction_records'
      */
     incompleteNotifiedAt: integer('incomplete_notified_at', { mode: 'timestamp_ms' }),
 }, (t) => [
-    index('idx_destruction_tenant').on(t.tenantId),
     index('idx_destruction_destroyed_at').on(t.destroyedAt),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_tenant_destruction_records_tenant_id').on(t.tenantId, t.id),

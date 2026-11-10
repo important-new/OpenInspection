@@ -69,7 +69,7 @@
   "packages/field-ui/src/hooks/useStructureEdit.ts": 424,
   "server/services/inspection/inspection-core.service.ts": 424,
   "server/data/automation-seeds.ts": 423,
-  "server/lib/db/schema/inspection/core.ts": 421,
+  "server/lib/db/schema/inspection/core.ts": 420,
   "server/services/marketplace.service.ts": 421,
   "scripts/check-endorsement-copy.mjs": 419,
   "server/api/secrets.ts": 418,

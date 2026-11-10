@@ -14,7 +14,6 @@ export const agreements = sqliteTable('agreements', {
     version: integer('version').notNull().default(1),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
-    index('idx_agreements_tenant').on(t.tenantId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_agreements_tenant_id').on(t.tenantId, t.id),
 ]);
@@ -87,7 +86,6 @@ export const agreementRequests = sqliteTable('agreement_requests', {
     signerCompanyName: text('signer_company_name'),
 }, (t) => [
     uniqueIndex('idx_agreement_requests_verify_token').on(t.verificationToken),
-    index('idx_agreement_requests_tenant').on(t.tenantId),
     index('idx_agreement_requests_inspection').on(t.inspectionId),
     uniqueIndex('idx_agreement_requests_token_hash').on(t.tokenHash),
     // Keyset paging within one tenant (export): leading (tenant_id, key).

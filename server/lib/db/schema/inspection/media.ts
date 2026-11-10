@@ -30,7 +30,6 @@ export const inspectionItemTagLinks = sqliteTable('inspection_item_tag_links', {
     createdAt:    integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (t) => [
     primaryKey({ columns: [t.inspectionId, t.itemId, t.tagId] }),
-    index('idx_tag_links_tenant').on(t.tenantId),
     index('idx_tag_links_tag').on(t.tagId),
     index('idx_tag_links_inspection_item').on(t.inspectionId, t.itemId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
@@ -85,7 +84,6 @@ export const inspectionMediaPool = sqliteTable('inspection_media_pool', {
     // R2 poster object key (R2 path only; the clip key reuses the existing r2Key column).
     posterKey:     text('poster_key'),
 }, (t) => [
-    index('idx_media_pool_tenant').on(t.tenantId),
     index('idx_media_pool_inspection').on(t.inspectionId),
     // Keyset paging within one tenant (export): leading (tenant_id, key).
     index('idx_inspection_media_pool_tenant_id').on(t.tenantId, t.id),
