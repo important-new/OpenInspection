@@ -9,11 +9,11 @@ from the Drizzle definitions in `server/lib/db/schema/` — the two that
 
 | | |
 |---|---|
-| Tables | 116 |
-| Columns | 1316 |
-| Indexes (excluding primary keys) | 188 |
+| Tables | 117 |
+| Columns | 1333 |
+| Indexes (excluding primary keys) | 191 |
 | Database foreign keys (all legacy, frozen) | 51 |
-| Columns carrying a source comment | 619 (47%) |
+| Columns carrying a source comment | 619 (46%) |
 
 **Tables without `tenant_id`.** Every table holding tenant data must carry it —
 `npm run lint:tenant-scope` is the gate. These are the tables that are not *about*
@@ -21,10 +21,10 @@ a tenant, which is the only reason to be missing it:
 
 `agent_terms_acceptances` · `deployment_legal_versions` · `discovery_objections` · `marketplace_libraries` · `parked_cmd_events` · `processed_cmd_events` · `processed_webhook_events` · `slug_reservations` · `sms_disclosure_versions` · `statutory_form_sightings` · `statutory_form_versions` · `sync_outbox` · `tenants` · `verify_export_attempts`
 
-That is 14 of 116. If a table you just added appears here,
+That is 14 of 117. If a table you just added appears here,
 that is the bug, not the list.
 
-**Timestamps.** 219 column(s) use `integer(..., { mode: 'timestamp_ms' })` —
+**Timestamps.** 224 column(s) use `integer(..., { mode: 'timestamp_ms' })` —
 epoch MILLISECONDS, with no legacy `mode: 'timestamp'` columns left.
 Seconds and milliseconds are one multiplication apart and the mistake reads as a
 date tens of thousands of years out, so the Schema Rules allow only the former for
@@ -2763,6 +2763,40 @@ neither is left blank. `[more]` marks a column whose source comment runs past
 **Indexes**
 
 - **UNIQUE** `uq_tenant_custom_holidays_tenant_date` (tenant_id, date)
+
+---
+
+## `tenant_data_jobs`
+
+<sub>server/lib/db/schema/data-package.ts · 17 columns · primary key `id`</sub>
+
+> One export or import of a company's data package. A job is advanced in small bounded steps by a scheduled driver, so everything needed to resume lives on the row: `stage` says which step comes next and `cursor` says where inside it.
+
+| Column | Type | Flags | Default | Values | Description |
+|---|---|---|---|---|---|
+| `id` | text | PK NN |  |  | *Primary key — an application-generated string id.* |
+| `tenant_id` | text | NN UQ IX |  |  | *Tenant isolation key. Every read and write must filter on it.* |
+| `kind` | text | NN |  | `export, import` |  |
+| `status` | text | NN IX |  | `queued, running, complete, failed, cancelled, expired` | *State-machine column — see the Values column for the vocabulary.* |
+| `stage` | text | NN |  | `snapshot, rows, media, volumes, root, upload, inspect, preview, apply,…` |  |
+| `cursor` | text |  |  |  |  |
+| `package_id` | text |  |  |  | *App-layer reference to another row — no database foreign key.* |
+| `bytes` | integer | NN | `0` |  | *An integer value.* |
+| `sha256` | text |  |  |  |  |
+| `counts` | text |  |  |  |  |
+| `error_code` | text |  |  | `storage_unavailable, database_unavailable, quota_exceeded, package_inv…` |  |
+| `created_by` | text | NN |  |  |  |
+| `created_at` | integer | NN IX |  |  | *Creation time, epoch milliseconds.* |
+| `started_at` | integer |  |  |  | *Timestamp, epoch milliseconds. NULL means it has not happened.* |
+| `updated_at` | integer | NN |  |  | *Last write time, epoch milliseconds.* |
+| `finished_at` | integer |  |  |  | *Timestamp, epoch milliseconds. NULL means it has not happened.* |
+| `expires_at` | integer | IX |  |  | *Timestamp, epoch milliseconds. NULL means it has not happened.* |
+
+**Indexes**
+
+- **UNIQUE** `uq_tenant_data_jobs_active` (tenant_id) — partial, `WHERE status IN ('queued', 'running')`
+- `idx_tenant_data_jobs_tenant_created` (tenant_id, created_at)
+- `idx_tenant_data_jobs_sweep` (status, expires_at)
 
 ---
 
